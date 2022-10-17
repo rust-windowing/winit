@@ -39,11 +39,11 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[cfg(feature = "wayland")]
 pub mod wayland;
@@ -93,6 +93,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub screen_id: Option<i32>,
     #[cfg(feature = "x11")]
+    pub parent_id: Option<WindowId>,
+    #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
     pub override_redirect: bool,
@@ -110,6 +112,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             visual_infos: None,
             #[cfg(feature = "x11")]
             screen_id: None,
+            #[cfg(feature = "x11")]
+            parent_id: None,
             #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]
@@ -262,7 +266,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = RootVideoMode>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
     }
 }
@@ -292,7 +296,7 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> RootMonitorHandle {
+    pub fn monitor(&self) -> MonitorHandle {
         x11_or_wayland!(match self; VideoMode(m) => m.monitor())
     }
 }
@@ -452,12 +456,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         x11_or_wayland!(match self; Window(w) => w.fullscreen())
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         x11_or_wayland!(match self; Window(w) => w.set_fullscreen(monitor))
     }
 
@@ -525,21 +529,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
             Window::X(ref window) => {
                 let current_monitor = MonitorHandle::X(window.current_monitor());
-                Some(RootMonitorHandle {
-                    inner: current_monitor,
-                })
+                Some(current_monitor)
             }
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
-                Some(RootMonitorHandle {
-                    inner: current_monitor,
-                })
+                Some(current_monitor)
             }
         }
     }
@@ -563,14 +563,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
             Window::X(ref window) => {
                 let primary_monitor = MonitorHandle::X(window.primary_monitor());
-                Some(RootMonitorHandle {
-                    inner: primary_monitor,
-                })
+                Some(primary_monitor)
             }
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => window.primary_monitor(),
@@ -812,16 +810,14 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         match *self {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref evlp) => {
                 let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
-                Some(RootMonitorHandle {
-                    inner: primary_monitor,
-                })
+                Some(primary_monitor)
             }
         }
     }

@@ -55,7 +55,6 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -66,15 +65,16 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
-        monitor, util,
+        monitor::{self, MonitorHandle},
+        util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
-pub struct Window {
+pub(crate) struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
 
@@ -463,12 +463,12 @@ impl Window {
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(video_mode))) => {
                     let monitor = video_mode.monitor();
-                    let monitor_info = monitor::get_monitor_info(monitor.inner.hmonitor()).unwrap();
+                    let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             monitor_info.szDevice.as_ptr(),
-                            &*video_mode.video_mode.native_video_mode,
+                            &*video_mode.native_video_mode,
                             0,
                             CDS_FULLSCREEN,
                             ptr::null(),
@@ -549,9 +549,7 @@ impl Window {
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => RootMonitorHandle {
-                            inner: monitor::current_monitor(window.0),
-                        },
+                        Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
                     };
 
                     let position: (i32, i32) = monitor.position().into();
@@ -619,10 +617,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(RootMonitorHandle {
-            inner: monitor::current_monitor(self.hwnd()),
-        })
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(monitor::current_monitor(self.hwnd()))
     }
 
     #[inline]

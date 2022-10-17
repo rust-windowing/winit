@@ -17,7 +17,7 @@ use windows_sys::Win32::{
 use super::util::decode_wide;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    monitor::VideoMode as RootVideoMode,
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         util::has_flag,
@@ -79,10 +79,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 
@@ -136,9 +134,9 @@ impl Window {
         available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 }
 
@@ -224,7 +222,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
@@ -246,6 +244,7 @@ impl MonitorHandle {
                     (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY) as u32;
                 assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
+                // Use Ord impl of RootVideoMode
                 modes.insert(RootVideoMode {
                     video_mode: VideoMode {
                         size: (mode.dmPelsWidth, mode.dmPelsHeight),
@@ -258,6 +257,6 @@ impl MonitorHandle {
             }
         }
 
-        modes.into_iter()
+        modes.into_iter().map(|mode| mode.video_mode)
     }
 }

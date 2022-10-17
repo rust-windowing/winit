@@ -65,7 +65,7 @@ use windows_sys::Win32::{
             WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
             WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
             WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
             WS_VISIBLE,
@@ -79,7 +79,6 @@ use crate::{
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -90,9 +89,9 @@ use crate::{
         raw_input, util,
         window::InitData,
         window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
-        wrap_device_id, WindowId, DEVICE_ID,
+        wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
     },
-    window::{Fullscreen, WindowId as RootWindowId},
+    window::WindowId as RootWindowId,
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -322,9 +321,9 @@ impl<T> EventLoopWindowTarget<T> {
         monitor::available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
@@ -1111,7 +1110,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             if new_monitor != 0
                                 && fullscreen_monitor
                                     .as_ref()
-                                    .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                    .map(|monitor| new_monitor != monitor.hmonitor())
                                     .unwrap_or(true)
                             {
                                 if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor)
@@ -1122,13 +1121,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                                     window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
                                     window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                                 }
-                                *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
-                                    inner: MonitorHandle::new(new_monitor),
-                                });
+                                *fullscreen_monitor = Some(MonitorHandle::new(new_monitor));
                             }
                         }
                         Fullscreen::Exclusive(ref video_mode) => {
-                            let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                            let old_monitor = video_mode.monitor.hmonitor();
                             if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
                                 let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
                                 window_pos.x = old_monitor_rect.left;
@@ -1189,7 +1186,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
-        WM_CHAR => {
+        WM_CHAR | WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
             let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
@@ -1220,7 +1217,18 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
             }
 
-            0
+            // todo(msiglreith):
+            //   Ideally, `WM_SYSCHAR` shouldn't emit a `ReceivedChar` event
+            //   indicating user text input. As we lack dedicated support
+            //   accelerators/keybindings these events will be additionally
+            //   emitted for downstream users.
+            //   This means certain key combinations (ie Alt + Space) will
+            //   trigger the default system behavior **and** emit a char event.
+            if msg == WM_SYSCHAR {
+                DefWindowProcW(window, msg, wparam, lparam)
+            } else {
+                0
+            }
         }
 
         WM_MENUCHAR => (MNC_CLOSE << 16) as isize,
@@ -1264,6 +1272,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        });
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
                         });
                     }
@@ -1298,6 +1310,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     // trying receiving composing result and commit if exists.
                     let ime_context = ImeContext::current(window);
                     if let Some(text) = ime_context.get_composed_text() {
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        });
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
@@ -1893,7 +1909,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_NCACTIVATE => {
-            let is_active = wparam == 1;
+            let is_active = wparam != false.into();
             let active_focus_changed = userdata.window_state_lock().set_active(is_active);
             if active_focus_changed {
                 if is_active {

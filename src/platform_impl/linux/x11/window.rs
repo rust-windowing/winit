@@ -15,14 +15,13 @@ use x11_dl::xlib::TrueColor;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
-        MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
-        VideoMode as PlatformVideoMode,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, Icon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes,
     },
 };
 
@@ -42,9 +41,9 @@ pub struct SharedState {
     pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // Set when application calls `set_fullscreen` when window is not visible
-    pub desired_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) desired_fullscreen: Option<Option<Fullscreen>>,
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
@@ -122,7 +121,12 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = event_loop.root;
+        let root = if let Some(id) = pl_attribs.parent_id {
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
+            u64::from(id) as _
+        } else {
+            event_loop.root
+        };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
@@ -640,17 +644,10 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (
-                &None,
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
-            )
+            (&None, &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))))
             | (
                 &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
+                &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
@@ -681,12 +678,12 @@ impl UnownedWindow {
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(RootVideoMode {
-                        video_mode: PlatformVideoMode::X(ref video_mode),
-                    }) => (Some(video_mode), video_mode.monitor.clone().unwrap()),
-                    Fullscreen::Borderless(Some(RootMonitorHandle {
-                        inner: PlatformMonitorHandle::X(monitor),
-                    })) => (None, monitor),
+                    Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode)) => {
+                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    }
+                    Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
+                        (None, monitor)
+                    }
                     Fullscreen::Borderless(None) => (None, self.current_monitor()),
                     #[cfg(feature = "wayland")]
                     _ => unreachable!(),
@@ -739,7 +736,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state = self.shared_state_lock();
 
         shared_state
@@ -749,7 +746,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
             flusher
                 .sync()

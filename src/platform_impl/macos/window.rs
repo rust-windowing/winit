@@ -18,7 +18,6 @@ use crate::{
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
@@ -27,10 +26,10 @@ use crate::{
         util,
         view::WinitView,
         window_delegate::WinitWindowDelegate,
-        OsError,
+        Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };
@@ -77,9 +76,9 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
-    pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub accepts_first_mouse: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -92,9 +91,9 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             titlebar_hidden: false,
             titlebar_buttons_hidden: false,
             fullsize_content_view: false,
-            resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            accepts_first_mouse: true,
         }
     }
 }
@@ -133,14 +132,14 @@ pub struct SharedState {
     pub resizable: bool,
     /// This field tracks the current fullscreen state of the window
     /// (as seen by `WindowDelegate`).
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
     // or windowWillExitFullScreen and windowDidExitFullScreen.
     // We must not toggle fullscreen when this is true.
     pub in_fullscreen_transition: bool,
     // If it is attempted to toggle fullscreen when in_fullscreen_transition is true,
     // Set target_fullscreen and do after fullscreen transition is end.
-    pub target_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
@@ -212,11 +211,11 @@ impl WinitWindow {
         }
 
         let this = autoreleasepool(|_| {
-            let screen = match attrs.fullscreen {
-                Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
-                | Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: VideoMode { ref monitor, .. },
-                })) => monitor.ns_screen().or_else(NSScreen::main),
+            let screen = match &attrs.fullscreen {
+                Some(Fullscreen::Borderless(Some(monitor)))
+                | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
+                    monitor.ns_screen().or_else(NSScreen::main)
+                }
                 Some(Fullscreen::Borderless(None)) => NSScreen::main(),
                 None => None,
             };
@@ -332,10 +331,11 @@ impl WinitWindow {
                     this.setLevel(NSWindowLevel::Floating);
                 }
 
-                if let Some(increments) = pl_attrs.resize_increments {
+                if let Some(increments) = attrs.resize_increments {
+                    let increments = increments.to_logical(this.scale_factor());
                     let (w, h) = (increments.width, increments.height);
                     if w >= 1.0 && h >= 1.0 {
-                        let size = NSSize::new(w as CGFloat, h as CGFloat);
+                        let size = NSSize::new(w, h);
                         // It was concluded (#2411) that there is never a use-case for
                         // "outer" resize increments, hence we set "inner" ones here.
                         // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
@@ -356,7 +356,7 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let view = WinitView::new(&this);
+        let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -770,7 +770,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.lock_shared_state("fullscreen");
         shared_state_lock.fullscreen.clone()
     }
@@ -781,7 +781,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -803,15 +803,9 @@ impl WinitWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(borderless) => {
-                    let RootMonitorHandle { inner: monitor } = borderless
-                        .clone()
-                        .unwrap_or_else(|| self.current_monitor_inner());
-                    monitor
-                }
-                Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: VideoMode { ref monitor, .. },
-                }) => monitor.clone(),
+                Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
+                Fullscreen::Borderless(None) => self.current_monitor_inner(),
+                Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
             .ns_screen()
             .unwrap();
@@ -839,7 +833,7 @@ impl WinitWindow {
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
 
-            let display_id = video_mode.monitor().inner.native_identifier();
+            let display_id = video_mode.monitor().native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -873,7 +867,7 @@ impl WinitWindow {
             unsafe {
                 let result = ffi::CGDisplaySetDisplayMode(
                     display_id,
-                    video_mode.video_mode.native_mode.0,
+                    video_mode.native_mode.0,
                     std::ptr::null(),
                 );
                 assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
@@ -915,9 +909,9 @@ impl WinitWindow {
                     Arc::downgrade(&*self.shared_state),
                 );
             }
-            (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
+                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
                 };
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
@@ -949,10 +943,7 @@ impl WinitWindow {
                     let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
                 }
             }
-            (
-                &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
-                &Some(Fullscreen::Borderless(_)),
-            ) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
                     shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -962,7 +953,7 @@ impl WinitWindow {
                 NSApp().setPresentationOptions(presentation_options);
 
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
+                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
                 };
 
                 // Restore the normal window level following the Borderless fullscreen
@@ -1076,15 +1067,13 @@ impl WinitWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
+    pub(crate) fn current_monitor_inner(&self) -> MonitorHandle {
         let display_id = self.screen().expect("expected screen").display_id();
-        RootMonitorHandle {
-            inner: MonitorHandle::new(display_id),
-        }
+        MonitorHandle::new(display_id)
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -1094,9 +1083,9 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]

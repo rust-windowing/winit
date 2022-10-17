@@ -11,6 +11,7 @@ use std::{
     time::Instant,
 };
 
+use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
 use objc2::foundation::{is_main_thread, NSSize};
 use objc2::rc::autoreleasepool;
 use once_cell::sync::Lazy;
@@ -24,7 +25,7 @@ use crate::{
         event::{EventProxy, EventWrapper},
         event_loop::PanicInfo,
         menu,
-        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+        observer::EventLoopWaker,
         util::Never,
         window::WinitWindow,
     },

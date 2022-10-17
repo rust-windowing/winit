@@ -3,7 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object};
+use objc2::runtime::{Class, Object};
+use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use crate::{
@@ -11,8 +12,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
+    platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state,
         event_loop::{self, EventProxy, EventWrapper},
@@ -20,10 +20,10 @@ use crate::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
         },
-        monitor, view, EventLoopWindowTarget, MonitorHandle,
+        monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };
@@ -216,18 +216,18 @@ impl Inner {
         false
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
-                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
-                    let _: () =
-                        msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
+                    let uiscreen = video_mode.monitor.ui_screen() as id;
+                    let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
                     uiscreen
                 }
-                Some(Fullscreen::Borderless(monitor)) => monitor
-                    .unwrap_or_else(|| self.current_monitor_inner())
-                    .ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(None)) => {
+                    self.current_monitor_inner().ui_screen() as id
+                }
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;
@@ -253,10 +253,10 @@ impl Inner {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor_inner();
-            let uiscreen = monitor.inner.ui_screen();
+            let uiscreen = monitor.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
 
@@ -307,16 +307,14 @@ impl Inner {
     }
 
     // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> RootMonitorHandle {
+    fn current_monitor_inner(&self) -> MonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
-            RootMonitorHandle {
-                inner: MonitorHandle::retained_new(uiscreen),
-            }
+            MonitorHandle::retained_new(uiscreen)
         }
     }
 
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -324,9 +322,9 @@ impl Inner {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = unsafe { monitor::main_uiscreen() };
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     pub fn id(&self) -> WindowId {
@@ -399,10 +397,8 @@ impl Window {
 
         unsafe {
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(ref video_mode)) => {
-                    video_mode.video_mode.monitor.ui_screen() as id
-                }
-                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
                 Some(Fullscreen::Borderless(None)) | None => {
                     monitor::main_uiscreen().ui_screen() as id
                 }

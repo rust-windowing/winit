@@ -136,6 +136,7 @@ declare_class!(
         _ns_window: IvarDrop<Id<WinitWindow, Shared>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
+        accepts_first_mouse: bool,
     }
 
     unsafe impl ClassType for WinitView {
@@ -144,8 +145,12 @@ declare_class!(
     }
 
     unsafe impl WinitView {
-        #[sel(initWithId:)]
-        fn init_with_id(&mut self, window: *mut WinitWindow) -> Option<&mut Self> {
+        #[sel(initWithId:acceptsFirstMouse:)]
+        fn init_with_id(
+            &mut self,
+            window: *mut WinitWindow,
+            accepts_first_mouse: bool,
+        ) -> Option<&mut Self> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
@@ -165,6 +170,7 @@ declare_class!(
                 );
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
+                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
 
                 this.setPostsFrameChangedNotifications(true);
 
@@ -431,6 +437,10 @@ declare_class!(
             let is_control = string.chars().next().map_or(false, |c| c.is_control());
 
             if self.is_ime_enabled() && !is_control {
+                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: self.window_id(),
+                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                }));
                 AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: self.window_id(),
                     event: WindowEvent::Ime(Ime::Commit(string)),
@@ -907,14 +917,20 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            true
+            *self.accepts_first_mouse
         }
     }
 );
 
 impl WinitView {
-    pub(super) fn new(window: &WinitWindow) -> Id<Self, Shared> {
-        unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window] }
+    pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self, Shared> {
+        unsafe {
+            msg_send_id![
+                msg_send_id![Self::class(), alloc],
+                initWithId: window,
+                acceptsFirstMouse: accepts_first_mouse,
+            ]
+        }
     }
 
     fn window(&self) -> Id<WinitWindow, Shared> {

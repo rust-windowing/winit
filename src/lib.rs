@@ -145,11 +145,6 @@ extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate bitflags;
-#[cfg(target_os = "ios")]
-#[macro_use]
-extern crate objc;
-#[cfg(target_os = "macos")]
-extern crate objc as objc2;
 
 pub mod dpi;
 #[macro_use]
