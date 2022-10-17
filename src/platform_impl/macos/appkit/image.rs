@@ -1,6 +1,8 @@
-use objc2::foundation::{NSData, NSObject, NSString};
+use objc2::foundation::{NSData, NSObject, NSSize, NSString};
 use objc2::rc::{Id, Shared};
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use objc2::{extern_class, extern_methods, msg_send, msg_send_id, ClassType};
+
+use super::NSBitmapImageRep;
 
 extern_class!(
     // TODO: Can this be mutable?
@@ -33,5 +35,24 @@ extern_methods!(
             let this = unsafe { msg_send_id![Self::class(), alloc] };
             unsafe { msg_send_id![this, initWithData: data] }
         }
+
+        pub fn init_with_size(size: &NSSize) -> Id<Self, Shared> {
+            let this = unsafe { msg_send_id![Self::class(), alloc] };
+            unsafe { msg_send_id![this, initWithSize: size] }
+        }
+
+        pub fn add_representation(&self, representation: &NSBitmapImageRep) {
+            unsafe { msg_send![self, addRepresentation: representation] }
+        }
+    }
+);
+
+extern_class!(
+    /// <https://developer.apple.com/documentation/appkit/nsimagerep?language=objc>
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct NSImageRep;
+
+    unsafe impl ClassType for NSImageRep {
+        type Super = NSObject;
     }
 );

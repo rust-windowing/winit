@@ -29,7 +29,8 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, CursorRgba, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -606,12 +607,48 @@ impl WinitWindow {
         self.isResizable()
     }
 
-    pub fn set_cursor_icon(&self, icon: CursorIcon) {
+    fn set_cursor_internal(&self, cursor: Id<NSCursor, Shared>) {
         let view = self.view();
         let mut cursor_state = view.state.cursor_state.lock().unwrap();
-        cursor_state.cursor = NSCursor::from_icon(icon);
+        cursor_state.cursor = cursor;
         drop(cursor_state);
         self.invalidateCursorRectsForView(&view);
+    }
+
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        self.set_cursor_internal(NSCursor::from_icon(cursor));
+    }
+
+    #[inline]
+    pub fn set_cursor_rgba(&self, cursor: CursorRgba) {
+        // For an unknown reason, no memory allocation can
+        // be done when cursor redraw is being requested.
+        //
+        // ARGB => ABGR conversion must be done at some point,
+        // so it is done now.
+        let data: Vec<_> = cursor
+            .data
+            .iter()
+            .map(|&v| {
+                let mut out = 0;
+
+                out |= v & 0xFF00FF00;
+                out |= (v >> 16) & 0xFF;
+                out |= (v & 0xFF) << 16;
+
+                out
+            })
+            .collect();
+
+        let cursor = CursorRgba {
+            xhot: cursor.xhot,
+            yhot: cursor.yhot,
+            width: cursor.width,
+            height: cursor.height,
+            data,
+        };
+
+        self.set_cursor_internal(NSCursor::from_rgba_cursor(cursor));
     }
 
     #[inline]

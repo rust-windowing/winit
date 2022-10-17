@@ -1,12 +1,12 @@
 use once_cell::sync::Lazy;
 
-use objc2::foundation::{NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSString};
+use objc2::foundation::{NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSSize, NSString};
 use objc2::rc::{DefaultId, Id, Shared};
 use objc2::runtime::Sel;
 use objc2::{extern_class, extern_methods, msg_send_id, ns_string, sel, ClassType};
 
-use super::NSImage;
-use crate::window::CursorIcon;
+use super::{NSBitmapImageRep, NSImage};
+use crate::window::{CursorIcon, CursorRgba};
 
 extern_class!(
     /// <https://developer.apple.com/documentation/appkit/nscursor?language=objc>
@@ -229,6 +229,25 @@ impl NSCursor {
             CursorIcon::Move | CursorIcon::AllScroll => Self::moveCursor(),
             CursorIcon::Cell => Self::cellCursor(),
         }
+    }
+
+    pub fn from_rgba_cursor(cursor: CursorRgba) -> Id<Self, Shared> {
+        let rep = NSBitmapImageRep::initAbgr(cursor.width as isize, cursor.height as isize);
+        let pixels = rep.bitmapData();
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                cursor.data.as_ptr() as *const u8,
+                pixels,
+                cursor.width as usize * cursor.height as usize * std::mem::size_of::<u32>(),
+            )
+        };
+
+        let image =
+            NSImage::init_with_size(&NSSize::new(cursor.width.into(), cursor.height.into()));
+        image.add_representation(&rep);
+
+        Self::new(&image, NSPoint::new(cursor.xhot.into(), cursor.yhot.into()))
     }
 }
 
