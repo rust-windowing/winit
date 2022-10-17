@@ -20,7 +20,7 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, CursorRgba, Icon, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -1289,6 +1289,13 @@ impl UnownedWindow {
         #[allow(clippy::mutex_atomic)]
         if cursor != old_cursor && *self.cursor_visible.lock().unwrap() {
             self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+        }
+    }
+
+    #[inline]
+    pub fn set_cursor_rgba(&self, cursor: CursorRgba) {
+        if *self.cursor_visible.lock().unwrap() {
+            self.xconn.set_cursor_rgba(self.xwindow, cursor);
         }
     }
 
