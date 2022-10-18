@@ -4,7 +4,7 @@ use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{NSArray, NSObject, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::runtime::Object;
-use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
+use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
     NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,
@@ -16,7 +16,7 @@ use crate::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
         util,
-        window::WinitWindow,
+        window::{get_ns_theme, WinitWindow},
         Fullscreen,
     },
     window::WindowId,
@@ -69,6 +69,22 @@ declare_class!(
                     this.emit_static_scale_factor_changed_event();
                 }
                 this.window.setDelegate(Some(this));
+
+                // Enable theme change event
+                let notification_center: Id<Object, Shared> =
+                    unsafe { msg_send_id![class!(NSDistributedNotificationCenter), defaultCenter] };
+                let notification_name =
+                    NSString::from_str("AppleInterfaceThemeChangedNotification");
+                let _: () = unsafe {
+                    msg_send![
+                        &notification_center,
+                        addObserver: &*this
+                        selector: sel!(effectiveAppearanceDidChange:)
+                        name: &*notification_name
+                        object: ptr::null::<Object>()
+                    ]
+                };
+
                 this
             })
         }
@@ -348,6 +364,34 @@ declare_class!(
                     .occlusionState()
                     .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
             ))
+        }
+
+        // Observe theme change
+        #[sel(effectiveAppearanceDidChange:)]
+        fn effective_appearance_did_change(&self, sender: Option<&Object>) {
+            trace_scope!("Triggered `effectiveAppearanceDidChange:`");
+            unsafe {
+                msg_send![
+                    self,
+                    performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:),
+                    withObject: sender,
+                    waitUntilDone: false,
+                ]
+            }
+        }
+
+        #[sel(effectiveAppearanceDidChangedOnMainThread:)]
+        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&Object>) {
+            let theme = get_ns_theme();
+            let mut shared_state = self
+                .window
+                .lock_shared_state("effective_appearance_did_change");
+            let current_theme = shared_state.current_theme;
+            shared_state.current_theme = Some(theme);
+            drop(shared_state);
+            if current_theme != Some(theme) {
+                self.emit_event(WindowEvent::ThemeChanged(theme));
+            }
         }
     }
 );

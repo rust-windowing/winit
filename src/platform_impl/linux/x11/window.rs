@@ -20,7 +20,7 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -1545,5 +1545,10 @@ impl UnownedWindow {
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
         RawDisplayHandle::Xlib(display_handle)
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }

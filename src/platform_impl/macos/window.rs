@@ -29,7 +29,8 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -38,12 +39,12 @@ use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::{declare_class, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
-    NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
-    NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSWindow,
-    NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
+    NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
+    NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -149,6 +150,7 @@ pub struct SharedState {
     /// bar in exclusive fullscreen but want to restore the original options when
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
+    pub current_theme: Option<Theme>,
 }
 
 impl SharedState {
@@ -390,6 +392,18 @@ impl WinitWindow {
         this.registerForDraggedTypes(&NSArray::from_slice(&[
             unsafe { NSFilenamesPboardType }.copy()
         ]));
+
+        match attrs.preferred_theme {
+            Some(theme) => {
+                set_ns_theme(theme);
+                let mut state = this.shared_state.lock().unwrap();
+                state.current_theme = Some(theme);
+            }
+            None => {
+                let mut state = this.shared_state.lock().unwrap();
+                state.current_theme = Some(get_ns_theme());
+            }
+        }
 
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
@@ -1095,6 +1109,12 @@ impl WinitWindow {
             util::set_style_mask_sync(self, current_style_mask & (!mask));
         }
     }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        let state = self.shared_state.lock().unwrap();
+        state.current_theme
+    }
 }
 
 impl WindowExtMacOS for WinitWindow {
@@ -1184,5 +1204,35 @@ impl WindowExtMacOS for WinitWindow {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
+    }
+}
+
+pub(super) fn get_ns_theme() -> Theme {
+    let app = NSApp();
+    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
+    if !has_theme {
+        return Theme::Light;
+    }
+    let appearance = app.effectiveAppearance();
+    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[
+        NSString::from_str("NSAppearanceNameAqua"),
+        NSString::from_str("NSAppearanceNameDarkAqua"),
+    ]));
+    match &*name.to_string() {
+        "NSAppearanceNameDarkAqua" => Theme::Dark,
+        _ => Theme::Light,
+    }
+}
+
+fn set_ns_theme(theme: Theme) {
+    let app = NSApp();
+    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
+    if has_theme {
+        let name = match theme {
+            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+        };
+        let appearance = NSAppearance::appearanceNamed(&name);
+        app.setAppearance(&appearance);
     }
 }

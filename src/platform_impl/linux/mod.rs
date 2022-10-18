@@ -31,8 +31,6 @@ pub use self::x11::XNotSupported;
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 #[cfg(feature = "x11")]
 use crate::platform::x11::XlibErrorHook;
-#[cfg(feature = "wayland")]
-use crate::window::Theme;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -41,7 +39,7 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -104,8 +102,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
-    #[cfg(feature = "wayland")]
-    pub csd_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -126,8 +122,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
-            #[cfg(feature = "wayland")]
-            csd_theme: None,
         }
     }
 }
@@ -589,6 +583,11 @@ impl Window {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        x11_or_wayland!(match self; Window(window) => window.theme())
     }
 }
 

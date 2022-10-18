@@ -134,6 +134,7 @@ pub(crate) struct WindowAttributes {
     pub decorations: bool,
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
+    pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
 }
 
@@ -154,6 +155,7 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
+            preferred_theme: None,
             resize_increments: None,
         }
     }
@@ -332,6 +334,23 @@ impl WindowBuilder {
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
+        self
+    }
+
+    /// Sets a specific theme for the window.
+    ///
+    /// If `None` is provided, the window will use the system theme.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    ///   Possible values for env variable are: "dark" and light".
+    /// - **iOS / Android / Web / x11:** Ignored.
+    #[inline]
+    pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
+        self.window.preferred_theme = theme;
         self
     }
 
@@ -922,6 +941,16 @@ impl Window {
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
+    }
+
+    /// Returns the current window theme.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        self.window.theme()
     }
 }
 

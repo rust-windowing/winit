@@ -22,6 +22,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On X11, added `WindowExtX11::with_parent` to create child windows.
+- Added support for `WindowBuilder::with_theme` and `Window::theme` to support per-window dark/light/system theme configuration on macos, windows and wayland.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
+- **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
+- **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 
 # 0.27.4
 

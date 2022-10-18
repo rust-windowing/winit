@@ -130,6 +130,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Hidden titlebar buttons
 * Full-size content view
 * Accepts first mouse
+* Set a preferred theme and get current theme.
 
 ### Unix
 * Window urgency

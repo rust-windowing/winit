@@ -4,7 +4,7 @@ use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 use objc2::{Encode, Encoding};
 
-use super::{NSEvent, NSMenu, NSResponder, NSWindow};
+use super::{NSAppearance, NSEvent, NSMenu, NSResponder, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -81,6 +81,13 @@ extern_methods!(
 
         #[sel(setMainMenu:)]
         pub fn setMainMenu(&self, menu: &NSMenu);
+
+        pub fn effectiveAppearance(&self) -> Id<NSAppearance, Shared> {
+            unsafe { msg_send_id![self, effectiveAppearance] }
+        }
+
+        #[sel(setAppearance:)]
+        pub fn setAppearance(&self, appearance: &NSAppearance);
 
         #[sel(run)]
         pub unsafe fn run(&self);
