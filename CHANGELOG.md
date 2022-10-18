@@ -28,6 +28,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, emit `ReceivedCharacter` events on system keybindings.
 - On Windows, fixed focus event emission on minimize.
 - On X11, fixed IME crashing during reload.
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
 
 # 0.27.3
 
