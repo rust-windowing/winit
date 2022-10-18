@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
+
 # 0.27.4
 
 - On Windows, emit `ReceivedCharacter` events on system keybindings.
