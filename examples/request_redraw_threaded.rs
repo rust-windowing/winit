@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use std::{thread, time};
@@ -5,7 +7,7 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         window::WindowBuilder,
     };
 
@@ -25,13 +27,13 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
 
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => (),
-            },
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => control_flow.set_exit(),
             Event::RedrawRequested(_) => {
                 println!("\nredrawing!\n");
             }

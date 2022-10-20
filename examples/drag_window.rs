@@ -1,9 +1,11 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{
         ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
     },
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowBuilder, WindowId},
 };
 
@@ -22,7 +24,7 @@ fn main() {
             eprintln!("Switch which window is to be dragged by pressing \"x\".")
         }
         Event::WindowEvent { event, window_id } => match event {
-            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+            WindowEvent::CloseRequested => control_flow.set_exit(),
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: MouseButton::Left,

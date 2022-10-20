@@ -42,6 +42,7 @@ pub(super) fn handle_pointer(
             ..
         } => {
             pointer_data.latest_serial.replace(serial);
+            pointer_data.latest_enter_serial.replace(serial);
 
             let window_id = wayland::make_wid(&surface);
             if !winit_state.window_map.contains_key(&window_id) {
@@ -59,8 +60,10 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
                 seat,
             };
             window_handle.pointer_entered(winit_pointer);
@@ -102,8 +105,10 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
                 seat,
             };
             window_handle.pointer_left(winit_pointer);
@@ -193,9 +198,9 @@ pub(super) fn handle_pointer(
 
                 // Old seat compatibility.
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
@@ -216,9 +221,9 @@ pub(super) fn handle_pointer(
             } else {
                 let (mut x, mut y) = pointer_data.axis_data.axis_buffer.unwrap_or((0.0, 0.0));
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
@@ -237,9 +242,9 @@ pub(super) fn handle_pointer(
                 .unwrap_or((0., 0.));
 
             match axis {
-                // Wayland vertical sign convention is the inverse of winit.
+                // Wayland sign convention is the inverse of winit.
                 wl_pointer::Axis::VerticalScroll => y -= discrete as f32,
-                wl_pointer::Axis::HorizontalScroll => x += discrete as f32,
+                wl_pointer::Axis::HorizontalScroll => x -= discrete as f32,
                 _ => unreachable!(),
             }
 
@@ -297,9 +302,17 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    if let RelativePointerEvent::RelativeMotion { dx, dy, .. } = event {
-        winit_state
-            .event_sink
-            .push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+    if let RelativePointerEvent::RelativeMotion {
+        dx_unaccel,
+        dy_unaccel,
+        ..
+    } = event
+    {
+        winit_state.event_sink.push_device_event(
+            DeviceEvent::MouseMotion {
+                delta: (dx_unaccel, dy_unaccel),
+            },
+            DeviceId,
+        )
     }
 }

@@ -1,68 +1,53 @@
 use std::collections::VecDeque;
 
-use cocoa::{
-    appkit::{self, NSEvent},
-    base::id,
-};
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel},
-};
+use objc2::foundation::NSObject;
+use objc2::{declare_class, msg_send, ClassType};
 
-use super::{app_state::AppState, event::EventWrapper, util, DEVICE_ID};
+use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
+use super::{app_state::AppState, event::EventWrapper, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
-pub struct AppClass(pub *const Class);
-unsafe impl Send for AppClass {}
-unsafe impl Sync for AppClass {}
+declare_class!(
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(super) struct WinitApplication {}
 
-lazy_static! {
-    pub static ref APP_CLASS: AppClass = unsafe {
-        let superclass = class!(NSApplication);
-        let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
+    unsafe impl ClassType for WinitApplication {
+        #[inherits(NSResponder, NSObject)]
+        type Super = NSApplication;
+    }
 
-        decl.add_method(
-            sel!(sendEvent:),
-            send_event as extern "C" fn(&Object, Sel, id),
-        );
-
-        AppClass(decl.register())
-    };
-}
-
-// Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
-// Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
-// Fun fact: Firefox still has this bug! (https://bugzilla.mozilla.org/show_bug.cgi?id=1299553)
-extern "C" fn send_event(this: &Object, _sel: Sel, event: id) {
-    unsafe {
-        // For posterity, there are some undocumented event types
-        // (https://github.com/servo/cocoa-rs/issues/155)
-        // but that doesn't really matter here.
-        let event_type = event.eventType();
-        let modifier_flags = event.modifierFlags();
-        if event_type == appkit::NSKeyUp
-            && util::has_flag(
-                modifier_flags,
-                appkit::NSEventModifierFlags::NSCommandKeyMask,
-            )
-        {
-            let key_window: id = msg_send![this, keyWindow];
-            let _: () = msg_send![key_window, sendEvent: event];
-        } else {
-            maybe_dispatch_device_event(event);
-            let superclass = util::superclass(this);
-            let _: () = msg_send![super(this, superclass), sendEvent: event];
+    unsafe impl WinitApplication {
+        // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
+        // Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
+        // Fun fact: Firefox still has this bug! (https://bugzilla.mozilla.org/show_bug.cgi?id=1299553)
+        #[sel(sendEvent:)]
+        fn send_event(&self, event: &NSEvent) {
+            // For posterity, there are some undocumented event types
+            // (https://github.com/servo/cocoa-rs/issues/155)
+            // but that doesn't really matter here.
+            let event_type = event.type_();
+            let modifier_flags = event.modifierFlags();
+            if event_type == NSEventType::NSKeyUp
+                && modifier_flags.contains(NSEventModifierFlags::NSCommandKeyMask)
+            {
+                if let Some(key_window) = self.keyWindow() {
+                    unsafe { key_window.sendEvent(event) };
+                }
+            } else {
+                maybe_dispatch_device_event(event);
+                unsafe { msg_send![super(self), sendEvent: event] }
+            }
         }
     }
-}
+);
 
-unsafe fn maybe_dispatch_device_event(event: id) {
-    let event_type = event.eventType();
+fn maybe_dispatch_device_event(event: &NSEvent) {
+    let event_type = event.type_();
     match event_type {
-        appkit::NSMouseMoved
-        | appkit::NSLeftMouseDragged
-        | appkit::NSOtherMouseDragged
-        | appkit::NSRightMouseDragged => {
+        NSEventType::NSMouseMoved
+        | NSEventType::NSLeftMouseDragged
+        | NSEventType::NSOtherMouseDragged
+        | NSEventType::NSRightMouseDragged => {
             let mut events = VecDeque::with_capacity(3);
 
             let delta_x = event.deltaX() as f64;
@@ -99,7 +84,9 @@ unsafe fn maybe_dispatch_device_event(event: id) {
 
             AppState::queue_events(events);
         }
-        appkit::NSLeftMouseDown | appkit::NSRightMouseDown | appkit::NSOtherMouseDown => {
+        NSEventType::NSLeftMouseDown
+        | NSEventType::NSRightMouseDown
+        | NSEventType::NSOtherMouseDown => {
             let mut events = VecDeque::with_capacity(1);
 
             events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
@@ -112,7 +99,7 @@ unsafe fn maybe_dispatch_device_event(event: id) {
 
             AppState::queue_events(events);
         }
-        appkit::NSLeftMouseUp | appkit::NSRightMouseUp | appkit::NSOtherMouseUp => {
+        NSEventType::NSLeftMouseUp | NSEventType::NSRightMouseUp | NSEventType::NSOtherMouseUp => {
             let mut events = VecDeque::with_capacity(1);
 
             events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {

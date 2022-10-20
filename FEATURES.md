@@ -100,8 +100,10 @@ If your PR makes notable changes to Winit's features, please update this section
 ### Input Handling
 - **Mouse events**: Generating mouse events associated with pointer motion, click, and scrolling events.
 - **Mouse set location**: Forcibly changing the location of the pointer.
-- **Cursor grab**: Locking the cursor so it cannot exit the client area of a window.
+- **Cursor locking**: Locking the cursor inside the window so it cannot move.
+- **Cursor confining**: Confining the cursor to the window bounds so it cannot leave them.
 - **Cursor icon**: Changing the cursor icon, or hiding the cursor.
+- **Cursor hittest**: Handle or ignore mouse events for a window.
 - **Touch events**: Single-touch events.
 - **Touch pressure**: Touch events contain information about the amount of force being applied.
 - **Multitouch**: Multi-touch events, including cancellation of a gesture.
@@ -127,6 +129,8 @@ If your PR makes notable changes to Winit's features, please update this section
 * Hidden titlebar
 * Hidden titlebar buttons
 * Full-size content view
+* Accepts first mouse
+* Set a preferred theme and get current theme.
 
 ### Unix
 * Window urgency
@@ -134,6 +138,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * X11 Override Redirect Flag
 * GTK Theme Variant
 * Base window size
+* Setting the X11 parent window
 
 ### iOS
 * `winit` has a minimum OS requirement of iOS 8
@@ -172,10 +177,10 @@ Legend:
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |✔️        |
 |Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |**N/A**|
 |Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**|
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**|
+|Window decorations               |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |
-|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
+|Window resize increments         |❌     |✔️     |✔️         |❌             |**N/A**|**N/A**|**N/A**|
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
@@ -196,9 +201,11 @@ Legend:
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
 |Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |
-|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
-|Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|✔️        |
+|Mouse set location      |✔️       |✔️      |✔️       |✔️(when locked)  |**N/A**|**N/A**|**N/A**|
+|Cursor locking          |❌      |✔️      |❌    |✔️         |**N/A**|**N/A**|✔️        |
+|Cursor confining        |✔️       |❌     |✔️     |✔️         |**N/A**|**N/A**|❌       |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
+|Cursor hittest          |✔️       |✔️      |❌       |✔️           |**N/A**|**N/A**|❌        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |

@@ -17,7 +17,7 @@ impl MediaQueryListHandle {
             .ok()
             .flatten()
             .and_then(|mql| {
-                mql.add_listener_with_opt_callback(Some(&listener.as_ref().unchecked_ref()))
+                mql.add_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref()))
                     .map(|_| mql)
                     .ok()
             });

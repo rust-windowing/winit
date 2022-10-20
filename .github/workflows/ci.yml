@@ -17,12 +17,14 @@ jobs:
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
 
-  Tests:
+  tests:
+    name: Tests
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [stable, nightly]
+        rust_version: ['1.60.0', stable, nightly]
         platform:
+          # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
           - { target: i686-pc-windows-msvc,     os: windows-latest,  }
           - { target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
@@ -46,6 +48,7 @@ jobs:
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}
+      RUSTDOCFLAGS: -Dwarnings
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -61,6 +64,7 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
+        components: clippy
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -71,12 +75,7 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
-
-    - name: Build
-      shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
     - name: Build tests
       shell: bash
@@ -89,10 +88,10 @@ jobs:
         !contains(matrix.platform.target, 'wasm32'))
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
-
-    - name: Build with serde enabled
+    - name: Lint with clippy
       shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+      if: (matrix.rust_version == '1.60.0') && !contains(matrix.platform.options, '--no-default-features')
+      run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build tests with serde enabled
       shell: bash

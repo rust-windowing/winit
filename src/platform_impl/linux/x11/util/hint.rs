@@ -173,6 +173,12 @@ impl MotifHints {
     }
 }
 
+impl Default for MotifHints {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MwmHints {
     fn as_slice(&self) -> &[c_ulong] {
         unsafe { slice::from_raw_parts(self as *const _ as *const c_ulong, 5) }
@@ -191,11 +197,17 @@ impl<'a> NormalHints<'a> {
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        if has_flag(self.size_hints.flags, ffi::PPosition) {
-            Some((self.size_hints.x as i32, self.size_hints.y as i32))
-        } else {
-            None
-        }
+        has_flag(self.size_hints.flags, ffi::PPosition)
+            .then(|| (self.size_hints.x as i32, self.size_hints.y as i32))
+    }
+
+    pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
+        has_flag(self.size_hints.flags, ffi::PResizeInc).then(|| {
+            (
+                self.size_hints.width_inc as u32,
+                self.size_hints.height_inc as u32,
+            )
+        })
     }
 
     pub fn set_position(&mut self, position: Option<(i32, i32)>) {
@@ -317,7 +329,7 @@ impl XConnection {
         let mut hints = MotifHints::new();
 
         if let Ok(props) = self.get_property::<c_ulong>(window, motif_hints, motif_hints) {
-            hints.hints.flags = props.get(0).cloned().unwrap_or(0);
+            hints.hints.flags = props.first().cloned().unwrap_or(0);
             hints.hints.functions = props.get(1).cloned().unwrap_or(0);
             hints.hints.decorations = props.get(2).cloned().unwrap_or(0);
             hints.hints.input_mode = props.get(3).cloned().unwrap_or(0) as c_long;

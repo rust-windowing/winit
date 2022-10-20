@@ -35,8 +35,9 @@
 //!
 //! ### Position and Size types
 //!
-//! Winit's `Physical(Position|Size)` types correspond with the actual pixels on the device, and the
-//! `Logical(Position|Size)` types correspond to the physical pixels divided by the scale factor.
+//! Winit's [`PhysicalPosition`] / [`PhysicalSize`] types correspond with the actual pixels on the
+//! device, and the [`LogicalPosition`] / [`LogicalSize`] types correspond to the physical pixels
+//! divided by the scale factor.
 //! All of Winit's functions return physical types, but can take either logical or physical
 //! coordinates as input, allowing you to use the most convenient coordinate system for your
 //! particular application.
@@ -46,19 +47,18 @@
 //! floating precision when necessary (e.g. logical sizes for fractional scale factors and touch
 //! input). If `P` is a floating-point type, please do not cast the values with `as {int}`. Doing so
 //! will truncate the fractional part of the float, rather than properly round to the nearest
-//! integer. Use the provided `cast` function or `From`/`Into` conversions, which handle the
+//! integer. Use the provided `cast` function or [`From`]/[`Into`] conversions, which handle the
 //! rounding properly. Note that precision loss will still occur when rounding from a float to an
 //! int, although rounding lessens the problem.
 //!
 //! ### Events
 //!
-//! Winit will dispatch a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged)
-//! event whenever a window's scale factor has changed. This can happen if the user drags their
-//! window from a standard-resolution monitor to a high-DPI monitor, or if the user changes their
-//! DPI settings. This gives you a chance to rescale your application's UI elements and adjust how
-//! the platform changes the window's size to reflect the new scale factor. If a window hasn't
-//! received a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged) event,
-//! then its scale factor can be found by calling [window.scale_factor()].
+//! Winit will dispatch a [`ScaleFactorChanged`] event whenever a window's scale factor has changed.
+//! This can happen if the user drags their window from a standard-resolution monitor to a high-DPI
+//! monitor, or if the user changes their DPI settings. This gives you a chance to rescale your
+//! application's UI elements and adjust how the platform changes the window's size to reflect the new
+//! scale factor. If a window hasn't received a [`ScaleFactorChanged`] event,  then its scale factor
+//! can be found by calling [`window.scale_factor()`].
 //!
 //! ## How is the scale factor calculated?
 //!
@@ -77,7 +77,7 @@
 //!   currently uses a three-pronged approach:
 //!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
 //!   + If not present, use the value set in `Xft.dpi` in Xresources.
-//!   + Otherwise, calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+//!   + Otherwise, calculate the scale factor based on the millimeter monitor dimensions provided by XRandR.
 //!
 //!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
 //!   XRandR scaling method. Generally speaking, you should try to configure the standard system
@@ -93,9 +93,11 @@
 //!   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
 //!   both the screen scaling and the browser zoom level and can go below `1.0`.
 //!
+//!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
-//! [window.scale_factor()]: crate::window::Window::scale_factor
+//! [`ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
+//! [`window.scale_factor()`]: crate::window::Window::scale_factor
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
@@ -508,6 +510,29 @@ impl Size {
             Size::Physical(size) => size.cast(),
             Size::Logical(size) => size.to_physical(scale_factor),
         }
+    }
+
+    pub fn clamp<S: Into<Size>>(input: S, min: S, max: S, scale_factor: f64) -> Size {
+        let (input, min, max) = (
+            input.into().to_physical::<f64>(scale_factor),
+            min.into().to_physical::<f64>(scale_factor),
+            max.into().to_physical::<f64>(scale_factor),
+        );
+
+        let clamp = |input: f64, min: f64, max: f64| {
+            if input < min {
+                min
+            } else if input > max {
+                max
+            } else {
+                input
+            }
+        };
+
+        let width = clamp(input.width, min.width, max.width);
+        let height = clamp(input.height, min.height, max.height);
+
+        PhysicalSize::new(width, height).into()
     }
 }
 

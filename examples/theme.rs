@@ -1,9 +1,11 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Theme, WindowBuilder},
+};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -11,8 +13,11 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
+        .with_theme(Some(Theme::Dark))
         .build(&event_loop)
         .unwrap();
+
+    println!("Initial theme: {:?}", window.theme());
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -22,18 +27,12 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-
-            // Keyboard input event to handle minimize via a hotkey
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::ThemeChanged(theme),
                 window_id,
-            } => {
-                if window_id == window.id() {
-                    // Pressing the 'M' key will minimize the window
-                    if input.virtual_keycode == Some(VirtualKeyCode::M) {
-                        window.set_minimized(true);
-                    }
-                }
+                ..
+            } if window_id == window.id() => {
+                println!("Theme is changed: {:?}", theme)
             }
             _ => (),
         }

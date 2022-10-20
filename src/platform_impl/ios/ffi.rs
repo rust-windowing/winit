@@ -1,8 +1,14 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
+use std::convert::TryInto;
+use std::ffi::CString;
+use std::ops::BitOr;
+use std::os::raw::{c_char, c_int};
 
-use objc::{runtime::Object, Encode, Encoding};
+use objc2::encode::{Encode, Encoding};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send};
 
 use crate::{
     dpi::LogicalSize,
@@ -17,9 +23,6 @@ pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
 
-pub type NSInteger = isize;
-pub type NSUInteger = usize;
-
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct NSOperatingSystemVersion {
@@ -28,11 +31,26 @@ pub struct NSOperatingSystemVersion {
     pub patch: NSInteger,
 }
 
+unsafe impl Encode for NSOperatingSystemVersion {
+    const ENCODING: Encoding = Encoding::Struct(
+        "NSOperatingSystemVersion",
+        &[
+            NSInteger::ENCODING,
+            NSInteger::ENCODING,
+            NSInteger::ENCODING,
+        ],
+    );
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGPoint {
     pub x: CGFloat,
     pub y: CGFloat,
+}
+
+unsafe impl Encode for CGPoint {
+    const ENCODING: Encoding = Encoding::Struct("CGPoint", &[CGFloat::ENCODING, CGFloat::ENCODING]);
 }
 
 #[repr(C)]
@@ -51,6 +69,10 @@ impl CGSize {
     }
 }
 
+unsafe impl Encode for CGSize {
+    const ENCODING: Encoding = Encoding::Struct("CGSize", &[CGFloat::ENCODING, CGFloat::ENCODING]);
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGRect {
@@ -65,18 +87,9 @@ impl CGRect {
 }
 
 unsafe impl Encode for CGRect {
-    fn encode() -> Encoding {
-        unsafe {
-            if cfg!(target_pointer_width = "32") {
-                Encoding::from_str("{CGRect={CGPoint=ff}{CGSize=ff}}")
-            } else if cfg!(target_pointer_width = "64") {
-                Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}")
-            } else {
-                unimplemented!()
-            }
-        }
-    }
+    const ENCODING: Encoding = Encoding::Struct("CGRect", &[CGPoint::ENCODING, CGSize::ENCODING]);
 }
+
 #[derive(Debug)]
 #[allow(dead_code)]
 #[repr(isize)]
@@ -88,7 +101,11 @@ pub enum UITouchPhase {
     Cancelled,
 }
 
-#[derive(Debug, PartialEq)]
+unsafe impl Encode for UITouchPhase {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[derive(Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(isize)]
 pub enum UIForceTouchCapability {
@@ -97,13 +114,21 @@ pub enum UIForceTouchCapability {
     Available,
 }
 
-#[derive(Debug, PartialEq)]
+unsafe impl Encode for UIForceTouchCapability {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[derive(Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(isize)]
 pub enum UITouchType {
     Direct = 0,
     Indirect,
     Pencil,
+}
+
+unsafe impl Encode for UITouchType {
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 #[repr(C)]
@@ -115,14 +140,24 @@ pub struct UIEdgeInsets {
     pub right: CGFloat,
 }
 
+unsafe impl Encode for UIEdgeInsets {
+    const ENCODING: Encoding = Encoding::Struct(
+        "UIEdgeInsets",
+        &[
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+        ],
+    );
+}
+
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIUserInterfaceIdiom(NSInteger);
 
 unsafe impl Encode for UIUserInterfaceIdiom {
-    fn encode() -> Encoding {
-        NSInteger::encode()
-    }
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 impl UIUserInterfaceIdiom {
@@ -144,10 +179,9 @@ impl From<Idiom> for UIUserInterfaceIdiom {
         }
     }
 }
-
-impl Into<Idiom> for UIUserInterfaceIdiom {
-    fn into(self) -> Idiom {
-        match self {
+impl From<UIUserInterfaceIdiom> for Idiom {
+    fn from(ui_idiom: UIUserInterfaceIdiom) -> Idiom {
+        match ui_idiom {
             UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
             UIUserInterfaceIdiom::Phone => Idiom::Phone,
             UIUserInterfaceIdiom::Pad => Idiom::Pad,
@@ -163,9 +197,7 @@ impl Into<Idiom> for UIUserInterfaceIdiom {
 pub struct UIInterfaceOrientationMask(NSUInteger);
 
 unsafe impl Encode for UIInterfaceOrientationMask {
-    fn encode() -> Encoding {
-        NSUInteger::encode()
-    }
+    const ENCODING: Encoding = NSUInteger::ENCODING;
 }
 
 impl UIInterfaceOrientationMask {
@@ -214,9 +246,7 @@ impl UIInterfaceOrientationMask {
 pub struct UIRectEdge(NSUInteger);
 
 unsafe impl Encode for UIRectEdge {
-    fn encode() -> Encoding {
-        NSUInteger::encode()
-    }
+    const ENCODING: Encoding = NSUInteger::ENCODING;
 }
 
 impl From<ScreenEdge> for UIRectEdge {
@@ -230,9 +260,9 @@ impl From<ScreenEdge> for UIRectEdge {
     }
 }
 
-impl Into<ScreenEdge> for UIRectEdge {
-    fn into(self) -> ScreenEdge {
-        let bits: u8 = self.0.try_into().expect("invalid `UIRectEdge`");
+impl From<UIRectEdge> for ScreenEdge {
+    fn from(ui_rect_edge: UIRectEdge) -> ScreenEdge {
+        let bits: u8 = ui_rect_edge.0.try_into().expect("invalid `UIRectEdge`");
         ScreenEdge::from_bits(bits).expect("invalid `ScreenEdge`")
     }
 }
@@ -242,9 +272,7 @@ impl Into<ScreenEdge> for UIRectEdge {
 pub struct UIScreenOverscanCompensation(NSInteger);
 
 unsafe impl Encode for UIScreenOverscanCompensation {
-    fn encode() -> Encoding {
-        NSInteger::encode()
-    }
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 #[allow(dead_code)]
@@ -255,108 +283,13 @@ impl UIScreenOverscanCompensation {
 }
 
 #[link(name = "UIKit", kind = "framework")]
-#[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-    pub static kCFRunLoopDefaultMode: CFRunLoopMode;
-    pub static kCFRunLoopCommonModes: CFRunLoopMode;
-
     pub fn UIApplicationMain(
         argc: c_int,
         argv: *const c_char,
         principalClassName: id,
         delegateClassName: id,
     ) -> c_int;
-
-    pub fn CFRunLoopGetMain() -> CFRunLoopRef;
-    pub fn CFRunLoopWakeUp(rl: CFRunLoopRef);
-
-    pub fn CFRunLoopObserverCreate(
-        allocator: CFAllocatorRef,
-        activities: CFOptionFlags,
-        repeats: Boolean,
-        order: CFIndex,
-        callout: CFRunLoopObserverCallBack,
-        context: *mut CFRunLoopObserverContext,
-    ) -> CFRunLoopObserverRef;
-    pub fn CFRunLoopAddObserver(
-        rl: CFRunLoopRef,
-        observer: CFRunLoopObserverRef,
-        mode: CFRunLoopMode,
-    );
-
-    pub fn CFRunLoopTimerCreate(
-        allocator: CFAllocatorRef,
-        fireDate: CFAbsoluteTime,
-        interval: CFTimeInterval,
-        flags: CFOptionFlags,
-        order: CFIndex,
-        callout: CFRunLoopTimerCallBack,
-        context: *mut CFRunLoopTimerContext,
-    ) -> CFRunLoopTimerRef;
-    pub fn CFRunLoopAddTimer(rl: CFRunLoopRef, timer: CFRunLoopTimerRef, mode: CFRunLoopMode);
-    pub fn CFRunLoopTimerSetNextFireDate(timer: CFRunLoopTimerRef, fireDate: CFAbsoluteTime);
-    pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
-
-    pub fn CFRunLoopSourceCreate(
-        allocator: CFAllocatorRef,
-        order: CFIndex,
-        context: *mut CFRunLoopSourceContext,
-    ) -> CFRunLoopSourceRef;
-    pub fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
-    pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
-    pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
-
-    pub fn CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime;
-    pub fn CFRelease(cftype: *const c_void);
-}
-
-pub type Boolean = u8;
-pub enum CFAllocator {}
-pub type CFAllocatorRef = *mut CFAllocator;
-pub enum CFRunLoop {}
-pub type CFRunLoopRef = *mut CFRunLoop;
-pub type CFRunLoopMode = CFStringRef;
-pub enum CFRunLoopObserver {}
-pub type CFRunLoopObserverRef = *mut CFRunLoopObserver;
-pub enum CFRunLoopTimer {}
-pub type CFRunLoopTimerRef = *mut CFRunLoopTimer;
-pub enum CFRunLoopSource {}
-pub type CFRunLoopSourceRef = *mut CFRunLoopSource;
-pub enum CFString {}
-pub type CFStringRef = *const CFString;
-
-pub type CFHashCode = c_ulong;
-pub type CFIndex = c_long;
-pub type CFOptionFlags = c_ulong;
-pub type CFRunLoopActivity = CFOptionFlags;
-
-pub type CFAbsoluteTime = CFTimeInterval;
-pub type CFTimeInterval = f64;
-
-pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
-pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
-pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
-pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
-
-pub type CFRunLoopObserverCallBack =
-    extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
-pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
-
-pub enum CFRunLoopObserverContext {}
-pub enum CFRunLoopTimerContext {}
-
-#[repr(C)]
-pub struct CFRunLoopSourceContext {
-    pub version: CFIndex,
-    pub info: *mut c_void,
-    pub retain: Option<extern "C" fn(*const c_void) -> *const c_void>,
-    pub release: Option<extern "C" fn(*const c_void)>,
-    pub copyDescription: Option<extern "C" fn(*const c_void) -> CFStringRef>,
-    pub equal: Option<extern "C" fn(*const c_void, *const c_void) -> Boolean>,
-    pub hash: Option<extern "C" fn(*const c_void) -> CFHashCode>,
-    pub schedule: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub cancel: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
 // This is named NSStringRust rather than NSString because the "Debug View Heirarchy" feature of
@@ -375,7 +308,7 @@ pub trait NSStringRust: Sized {
 
 impl NSStringRust for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
-        msg_send![self, initWithUTF8String: c_string as id]
+        msg_send![self, initWithUTF8String: c_string]
     }
 
     unsafe fn stringByAppendingString_(self, other: id) -> id {

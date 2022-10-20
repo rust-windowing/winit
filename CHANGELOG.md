@@ -1,6 +1,136 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+Please keep one empty line before and after all headers. (This is required for `git` to produce a conflict when a release is made while a PR is open and the PR's changelog entry would go into the wrong section).
+
+And please only add new entries to the top of this list, right below the `# Unreleased` header.
+
 # Unreleased
 
+- On Windows, fix focusing menubar when pressing `Alt`.
+- On MacOS, made `accepts_first_mouse` configurable.
+- Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
+- Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
+- macOS/iOS: Use `objc2` instead of `objc` internally.
+- **Breaking:** Bump MSRV from `1.57` to `1.60`.
+- **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
+- **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
+- Removed `parking_lot` dependency.
+- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
+- **Breaking:** On web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
+- On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
+- On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
+- On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
+- On X11, added `WindowExtX11::with_parent` to create child windows.
+- Added support for `WindowBuilder::with_theme` and `Window::theme` to support per-window dark/light/system theme configuration on macos, windows and wayland.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
+- **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
+- **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
+
+# 0.27.4
+
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
+- On Windows, fixed focus event emission on minimize.
+- On X11, fixed IME crashing during reload.
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
+
+# 0.27.3
+
+- On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
+- On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
+- On Windows, fixed ALT+Space shortcut to open window menu.
+- On Wayland, fixed `Ime::Preedit` not being sent on IME reset.
+- Fixed unbound version specified for `raw-window-handle` leading to compilation failures.
+- Empty `Ime::Preedit` event will be sent before `Ime::Commit` to help clearing preedit.
+- On X11, fixed IME context picking by querying for supported styles beforehand.
+
+# 0.27.2 (2022-8-12)
+
+- On macOS, fixed touch phase reporting when scrolling.
+- On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
+- On Windows, respect min/max inner sizes when creating the window.
+- For backwards compatibility, `Window` now (additionally) implements the old version (`0.4`) of the `HasRawWindowHandle` trait
+- On Windows, added support for `EventLoopWindowTarget::set_device_event_filter`.
+- On Wayland, fix user requested `WindowEvent::RedrawRequested` being delayed by a frame.
+
+# 0.27.1 (2022-07-30)
+
+- The minimum supported Rust version was lowered to `1.57.0` and now explicitly tested.
+- On X11, fix crash on start due to inability to create an IME context without any preedit.
+
+# 0.27.0 (2022-07-26)
+
+- On Windows, fix hiding a maximized window.
+- On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
+- On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
+- Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
+- On X11, fix events for caps lock key not being sent
+- Build docs on `docs.rs` for iOS and Android as well.
+- **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
+- Added `WindowBuilder::transparent` getter to check if the user set `transparent` attribute.
+- On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
+- On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
+- On Wayland, fix bug where the cursor wouldn't hide in GNOME.
+- On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
+- On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
+- On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
+- On Windows, remove internally unique DC per window.
+- On macOS, remove the need to call `set_ime_position` after moving the window.
+- Added `Window::is_visible`.
+- Added `Window::is_resizable`.
+- Added `Window::is_decorated`.
+- On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On X11, fix scale factor calculation when the only monitor is reconnected
+- On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- On Web, a focused event is manually generated when a click occurs to emulate behaviour of other backends.
+- **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
+- Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
+- Add `EventLoopBuilder`, which allows you to create and tweak the settings of an event loop before creating it.
+- Deprecated `EventLoop::with_user_event`; use `EventLoopBuilder::with_user_event` instead.
+- **Breaking:** Replaced `EventLoopExtMacOS` with `EventLoopBuilderExtMacOS` (which also has renamed methods).
+- **Breaking:** Replaced `EventLoopExtWindows` with `EventLoopBuilderExtWindows` (which also has renamed methods).
+- **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
+- **Breaking:** The platform specific extensions for Windows `winit::platform::windows` have changed. All `HANDLE`-like types e.g. `HWND` and `HMENU` were converted from winapi types or `*mut c_void` to `isize`. This was done to be consistent with the type definitions in windows-sys and to not expose internal dependencies.
+- The internal bindings to the [Windows API](https://docs.microsoft.com/en-us/windows/) were changed from the unofficial [winapi](https://github.com/retep998/winapi-rs) bindings to the official Microsoft [windows-sys](https://github.com/microsoft/windows-rs) bindings.
+- On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
+- On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
+- On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
+- Added helper methods on `ControlFlow` to set its value.
+- On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
+  sent a cancel or frame event.
+- On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
+- **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
+- On Wayland, fallback CSD was replaced with proper one:
+  - `WindowBuilderExtUnix::with_wayland_csd_theme` to set color theme in builder.
+  - `WindowExtUnix::wayland_set_csd_theme` to set color theme when creating a window.
+  - `WINIT_WAYLAND_CSD_THEME` env variable was added, it can be used to set "dark"/"light" theme in apps that don't expose theme setting.
+  - `wayland-csd-adwaita` feature that enables proper CSD with title rendering using FreeType system library.
+  - `wayland-csd-adwaita-notitle` feature that enables CSD but without title rendering.
+- On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
+- On Windows, fix wrong fullscreen monitors being recognized when handling WM_WINDOWPOSCHANGING messages
+- **Breaking:** Added new `WindowEvent::Ime` supported on desktop platforms.
+- Added `Window::set_ime_allowed` supported on desktop platforms.
+- **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::Ime` events are handled.
+- On macOS, `WindowEvent::Resized` is now emitted in `frameDidChange` instead of `windowDidResize`.
+- **Breaking:** On X11, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
+- Implemented `Default` on `EventLoop<()>`.
+- Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
+- **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
+- On Wayland, add support for `Window::set_cursor_position`.
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value.
+- `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
+- Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
+- Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.
+- **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
+- On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
+- On Windows, fix focus events being sent to inactive windows.
+- **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
+- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
+- On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
+- All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
+- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.1 (2022-01-05)
 
@@ -225,13 +355,13 @@
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
 - **Breaking**: Overhaul how Winit handles DPI:
-  + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
-  + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
-  + `hidpi_factor` has been renamed to `scale_factor`.
-  + `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
+  - Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
+  - Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
+  - `hidpi_factor` has been renamed to `scale_factor`.
+  - `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
     resizes the window in response to the change.
-  + On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
-  + `Size` and `Position` types are now generic over their exact pixel type.
+  - On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
+  - `Size` and `Position` types are now generic over their exact pixel type.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
@@ -336,7 +466,7 @@
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
-    - Adds support for exclusive fullscreen mode.
+  - Adds support for exclusive fullscreen mode.
 - On iOS, add support for hiding the home indicator.
 - On iOS, add support for deferring system gestures.
 - On iOS, fix a crash that occurred while acquiring a monitor's name.
@@ -535,7 +665,7 @@ and `WindowEvent::HoveredFile`.
 # Version 0.16.1 (2018-07-02)
 
 - Added logging through `log`. Logging will become more extensive over time.
-- On X11 and Windows, the window's DPI factor is guessed before creating the window. This *greatly* cuts back on unsightly auto-resizing that would occur immediately after window creation.
+- On X11 and Windows, the window's DPI factor is guessed before creating the window. This _greatly_ cuts back on unsightly auto-resizing that would occur immediately after window creation.
 - Fixed X11 backend compilation for environments where `c_char` is unsigned.
 
 # Version 0.16.0 (2018-06-25)
@@ -685,7 +815,7 @@ and `WindowEvent::HoveredFile`.
 
 # Version 0.10.1 (2018-02-05)
 
-*Yanked*
+_Yanked_
 
 # Version 0.10.0 (2017-12-27)
 

@@ -1,25 +1,22 @@
-#![cfg(target_os = "macos")]
-
+use objc2::rc::Id;
 use std::os::raw::c_void;
 
 use crate::{
-    dpi::LogicalSize,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
 
-/// Additional methods on `Window` that are specific to MacOS.
+/// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_view(&self) -> *mut c_void;
 
     /// Returns whether or not the window is in simple fullscreen mode.
@@ -74,7 +71,7 @@ impl WindowExtMacOS for Window {
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     Regular,
@@ -90,16 +87,14 @@ impl Default for ActivationPolicy {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to MacOS.
+/// Additional methods on [`WindowBuilder`] that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations` method
-/// on the base `WindowBuilder`:
-///
-///  - `with_titlebar_transparent`
-///  - `with_title_hidden`
-///  - `with_titlebar_hidden`
-///  - `with_titlebar_buttons_hidden`
-///  - `with_fullsize_content_view`
+/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowBuilder::with_decorations`] method:
+/// - `with_titlebar_transparent`
+/// - `with_title_hidden`
+/// - `with_titlebar_hidden`
+/// - `with_titlebar_buttons_hidden`
+/// - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
@@ -114,10 +109,10 @@ pub trait WindowBuilderExtMacOS {
     fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
-    /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Window accepts click-through mouse events.
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -161,12 +156,6 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
-        self
-    }
-
-    #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
@@ -177,42 +166,75 @@ impl WindowBuilderExtMacOS for WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
         self
     }
-}
-
-pub trait EventLoopExtMacOS {
-    /// Sets the activation policy for the application. It is set to
-    /// `NSApplicationActivationPolicyRegular` by default.
-    ///
-    /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
-    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
-    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
-
-    /// Used to prevent a default menubar menu from getting created
-    ///
-    /// The default menu creation is enabled by default.
-    ///
-    /// This function only takes effect if it's called before calling
-    /// [`run`](crate::event_loop::EventLoop::run) or
-    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
-    fn enable_default_menu_creation(&mut self, enable: bool);
-}
-impl<T> EventLoopExtMacOS for EventLoop<T> {
-    #[inline]
-    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
-        unsafe {
-            get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
-        }
-    }
 
     #[inline]
-    fn enable_default_menu_creation(&mut self, enable: bool) {
-        unsafe {
-            get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
-        }
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
     }
 }
 
-/// Additional methods on `MonitorHandle` that are specific to MacOS.
+pub trait EventLoopBuilderExtMacOS {
+    /// Sets the activation policy for the application.
+    ///
+    /// It is set to [`ActivationPolicy::Regular`] by default.
+    ///
+    /// # Example
+    ///
+    /// Set the activation policy to "accessory".
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::{EventLoopBuilderExtMacOS, ActivationPolicy};
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_activation_policy(ActivationPolicy::Accessory);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self;
+
+    /// Used to control whether a default menubar menu is created.
+    ///
+    /// Menu creation is enabled by default.
+    ///
+    /// # Example
+    ///
+    /// Disable creating a default menubar.
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::EventLoopBuilderExtMacOS;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_default_menu(false);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self;
+}
+
+impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
+    #[inline]
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
+        self.platform_specific.activation_policy = activation_policy;
+        self
+    }
+
+    #[inline]
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
+        self.platform_specific.default_menu = enable;
+        self
+    }
+}
+
+/// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
@@ -227,11 +249,11 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 
     fn ns_screen(&self) -> Option<*mut c_void> {
-        self.inner.ns_screen().map(|s| s as *mut c_void)
+        self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
     }
 }
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+/// Additional methods on [`EventLoopWindowTarget`] that are specific to macOS.
 pub trait EventLoopWindowTargetExtMacOS {
     /// Hide the entire application. In most applications this is typically triggered with Command-H.
     fn hide_application(&self);

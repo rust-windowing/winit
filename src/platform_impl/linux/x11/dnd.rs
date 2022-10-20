@@ -188,7 +188,7 @@ impl Dnd {
             .get_property(window, self.atoms.selection, self.atoms.uri_list)
     }
 
-    pub fn parse_data(&self, data: &mut Vec<c_uchar>) -> Result<Vec<PathBuf>, DndDataParseError> {
+    pub fn parse_data(&self, data: &mut [c_uchar]) -> Result<Vec<PathBuf>, DndDataParseError> {
         if !data.is_empty() {
             let mut path_list = Vec::new();
             let decoded = percent_decode(data).decode_utf8()?.into_owned();

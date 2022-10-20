@@ -1,3 +1,5 @@
+#![allow(clippy::assertions_on_constants)]
+
 use super::*;
 use crate::icon::{Icon, Pixel, PIXEL_SIZE};
 

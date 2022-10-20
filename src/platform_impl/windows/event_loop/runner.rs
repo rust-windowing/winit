@@ -7,30 +7,35 @@ use std::{
     time::Instant,
 };
 
-use winapi::{
-    shared::{minwindef::DWORD, windef::HWND},
-    um::winuser,
+use windows_sys::Win32::{
+    Foundation::HWND,
+    Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
 };
 
 use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::util,
+    platform_impl::platform::{
+        event_loop::{WindowData, GWL_USERDATA},
+        get_window_long,
+    },
     window::WindowId,
 };
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
+
+type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>;
+
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
-    wait_thread_id: DWORD,
+    wait_thread_id: u32,
 
     control_flow: Cell<ControlFlow>,
     runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
-
-    event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
+    event_handler: EventHandler<T>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
 
     owned_windows: Cell<HashSet<HWND>>,
@@ -63,7 +68,7 @@ enum BufferedEvent<T: 'static> {
 }
 
 impl<T> EventLoopRunner<T> {
-    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: DWORD) -> EventLoopRunner<T> {
+    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: u32) -> EventLoopRunner<T> {
         EventLoopRunner {
             thread_msg_target,
             wait_thread_id,
@@ -113,7 +118,7 @@ impl<T> EventLoopRunner<T> {
         self.thread_msg_target
     }
 
-    pub fn wait_thread_id(&self) -> DWORD {
+    pub fn wait_thread_id(&self) -> u32 {
         self.wait_thread_id
     }
 
@@ -208,18 +213,16 @@ impl<T> EventLoopRunner<T> {
                 self.move_state_to(RunnerState::HandlingRedrawEvents);
             }
             self.call_event_handler(event);
+        } else if self.should_buffer() {
+            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+            // the event to a buffer to be processed later.
+            self.event_buffer
+                .borrow_mut()
+                .push_back(BufferedEvent::from_event(event))
         } else {
-            if self.should_buffer() {
-                // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-                // the event to a buffer to be processed later.
-                self.event_buffer
-                    .borrow_mut()
-                    .push_back(BufferedEvent::from_event(event))
-            } else {
-                self.move_state_to(RunnerState::HandlingMainEvents);
-                self.call_event_handler(event);
-                self.dispatch_buffered_events();
-            }
+            self.move_state_to(RunnerState::HandlingMainEvents);
+            self.call_event_handler(event);
+            self.dispatch_buffered_events();
         }
     }
 
@@ -393,13 +396,13 @@ impl<T> EventLoopRunner<T> {
             }
         };
         self.call_event_handler(Event::NewEvents(start_cause));
+        // NB: For consistency all platforms must emit a 'resumed' event even though Windows
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        if init {
+            self.call_event_handler(Event::Resumed);
+        }
         self.dispatch_buffered_events();
-        winuser::RedrawWindow(
-            self.thread_msg_target,
-            ptr::null(),
-            ptr::null_mut(),
-            winuser::RDW_INTERNALPAINT,
-        );
+        RedrawWindow(self.thread_msg_target, ptr::null(), 0, RDW_INTERNALPAINT);
     }
 
     unsafe fn call_redraw_events_cleared(&self) {
@@ -434,11 +437,13 @@ impl<T> BufferedEvent<T> {
                         new_inner_size: &mut new_inner_size,
                     },
                 });
-                util::set_inner_size_physical(
-                    (window_id.0).0,
-                    new_inner_size.width as _,
-                    new_inner_size.height as _,
-                );
+
+                let window_flags = unsafe {
+                    let userdata =
+                        get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData<T>;
+                    (*userdata).window_state_lock().window_flags
+                };
+                window_flags.set_size((window_id.0).0, new_inner_size);
             }
         }
     }

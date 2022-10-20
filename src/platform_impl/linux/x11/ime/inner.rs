@@ -1,8 +1,12 @@
-use std::{collections::HashMap, mem, ptr, sync::Arc};
+use std::{collections::HashMap, mem, sync::Arc};
 
 use super::{ffi, XConnection, XError};
 
-use super::{context::ImeContext, input_method::PotentialInputMethods};
+use super::{
+    context::ImeContext,
+    input_method::{InputMethod, PotentialInputMethods},
+};
+use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     (xconn.xlib.XCloseIM)(im);
@@ -16,12 +20,12 @@ pub unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), X
 
 pub struct ImeInner {
     pub xconn: Arc<XConnection>,
-    // WARNING: this is initially null!
-    pub im: ffi::XIM,
+    pub im: Option<InputMethod>,
     pub potential_input_methods: PotentialInputMethods,
     pub contexts: HashMap<ffi::Window, Option<ImeContext>>,
     // WARNING: this is initially zeroed!
     pub destroy_callback: ffi::XIMCallback,
+    pub event_sender: ImeEventSender,
     // Indicates whether or not the the input method was destroyed on the server end
     // (i.e. if ibus/fcitx/etc. was terminated/restarted)
     pub is_destroyed: bool,
@@ -29,21 +33,26 @@ pub struct ImeInner {
 }
 
 impl ImeInner {
-    pub fn new(xconn: Arc<XConnection>, potential_input_methods: PotentialInputMethods) -> Self {
+    pub fn new(
+        xconn: Arc<XConnection>,
+        potential_input_methods: PotentialInputMethods,
+        event_sender: ImeEventSender,
+    ) -> Self {
         ImeInner {
             xconn,
-            im: ptr::null_mut(),
+            im: None,
             potential_input_methods,
             contexts: HashMap::new(),
             destroy_callback: unsafe { mem::zeroed() },
+            event_sender,
             is_destroyed: false,
             is_fallback: false,
         }
     }
 
     pub unsafe fn close_im_if_necessary(&self) -> Result<bool, XError> {
-        if !self.is_destroyed {
-            close_im(&self.xconn, self.im).map(|_| true)
+        if !self.is_destroyed && self.im.is_some() {
+            close_im(&self.xconn, self.im.as_ref().unwrap().im).map(|_| true)
         } else {
             Ok(false)
         }

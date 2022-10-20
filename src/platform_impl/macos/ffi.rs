@@ -4,10 +4,6 @@
 
 use std::ffi::c_void;
 
-use cocoa::{
-    base::id,
-    foundation::{NSInteger, NSUInteger},
-};
 use core_foundation::{
     array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };
@@ -15,109 +11,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc;
-
-pub const NSNotFound: NSInteger = NSInteger::max_value();
-
-#[repr(C)]
-pub struct NSRange {
-    pub location: NSUInteger,
-    pub length: NSUInteger,
-}
-
-impl NSRange {
-    #[inline]
-    pub fn new(location: NSUInteger, length: NSUInteger) -> NSRange {
-        NSRange { location, length }
-    }
-}
-
-unsafe impl objc::Encode for NSRange {
-    fn encode() -> objc::Encoding {
-        let encoding = format!(
-            // TODO: Verify that this is correct
-            "{{NSRange={}{}}}",
-            NSUInteger::encode().as_str(),
-            NSUInteger::encode().as_str(),
-        );
-        unsafe { objc::Encoding::from_str(&encoding) }
-    }
-}
-
-pub trait NSMutableAttributedString: Sized {
-    unsafe fn alloc(_: Self) -> id {
-        msg_send![class!(NSMutableAttributedString), alloc]
-    }
-
-    unsafe fn init(self) -> id; // *mut NSMutableAttributedString
-    unsafe fn initWithString(self, string: id) -> id;
-    unsafe fn initWithAttributedString(self, string: id) -> id;
-
-    unsafe fn string(self) -> id; // *mut NSString
-    unsafe fn mutableString(self) -> id; // *mut NSMutableString
-    unsafe fn length(self) -> NSUInteger;
-}
-
-impl NSMutableAttributedString for id {
-    unsafe fn init(self) -> id {
-        msg_send![self, init]
-    }
-
-    unsafe fn initWithString(self, string: id) -> id {
-        msg_send![self, initWithString: string]
-    }
-
-    unsafe fn initWithAttributedString(self, string: id) -> id {
-        msg_send![self, initWithAttributedString: string]
-    }
-
-    unsafe fn string(self) -> id {
-        msg_send![self, string]
-    }
-
-    unsafe fn mutableString(self) -> id {
-        msg_send![self, mutableString]
-    }
-
-    unsafe fn length(self) -> NSUInteger {
-        msg_send![self, length]
-    }
-}
-
-pub const kCGBaseWindowLevelKey: NSInteger = 0;
-pub const kCGMinimumWindowLevelKey: NSInteger = 1;
-pub const kCGDesktopWindowLevelKey: NSInteger = 2;
-pub const kCGBackstopMenuLevelKey: NSInteger = 3;
-pub const kCGNormalWindowLevelKey: NSInteger = 4;
-pub const kCGFloatingWindowLevelKey: NSInteger = 5;
-pub const kCGTornOffMenuWindowLevelKey: NSInteger = 6;
-pub const kCGDockWindowLevelKey: NSInteger = 7;
-pub const kCGMainMenuWindowLevelKey: NSInteger = 8;
-pub const kCGStatusWindowLevelKey: NSInteger = 9;
-pub const kCGModalPanelWindowLevelKey: NSInteger = 10;
-pub const kCGPopUpMenuWindowLevelKey: NSInteger = 11;
-pub const kCGDraggingWindowLevelKey: NSInteger = 12;
-pub const kCGScreenSaverWindowLevelKey: NSInteger = 13;
-pub const kCGMaximumWindowLevelKey: NSInteger = 14;
-pub const kCGOverlayWindowLevelKey: NSInteger = 15;
-pub const kCGHelpWindowLevelKey: NSInteger = 16;
-pub const kCGUtilityWindowLevelKey: NSInteger = 17;
-pub const kCGDesktopIconWindowLevelKey: NSInteger = 18;
-pub const kCGCursorWindowLevelKey: NSInteger = 19;
-pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
-
-#[derive(Debug, Clone, Copy)]
-#[repr(isize)]
-pub enum NSWindowLevel {
-    NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
-    NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,
-    NSTornOffMenuWindowLevel = kCGTornOffMenuWindowLevelKey as _,
-    NSModalPanelWindowLevel = kCGModalPanelWindowLevelKey as _,
-    NSMainMenuWindowLevel = kCGMainMenuWindowLevelKey as _,
-    NSStatusWindowLevel = kCGStatusWindowLevelKey as _,
-    NSPopUpMenuWindowLevel = kCGPopUpMenuWindowLevelKey as _,
-    NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
-}
 
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
@@ -171,16 +64,7 @@ pub type CGDisplayModeRef = *mut c_void;
 // directly. Fortunately, it has always been available as a subframework of
 // `ApplicationServices`, see:
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
-//
-// TODO: Remove the WINIT_LINK_COLORSYNC hack, it is probably not needed.
-#[cfg_attr(
-    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
-    link(name = "ApplicationServices", kind = "framework")
-)]
-#[cfg_attr(
-    use_colorsync_cgdisplaycreateuuidfromdisplayid,
-    link(name = "ColorSync", kind = "framework")
-)]
+#[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }
@@ -230,3 +114,45 @@ extern "C" {
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }
+
+mod core_video {
+    use super::*;
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {}
+
+    // CVBase.h
+
+    pub type CVTimeFlags = i32; // int32_t
+    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
+
+    #[repr(C)]
+    #[derive(Debug, Clone)]
+    pub struct CVTime {
+        pub time_value: i64, // int64_t
+        pub time_scale: i32, // int32_t
+        pub flags: i32,      // int32_t
+    }
+
+    // CVReturn.h
+
+    pub type CVReturn = i32; // int32_t
+    pub const kCVReturnSuccess: CVReturn = 0;
+
+    // CVDisplayLink.h
+
+    pub type CVDisplayLinkRef = *mut c_void;
+
+    extern "C" {
+        pub fn CVDisplayLinkCreateWithCGDisplay(
+            displayID: CGDirectDisplayID,
+            displayLinkOut: *mut CVDisplayLinkRef,
+        ) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
+            displayLink: CVDisplayLinkRef,
+        ) -> CVTime;
+        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
+    }
+}
+
+pub use core_video::*;

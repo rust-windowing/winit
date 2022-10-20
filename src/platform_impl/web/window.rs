@@ -2,14 +2,13 @@ use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
-use raw_window_handle::{RawWindowHandle, WebHandle};
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 
-use super::{backend, monitor, EventLoopWindowTarget};
+use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
 use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -19,28 +18,30 @@ use std::rc::Rc;
 pub struct Window {
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
-    id: Id,
+    id: WindowId,
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
-        platform_attr: PlatformSpecificBuilderAttributes,
+        platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let runner = target.runner.clone();
 
         let id = target.generate_id();
 
+        let prevent_default = platform_attr.prevent_default;
+
         let canvas = backend::Canvas::create(platform_attr)?;
-        let mut canvas = Rc::new(RefCell::new(canvas));
+        let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&mut canvas, id);
+        target.register(&canvas, id, prevent_default);
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -77,7 +78,7 @@ impl Window {
         Ok(window)
     }
 
-    pub fn canvas<'a>(&'a self) -> Ref<'a, backend::Canvas> {
+    pub fn canvas(&self) -> Ref<'_, backend::Canvas> {
         self.canvas.borrow()
     }
 
@@ -87,6 +88,11 @@ impl Window {
 
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     pub fn request_redraw(&self) {
@@ -147,8 +153,22 @@ impl Window {
     }
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        // Intentionally a no-op: users can't resize canvas elements
+    }
+
+    #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // Intentionally a no-op: users can't resize canvas elements
+    }
+
+    pub fn is_resizable(&self) -> bool {
+        true
     }
 
     #[inline]
@@ -207,11 +227,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let lock = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Locked => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         self.canvas
             .borrow()
-            .set_cursor_grab(grab)
-            .map_err(|e| ExternalError::Os(e))
+            .set_cursor_lock(lock)
+            .map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -227,6 +255,11 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -247,7 +280,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
             Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))
         } else {
@@ -256,8 +289,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
-        if monitor.is_some() {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        if fullscreen.is_some() {
             self.canvas.borrow().request_fullscreen();
         } else if self.canvas.borrow().is_fullscreen() {
             backend::exit_fullscreen();
@@ -267,6 +300,10 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
         // Intentionally a no-op, no canvas decorations
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]
@@ -285,6 +322,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
@@ -296,39 +338,45 @@ impl Window {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> RootMH {
-        RootMH {
-            inner: monitor::Handle,
-        }
+    fn current_monitor_inner(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMH> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
     #[inline]
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
         VecDeque::new().into_iter()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: monitor::Handle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     #[inline]
-    pub fn id(&self) -> Id {
-        return self.id;
+    pub fn id(&self) -> WindowId {
+        self.id
     }
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = WebHandle::empty();
-        handle.id = self.id.0;
-        RawWindowHandle::Web(handle)
+        let mut window_handle = WebWindowHandle::empty();
+        window_handle.id = self.id.0;
+        RawWindowHandle::Web(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }
 
@@ -341,15 +389,39 @@ impl Drop for Window {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub(crate) u32);
+pub struct WindowId(pub(crate) u32);
 
-impl Id {
-    pub const unsafe fn dummy() -> Id {
-        Id(0)
+impl WindowId {
+    pub const unsafe fn dummy() -> Self {
+        Self(0)
     }
 }
 
-#[derive(Default, Clone)]
-pub struct PlatformSpecificBuilderAttributes {
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as u32)
+    }
+}
+
+#[derive(Clone)]
+pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) prevent_default: bool,
+    pub(crate) focusable: bool,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            canvas: None,
+            prevent_default: true,
+            focusable: true,
+        }
+    }
 }

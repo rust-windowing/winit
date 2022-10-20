@@ -5,8 +5,9 @@ use std::rc::Rc;
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Attached;
-use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::{ZwpPointerConstraintsV1};
+use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
+use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
 
 use crate::event::{ModifiersState, TouchPhase};
 
@@ -25,9 +26,13 @@ pub(super) struct PointerData {
     pub pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
 
     pub confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,
+    pub locked_pointer: Rc<RefCell<Option<ZwpLockedPointerV1>>>,
 
-    /// A latest event serial.
+    /// Latest observed serial in pointer events.
     pub latest_serial: Rc<Cell<u32>>,
+
+    /// Latest observed serial in pointer enter events.
+    pub latest_enter_serial: Rc<Cell<u32>>,
 
     /// The currently accumulated axis data on a pointer.
     pub axis_data: AxisData,
@@ -36,13 +41,16 @@ pub(super) struct PointerData {
 impl PointerData {
     pub fn new(
         confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,
+        locked_pointer: Rc<RefCell<Option<ZwpLockedPointerV1>>>,
         pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Self {
         Self {
             surface: None,
             latest_serial: Rc::new(Cell::new(0)),
+            latest_enter_serial: Rc::new(Cell::new(0)),
             confined_pointer,
+            locked_pointer,
             modifiers_state,
             pointer_constraints,
             axis_data: AxisData::new(),

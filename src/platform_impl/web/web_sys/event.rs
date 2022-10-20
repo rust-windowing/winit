@@ -48,7 +48,7 @@ pub fn mouse_position_by_client(
 }
 
 pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
-    let x = event.delta_x();
+    let x = -event.delta_x();
     let y = -event.delta_y();
 
     match event.delta_mode() {

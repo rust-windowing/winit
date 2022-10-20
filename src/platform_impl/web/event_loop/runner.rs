@@ -1,6 +1,6 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
-use crate::event_loop as root;
+use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 
 use instant::{Duration, Instant};
@@ -54,18 +54,18 @@ impl<T: 'static> RunnerEnum<T> {
 
 struct Runner<T: 'static> {
     state: State,
-    event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
 }
 
 impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>) -> Self {
+    pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) -> Self {
         Runner {
             state: State::Init,
             event_handler,
         }
     }
 
-    /// Returns the cooresponding `StartCause` for the current `state`, or `None`
+    /// Returns the corresponding `StartCause` for the current `state`, or `None`
     /// when in `Exit` state.
     fn maybe_start_cause(&self) -> Option<StartCause> {
         Some(match self.state {
@@ -83,14 +83,14 @@ impl<T: 'static> Runner<T> {
         })
     }
 
-    fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
-        let is_closed = matches!(*control, root::ControlFlow::ExitWithCode(_));
+    fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut ControlFlow) {
+        let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
 
         (self.event_handler)(event, control);
 
         // Maintain closed state, even if the callback changes it
         if is_closed {
-            *control = root::ControlFlow::Exit;
+            *control = ControlFlow::Exit;
         }
     }
 }
@@ -123,10 +123,7 @@ impl<T: 'static> Shared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
-    pub fn set_listener(
-        &self,
-        event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
-    ) {
+    pub fn set_listener(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         {
             let mut runner = self.0.runner.borrow_mut();
             assert!(matches!(*runner, RunnerEnum::Pending));
@@ -161,8 +158,9 @@ impl<T: 'static> Shared<T> {
     }
 
     pub fn init(&self) {
-        let start_cause = Event::NewEvents(StartCause::Init);
-        self.run_until_cleared(iter::once(start_cause));
+        // NB: For consistency all platforms must emit a 'resumed' event even though web
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        self.run_until_cleared([Event::NewEvents(StartCause::Init), Event::Resumed].into_iter());
     }
 
     // Run the polling logic for the Poll ControlFlow, which involves clearing the queue
@@ -245,7 +243,7 @@ impl<T: 'static> Shared<T> {
     // Process the destroy-pending windows. This should only be called from
     // `run_until_cleared` and `handle_scale_changed`, somewhere between emitting
     // `NewEvents` and `MainEventsCleared`.
-    fn process_destroy_pending_windows(&self, control: &mut root::ControlFlow) {
+    fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0
                 .all_canvases
@@ -369,7 +367,7 @@ impl<T: 'static> Shared<T> {
     }
 
     fn handle_unload(&self) {
-        self.apply_control_flow(root::ControlFlow::Exit);
+        self.apply_control_flow(ControlFlow::Exit);
         let mut control = self.current_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
@@ -379,9 +377,9 @@ impl<T: 'static> Shared<T> {
     // handle_single_event_sync takes in an event and handles it synchronously.
     //
     // It should only ever be called from `scale_changed`.
-    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut ControlFlow) {
         if self.is_closed() {
-            *control = root::ControlFlow::Exit;
+            *control = ControlFlow::Exit;
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
@@ -394,9 +392,9 @@ impl<T: 'static> Shared<T> {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from `run_until_cleared` and `scale_changed`.
-    fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
+    fn handle_event(&self, event: Event<'static, T>, control: &mut ControlFlow) {
         if self.is_closed() {
-            *control = root::ControlFlow::Exit;
+            *control = ControlFlow::Exit;
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
@@ -409,7 +407,7 @@ impl<T: 'static> Shared<T> {
             RunnerEnum::Destroyed => return,
         }
 
-        let is_closed = matches!(*control, root::ControlFlow::ExitWithCode(_));
+        let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
@@ -425,18 +423,18 @@ impl<T: 'static> Shared<T> {
 
     // Apply the new ControlFlow that has been selected by the user
     // Start any necessary timeouts etc
-    fn apply_control_flow(&self, control_flow: root::ControlFlow) {
+    fn apply_control_flow(&self, control_flow: ControlFlow) {
         let new_state = match control_flow {
-            root::ControlFlow::Poll => {
+            ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
                     request: backend::AnimationFrameRequest::new(move || cloned.poll()),
                 }
             }
-            root::ControlFlow::Wait => State::Wait {
+            ControlFlow::Wait => State::Wait {
                 start: Instant::now(),
             },
-            root::ControlFlow::WaitUntil(end) => {
+            ControlFlow::WaitUntil(end) => {
                 let start = Instant::now();
 
                 let delay = if end <= start {
@@ -456,18 +454,15 @@ impl<T: 'static> Shared<T> {
                     ),
                 }
             }
-            root::ControlFlow::ExitWithCode(_) => State::Exit,
+            ControlFlow::ExitWithCode(_) => State::Exit,
         };
 
-        match *self.0.runner.borrow_mut() {
-            RunnerEnum::Running(ref mut runner) => {
-                runner.state = new_state;
-            }
-            _ => (),
+        if let RunnerEnum::Running(ref mut runner) = *self.0.runner.borrow_mut() {
+            runner.state = new_state;
         }
     }
 
-    fn handle_loop_destroyed(&self, control: &mut root::ControlFlow) {
+    fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
         self.handle_event(Event::LoopDestroyed, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.scale_change_detector.borrow_mut() = None;
@@ -510,11 +505,11 @@ impl<T: 'static> Shared<T> {
     }
 
     // Get the current control flow state
-    fn current_control_flow(&self) -> root::ControlFlow {
+    fn current_control_flow(&self) -> ControlFlow {
         match *self.0.runner.borrow() {
             RunnerEnum::Running(ref runner) => runner.state.control_flow(),
-            RunnerEnum::Pending => root::ControlFlow::Poll,
-            RunnerEnum::Destroyed => root::ControlFlow::Exit,
+            RunnerEnum::Pending => ControlFlow::Poll,
+            RunnerEnum::Destroyed => ControlFlow::Exit,
         }
     }
 }
