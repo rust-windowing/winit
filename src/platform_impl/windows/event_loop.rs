@@ -1537,7 +1537,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     },
                 });
             }
-            0
+            if msg == WM_SYSKEYUP {
+                DefWindowProcW(window, msg, wparam, lparam)
+            } else {
+                0
+            }
         }
 
         WM_LBUTTONDOWN => {
