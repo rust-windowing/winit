@@ -23,7 +23,8 @@ use crate::{
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 
@@ -340,6 +341,11 @@ impl Inner {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
+
+    pub fn theme(&self) -> Option<Theme> {
+        warn!("`Window::theme` is ignored on iOS");
+        None
     }
 }
 

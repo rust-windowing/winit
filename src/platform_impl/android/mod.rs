@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    window::{self, CursorGrabMode},
+    window::{self, CursorGrabMode, Theme},
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
@@ -851,6 +851,10 @@ impl Window {
 
     pub fn content_rect(&self) -> Rect {
         ndk_glue::content_rect()
+    }
+
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }
 

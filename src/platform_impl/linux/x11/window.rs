@@ -20,7 +20,7 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -119,7 +119,12 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = event_loop.root;
+        let root = if let Some(id) = pl_attribs.parent_id {
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
+            u64::from(id) as _
+        } else {
+            event_loop.root
+        };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
@@ -1540,5 +1545,10 @@ impl UnownedWindow {
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
         RawDisplayHandle::Xlib(display_handle)
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }

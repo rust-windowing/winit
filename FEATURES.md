@@ -130,6 +130,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Hidden titlebar buttons
 * Full-size content view
 * Accepts first mouse
+* Set a preferred theme and get current theme.
 
 ### Unix
 * Window urgency
@@ -137,6 +138,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * X11 Override Redirect Flag
 * GTK Theme Variant
 * Base window size
+* Setting the X11 parent window
 
 ### iOS
 * `winit` has a minimum OS requirement of iOS 8

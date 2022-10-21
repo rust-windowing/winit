@@ -3,7 +3,7 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -372,6 +372,11 @@ impl Window {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Web(WebDisplayHandle::empty())
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }
 

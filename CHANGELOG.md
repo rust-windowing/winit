@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, fixed focus event emission on minimize.
+- On Windows, fix focusing menubar when pressing `Alt`.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
@@ -22,6 +22,18 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
+- On X11, added `WindowExtX11::with_parent` to create child windows.
+- Added support for `WindowBuilder::with_theme` and `Window::theme` to support per-window dark/light/system theme configuration on macos, windows and wayland.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
+- **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
+- **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
+
+# 0.27.4
+
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
+- On Windows, fixed focus event emission on minimize.
+- On X11, fixed IME crashing during reload.
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
 
 # 0.27.3
 

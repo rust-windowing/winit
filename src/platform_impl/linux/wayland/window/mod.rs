@@ -170,7 +170,7 @@ impl Window {
         // Set CSD frame config from theme if specified,
         // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+        if let Some(theme) = attributes.preferred_theme.or_else(|| {
             std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
                 .ok()
                 .and_then(|s| s.as_str().try_into().ok())
@@ -618,6 +618,11 @@ impl Window {
     fn send_request(&self, request: WindowRequest) {
         self.window_requests.lock().unwrap().push(request);
         self.event_loop_awakener.ping();
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
     }
 }
 

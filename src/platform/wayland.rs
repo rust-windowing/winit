@@ -138,26 +138,12 @@ pub trait WindowBuilderExtWayland {
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
-
-    /// Build window with certain decoration [`Theme`]
-    ///
-    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light".
-    ///
-    /// When unspecified a theme is automatically selected.
-    fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 }
 
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
-        self
-    }
-
-    #[inline]
-    fn with_wayland_csd_theme(mut self, theme: Theme) -> Self {
-        self.platform_specific.csd_theme = Some(theme);
         self
     }
 }
