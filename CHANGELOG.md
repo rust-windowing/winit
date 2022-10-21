@@ -27,6 +27,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, added support for `WindowEvent::ThemeChanged`.
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
+- Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
 
 # 0.27.4
 

@@ -32,6 +32,7 @@ targets = [
     # WebAssembly
     "wasm32-unknown-unknown",
 ]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
