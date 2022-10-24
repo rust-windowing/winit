@@ -952,6 +952,18 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
     }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    pub fn set_content_protected(&self, enabled: bool) {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        self.window.set_content_protected(enabled);
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let _ = enabled;
+    }
 }
 
 /// Cursor functions.

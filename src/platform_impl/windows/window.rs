@@ -42,11 +42,11 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
             PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
-            CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-            GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
-            WNDCLASSEXW,
+            SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW,
+            CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG,
+            FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE,
+            SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+            WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -729,6 +729,20 @@ impl Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(window.0) };
         }
+    }
+
+    #[inline]
+    pub fn set_content_protected(&self, enabled: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if enabled {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
     }
 }
 
