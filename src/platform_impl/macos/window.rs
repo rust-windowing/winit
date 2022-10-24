@@ -1119,7 +1119,7 @@ impl WinitWindow {
     #[inline]
     pub fn set_content_protected(&self, enabled: bool) {
         unsafe {
-            let _: () = msg_send![self.ns_window(), setSharingType: !enabled as i32];
+            let _: () = msg_send![self, setSharingType: !enabled as i32];
         }
     }
 }
