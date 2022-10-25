@@ -589,6 +589,11 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         x11_or_wayland!(match self; Window(window) => window.theme())
     }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        x11_or_wayland!(match self; Window(window) => window.title())
+    }
 }
 
 /// Hooks for X11 errors.

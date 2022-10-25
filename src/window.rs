@@ -952,6 +952,16 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
     }
+
+    /// Gets the current title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    #[inline]
+    pub fn title(&self) -> String {
+        self.window.title()
+    }
 }
 
 /// Cursor functions.
