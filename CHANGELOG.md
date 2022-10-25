@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.27.5
+
 - On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
 
 # 0.27.4
