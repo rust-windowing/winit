@@ -701,7 +701,7 @@ impl Window {
     #[inline]
     pub fn title(&self) -> String {
         let len = unsafe { GetWindowTextLengthW(self.window.0) };
-        let mut buf = vec![0; len as usize];
+        let mut buf = vec![0; (len + 1) as usize];
         unsafe { GetWindowTextW(self.window.0, buf.as_mut_ptr(), len) };
         String::from_utf16_lossy(&buf[..(len - 1) as _])
     }
