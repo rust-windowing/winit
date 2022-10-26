@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows, fix focusing menubar when pressing `Alt`.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.

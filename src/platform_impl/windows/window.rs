@@ -786,7 +786,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         let window_state = {
             let window_state = WindowState::new(
                 &self.attributes,
-                self.pl_attribs.taskbar_icon.clone(),
+                // Will be set later in on_create
+                None,
                 scale_factor,
                 current_theme,
                 self.attributes.preferred_theme,
@@ -896,6 +897,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
 
         win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+        win.set_window_icon(self.attributes.window_icon.clone());
+        win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
 
@@ -949,7 +952,7 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = register_window_class::<T>();
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1022,20 +1025,8 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(
-    window_icon: &Option<Icon>,
-    taskbar_icon: &Option<Icon>,
-) -> Vec<u16> {
+unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
-
-    let h_icon = taskbar_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
-    let h_icon_small = window_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
 
     use windows_sys::Win32::UI::WindowsAndMessaging::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
@@ -1045,12 +1036,12 @@ unsafe fn register_window_class<T: 'static>(
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
-        hIcon: h_icon,
+        hIcon: 0,
         hCursor: 0, // must be null in order for cursor state to work properly
         hbrBackground: COLOR_WINDOWFRAME as _,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
-        hIconSm: h_icon_small,
+        hIconSm: 0,
     };
 
     // We ignore errors because registering the same window class twice would trigger
