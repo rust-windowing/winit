@@ -29,12 +29,15 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
 
+# 0.27.5
+
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
+
 # 0.27.4
 
 - On Windows, emit `ReceivedCharacter` events on system keybindings.
 - On Windows, fixed focus event emission on minimize.
 - On X11, fixed IME crashing during reload.
-- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
 
 # 0.27.3
 
