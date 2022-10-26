@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::mem::ManuallyDrop;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
@@ -154,6 +155,9 @@ pub struct WindowHandle {
     /// Whether the window is resizable.
     pub is_resizable: Cell<bool>,
 
+    /// Whether the window has keyboard focus.
+    pub has_focus: Arc<AtomicBool>,
+
     /// Allow IME events for that window.
     pub ime_allowed: Cell<bool>,
 
@@ -187,6 +191,7 @@ impl WindowHandle {
         env: &Environment<WinitEnv>,
         window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
+        has_focus: Arc<AtomicBool>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
@@ -209,6 +214,7 @@ impl WindowHandle {
             attention_requested: Cell::new(false),
             compositor,
             ime_allowed: Cell::new(false),
+            has_focus,
         }
     }
 

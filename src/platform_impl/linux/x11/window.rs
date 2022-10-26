@@ -55,6 +55,7 @@ pub struct SharedState {
     pub resize_increments: Option<Size>,
     pub base_size: Option<Size>,
     pub visibility: Visibility,
+    pub has_focus: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -94,6 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
+            has_focus: true,
         })
     }
 }
@@ -1602,6 +1604,10 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.shared_state_lock().has_focus
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

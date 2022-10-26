@@ -1215,6 +1215,10 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.isKeyWindow()
+    }
+
     pub fn set_theme(&self, theme: Option<Theme>) {
         set_ns_theme(theme);
         self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));

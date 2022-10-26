@@ -1,5 +1,7 @@
 //! Handling of various keyboard events.
 
+use std::sync::atomic::Ordering;
+
 use sctk::reexports::client::protocol::wl_keyboard::KeyState;
 
 use sctk::seat::keyboard::Event as KeyboardEvent;
@@ -22,6 +24,9 @@ pub(super) fn handle_keyboard(
         KeyboardEvent::Enter { surface, .. } => {
             let window_id = wayland::make_wid(&surface);
 
+            let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
+            window_handle.has_focus.store(true, Ordering::Relaxed);
+
             // Window gained focus.
             event_sink.push_window_event(WindowEvent::Focused(true), window_id);
 
@@ -43,6 +48,9 @@ pub(super) fn handle_keyboard(
                     window_id,
                 );
             }
+
+            let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
+            window_handle.has_focus.store(false, Ordering::Relaxed);
 
             // Window lost focus.
             event_sink.push_window_event(WindowEvent::Focused(false), window_id);

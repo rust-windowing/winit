@@ -1022,6 +1022,16 @@ impl Window {
         self.window.focus_window()
     }
 
+    /// Gets whether the window has keyboard focus.
+    ///
+    /// This queries the same state information as [`WindowEvent::Focused`].
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.window.has_focus()
+    }
+
     /// Requests user attention to the window, this has no effect if the application
     /// is already focused. How requesting for user attention manifests is platform dependent,
     /// see [`UserAttentionType`] for details.
