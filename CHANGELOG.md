@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, revert window background to an empty brush to avoid white flashes when changing scaling
+- On macOS, fix panic when getting current monitor without any monitor attached.
 - **Breaking:** Removed `Window::set_always_on_top` and related APIs in favor of `Window::set_window_level`.
 - On Windows, MacOS and X11, add always on bottom APIs.
 - On Windows, fix the value in `MouseButton::Other`.
@@ -38,7 +39,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
-- On macOS, fix panic when getting current monitor without any monitor attached.
 - **Breaking:** On Android, switched to using [`android-activity`](https://github.com/rib/android-activity) crate as a glue layer instead of [`ndk-glue](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue). See [README.md#Android](https://github.com/rust-windowing/winit#Android) for more details. ([#2444](https://github.com/rust-windowing/winit/pull/2444))
 
 # 0.27.5
