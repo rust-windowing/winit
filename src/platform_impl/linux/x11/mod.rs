@@ -188,6 +188,8 @@ impl<T: 'static> EventLoop<T> {
             .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
+        let xpresent_event_offset = xconn.xperest_event_offset();
+
         let xi2ext = unsafe {
             let mut ext = XExtension::default();
 
@@ -266,6 +268,7 @@ impl<T: 'static> EventLoop<T> {
             dnd,
             devices: Default::default(),
             randr_event_offset,
+            xpresent_event_offset,
             ime_receiver,
             ime_event_receiver,
             xi2ext,

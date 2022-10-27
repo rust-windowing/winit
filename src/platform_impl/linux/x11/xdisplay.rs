@@ -11,6 +11,8 @@ pub struct XConnection {
     pub xrandr: ffi::Xrandr_2_2_0,
     /// Exposes XRandR functions from version = 1.5
     pub xrandr_1_5: Option<ffi::Xrandr>,
+    /// Exposes XPresent.
+    pub xpresent: Option<ffi::Xpresent>,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
@@ -34,6 +36,12 @@ impl XConnection {
         let xcursor = ffi::Xcursor::open()?;
         let xrandr = ffi::Xrandr_2_2_0::open()?;
         let xrandr_1_5 = ffi::Xrandr::open().ok();
+
+        let xpresent = ffi::Xpresent::open().ok();
+        if xpresent.is_none() {
+            log::warn!("lixXpresent is missing; requesting frame hints is not supported.");
+        }
+
         let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
         let xrender = ffi::Xrender::open()?;
@@ -61,6 +69,7 @@ impl XConnection {
             xinput2,
             xlib_xcb,
             xrender,
+            xpresent,
             display,
             x11_fd: fd,
             latest_error: Mutex::new(None),

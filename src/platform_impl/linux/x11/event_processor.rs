@@ -28,6 +28,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) ime_receiver: ImeReceiver,
     pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) randr_event_offset: c_int,
+    pub(super) xpresent_event_offset: Option<c_int>,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
@@ -653,7 +654,31 @@ impl<T: 'static> EventProcessor<T> {
                 } else {
                     return;
                 };
+
                 let xev = &guard.cookie;
+
+                // Handle xpresent.
+                if self.xpresent_event_offset == Some(xev.extension)
+                    && xev.evtype == ffi::PresentCompleteNotify
+                {
+                    let xev: &ffi::XPresentCompleteNotifyEvent =
+                        unsafe { &*(xev.data as *const _) };
+
+                    let window_id = mkwid(xev.window);
+                    if wt.windows.borrow().contains_key(&window_id.0) {
+                        // Remove the event input.
+                        let _ = wt
+                            .xconn
+                            .xpresent_free_input(xev.window, xev.eid as ffi::XID);
+
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: crate::event::WindowEvent::CanRedrawFrame,
+                        });
+                    }
+                }
+
+                // Handle input.
                 if self.xi2ext.opcode != xev.extension {
                     return;
                 }
@@ -1194,7 +1219,9 @@ impl<T: 'static> EventProcessor<T> {
                         }
                     }
 
-                    _ => {}
+                    _ => {
+                        println!("Here")
+                    }
                 }
             }
             _ => {

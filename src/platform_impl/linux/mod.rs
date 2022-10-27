@@ -529,6 +529,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(w) => w.request_frame_throttling_hint())
+    }
+
+    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         match self {
             #[cfg(feature = "x11")]

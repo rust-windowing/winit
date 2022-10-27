@@ -515,6 +515,18 @@ pub enum WindowEvent<'a> {
     /// Platform-specific behavior:
     /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
     Occluded(bool),
+
+    /// A redraw throttling hint which is sent by the system compositor when the redraw operation
+    /// should be performed. This event is useful when you want contiguous non-blocking drawing
+    /// at the refresh rate of the monitor without using `Vsync` extension and relying on a timer
+    /// based rendering.
+    ///
+    /// The only way to obtain it is by using [`Window::request_frame_throttling_hint`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    CanRedrawFrame,
 }
 
 impl Clone for WindowEvent<'static> {
@@ -623,6 +635,7 @@ impl Clone for WindowEvent<'static> {
                 unreachable!("Static event can't be about scale factor changing")
             }
             Occluded(occluded) => Occluded(*occluded),
+            CanRedrawFrame => CanRedrawFrame,
         };
     }
 }
@@ -727,6 +740,7 @@ impl<'a> WindowEvent<'a> {
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
             Occluded(occluded) => Some(Occluded(occluded)),
+            CanRedrawFrame => Some(CanRedrawFrame),
         }
     }
 }

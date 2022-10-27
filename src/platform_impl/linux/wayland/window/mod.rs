@@ -367,6 +367,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         self.size
             .lock()

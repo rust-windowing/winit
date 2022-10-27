@@ -12,6 +12,7 @@ mod input;
 pub mod keys;
 mod memory;
 pub mod modifiers;
+mod present;
 mod randr;
 mod window_property;
 mod wm;

@@ -1533,6 +1533,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), ExternalError> {
+        self.xconn.xpresent_select_input(self.xwindow)
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = XlibWindowHandle::empty();
         window_handle.window = self.xlib_window();

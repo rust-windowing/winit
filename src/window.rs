@@ -459,6 +459,50 @@ impl Window {
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
+
+    /// Requests [`WindowEvent::CanRedrawFrame`] from the system compositor.
+    ///
+    /// This method is **strongly recommended** to perform non-blocking,
+    /// contiguous drawing syncing to the monitor refresh rate. Usually system
+    /// compositor sends this event right after the vblank in responce to the
+    /// previously presented window via e.g `eglSwapBuffers`, meaning that
+    /// chances to miss vblank is very low if you drive your render loop with
+    /// this event.
+    ///
+    /// **Note:** The major caveat with this method is that you **must draw**
+    /// right after requesting the hint, otherwise the event has chance of not
+    /// being delivered at all or being sent in not desired time.
+    ///
+    /// An example of how the drawing loop could be approached.
+    ///
+    /// ```no_run
+    /// // On the first iteration the `got_frame_hint` is `true`. And set back
+    /// // to `true` when getting `CanRedrawFrame` event.
+    /// if got_frame_hint {
+    ///     window.request_frame_throttling_hint();
+    ///     got_frame_hint = false;
+    ///
+    ///     // Present window on-screen with EGL.
+    ///     egl_swap_buffers(&window);
+    /// }
+    /// ```
+    ///
+    /// The `EGL` here is used as an example, any system Api that is presenting
+    /// to the screen should work, unless you're doing single buffer rendering
+    /// meaning that you should somehow tell the system that you actually drawn
+    /// into the screen.
+    ///
+    /// # Platform-specific:
+    ///
+    /// **X11:** - libXpresent is required.
+    /// ** Wayland / macOS / Windows / Web:** Not implemented.
+    /// ** iOS / Android:** Always returs [`NotSupportedError`].
+    ///
+    /// [`WindowEvent::CanRedrawFrame`]: crate::event::WindowEvent::CanRedrawFrame
+    #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), ExternalError> {
+        self.window.request_frame_throttling_hint()
+    }
 }
 
 /// Position and size functions.
