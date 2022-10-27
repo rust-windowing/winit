@@ -618,6 +618,19 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::ALWAYS_ON_BOTTOM, always_on_bottom)
+            });
+        });
+    }
+
+    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(monitor::current_monitor(self.hwnd()))
     }

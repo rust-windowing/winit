@@ -286,6 +286,10 @@ impl Inner {
         warn!("`Window::set_always_on_top` is ignored on iOS")
     }
 
+    pub fn set_always_on_bottom(&self, _always_on_bottom: bool) {
+        warn!("`Window::set_always_on_bottom` is ignored on iOS")
+    }
+
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }

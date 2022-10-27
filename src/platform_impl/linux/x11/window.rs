@@ -495,6 +495,11 @@ impl UnownedWindow {
                     .set_always_on_top_inner(window_attrs.always_on_top)
                     .queue();
             }
+            if window_attrs.always_on_bottom {
+                window
+                    .set_always_on_bottom_inner(window_attrs.always_on_bottom)
+                    .queue();
+            }
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -919,9 +924,17 @@ impl UnownedWindow {
         self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
+    fn toggle_atom(&self, atom_bytes: &[u8], enable: bool) -> util::Flusher<'_> {
+        let atom = unsafe { self.xconn.get_atom_unchecked(atom_bytes) };
+        self.set_netwm(enable.into(), (atom as c_long, 0, 0, 0))
+    }
+
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
-        let above_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
-        self.set_netwm(always_on_top.into(), (above_atom as c_long, 0, 0, 0))
+        self.toggle_atom(b"_NET_WM_STATE_ABOVE\0", always_on_top)
+    }
+
+    fn set_always_on_bottom_inner(&self, always_on_bottom: bool) -> util::Flusher<'_> {
+        self.toggle_atom(b"_NET_WM_STATE_BELOW\0", always_on_bottom)
     }
 
     #[inline]
@@ -929,6 +942,13 @@ impl UnownedWindow {
         self.set_always_on_top_inner(always_on_top)
             .flush()
             .expect("Failed to set always-on-top state");
+    }
+
+    #[inline]
+    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
+        self.set_always_on_bottom_inner(always_on_bottom)
+            .flush()
+            .expect("Failed to set always-on-bottom state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {

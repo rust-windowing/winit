@@ -133,6 +133,7 @@ pub(crate) struct WindowAttributes {
     pub transparent: bool,
     pub decorations: bool,
     pub always_on_top: bool,
+    pub always_on_bottom: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
@@ -155,6 +156,7 @@ impl Default for WindowAttributes {
             transparent: false,
             decorations: true,
             always_on_top: false,
+            always_on_bottom: false,
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
@@ -324,7 +326,20 @@ impl WindowBuilder {
     /// See [`Window::set_always_on_top`] for details.
     #[inline]
     pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
+        self.window.always_on_bottom = false;
         self.window.always_on_top = always_on_top;
+        self
+    }
+
+    /// Sets whether or not the window will always be below other windows.
+    ///
+    /// See [`Window::set_always_on_bottom`] for details.
+    ///
+    /// [`Window::set_always_on_bottom`]: crate::window::Window::set_always_on_bottom
+    #[inline]
+    pub fn with_always_on_bottom(mut self, always_on_bottom: bool) -> Self {
+        self.window.always_on_top = false;
+        self.window.always_on_bottom = always_on_bottom;
         self
     }
 
@@ -848,6 +863,17 @@ impl Window {
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
+    }
+
+    /// Change whether or not the window will always be below other windows.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows**: There is no guarantee that the window will be the bottom most but it will try to be.
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    #[inline]
+    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
+        self.window.set_always_on_bottom(always_on_bottom)
     }
 
     /// Sets the window icon.

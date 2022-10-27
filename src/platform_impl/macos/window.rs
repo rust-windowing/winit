@@ -336,6 +336,9 @@ impl WinitWindow {
                 if attrs.always_on_top {
                     this.setLevel(NSWindowLevel::Floating);
                 }
+                if attrs.always_on_bottom {
+                    this.setLevel(NSWindowLevel::BelowNormal);
+                }
 
                 if let Some(increments) = attrs.resize_increments {
                     let increments = increments.to_logical(this.scale_factor());
@@ -1022,6 +1025,16 @@ impl WinitWindow {
     pub fn set_always_on_top(&self, always_on_top: bool) {
         let level = if always_on_top {
             NSWindowLevel::Floating
+        } else {
+            NSWindowLevel::Normal
+        };
+        util::set_level_async(self, level);
+    }
+
+    #[inline]
+    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
+        let level = if always_on_bottom {
+            NSWindowLevel::BelowNormal
         } else {
             NSWindowLevel::Normal
         };

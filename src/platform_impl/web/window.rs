@@ -312,6 +312,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_bottom(&self, _always_on_bottom: bool) {
+        // Intentionally a no-op, no window ordering
+    }
+
+    #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         // Currently an intentional no-op
     }

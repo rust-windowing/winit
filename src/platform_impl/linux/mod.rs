@@ -486,6 +486,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_bottom(&self, _always_on_bottom: bool) {
+        match self {
+            #[cfg(feature = "x11")]
+            Window::X(ref w) => w.set_always_on_bottom(_always_on_bottom),
+            #[cfg(feature = "wayland")]
+            Window::Wayland(_) => (),
+        }
+    }
+
+    #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         match self {
             #[cfg(feature = "x11")]
