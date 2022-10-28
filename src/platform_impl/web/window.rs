@@ -172,6 +172,33 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_maximizable(&self, _maximizable: bool) {
+        // Intentionally a no-op: users can't maximize canvas elements
+    }
+
+    pub fn is_maximizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_minimizable(&self, _minimizable: bool) {
+        // Intentionally a no-op: users can't minmiize canvas elements
+    }
+
+    pub fn is_minimizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_closable(&self, _closable: bool) {
+        // Intentionally a no-op: users can't close canvas elements
+    }
+
+    pub fn is_closable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor()
     }

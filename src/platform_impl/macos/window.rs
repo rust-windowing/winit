@@ -267,6 +267,14 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMask::NSResizableWindowMask;
             }
 
+            if !attrs.minimizable {
+                masks &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+            }
+
+            if !attrs.closable {
+                masks &= !NSWindowStyleMask::NSClosableWindowMask;
+            }
+
             if pl_attrs.fullsize_content_view {
                 masks |= NSWindowStyleMask::NSFullSizeContentViewWindowMask;
             }
@@ -329,6 +337,12 @@ impl WinitWindow {
 
                 if attrs.always_on_top {
                     this.setLevel(NSWindowLevel::Floating);
+                }
+
+                if !attrs.maximizable {
+                    if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
+                        button.setEnabled(false);
+                    }
                 }
 
                 if let Some(increments) = attrs.resize_increments {
@@ -618,6 +632,52 @@ impl WinitWindow {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.isResizable()
+    }
+
+    #[inline]
+    pub fn set_minimizable(&self, minimizable: bool) {
+        let mut mask = unsafe { self.ns_window.styleMask() };
+        if minimizable {
+            mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+        }
+        self.set_style_mask_async(mask);
+    }
+
+    #[inline]
+    pub fn is_minimizable(&self) -> bool {
+        self.isMiniaturizable()
+    }
+
+    #[inline]
+    pub fn set_maximizable(&self, maximizable: bool) {
+        if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
+            button.setEnabled(maximizable);
+        }
+    }
+
+    #[inline]
+    pub fn is_maximizable(&self) -> bool {
+        self.standardWindowButton(NSWindowButton::Zoom)
+            .map(|b| b.isEnabled())
+            .unwrap_or(true)
+    }
+
+    #[inline]
+    pub fn set_closable(&self, closable: bool) {
+        let mut mask = unsafe { self.ns_window.styleMask() };
+        if closable {
+            mask |= NSWindowStyleMask::NSClosableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSClosableWindowMask;
+        }
+        self.set_style_mask_async(mask);
+    }
+
+    #[inline]
+    pub fn is_closable(&self) -> bool {
+        self.hasCloseBox()
     }
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {

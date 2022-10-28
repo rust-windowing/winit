@@ -126,6 +126,9 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub maximizable: bool,
+    pub minimizable: bool,
+    pub closable: bool,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
@@ -147,6 +150,9 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            minimizable: true,
+            maximizable: true,
+            closable: true,
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
@@ -239,6 +245,39 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
+        self
+    }
+
+    /// Sets whether the window is maximizable or not.
+    ///
+    /// The default is `true`.
+    ///
+    /// See [`Window::set_maximizable`] for details.
+    #[inline]
+    pub fn with_maximizable(mut self, maximizable: bool) -> Self {
+        self.window.maximizable = maximizable;
+        self
+    }
+
+    /// Sets whether the window is minimizable or not.
+    ///
+    /// The default is `true`.
+    ///
+    /// See [`Window::set_minimizable`] for details.
+    #[inline]
+    pub fn with_minimizable(mut self, minimizable: bool) -> Self {
+        self.window.minimizable = minimizable;
+        self
+    }
+
+    /// Sets whether the window is closable or not.
+    ///
+    /// The default is `true`.
+    ///
+    /// See [`Window::set_closable`] for details.
+    #[inline]
+    pub fn with_closable(mut self, closable: bool) -> Self {
+        self.window.closable = closable;
         self
     }
 
@@ -730,6 +769,72 @@ impl Window {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.window.is_resizable()
+    }
+
+    /// Sets whether the window is minimizable or not.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn set_minimizable(&self, minimizable: bool) {
+        self.window.set_minimizable(minimizable)
+    }
+
+    /// Gets the window's current minimizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn is_minimizable(&self) -> bool {
+        self.window.is_minimizable()
+    }
+
+    /// Sets whether the window is maximizable or not.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn set_maximizable(&self, maximizable: bool) {
+        self.window.set_maximizable(maximizable)
+    }
+
+    /// Gets the window's current maximizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn is_maximizable(&self) -> bool {
+        self.window.is_maximizable()
+    }
+
+    /// Sets whether the window is closable or not.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn set_closable(&self, closable: bool) {
+        self.window.set_closable(closable)
+    }
+
+    /// Gets the window's current closable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    #[inline]
+    pub fn is_closable(&self) -> bool {
+        self.window.is_closable()
     }
 
     /// Sets the window to minimized or back

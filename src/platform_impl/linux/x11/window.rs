@@ -1259,6 +1259,30 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn set_maximizable(&self, maximizable: bool) {}
+
+    #[inline]
+    pub fn is_maximizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_minimizable(&self, minimizable: bool) {}
+
+    #[inline]
+    pub fn is_minimizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_closable(&self, closable: bool) {}
+
+    #[inline]
+    pub fn is_closable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn xlib_display(&self) -> *mut c_void {
         self.xconn.display as _
     }

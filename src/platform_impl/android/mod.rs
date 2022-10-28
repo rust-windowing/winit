@@ -771,6 +771,24 @@ impl Window {
         false
     }
 
+    pub fn set_minimizable(&self, _minimizable: bool) {}
+
+    pub fn is_minimizable(&self) -> bool {
+        false
+    }
+
+    pub fn set_maximizable(&self, _maximizable: bool) {}
+
+    pub fn is_maximizable(&self) -> bool {
+        false
+    }
+
+    pub fn set_closable(&self, _closable: bool) {}
+
+    pub fn is_closable(&self) -> bool {
+        false
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {}
 
     pub fn set_maximized(&self, _maximized: bool) {}

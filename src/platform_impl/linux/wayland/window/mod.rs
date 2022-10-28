@@ -422,6 +422,30 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_maximizable(&self, maximizable: bool) {}
+
+    #[inline]
+    pub fn is_maximizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_minimizable(&self, minimizable: bool) {}
+
+    #[inline]
+    pub fn is_minimizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    pub fn set_closable(&self, closable: bool) {}
+
+    #[inline]
+    pub fn is_closable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> u32 {
         // The scale factor from `get_surface_scale_factor` is always greater than zero, so
         // u32 conversion is safe.

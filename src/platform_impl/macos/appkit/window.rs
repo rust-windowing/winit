@@ -170,6 +170,12 @@ extern_methods!(
         #[sel(isResizable)]
         pub fn isResizable(&self) -> bool;
 
+        #[sel(isMiniaturizable)]
+        pub fn isMiniaturizable(&self) -> bool;
+
+        #[sel(hasCloseBox)]
+        pub fn hasCloseBox(&self) -> bool;
+
         #[sel(isMiniaturized)]
         pub fn isMiniaturized(&self) -> bool;
 

@@ -262,6 +262,59 @@ impl Window {
         window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
+    #[inline]
+    pub fn set_minimizable(&self, minimizable: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::MINIMIZABLE, minimizable)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_minimizable(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::MINIMIZABLE)
+    }
+
+    #[inline]
+    pub fn set_maximizable(&self, maximizable: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::MAXIMIZABLE, maximizable)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_maximizable(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::MAXIMIZABLE)
+    }
+
+    #[inline]
+    pub fn set_closable(&self, closable: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::CLOSABLE, closable)
+            });
+        });
+    }
+
+    #[inline]
+    pub fn is_closable(&self) -> bool {
+        let window_state = self.window_state_lock();
+        window_state.window_flags.contains(WindowFlags::CLOSABLE)
+    }
+
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
@@ -903,6 +956,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
+        win.set_closable(attributes.closable);
+
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
             force_window_active(win.window.0);
@@ -965,6 +1020,11 @@ where
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
+    window_flags.set(WindowFlags::MINIMIZABLE, attributes.minimizable);
+    window_flags.set(WindowFlags::MAXIMIZABLE, attributes.maximizable);
+    // will be changed later using `window.set_closable()`
+    // but we need to have a default for the diffing to work
+    window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match pl_attribs.parent {
         Parent::ChildOf(parent) => {
