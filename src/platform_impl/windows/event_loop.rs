@@ -53,7 +53,10 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+            HTBORDER, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTCLIENT, HTCLOSE, HTERROR,
+            HTHELP, HTHSCROLL, HTLEFT, HTMAXBUTTON, HTMENU, HTMINBUTTON, HTNOWHERE, HTREDUCE,
+            HTRIGHT, HTSIZE, HTSYSMENU, HTTOP, HTTOPLEFT, HTTOPRIGHT, HTTRANSPARENT, HTVSCROLL,
+            HTZOOM, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
             NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
@@ -62,7 +65,7 @@ use windows_sys::Win32::{
             WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
             WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
             WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
+            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCHITTEST,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
@@ -91,7 +94,7 @@ use crate::{
         window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
         wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
     },
-    window::WindowId as RootWindowId,
+    window::{WindowArea, WindowId as RootWindowId},
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -2227,6 +2230,30 @@ unsafe fn public_window_callback_inner<T: 'static>(
             DefWindowProcW(window, msg, wparam, lparam)
         }
 
+        WM_NCHITTEST => {
+            use crate::event::WindowEvent::HitTest;
+
+            let x = super::get_x_lparam(lparam as u32) as i32;
+            let y = super::get_y_lparam(lparam as u32) as i32;
+
+            let mut pt = POINT { x, y };
+            ScreenToClient(window, &mut pt);
+
+            let default = DefWindowProcW(window, msg, wparam, lparam);
+            let mut area = WindowArea::from_wm_nchittesst(default);
+
+            userdata.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: HitTest {
+                    x: pt.x as u32,
+                    y: pt.y as u32,
+                    new_area: &mut area,
+                },
+            });
+
+            area.to_wm_nchittest()
+        }
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 DestroyWindow(window);
@@ -2484,4 +2511,68 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         Box::into_raw(userdata);
     }
     result
+}
+
+impl WindowArea {
+    fn from_wm_nchittesst(m: isize) -> Self {
+        match m {
+            m if m == HTCAPTION as isize => Self::CAPTION,
+            m if m == HTBORDER as isize => Self::BORDER,
+            m if m == HTBOTTOM as isize => Self::BOTTOM,
+            m if m == HTBOTTOMLEFT as isize => Self::BOTTOMLEFT,
+            m if m == HTBOTTOMRIGHT as isize => Self::BOTTOMRIGHT,
+            m if m == HTCAPTION as isize => Self::CAPTION,
+            m if m == HTCLIENT as isize => Self::CLIENT,
+            m if m == HTCLOSE as isize => Self::CLOSE,
+            m if m == HTERROR as isize => Self::ERROR,
+            m if m == HTHELP as isize => Self::HELP,
+            m if m == HTHSCROLL as isize => Self::HSCROLL,
+            m if m == HTLEFT as isize => Self::LEFT,
+            m if m == HTMENU as isize => Self::MENU,
+            m if m == HTMAXBUTTON as isize => Self::MAXBUTTON,
+            m if m == HTMINBUTTON as isize => Self::MINBUTTON,
+            m if m == HTNOWHERE as isize => Self::NOWHERE,
+            m if m == HTREDUCE as isize => Self::REDUCE,
+            m if m == HTRIGHT as isize => Self::RIGHT,
+            m if m == HTSIZE as isize => Self::SIZE,
+            m if m == HTSYSMENU as isize => Self::SYSMENU,
+            m if m == HTTOP as isize => Self::TOP,
+            m if m == HTTOPLEFT as isize => Self::TOPLEFT,
+            m if m == HTTOPRIGHT as isize => Self::TOPRIGHT,
+            m if m == HTTRANSPARENT as isize => Self::TRANSPARENT,
+            m if m == HTVSCROLL as isize => Self::VSCROLL,
+            m if m == HTZOOM as isize => Self::ZOOM,
+            _ => Self::CLIENT,
+        }
+    }
+
+    fn to_wm_nchittest(&self) -> isize {
+        match self {
+            Self::BORDER => HTBORDER as isize,
+            Self::BOTTOM => HTBOTTOM as isize,
+            Self::BOTTOMLEFT => HTBOTTOMLEFT as isize,
+            Self::BOTTOMRIGHT => HTBOTTOMRIGHT as isize,
+            Self::CAPTION => HTCAPTION as isize,
+            Self::CLIENT => HTCLIENT as isize,
+            Self::CLOSE => HTCLOSE as isize,
+            Self::ERROR => HTERROR as isize,
+            Self::HELP => HTHELP as isize,
+            Self::HSCROLL => HTHSCROLL as isize,
+            Self::LEFT => HTLEFT as isize,
+            Self::MENU => HTMENU as isize,
+            Self::MAXBUTTON => HTMAXBUTTON as isize,
+            Self::MINBUTTON => HTMINBUTTON as isize,
+            Self::NOWHERE => HTNOWHERE as isize,
+            Self::REDUCE => HTREDUCE as isize,
+            Self::RIGHT => HTRIGHT as isize,
+            Self::SIZE => HTSIZE as isize,
+            Self::SYSMENU => HTSYSMENU as isize,
+            Self::TOP => HTTOP as isize,
+            Self::TOPLEFT => HTTOPLEFT as isize,
+            Self::TOPRIGHT => HTTOPRIGHT as isize,
+            Self::TRANSPARENT => HTTRANSPARENT as isize,
+            Self::VSCROLL => HTVSCROLL as isize,
+            Self::ZOOM => HTZOOM as isize,
+        }
+    }
 }
