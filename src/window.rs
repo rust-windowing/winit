@@ -132,12 +132,11 @@ pub(crate) struct WindowAttributes {
     pub visible: bool,
     pub transparent: bool,
     pub decorations: bool,
-    pub always_on_top: bool,
-    pub always_on_bottom: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
+    pub window_level: WindowLevel,
 }
 
 impl Default for WindowAttributes {
@@ -155,8 +154,7 @@ impl Default for WindowAttributes {
             visible: true,
             transparent: false,
             decorations: true,
-            always_on_top: false,
-            always_on_bottom: false,
+            window_level: WindowLevel::Normal,
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
@@ -319,27 +317,14 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets whether or not the window will always be on top of other windows.
+    /// Sets the window level.
     ///
-    /// The default is `false`.
+    /// The default is [`WindowLevel::Normal`].
     ///
-    /// See [`Window::set_always_on_top`] for details.
+    /// See [`WindowLevel`] for details.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
-        self.window.always_on_bottom = false;
-        self.window.always_on_top = always_on_top;
-        self
-    }
-
-    /// Sets whether or not the window will always be below other windows.
-    ///
-    /// See [`Window::set_always_on_bottom`] for details.
-    ///
-    /// [`Window::set_always_on_bottom`]: crate::window::Window::set_always_on_bottom
-    #[inline]
-    pub fn with_always_on_bottom(mut self, always_on_bottom: bool) -> Self {
-        self.window.always_on_top = false;
-        self.window.always_on_bottom = always_on_bottom;
+    pub fn with_window_level(mut self, level: WindowLevel) -> Self {
+        self.window.window_level = level;
         self
     }
 
@@ -855,25 +840,11 @@ impl Window {
         self.window.is_decorated()
     }
 
-    /// Change whether or not the window will always be on top of other windows.
+    /// Change the window level.
     ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
-    #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.window.set_always_on_top(always_on_top)
-    }
-
-    /// Change whether or not the window will always be below other windows.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Windows**: There is no guarantee that the window will be the bottom most but it will try to be.
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
-    #[inline]
-    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
-        self.window.set_always_on_bottom(always_on_bottom)
+    /// See [`WindowLevel`] for details.
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.window.set_window_level(level)
     }
 
     /// Sets the window icon.
@@ -1447,4 +1418,20 @@ impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
     }
+}
+
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Wayland:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WindowLevel {
+    /// The window will always be below other windows,
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows**: There is no guarantee that the window will be the bottom most but it will try to be
+    AlwaysOnBottom,
+    Normal,
+    /// The window will always be on top of other windows,
+    AlwaysOnTop,
 }

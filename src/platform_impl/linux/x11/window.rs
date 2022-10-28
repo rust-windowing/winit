@@ -20,7 +20,9 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowLevel,
+    },
 };
 
 use super::{
@@ -490,16 +492,10 @@ impl UnownedWindow {
                     shared_state.restore_position = Some((x, y));
                 }
             }
-            if window_attrs.always_on_top {
-                window
-                    .set_always_on_top_inner(window_attrs.always_on_top)
-                    .queue();
-            }
-            if window_attrs.always_on_bottom {
-                window
-                    .set_always_on_bottom_inner(window_attrs.always_on_bottom)
-                    .queue();
-            }
+
+            window
+                .set_window_level_inner(window_attrs.window_level)
+                .queue();
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -929,26 +925,19 @@ impl UnownedWindow {
         self.set_netwm(enable.into(), (atom as c_long, 0, 0, 0))
     }
 
-    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
-        self.toggle_atom(b"_NET_WM_STATE_ABOVE\0", always_on_top)
+    fn set_window_level_inner(&self, level: WindowLevel) -> util::Flusher<'_> {
+        self.toggle_atom(b"_NET_WM_STATE_ABOVE\0", level == WindowLevel::AlwaysOnTop)
+            .queue();
+        self.toggle_atom(
+            b"_NET_WM_STATE_BELOW\0",
+            level == WindowLevel::AlwaysOnBottom,
+        )
     }
 
-    fn set_always_on_bottom_inner(&self, always_on_bottom: bool) -> util::Flusher<'_> {
-        self.toggle_atom(b"_NET_WM_STATE_BELOW\0", always_on_bottom)
-    }
-
-    #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.set_always_on_top_inner(always_on_top)
+    fn set_window_level(&self, level: WindowLevel) -> util::Flusher<'_> {
+        set_window_level_inner(level)
             .flush()
-            .expect("Failed to set always-on-top state");
-    }
-
-    #[inline]
-    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
-        self.set_always_on_bottom_inner(always_on_bottom)
-            .flush()
-            .expect("Failed to set always-on-bottom state");
+            .expect("Failed to set window-level state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {

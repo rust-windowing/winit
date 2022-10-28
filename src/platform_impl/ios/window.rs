@@ -24,7 +24,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -282,12 +282,8 @@ impl Inner {
         true
     }
 
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
-    }
-
-    pub fn set_always_on_bottom(&self, _always_on_bottom: bool) {
-        warn!("`Window::set_always_on_bottom` is ignored on iOS")
+    pub fn set_window_level(&self, _level: WindowLevel) {
+        warn!("`Window::set_window_level` is ignored on iOS")
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {

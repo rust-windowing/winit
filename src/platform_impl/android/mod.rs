@@ -981,9 +981,7 @@ impl Window {
         true
     }
 
-    pub fn set_always_on_top(&self, _always_on_top: bool) {}
-
-    pub fn set_always_on_bottom(&self, _always_on_bottom: bool) {}
+    pub fn set_window_level(&self, _level: WindowLevel) {}
 
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 

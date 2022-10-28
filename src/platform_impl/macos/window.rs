@@ -30,7 +30,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -1022,21 +1022,11 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        let level = if always_on_top {
-            NSWindowLevel::Floating
-        } else {
-            NSWindowLevel::Normal
-        };
-        util::set_level_async(self, level);
-    }
-
-    #[inline]
-    pub fn set_always_on_bottom(&self, always_on_bottom: bool) {
-        let level = if always_on_bottom {
-            NSWindowLevel::BelowNormal
-        } else {
-            NSWindowLevel::Normal
+    pub fn set_window_level(&self, level: WindowLevel) {
+        let level = match level {
+            WindowLevel::AlwaysOnTop => NSWindowLevel::Floating,
+            WindowLevel::AlwaysOnBottom => NSWindowLevel::BelowNormal,
+            WindowLevel::Normal => NSWindowLevel::Normal,
         };
         util::set_level_async(self, level);
     }
