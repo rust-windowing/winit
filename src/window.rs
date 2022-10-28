@@ -136,6 +136,7 @@ pub(crate) struct WindowAttributes {
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
+    pub content_protected: bool,
 }
 
 impl Default for WindowAttributes {
@@ -157,6 +158,7 @@ impl Default for WindowAttributes {
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
+            content_protected: false,
         }
     }
 }
@@ -362,6 +364,19 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// The default is `false`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / x11:** Ignored.
+    #[inline]
+    pub fn with_content_protected(mut self, protected: bool) -> Self {
+        self.window.content_protected = protected;
         self
     }
 
@@ -958,11 +973,9 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
-    pub fn set_content_protected(&self, enabled: bool) {
+    pub fn set_content_protected(&self, _protected: bool) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        self.window.set_content_protected(enabled);
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let _ = enabled;
+        self.window.set_content_protected(_protected);
     }
 }
 

@@ -732,11 +732,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_content_protected(&self, enabled: bool) {
+    pub fn set_content_protected(&self, protected: bool) {
         unsafe {
             SetWindowDisplayAffinity(
                 self.hwnd(),
-                if enabled {
+                if protected {
                     WDA_EXCLUDEFROMCAPTURE
                 } else {
                     WDA_NONE
@@ -916,6 +916,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
+
+        win.set_content_protected(attributes.content_protected);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
