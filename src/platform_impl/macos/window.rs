@@ -636,7 +636,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_minimizable(&self, minimizable: bool) {
-        let mut mask = unsafe { self.ns_window.styleMask() };
+        let mut mask = self.styleMask();
         if minimizable {
             mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
         } else {
@@ -666,7 +666,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_closable(&self, closable: bool) {
-        let mut mask = unsafe { self.ns_window.styleMask() };
+        let mut mask = self.styleMask();
         if closable {
             mask |= NSWindowStyleMask::NSClosableWindowMask;
         } else {

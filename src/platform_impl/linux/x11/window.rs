@@ -1259,7 +1259,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_maximizable(&self, maximizable: bool) {}
+    pub fn set_maximizable(&self, _maximizable: bool) {}
 
     #[inline]
     pub fn is_maximizable(&self) -> bool {
@@ -1267,7 +1267,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_minimizable(&self, minimizable: bool) {}
+    pub fn set_minimizable(&self, _minimizable: bool) {}
 
     #[inline]
     pub fn is_minimizable(&self) -> bool {
@@ -1275,7 +1275,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_closable(&self, closable: bool) {}
+    pub fn set_closable(&self, _closable: bool) {}
 
     #[inline]
     pub fn is_closable(&self) -> bool {

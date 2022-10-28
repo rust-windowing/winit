@@ -12,3 +12,13 @@ extern_class!(
         type Super = NSView;
     }
 );
+
+extern_methods!(
+    unsafe impl NSControl {
+        #[sel(setEnabled:)]
+        pub fn setEnabled(&self, enabled: bool);
+
+        #[sel(isEnabled)]
+        pub fn isEnabled(&self) -> bool;
+    }
+);
