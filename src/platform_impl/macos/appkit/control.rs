@@ -1,5 +1,5 @@
 use objc2::foundation::NSObject;
-use objc2::{extern_class, ClassType};
+use objc2::{extern_class, extern_methods, ClassType};
 
 use super::{NSResponder, NSView};
 
