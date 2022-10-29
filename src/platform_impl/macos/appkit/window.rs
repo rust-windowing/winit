@@ -85,7 +85,7 @@ extern_methods!(
         pub fn setMovable(&self, movable: bool);
 
         #[sel(setSharingType:)]
-        pub fn setSharingType(&self, sharingType: bool);
+        pub fn setSharingType(&self, sharingType: NSWindowSharingType);
 
         #[sel(setOpaque:)]
         pub fn setOpaque(&self, opaque: bool);
