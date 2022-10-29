@@ -20,7 +20,9 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    },
 };
 
 use super::{
@@ -1259,27 +1261,11 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_maximizable(&self, _maximizable: bool) {}
+    pub fn set_window_buttons(&self, _buttons: WindowButtons) {}
 
     #[inline]
-    pub fn is_maximizable(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    pub fn set_minimizable(&self, _minimizable: bool) {}
-
-    #[inline]
-    pub fn is_minimizable(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    pub fn set_closable(&self, _closable: bool) {}
-
-    #[inline]
-    pub fn is_closable(&self) -> bool {
-        true
+    pub fn window_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

@@ -18,7 +18,9 @@ use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -422,27 +424,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximizable(&self, _maximizable: bool) {}
+    pub fn set_window_buttons(&self, _buttons: WindowButtons) {}
 
     #[inline]
-    pub fn is_maximizable(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    pub fn set_minimizable(&self, _minimizable: bool) {}
-
-    #[inline]
-    pub fn is_minimizable(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    pub fn set_closable(&self, _closable: bool) {}
-
-    #[inline]
-    pub fn is_closable(&self) -> bool {
-        true
+    pub fn window_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

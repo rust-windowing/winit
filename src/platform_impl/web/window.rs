@@ -3,7 +3,8 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    WindowId as RootWI,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -172,30 +173,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximizable(&self, _maximizable: bool) {
-        // Intentionally a no-op: users can't maximize canvas elements
-    }
-
-    pub fn is_maximizable(&self) -> bool {
-        true
-    }
+    pub fn set_window_buttons(&self, _buttons: WindowButtons) {}
 
     #[inline]
-    pub fn set_minimizable(&self, _minimizable: bool) {
-        // Intentionally a no-op: users can't minmiize canvas elements
-    }
-
-    pub fn is_minimizable(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    pub fn set_closable(&self, _closable: bool) {
-        // Intentionally a no-op: users can't close canvas elements
-    }
-
-    pub fn is_closable(&self) -> bool {
-        true
+    pub fn window_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    window::{self, CursorGrabMode, Theme},
+    window::{self, CursorGrabMode, Theme, WindowButtons},
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
@@ -771,22 +771,10 @@ impl Window {
         false
     }
 
-    pub fn set_minimizable(&self, _minimizable: bool) {}
+    pub fn set_window_buttons(&self, _buttons: WindowButtons) {}
 
-    pub fn is_minimizable(&self) -> bool {
-        false
-    }
-
-    pub fn set_maximizable(&self, _maximizable: bool) {}
-
-    pub fn is_maximizable(&self) -> bool {
-        false
-    }
-
-    pub fn set_closable(&self, _closable: bool) {}
-
-    pub fn is_closable(&self) -> bool {
-        false
+    pub fn window_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     pub fn set_minimized(&self, _minimized: bool) {}

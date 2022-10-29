@@ -23,7 +23,7 @@ use crate::{
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
         WindowId as RootWindowId,
     },
 };
@@ -172,31 +172,15 @@ impl Inner {
         false
     }
 
-    pub fn set_minimizable(&self, _minimizable: bool) {
-        warn!("`Window::set_minimizable` is ignored on iOS")
+    #[inline]
+    pub fn set_window_buttons(&self, _buttons: WindowButtons) {
+        warn!("`Window::set_window_buttons` is ignored on iOS");
     }
 
-    pub fn is_minimizable(&self) -> bool {
-        warn!("`Window::is_minimizable` is ignored on iOS");
-        false
-    }
-
-    pub fn set_maximizable(&self, _maximizable: bool) {
-        warn!("`Window::set_maximizable` is ignored on iOS")
-    }
-
-    pub fn is_maximizable(&self) -> bool {
-        warn!("`Window::is_maximizable` is ignored on iOS");
-        false
-    }
-
-    pub fn set_closable(&self, _closable: bool) {
-        warn!("`Window::set_closable` is ignored on iOS")
-    }
-
-    pub fn is_closable(&self) -> bool {
-        warn!("`Window::is_closable` is ignored on iOS");
-        false
+    #[inline]
+    pub fn window_buttons(&self) -> WindowButtons {
+        warn!("`Window::window_buttons` is ignored on iOS");
+        WindowButtons::all()
     }
 
     pub fn scale_factor(&self) -> f64 {

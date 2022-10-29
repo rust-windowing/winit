@@ -39,7 +39,9 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    },
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -404,32 +406,15 @@ impl Window {
     pub fn is_resizable(&self) -> bool {
         x11_or_wayland!(match self; Window(w) => w.is_resizable())
     }
+
     #[inline]
-    pub fn set_minimizable(&self, minimizable: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_minimizable(minimizable))
+    pub fn set_window_buttons(&self, buttons: WindowButtons) {
+        x11_or_wayland!(match self; Window(w) => w.set_window_buttons(buttons))
     }
 
     #[inline]
-    pub fn is_minimizable(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_minimizable())
-    }
-    #[inline]
-    pub fn set_maximizable(&self, maximizable: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_maximizable(maximizable))
-    }
-
-    #[inline]
-    pub fn is_maximizable(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_maximizable())
-    }
-    #[inline]
-    pub fn set_closable(&self, closable: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_closable(closable))
-    }
-
-    #[inline]
-    pub fn is_closable(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_closable())
+    pub fn window_buttons(&self) -> WindowButtons {
+        x11_or_wayland!(match self; Window(w) => w.window_buttons())
     }
 
     #[inline]

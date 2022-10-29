@@ -70,7 +70,9 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    },
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -263,58 +265,43 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_minimizable(&self, minimizable: bool) {
+    pub fn set_window_buttons(&self, buttons: WindowButtons) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::MINIMIZABLE, minimizable)
+                f.set(
+                    WindowFlags::MINIMIZABLE,
+                    buttons.contains(WindowButtons::MINIMIZE),
+                );
+                f.set(
+                    WindowFlags::MAXIMIZABLE,
+                    buttons.contains(WindowButtons::MAXIMIZE),
+                );
+                f.set(
+                    WindowFlags::CLOSABLE,
+                    buttons.contains(WindowButtons::CLOSE),
+                )
             });
         });
     }
 
-    #[inline]
-    pub fn is_minimizable(&self) -> bool {
+    pub fn window_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
         let window_state = self.window_state_lock();
-        window_state.window_flags.contains(WindowFlags::MINIMIZABLE)
+        if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::MAXIMIZABLE) {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::CLOSABLE) {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
     }
-
-    #[inline]
-    pub fn set_maximizable(&self, maximizable: bool) {
-        let window = self.window.clone();
-        let window_state = Arc::clone(&self.window_state);
-
-        self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::MAXIMIZABLE, maximizable)
-            });
-        });
-    }
-
-    #[inline]
-    pub fn is_maximizable(&self) -> bool {
-        let window_state = self.window_state_lock();
-        window_state.window_flags.contains(WindowFlags::MAXIMIZABLE)
-    }
-
-    #[inline]
-    pub fn set_closable(&self, closable: bool) {
-        let window = self.window.clone();
-        let window_state = Arc::clone(&self.window_state);
-        self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::CLOSABLE, closable)
-            });
-        });
-    }
-
-    #[inline]
-    pub fn is_closable(&self) -> bool {
-        let window_state = self.window_state_lock();
-        window_state.window_flags.contains(WindowFlags::CLOSABLE)
-    }
-
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
@@ -956,7 +943,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        win.set_closable(attributes.closable);
+        win.set_window_buttons(attributes.window_buttons);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
@@ -1020,10 +1007,8 @@ where
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::MINIMIZABLE, attributes.minimizable);
-    window_flags.set(WindowFlags::MAXIMIZABLE, attributes.maximizable);
-    // will be changed later using `window.set_closable()`
-    // but we need to have a default for the diffing to work
+    // Will be changed later using `window.set_window_buttons` but we need to set a default here
+    // so the diffing later can work
     window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match pl_attribs.parent {

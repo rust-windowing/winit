@@ -29,7 +29,7 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
         WindowId as RootWindowId,
     },
 };
@@ -267,11 +267,11 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMask::NSResizableWindowMask;
             }
 
-            if !attrs.minimizable {
+            if !attrs.window_buttons.contains(WindowButtons::MINIMIZE) {
                 masks &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
             }
 
-            if !attrs.closable {
+            if !attrs.window_buttons.contains(WindowButtons::CLOSE) {
                 masks &= !NSWindowStyleMask::NSClosableWindowMask;
             }
 
@@ -339,7 +339,7 @@ impl WinitWindow {
                     this.setLevel(NSWindowLevel::Floating);
                 }
 
-                if !attrs.maximizable {
+                if !attrs.window_buttons.contains(WindowButtons::MAXIMIZE) {
                     if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
                         button.setEnabled(false);
                     }
@@ -635,49 +635,45 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_minimizable(&self, minimizable: bool) {
+    pub fn set_window_buttons(&self, buttons: WindowButtons) {
         let mut mask = self.styleMask();
-        if minimizable {
-            mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
-        } else {
-            mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
-        }
-        self.set_style_mask_async(mask);
-    }
 
-    #[inline]
-    pub fn is_minimizable(&self) -> bool {
-        self.isMiniaturizable()
-    }
-
-    #[inline]
-    pub fn set_maximizable(&self, maximizable: bool) {
-        if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
-            button.setEnabled(maximizable);
-        }
-    }
-
-    #[inline]
-    pub fn is_maximizable(&self) -> bool {
-        self.standardWindowButton(NSWindowButton::Zoom)
-            .map(|b| b.isEnabled())
-            .unwrap_or(true)
-    }
-
-    #[inline]
-    pub fn set_closable(&self, closable: bool) {
-        let mut mask = self.styleMask();
-        if closable {
+        if buttons.contains(WindowButtons::CLOSE) {
             mask |= NSWindowStyleMask::NSClosableWindowMask;
         } else {
             mask &= !NSWindowStyleMask::NSClosableWindowMask;
         }
+
+        if buttons.contains(WindowButtons::MINIMIZE) {
+            mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+        }
+
         self.set_style_mask_async(mask);
+
+        if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
+            button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));
+        }
     }
 
     #[inline]
-    pub fn is_closable(&self) -> bool {
-        self.hasCloseBox()
+    pub fn window_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        if self.isMiniaturizable() {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if self
+            .standardWindowButton(NSWindowButton::Zoom)
+            .map(|b| b.isEnabled())
+            .unwrap_or(true)
+        {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if self.hasCloseBox() {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
     }
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
