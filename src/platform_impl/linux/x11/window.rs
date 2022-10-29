@@ -934,7 +934,8 @@ impl UnownedWindow {
         )
     }
 
-    fn set_window_level(&self, level: WindowLevel) -> util::Flusher<'_> {
+    #[inline]
+    pub fn set_window_level(&self, level: WindowLevel) -> util::Flusher<'_> {
         set_window_level_inner(level)
             .flush()
             .expect("Failed to set window-level state");

@@ -333,13 +333,6 @@ impl WinitWindow {
                     this.setMovableByWindowBackground(true);
                 }
 
-                if attrs.always_on_top {
-                    this.setLevel(NSWindowLevel::Floating);
-                }
-                if attrs.always_on_bottom {
-                    this.setLevel(NSWindowLevel::BelowNormal);
-                }
-
                 if let Some(increments) = attrs.resize_increments {
                     let increments = increments.to_logical(this.scale_factor());
                     let (w, h) = (increments.width, increments.height);
@@ -396,6 +389,8 @@ impl WinitWindow {
         if let Some(dim) = attrs.max_inner_size {
             this.set_max_inner_size(Some(dim));
         }
+
+        this.set_window_level(attrs.window_level);
 
         // register for drag and drop operations.
         this.registerForDraggedTypes(&NSArray::from_slice(&[
