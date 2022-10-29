@@ -395,8 +395,8 @@ impl Window {
         if window_attributes.max_inner_size.is_some() {
             warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
         }
-        if window_attributes.always_on_top {
-            warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
+        if window_attributes.window_level {
+            warn!("`WindowAttributes::window_level` is unsupported on iOS");
         }
         // TODO: transparency, visible
 
