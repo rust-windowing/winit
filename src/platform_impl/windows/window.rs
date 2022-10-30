@@ -703,7 +703,7 @@ impl Window {
         let len = unsafe { GetWindowTextLengthW(self.window.0) };
         let mut buf = vec![0; (len + 1) as usize];
         unsafe { GetWindowTextW(self.window.0, buf.as_mut_ptr(), len) };
-        String::from_utf16_lossy(&buf[..(len - 1) as _])
+        String::from_utf16_lossy(&buf[..len as _])
     }
 
     #[inline]
