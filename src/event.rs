@@ -42,7 +42,7 @@ use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
-    window::{Theme, WindowId},
+    window::{Theme, WindowArea, WindowId},
 };
 
 /// Describes a generic event.
@@ -515,6 +515,25 @@ pub enum WindowEvent<'a> {
     /// Platform-specific behavior:
     /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
     Occluded(bool),
+
+    /// Sent to a window in order to determine what part of the window corresponds to a particular screen coordinate.
+    /// This can happen, for example, when the cursor moves, when a mouse button is pressed or released.
+    ///
+    /// - `x` and `y` are relatvie to the window top-left corner.
+    ///
+    /// After this event callback has been processed, the response will be whatever value
+    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Wayland / macOS:** Not implemented.
+    /// - **iOS / Android :** Unsupported.
+    HitTest {
+        x: u32,
+        y: u32,
+        new_area: &'a mut WindowArea,
+    },
 }
 
 impl Clone for WindowEvent<'static> {
@@ -622,6 +641,9 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            HitTest { .. } => {
+                unreachable!("Static event can't be about hit test")
+            }
             Occluded(occluded) => Occluded(*occluded),
         };
     }
@@ -725,7 +747,7 @@ impl<'a> WindowEvent<'a> {
             }),
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
+            ScaleFactorChanged { .. } | HitTest { .. } => None,
             Occluded(occluded) => Some(Occluded(occluded)),
         }
     }

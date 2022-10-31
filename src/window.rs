@@ -1379,3 +1379,57 @@ impl Default for UserAttentionType {
         UserAttentionType::Informational
     }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum WindowArea {
+    /// In the border of a window that does not have a sizing border.
+    BORDER,
+    /// In the lower-horizontal border of a resizable window (the user can click the mouse to resize the window vertically).
+    BOTTOM,
+    /// In the lower-left corner of a border of a resizable window (the user can click the mouse to resize the window diagonally).
+    BOTTOMLEFT,
+    /// In the lower-right corner of a border of a resizable window (the user can click the mouse to resize the window diagonally).
+    BOTTOMRIGHT,
+    /// In a title bar.
+    CAPTION,
+    /// In a client area.
+    CLIENT,
+    /// In a Close button.
+    CLOSE,
+    /// On the screen background or on a dividing line between windows (same as HTNOWHERE, except that it produces a system beep to indicate an error).
+    ERROR,
+    /// In a Help button.
+    HELP,
+    /// In a horizontal scroll bar.
+    HSCROLL,
+    /// In the left border of a resizable window (the user can click the mouse to resize the window horizontally).
+    LEFT,
+    /// In a menu.
+    MENU,
+    /// In a Maximize button.
+    MAXBUTTON,
+    /// In a Minimize button.
+    MINBUTTON,
+    /// On the screen background or on a dividing line between windows.
+    NOWHERE,
+    /// In a Minimize button.
+    REDUCE,
+    /// In the right border of a resizable window (the user can click the mouse to resize the window horizontally).
+    RIGHT,
+    /// In a size box.
+    SIZE,
+    /// In a window menu or in a Close button in a child window.
+    SYSMENU,
+    /// In the upper-horizontal border of a window.
+    TOP,
+    /// In the upper-left corner of a window border.
+    TOPLEFT,
+    /// In the upper-right corner of a window border.
+    TOPRIGHT,
+    /// In a window currently covered by another window in the same thread.
+    TRANSPARENT,
+    /// In the vertical scroll bar.
+    VSCROLL,
+    /// In a Maximize button.
+    ZOOM,
+}
