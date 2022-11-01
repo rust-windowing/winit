@@ -302,7 +302,7 @@ impl WindowFlags {
             }
         }
 
-        if diff.contains(WindowFlags::ALWAYS_ON_TOP) || diff.contains(WindowFlags::ALWAYS_ON_BOTTOM)
+        if diff.intersects(WindowFlags::ALWAYS_ON_TOP | WindowFlags::ALWAYS_ON_BOTTOM)
         {
             unsafe {
                 SetWindowPos(
