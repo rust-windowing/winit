@@ -957,7 +957,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always return an empty string.
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     #[inline]
     pub fn title(&self) -> String {
         self.window.title()
