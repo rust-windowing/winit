@@ -829,6 +829,16 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
+// Describes a gamepad input event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GamepadInput {
+    // Identifies physical button pressed
+    pub button: ButtonId,
+
+    pub state: ElementState,
+}
+
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
 ///
 /// This is also called a "composition event".
