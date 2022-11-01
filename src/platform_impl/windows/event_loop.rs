@@ -53,7 +53,7 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, HWND_BOTTOM, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG,
+            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG,
             MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN,
             PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE,
             SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA,
@@ -1136,12 +1136,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         }
                     }
                 }
-            } else if window_state
-                .window_flags
-                .contains(WindowFlags::ALWAYS_ON_BOTTOM)
-            {
-                let window_pos = &mut *(lparam as *mut WINDOWPOS);
-                window_pos.hwndInsertAfter = HWND_BOTTOM;
             }
 
             0
