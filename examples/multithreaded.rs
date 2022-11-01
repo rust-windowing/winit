@@ -66,7 +66,9 @@ fn main() {
                         let state = !modifiers.shift();
                         use VirtualKeyCode::*;
                         match key {
-                            A => window.set_window_level(WindowLevel::AlwaysOnBottom),
+                            Key1 => window.set_window_level(WindowLevel::AlwaysOnTop),
+                            Key2 => window.set_window_level(WindowLevel::AlwaysOnBottom),
+                            Key3 => window.set_window_level(WindowLevel::Normal),
                             C => window.set_cursor_icon(match state {
                                 true => CursorIcon::Progress,
                                 false => CursorIcon::Default,
