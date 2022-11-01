@@ -302,31 +302,19 @@ impl WindowFlags {
             }
         }
 
-        if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
+        if diff.contains(WindowFlags::ALWAYS_ON_TOP) || diff.contains(WindowFlags::ALWAYS_ON_BOTTOM)
+        {
             unsafe {
                 SetWindowPos(
                     window,
-                    match new.contains(WindowFlags::ALWAYS_ON_TOP) {
-                        true => HWND_TOPMOST,
-                        false => HWND_NOTOPMOST,
-                    },
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_ASYNCWINDOWPOS | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                );
-                InvalidateRgn(window, 0, false.into());
-            }
-        }
-
-        if diff.contains(WindowFlags::ALWAYS_ON_BOTTOM) {
-            unsafe {
-                SetWindowPos(
-                    window,
-                    match new.contains(WindowFlags::ALWAYS_ON_BOTTOM) {
-                        true => HWND_BOTTOM,
-                        false => HWND_NOTOPMOST,
+                    match (
+                        new.contains(WindowFlags::ALWAYS_ON_TOP),
+                        new.contains(WindowFlags::ALWAYS_ON_BOTTOM),
+                    ) {
+                        (true, false) => HWND_TOPMOST,
+                        (false, false) => HWND_NOTOPMOST,
+                        (false, true) => HWND_BOTTOM,
+                        (true, true) => unreachable!(),
                     },
                     0,
                     0,

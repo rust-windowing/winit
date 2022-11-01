@@ -1420,16 +1420,14 @@ impl Default for UserAttentionType {
     }
 }
 
+/// Describes the window order in z-hierarchy.
+///
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Wayland:** Unsupported.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WindowLevel {
     /// The window will always be below other windows,
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Windows**: There is no guarantee that the window will be the bottom most but it will try to be
     AlwaysOnBottom,
     Normal,
     /// The window will always be on top of other windows,
