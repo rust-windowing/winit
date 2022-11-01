@@ -1420,7 +1420,10 @@ impl Default for UserAttentionType {
     }
 }
 
-/// Describes the window order in z-hierarchy.
+/// A window level groups windows with respect to their z-position.
+///
+/// The relative ordering between windows in different window levels is fixed.
+/// The z-order of a window within the same window level may change dynamically on user interaction.
 ///
 /// ## Platform-specific
 ///
