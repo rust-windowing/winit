@@ -36,7 +36,8 @@ use crate::{
 use core_graphics::display::{CGDisplay, CGPoint};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
-    is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
+    is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
+    NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
@@ -938,10 +939,8 @@ impl WinitWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                #[allow(clippy::let_unit_value)]
-                unsafe {
-                    let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
-                }
+                let window_level = NSWindowLevel(unsafe { ffi::CGShieldingWindowLevel() } as NSInteger + 1);
+                self.setLevel(window_level);
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
