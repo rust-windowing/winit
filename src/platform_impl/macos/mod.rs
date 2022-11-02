@@ -57,7 +57,7 @@ pub(crate) struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Ensure the window is closed
-        util::close_async(Id::into_super(self.window.clone()));
+        util::close_async(self.window.clone());
     }
 }
 
