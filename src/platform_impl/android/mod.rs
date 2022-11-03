@@ -856,6 +856,10 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         None
     }
+
+    pub fn title(&self) -> String {
+        String::new()
+    }
 }
 
 #[derive(Default, Clone, Debug)]
