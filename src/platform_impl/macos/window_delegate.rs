@@ -242,7 +242,7 @@ declare_class!(
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = Some(self.window.current_monitor_inner());
+                    let current_monitor = self.window.current_monitor_inner();
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
