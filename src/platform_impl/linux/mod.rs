@@ -408,13 +408,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_buttons(&self, buttons: WindowButtons) {
-        x11_or_wayland!(match self; Window(w) => w.set_window_buttons(buttons))
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
     }
 
     #[inline]
-    pub fn window_buttons(&self) -> WindowButtons {
-        x11_or_wayland!(match self; Window(w) => w.window_buttons())
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
     }
 
     #[inline]

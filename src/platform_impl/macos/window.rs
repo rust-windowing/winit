@@ -267,11 +267,11 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMask::NSResizableWindowMask;
             }
 
-            if !attrs.window_buttons.contains(WindowButtons::MINIMIZE) {
+            if !attrs.enabled_buttons.contains(WindowButtons::MINIMIZE) {
                 masks &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
             }
 
-            if !attrs.window_buttons.contains(WindowButtons::CLOSE) {
+            if !attrs.enabled_buttons.contains(WindowButtons::CLOSE) {
                 masks &= !NSWindowStyleMask::NSClosableWindowMask;
             }
 
@@ -339,7 +339,7 @@ impl WinitWindow {
                     this.setLevel(NSWindowLevel::Floating);
                 }
 
-                if !attrs.window_buttons.contains(WindowButtons::MAXIMIZE) {
+                if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
                     if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
                         button.setEnabled(false);
                     }
@@ -635,7 +635,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_window_buttons(&self, buttons: WindowButtons) {
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         let mut mask = self.styleMask();
 
         if buttons.contains(WindowButtons::CLOSE) {
@@ -658,7 +658,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn window_buttons(&self) -> WindowButtons {
+    pub fn enabled_buttons(&self) -> WindowButtons {
         let mut buttons = WindowButtons::empty();
         if self.isMiniaturizable() {
             buttons |= WindowButtons::MINIMIZE;

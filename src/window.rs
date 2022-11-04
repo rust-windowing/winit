@@ -126,7 +126,7 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
-    pub window_buttons: WindowButtons,
+    pub enabled_buttons: WindowButtons,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
@@ -148,7 +148,7 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
-            window_buttons: WindowButtons::all(),
+            enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
@@ -248,10 +248,10 @@ impl WindowBuilder {
     ///
     /// The default is [`WindowButtons::all`]
     ///
-    /// See [`Window::set_window_buttons`] for details.
+    /// See [`Window::set_enabled_buttons`] for details.
     #[inline]
-    pub fn with_window_buttons(mut self, buttons: WindowButtons) -> Self {
-        self.window.window_buttons = buttons;
+    pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
+        self.window.enabled_buttons = buttons;
         self
     }
 
@@ -751,8 +751,8 @@ impl Window {
     ///
     /// - **Wayland / X11:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
-    pub fn set_window_buttons(&self, buttons: WindowButtons) {
-        self.window.set_window_buttons(buttons)
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.window.set_enabled_buttons(buttons)
     }
 
     /// Gets the enabled window buttons.
@@ -761,8 +761,8 @@ impl Window {
     ///
     /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
-    pub fn window_buttons(&self) -> WindowButtons {
-        self.window.window_buttons()
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        self.window.enabled_buttons()
     }
 
     /// Sets the window to minimized or back

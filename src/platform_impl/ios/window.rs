@@ -173,13 +173,13 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_window_buttons(&self, _buttons: WindowButtons) {
-        warn!("`Window::set_window_buttons` is ignored on iOS");
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
+        warn!("`Window::set_enabled_buttons` is ignored on iOS");
     }
 
     #[inline]
-    pub fn window_buttons(&self) -> WindowButtons {
-        warn!("`Window::window_buttons` is ignored on iOS");
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        warn!("`Window::enabled_buttons` is ignored on iOS");
         WindowButtons::all()
     }
 

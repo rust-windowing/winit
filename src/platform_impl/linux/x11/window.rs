@@ -1261,10 +1261,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_buttons(&self, _buttons: WindowButtons) {}
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
 
     #[inline]
-    pub fn window_buttons(&self) -> WindowButtons {
+    pub fn enabled_buttons(&self) -> WindowButtons {
         WindowButtons::all()
     }
 

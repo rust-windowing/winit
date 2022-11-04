@@ -265,7 +265,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_buttons(&self, buttons: WindowButtons) {
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
@@ -288,7 +288,7 @@ impl Window {
         });
     }
 
-    pub fn window_buttons(&self) -> WindowButtons {
+    pub fn enabled_buttons(&self) -> WindowButtons {
         let mut buttons = WindowButtons::empty();
         let window_state = self.window_state_lock();
         if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
@@ -943,7 +943,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        win.set_window_buttons(attributes.window_buttons);
+        win.set_enabled_buttons(attributes.enabled_buttons);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
@@ -1007,7 +1007,7 @@ where
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    // Will be changed later using `window.set_window_buttons` but we need to set a default here
+    // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work
     window_flags.set(WindowFlags::CLOSABLE, true);
 
