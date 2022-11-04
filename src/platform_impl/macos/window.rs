@@ -805,7 +805,11 @@ impl WinitWindow {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
                 Fullscreen::Borderless(None) => {
-                    self.current_monitor_inner().expect("expected screen")
+                    if let Some(monitor) = self.current_monitor_inner() {
+                        monitor
+                    } else {
+                        return;
+                    }
                 }
                 Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
