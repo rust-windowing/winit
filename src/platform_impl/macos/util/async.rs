@@ -6,17 +6,14 @@ use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 
+use crate::platform_impl::platform::window_delegate::WinitWindowDelegate;
 use crate::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent},
     platform_impl::platform::{
-        app_state::AppState,
         appkit::{NSScreen, NSWindow, NSWindowLevel, NSWindowStyleMask},
-        event::EventWrapper,
         ffi,
-        window::{SharedState, SharedStateMutexGuard, WinitWindow},
+        window::{SharedState, SharedStateMutexGuard},
     },
-    window::WindowId,
 };
 
 // Unsafe wrapper type that allows us to dispatch things that aren't Send.
@@ -222,17 +219,11 @@ pub(crate) fn set_title_async(window: &NSWindow, title: String) {
 //
 // ArturKovacs: It's important that this operation keeps the underlying window alive
 // through the `Id` because otherwise it would dereference free'd memory
-pub(crate) fn close_async(window: Id<WinitWindow, Shared>) {
-    let window = MainThreadSafe(window);
+pub(crate) fn close_async(delegate: Id<WinitWindowDelegate, Shared>) {
+    let delegate = MainThreadSafe(delegate);
     Queue::main().exec_async(move || {
         autoreleasepool(move |_| {
-            window.close();
-
-            let event = Event::WindowEvent {
-                window_id: WindowId(window.id()),
-                event: WindowEvent::Destroyed,
-            };
-            AppState::queue_event(EventWrapper::StaticEvent(event));
+            delegate.window.close();
         });
     });
 }

@@ -25,7 +25,7 @@ use crate::{
 declare_class!(
     #[derive(Debug)]
     pub(crate) struct WinitWindowDelegate {
-        window: IvarDrop<Id<WinitWindow, Shared>>,
+        pub(crate) window: IvarDrop<Id<WinitWindow, Shared>>,
 
         // TODO: It's possible for delegate methods to be called asynchronously,
         // causing data races / `RefCell` panics.

@@ -51,13 +51,13 @@ pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 pub(crate) struct Window {
     pub(crate) window: Id<WinitWindow, Shared>,
     // We keep this around so that it doesn't get dropped until the window does.
-    _delegate: Id<WinitWindowDelegate, Shared>,
+    pub(crate) delegate: Id<WinitWindowDelegate, Shared>,
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
         // Ensure the window is closed
-        util::close_async(self.window.clone());
+        util::close_async(self.delegate.clone());
     }
 }
 
@@ -84,8 +84,8 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
-        Ok(Window { window, _delegate })
+        let (window, delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
+        Ok(Window { window, delegate })
     }
 }
 
