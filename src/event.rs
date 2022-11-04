@@ -331,6 +331,9 @@ pub enum WindowEvent<'a> {
     CloseRequested,
 
     /// The window has been destroyed.
+    ///
+    /// However, it won't get emitted if the window is closed by the event loop set to exit.
+    /// Use [`Event::LoopDestroyed`] to check such behaviour instead.
     Destroyed,
 
     /// A file has been dropped into the window.
