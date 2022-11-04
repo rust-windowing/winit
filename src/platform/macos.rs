@@ -4,6 +4,7 @@ use std::os::raw::c_void;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
+    platform_impl::Parent,
     window::{Window, WindowBuilder},
 };
 
@@ -113,6 +114,8 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
+    /// Sets a parent to the window to be created.
+    fn with_parent_window(self, parent: *mut c_void) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -170,6 +173,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
+
+    #[inline]
+    fn with_parent_window(mut self, parent: *mut c_void) -> WindowBuilder {
+        self.platform_specific.parent = Parent::ChildOf(parent);
         self
     }
 }

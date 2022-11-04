@@ -21,6 +21,7 @@ use crate::{
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
+        appkit::NSWindowOrderingMode,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util,
@@ -34,11 +35,14 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
-use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
+use objc2::{
+    declare::{Ivar, IvarDrop},
+    runtime::Object,
+};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
@@ -69,6 +73,12 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone)]
+pub enum Parent {
+    None,
+    ChildOf(*mut c_void),
+}
+
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
@@ -79,6 +89,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
+    pub parent: Parent,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -94,6 +105,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
+            parent: Parent::None,
         }
     }
 }
@@ -341,6 +353,13 @@ impl WinitWindow {
                         // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
                         // This is consistent with X11 size hints behavior
                         this.setContentResizeIncrements(size);
+                    }
+                }
+
+                if let Parent::ChildOf(parent) = pl_attrs.parent {
+                    #[allow(clippy::let_unit_value)]
+                    unsafe {
+                        let () = msg_send![parent as *mut Object, addChildWindow: &*this, ordered: NSWindowOrderingMode::NSWindowAbove];
                     }
                 }
 

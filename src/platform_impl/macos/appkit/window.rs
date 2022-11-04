@@ -333,3 +333,16 @@ pub enum NSBackingStoreType {
 unsafe impl Encode for NSBackingStoreType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }
+
+#[allow(dead_code)]
+#[repr(isize)] // NSInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowOrderingMode {
+    NSWindowAbove = 1,
+    NSWindowBelow = -1,
+    NSWindowOut = 0,
+}
+
+unsafe impl Encode for NSWindowOrderingMode {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
