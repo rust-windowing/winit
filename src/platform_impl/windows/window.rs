@@ -40,13 +40,13 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
-            PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
-            CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-            GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
-            WNDCLASSEXW,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+            IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
+            SetCursorPos, SetForegroundWindow, SetWindowPlacement, SetWindowPos, SetWindowTextW,
+            CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP,
+            FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY,
+            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
+            SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -739,6 +739,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn title(&self) -> String {
+        let len = unsafe { GetWindowTextLengthW(self.window.0) } + 1;
+        let mut buf = vec![0; len as usize];
+        unsafe { GetWindowTextW(self.window.0, buf.as_mut_ptr(), len) };
+        util::decode_wide(&buf).to_string_lossy().to_string()
+    }
+
+    #[inline]
     pub fn set_skip_taskbar(&self, skip: bool) {
         self.window_state_lock().skip_taskbar = skip;
         unsafe { set_skip_taskbar(self.hwnd(), skip) };
@@ -1082,7 +1090,7 @@ unsafe fn register_window_class<T: 'static>(
         .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(0);
 
-    use windows_sys::Win32::UI::WindowsAndMessaging::COLOR_WINDOWFRAME;
+    use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,

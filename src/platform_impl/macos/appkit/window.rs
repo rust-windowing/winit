@@ -143,6 +143,10 @@ extern_methods!(
         #[sel(setTitle:)]
         pub fn setTitle(&self, title: &NSString);
 
+        pub fn title_(&self) -> Id<NSString, Shared> {
+            unsafe { msg_send_id![self, title] }
+        }
+
         #[sel(setReleasedWhenClosed:)]
         pub fn setReleasedWhenClosed(&self, val: bool);
 

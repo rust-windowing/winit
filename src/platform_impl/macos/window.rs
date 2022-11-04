@@ -1171,6 +1171,11 @@ impl WinitWindow {
         let state = self.shared_state.lock().unwrap();
         state.current_theme
     }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        self.title_().to_string()
+    }
 }
 
 impl WindowExtMacOS for WinitWindow {
