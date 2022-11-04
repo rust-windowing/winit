@@ -1432,6 +1432,7 @@ impl Default for UserAttentionType {
 pub enum WindowLevel {
     /// The window will always be below other windows,
     AlwaysOnBottom,
+    
     Normal,
     /// The window will always be on top of other windows,
     AlwaysOnTop,
