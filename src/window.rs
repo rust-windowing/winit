@@ -318,6 +318,7 @@ impl WindowBuilder {
     }
 
     /// Sets the window level.
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
     /// The default is [`WindowLevel::Normal`].
     ///
@@ -841,6 +842,7 @@ impl Window {
     }
 
     /// Change the window level.
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
     /// See [`WindowLevel`] for details.
     pub fn set_window_level(&self, level: WindowLevel) {
@@ -1430,10 +1432,10 @@ impl Default for UserAttentionType {
 /// - **iOS / Android / Web / Wayland:** Unsupported.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WindowLevel {
-    /// The window will always be below other windows,
+    /// The window will always be below normal windows.
     AlwaysOnBottom,
     
     Normal,
-    /// The window will always be on top of other windows,
+    /// The window will always be on top of normal windows.
     AlwaysOnTop,
 }
