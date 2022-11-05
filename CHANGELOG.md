@@ -29,6 +29,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
+- On macOS, fix panic when getting current monitor without any monitor attached.
 
 # 0.27.5
 
