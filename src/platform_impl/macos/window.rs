@@ -804,7 +804,13 @@ impl WinitWindow {
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                Fullscreen::Borderless(None) => self.current_monitor_inner(),
+                Fullscreen::Borderless(None) => {
+                    if let Some(monitor) = self.current_monitor_inner() {
+                        monitor
+                    } else {
+                        return;
+                    }
+                }
                 Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
             .ns_screen()
@@ -1067,14 +1073,14 @@ impl WinitWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> MonitorHandle {
-        let display_id = self.screen().expect("expected screen").display_id();
-        MonitorHandle::new(display_id)
+    pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
+        let display_id = self.screen()?.display_id();
+        Some(MonitorHandle::new(display_id))
     }
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(self.current_monitor_inner())
+        self.current_monitor_inner()
     }
 
     #[inline]
@@ -1114,6 +1120,11 @@ impl WinitWindow {
     pub fn theme(&self) -> Option<Theme> {
         let state = self.shared_state.lock().unwrap();
         state.current_theme
+    }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        self.title_().to_string()
     }
 }
 

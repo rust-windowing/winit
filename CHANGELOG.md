@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
+- On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
@@ -29,6 +30,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
+- On macOS, fix panic when getting current monitor without any monitor attached.
 
 # 0.27.5
 

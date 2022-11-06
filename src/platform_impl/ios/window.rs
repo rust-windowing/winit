@@ -347,6 +347,11 @@ impl Inner {
         warn!("`Window::theme` is ignored on iOS");
         None
     }
+
+    pub fn title(&self) -> String {
+        warn!("`Window::title` is ignored on iOS");
+        String::new()
+    }
 }
 
 pub struct Window {
