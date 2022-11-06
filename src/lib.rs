@@ -135,6 +135,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(clippy::all)]
 #![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+// Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
 
 #[allow(unused_imports)]
