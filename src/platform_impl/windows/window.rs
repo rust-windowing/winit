@@ -1036,7 +1036,7 @@ where
 unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
 
-    use windows_sys::Win32::UI::WindowsAndMessaging::COLOR_WINDOWFRAME;
+    use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
