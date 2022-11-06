@@ -794,8 +794,6 @@ impl<'a, T: 'static> InitData<'a, T> {
         let window_state = {
             let window_state = WindowState::new(
                 &self.attributes,
-                // Will be set later in on_create
-                None,
                 scale_factor,
                 current_theme,
                 self.attributes.preferred_theme,
