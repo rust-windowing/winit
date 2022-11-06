@@ -221,9 +221,9 @@ declare_class!(
         }
 
         /// Invoked when before enter fullscreen
-        #[sel(windowWillEnterFullscreen:)]
+        #[sel(windowWillEnterFullScreen:)]
         fn window_will_enter_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowWillEnterFullscreen:");
+            trace_scope!("windowWillEnterFullScreen:");
 
             let mut shared_state = self
                 .window
@@ -242,7 +242,7 @@ declare_class!(
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = Some(self.window.current_monitor_inner());
+                    let current_monitor = self.window.current_monitor_inner();
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
@@ -287,9 +287,9 @@ declare_class!(
         }
 
         /// Invoked when entered fullscreen
-        #[sel(windowDidEnterFullscreen:)]
+        #[sel(windowDidEnterFullScreen:)]
         fn window_did_enter_fullscreen(&mut self, _: Option<&Object>) {
-            trace_scope!("windowDidEnterFullscreen:");
+            trace_scope!("windowDidEnterFullScreen:");
             *self.initial_fullscreen = false;
             let mut shared_state = self.window.lock_shared_state("window_did_enter_fullscreen");
             shared_state.in_fullscreen_transition = false;
@@ -301,9 +301,9 @@ declare_class!(
         }
 
         /// Invoked when exited fullscreen
-        #[sel(windowDidExitFullscreen:)]
+        #[sel(windowDidExitFullScreen:)]
         fn window_did_exit_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowDidExitFullscreen:");
+            trace_scope!("windowDidExitFullScreen:");
 
             self.window.restore_state_from_fullscreen();
             let mut shared_state = self.window.lock_shared_state("window_did_exit_fullscreen");
@@ -331,9 +331,9 @@ declare_class!(
         /// due to being in the midst of handling some other animation or user gesture.
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
-        #[sel(windowDidFailToEnterFullscreen:)]
+        #[sel(windowDidFailToEnterFullScreen:)]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowDidFailToEnterFullscreen:");
+            trace_scope!("windowDidFailToEnterFullScreen:");
             let mut shared_state = self
                 .window
                 .lock_shared_state("window_did_fail_to_enter_fullscreen");

@@ -977,6 +977,16 @@ impl Window {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         self.window.set_content_protected(_protected);
     }
+
+    /// Gets the current title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
+    #[inline]
+    pub fn title(&self) -> String {
+        self.window.title()
+    }
 }
 
 /// Cursor functions.

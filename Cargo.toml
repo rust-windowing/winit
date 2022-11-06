@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.27.4"
+version = "0.27.5"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -32,6 +32,7 @@ targets = [
     # WebAssembly
     "wasm32-unknown-unknown",
 ]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
@@ -70,7 +71,7 @@ core-graphics = "0.22.3"
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.36"
+version = "0.42"
 features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",

@@ -1551,4 +1551,9 @@ impl UnownedWindow {
     pub fn theme(&self) -> Option<Theme> {
         None
     }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        String::new()
+    }
 }
