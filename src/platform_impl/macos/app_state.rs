@@ -272,7 +272,11 @@ impl AppState {
         }
     }
 
-    pub fn launched(activation_policy: NSApplicationActivationPolicy, create_default_menu: bool) {
+    pub fn launched(
+        activation_policy: NSApplicationActivationPolicy,
+        create_default_menu: bool,
+        activate_ignoring_other_apps: bool,
+    ) {
         let app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -281,7 +285,7 @@ impl AppState {
 
         window_activation_hack(&app);
         // TODO: Consider allowing the user to specify they don't want their application activated
-        app.activateIgnoringOtherApps(true);
+        app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
         HANDLER.set_ready();
         HANDLER.waker().start();
