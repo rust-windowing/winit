@@ -110,9 +110,6 @@ impl PointerHandler {
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
             move |event: PointerEvent| {
-                // touch events are handled separately
-                // handling them here would produce duplicate mouse events, inconsistent with
-                // other platforms.
                 if event.pointer_type() == "touch" {
                     touch_handler(
                         event.pointer_id(),
