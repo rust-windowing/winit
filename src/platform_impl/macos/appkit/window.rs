@@ -165,6 +165,12 @@ extern_methods!(
         #[sel(setLevel:)]
         pub fn setLevel(&self, level: NSWindowLevel);
 
+        #[sel(setAllowsAutomaticWindowTabbing:)]
+        pub fn setAllowsAutomaticWindowTabbing(&self, val: bool);
+
+        #[sel(setTabbingIdentifier:)]
+        pub fn setTabbingIdentifier(&self, identifier: &NSString);
+
         #[sel(occlusionState)]
         pub fn occlusionState(&self) -> NSWindowOcclusionState;
 
@@ -182,6 +188,13 @@ extern_methods!(
 
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
+
+        #[sel(allowsAutomaticWindowTabbing)]
+        pub fn allowsAutomaticWindowTabbing(&self) -> bool;
+
+        pub fn tabbingIdentifier(&self) -> Id<NSString, Shared> {
+            unsafe { msg_send_id![self, tabbingIdentifier] }
+        }
 
         #[sel(close)]
         pub fn close(&self);

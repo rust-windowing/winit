@@ -36,6 +36,22 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Sets whether the system can automatically organize windows into tabs.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1646657-allowsautomaticwindowtabbing>
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool);
+
+    /// Returns whether the system can automatically organize windows into tabs.
+    fn allows_automatic_window_tabbing(&self) -> bool;
+
+    /// Group windows together by using the same tabbing identifier.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
+    fn set_tabbing_identifier(&self, identifier: &str);
+
+    /// Returns the window's tabbing identifier.
+    fn tabbing_identifier(&self) -> String;
 }
 
 impl WindowExtMacOS for Window {
@@ -67,6 +83,26 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        self.window.set_allows_automatic_window_tabbing(enabled)
+    }
+
+    #[inline]
+    fn allows_automatic_window_tabbing(&self) -> bool {
+        self.window.allows_automatic_window_tabbing()
+    }
+
+    #[inline]
+    fn set_tabbing_identifier(&self, identifier: &str) {
+        self.window.set_tabbing_identifier(identifier);
+    }
+
+    #[inline]
+    fn tabbing_identifier(&self) -> String {
+        self.window.tabbing_identifier()
     }
 }
 
@@ -113,6 +149,11 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
+    fn with_automatic_window_tabbing(self, automatic_tabbing: bool) -> WindowBuilder;
+    /// Defines the window tabbing identifier.
+    ///
+    /// https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
+    fn with_tabbing_identifier(self, identifier: &str) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -170,6 +211,20 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
+
+    #[inline]
+    fn with_automatic_window_tabbing(mut self, automatic_tabbing: bool) -> WindowBuilder {
+        self.platform_specific.allows_automatic_window_tabbing = automatic_tabbing;
+        self
+    }
+
+    #[inline]
+    fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> WindowBuilder {
+        self.platform_specific
+            .tabbing_identifier
+            .replace(tabbing_identifier.to_string());
         self
     }
 }

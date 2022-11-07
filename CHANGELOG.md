@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On MacOS, add `WindowExtMacOS::set_allows_automatic_window_tabbing`, `WindowExtMacOS::allows_automatic_window_tabbing`, `WindowBuilderExtMacOS::with_automatic_window_tabbing`, `WindowExtMacOS::set_tabbing_identifier`, `WindowExtMacOS::tabbing_identifier` and `WindowBuilderExtMacOS::with_tabbing_identifier` APIs.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.
