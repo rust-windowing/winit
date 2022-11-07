@@ -477,6 +477,8 @@ pub enum WindowEvent<'a> {
     },
 
     /// Touch event has been received
+    ///
+    /// At the moment, not supported on MacOS.
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -906,6 +908,8 @@ pub enum TouchPhase {
 }
 
 /// Represents a touch event
+///
+/// At the moment, not supported on MacOS.
 ///
 /// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
 /// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
