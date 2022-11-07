@@ -156,6 +156,7 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
+        let runner_touch = self.runner.clone();
         canvas.on_cursor_move(
             move |pointer_id, position, delta, modifiers| {
                 runner.send_event(Event::WindowEvent {
@@ -174,7 +175,7 @@ impl<T> EventLoopWindowTarget<T> {
                 });
             },
             move |device_id, location, force| {
-                runner.send_event(Event::WindowEvent {
+                runner_touch.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Touch(Touch {
                         id: device_id as u64,
@@ -189,6 +190,7 @@ impl<T> EventLoopWindowTarget<T> {
         );
 
         let runner = self.runner.clone();
+        let runner_touch = self.runner.clone();
         canvas.on_mouse_press(
             move |pointer_id, position, button, modifiers| {
                 // A mouse down event may come in without any prior CursorMoved events,
@@ -219,7 +221,7 @@ impl<T> EventLoopWindowTarget<T> {
                 );
             },
             move |device_id, location, force| {
-                runner.send_event(Event::WindowEvent {
+                runner_touch.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Touch(Touch {
                         id: device_id as u64,
@@ -233,6 +235,7 @@ impl<T> EventLoopWindowTarget<T> {
         );
 
         let runner = self.runner.clone();
+        let runner_touch = self.runner.clone();
         canvas.on_mouse_release(
             move |pointer_id, button, modifiers| {
                 runner.send_event(Event::WindowEvent {
@@ -246,7 +249,7 @@ impl<T> EventLoopWindowTarget<T> {
                 });
             },
             move |device_id, location, force| {
-                runner.send_event(Event::WindowEvent {
+                runner_touch.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Touch(Touch {
                         id: device_id as u64,

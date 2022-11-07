@@ -171,7 +171,7 @@ impl PointerHandler {
         ));
     }
 
-    pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, handler: F)
+    pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
