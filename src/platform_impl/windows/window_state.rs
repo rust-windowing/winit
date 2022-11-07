@@ -2,8 +2,8 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Size},
     event::ModifiersState,
     icon::Icon,
-    platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
+    platform_impl::platform::{event_loop, util, Fullscreen},
+    window::{CursorIcon, Theme, WindowAttributes},
 };
 use std::io;
 use std::sync::MutexGuard;
@@ -24,7 +24,7 @@ use windows_sys::Win32::{
 };
 
 /// Contains information about states and the window that the callback is going to use.
-pub struct WindowState {
+pub(crate) struct WindowState {
     pub mouse: MouseProperties,
 
     /// Used by `WM_GETMINMAXINFO`.
@@ -123,7 +123,6 @@ pub enum ImeState {
 impl WindowState {
     pub(crate) fn new(
         attributes: &WindowAttributes,
-        taskbar_icon: Option<Icon>,
         scale_factor: f64,
         current_theme: Theme,
         preferred_theme: Option<Theme>,
@@ -140,7 +139,7 @@ impl WindowState {
             max_size: attributes.max_inner_size,
 
             window_icon: attributes.window_icon.clone(),
-            taskbar_icon,
+            taskbar_icon: None,
 
             saved_window: None,
             scale_factor,

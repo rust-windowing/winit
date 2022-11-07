@@ -127,13 +127,14 @@ pub(crate) struct WindowAttributes {
     pub position: Option<Position>,
     pub resizable: bool,
     pub title: String,
-    pub fullscreen: Option<Fullscreen>,
+    pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
     pub decorations: bool,
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
+    pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
 }
 
@@ -154,6 +155,7 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
+            preferred_theme: None,
             resize_increments: None,
         }
     }
@@ -258,7 +260,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.window.fullscreen = fullscreen.map(|f| f.into());
         self
     }
 
@@ -332,6 +334,23 @@ impl WindowBuilder {
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
+        self
+    }
+
+    /// Sets a specific theme for the window.
+    ///
+    /// If `None` is provided, the window will use the system theme.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    ///   Possible values for env variable are: "dark" and light".
+    /// - **iOS / Android / Web / x11:** Ignored.
+    #[inline]
+    pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
+        self.window.preferred_theme = theme;
         self
     }
 
@@ -766,7 +785,7 @@ impl Window {
     /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        self.window.set_fullscreen(fullscreen)
+        self.window.set_fullscreen(fullscreen.map(|f| f.into()))
     }
 
     /// Gets the window's current fullscreen state.
@@ -778,7 +797,7 @@ impl Window {
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        self.window.fullscreen()
+        self.window.fullscreen().map(|f| f.into())
     }
 
     /// Turn window decorations on or off.
@@ -923,6 +942,26 @@ impl Window {
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
     }
+
+    /// Returns the current window theme.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        self.window.theme()
+    }
+
+    /// Gets the current title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
+    #[inline]
+    pub fn title(&self) -> String {
+        self.window.title()
+    }
 }
 
 /// Cursor functions.
@@ -1038,7 +1077,9 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        self.window.current_monitor()
+        self.window
+            .current_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the list of all the monitors available on the system.
@@ -1072,7 +1113,9 @@ impl Window {
     /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.window.primary_monitor()
+        self.window
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 }
 unsafe impl HasRawWindowHandle for Window {

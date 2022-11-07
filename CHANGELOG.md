@@ -9,6 +9,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - **Breaking:** On Web, touch input no longer fires `WindowEvent::Cursor*`, `WindowEvent::MouseInput`, or `DeviceEvent::MouseMotion` like other platforms, but instead it fires `WindowEvent::Touch`.
+- On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
+- On Windows and macOS, add `Window::title` to query the current window title.
+- On Windows, fix focusing menubar when pressing `Alt`.
+- On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
 - macOS/iOS: Use `objc2` instead of `objc` internally.
@@ -16,14 +20,38 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
 - **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - Removed `parking_lot` dependency.
-- On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
-- On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
 - **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
 - **Breaking:** On web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
+- On X11, added `WindowExtX11::with_parent` to create child windows.
+- Added support for `WindowBuilder::with_theme` and `Window::theme` to support per-window dark/light/system theme configuration on macos, windows and wayland.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
+- **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
+- **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
+- Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
+- On macOS, fix panic when getting current monitor without any monitor attached.
+
+# 0.27.5
+
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
+
+# 0.27.4
+
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
+- On Windows, fixed focus event emission on minimize.
+- On X11, fixed IME crashing during reload.
+
+# 0.27.3
+
+- On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
+- On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
 - On Windows, fixed ALT+Space shortcut to open window menu.
+- On Wayland, fixed `Ime::Preedit` not being sent on IME reset.
+- Fixed unbound version specified for `raw-window-handle` leading to compilation failures.
+- Empty `Ime::Preedit` event will be sent before `Ime::Commit` to help clearing preedit.
+- On X11, fixed IME context picking by querying for supported styles beforehand.
 
 # 0.27.2 (2022-8-12)
 

@@ -1,6 +1,6 @@
 use std::{
     self,
-    os::raw::*,
+    ffi::c_void,
     panic::{AssertUnwindSafe, UnwindSafe},
     ptr,
     rc::Weak,
@@ -12,125 +12,21 @@ use crate::platform_impl::platform::{
     event_loop::{stop_app_on_panic, PanicInfo},
     ffi,
 };
-
-#[link(name = "CoreFoundation", kind = "framework")]
-extern "C" {
-    pub static kCFRunLoopCommonModes: CFRunLoopMode;
-
-    pub fn CFRunLoopGetMain() -> CFRunLoopRef;
-    pub fn CFRunLoopWakeUp(rl: CFRunLoopRef);
-
-    pub fn CFRunLoopObserverCreate(
-        allocator: CFAllocatorRef,
-        activities: CFOptionFlags,
-        repeats: ffi::Boolean,
-        order: CFIndex,
-        callout: CFRunLoopObserverCallBack,
-        context: *mut CFRunLoopObserverContext,
-    ) -> CFRunLoopObserverRef;
-    pub fn CFRunLoopAddObserver(
-        rl: CFRunLoopRef,
-        observer: CFRunLoopObserverRef,
-        mode: CFRunLoopMode,
-    );
-
-    pub fn CFRunLoopTimerCreate(
-        allocator: CFAllocatorRef,
-        fireDate: CFAbsoluteTime,
-        interval: CFTimeInterval,
-        flags: CFOptionFlags,
-        order: CFIndex,
-        callout: CFRunLoopTimerCallBack,
-        context: *mut CFRunLoopTimerContext,
-    ) -> CFRunLoopTimerRef;
-    pub fn CFRunLoopAddTimer(rl: CFRunLoopRef, timer: CFRunLoopTimerRef, mode: CFRunLoopMode);
-    pub fn CFRunLoopTimerSetNextFireDate(timer: CFRunLoopTimerRef, fireDate: CFAbsoluteTime);
-    pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
-
-    pub fn CFRunLoopSourceCreate(
-        allocator: CFAllocatorRef,
-        order: CFIndex,
-        context: *mut CFRunLoopSourceContext,
-    ) -> CFRunLoopSourceRef;
-    pub fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
-    #[allow(dead_code)]
-    pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
-    pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
-
-    pub fn CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime;
-    pub fn CFRelease(cftype: *const c_void);
-}
-
-pub enum CFAllocator {}
-pub type CFAllocatorRef = *mut CFAllocator;
-pub enum CFRunLoop {}
-pub type CFRunLoopRef = *mut CFRunLoop;
-pub type CFRunLoopMode = CFStringRef;
-pub enum CFRunLoopObserver {}
-pub type CFRunLoopObserverRef = *mut CFRunLoopObserver;
-pub enum CFRunLoopTimer {}
-pub type CFRunLoopTimerRef = *mut CFRunLoopTimer;
-pub enum CFRunLoopSource {}
-pub type CFRunLoopSourceRef = *mut CFRunLoopSource;
-pub enum CFString {}
-pub type CFStringRef = *const CFString;
-
-pub type CFHashCode = c_ulong;
-pub type CFIndex = c_long;
-pub type CFOptionFlags = c_ulong;
-pub type CFRunLoopActivity = CFOptionFlags;
-
-pub type CFAbsoluteTime = CFTimeInterval;
-pub type CFTimeInterval = f64;
-
-#[allow(non_upper_case_globals)]
-pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
-#[allow(non_upper_case_globals)]
-pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
-#[allow(non_upper_case_globals)]
-pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
-#[allow(non_upper_case_globals)]
-pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
-
-pub type CFRunLoopObserverCallBack =
-    extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
-pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
-
-pub enum CFRunLoopTimerContext {}
-
-/// This mirrors the struct with the same name from Core Foundation.
-///
-/// <https://developer.apple.com/documentation/corefoundation/cfrunloopobservercontext?language=objc>
-#[allow(non_snake_case)]
-#[repr(C)]
-pub struct CFRunLoopObserverContext {
-    pub version: CFIndex,
-    pub info: *mut c_void,
-    pub retain: Option<extern "C" fn(info: *const c_void) -> *const c_void>,
-    pub release: Option<extern "C" fn(info: *const c_void)>,
-    pub copyDescription: Option<extern "C" fn(info: *const c_void) -> CFStringRef>,
-}
-
-#[allow(non_snake_case)]
-#[repr(C)]
-pub struct CFRunLoopSourceContext {
-    pub version: CFIndex,
-    pub info: *mut c_void,
-    pub retain: Option<extern "C" fn(*const c_void) -> *const c_void>,
-    pub release: Option<extern "C" fn(*const c_void)>,
-    pub copyDescription: Option<extern "C" fn(*const c_void) -> CFStringRef>,
-    pub equal: Option<extern "C" fn(*const c_void, *const c_void) -> ffi::Boolean>,
-    pub hash: Option<extern "C" fn(*const c_void) -> CFHashCode>,
-    pub schedule: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub cancel: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub perform: Option<extern "C" fn(*mut c_void)>,
-}
+use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease};
+use core_foundation::date::CFAbsoluteTimeGetCurrent;
+use core_foundation::runloop::{
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopExit,
+    CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
+    CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
+    CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
+    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+};
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
     F: FnOnce(Weak<PanicInfo>) + UnwindSafe,
 {
-    let info_from_raw = Weak::from_raw(panic_info as *mut PanicInfo);
+    let info_from_raw = unsafe { Weak::from_raw(panic_info as *mut PanicInfo) };
     // Asserting unwind safety on this type should be fine because `PanicInfo` is
     // `RefUnwindSafe` and `Rc<T>` is `UnwindSafe` if `T` is `RefUnwindSafe`.
     let panic_info = AssertUnwindSafe(Weak::clone(&info_from_raw));
@@ -161,7 +57,6 @@ extern "C" fn control_flow_begin_handler(
                     AppState::wakeup(panic_info);
                     //trace!("Completed `CFRunLoopAfterWaiting`");
                 }
-                kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
                 _ => unreachable!(),
             }
         });
@@ -195,7 +90,7 @@ struct RunLoop(CFRunLoopRef);
 
 impl RunLoop {
     unsafe fn get() -> Self {
-        RunLoop(CFRunLoopGetMain())
+        RunLoop(unsafe { CFRunLoopGetMain() })
     }
 
     unsafe fn add_observer(
@@ -205,15 +100,17 @@ impl RunLoop {
         handler: CFRunLoopObserverCallBack,
         context: *mut CFRunLoopObserverContext,
     ) {
-        let observer = CFRunLoopObserverCreate(
-            ptr::null_mut(),
-            flags,
-            ffi::TRUE, // Indicates we want this to run repeatedly
-            priority,  // The lower the value, the sooner this will run
-            handler,
-            context,
-        );
-        CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes);
+        let observer = unsafe {
+            CFRunLoopObserverCreate(
+                ptr::null_mut(),
+                flags,
+                ffi::TRUE, // Indicates we want this to run repeatedly
+                priority,  // The lower the value, the sooner this will run
+                handler,
+                context,
+            )
+        };
+        unsafe { CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes) };
     }
 }
 
@@ -228,7 +125,7 @@ pub fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
         };
         let run_loop = RunLoop::get();
         run_loop.add_observer(
-            kCFRunLoopEntry | kCFRunLoopAfterWaiting,
+            kCFRunLoopAfterWaiting,
             CFIndex::min_value(),
             control_flow_begin_handler,
             &mut context as *mut _,

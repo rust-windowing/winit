@@ -135,6 +135,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(clippy::all)]
 #![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+// Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
 
 #[allow(unused_imports)]
@@ -145,11 +147,6 @@ extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate bitflags;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-#[macro_use]
-extern crate objc;
-#[cfg(target_os = "macos")]
-extern crate objc as objc2;
 
 pub mod dpi;
 #[macro_use]

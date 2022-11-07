@@ -63,7 +63,7 @@
 // window size/position.
 macro_rules! assert_main_thread {
     ($($t:tt)*) => {
-        if !::objc::foundation::is_main_thread() {
+        if !::objc2::foundation::is_main_thread() {
             panic!($($t)*);
         }
     };
@@ -73,6 +73,7 @@ mod app_state;
 mod event_loop;
 mod ffi;
 mod monitor;
+mod uikit;
 mod view;
 mod window;
 
@@ -87,6 +88,7 @@ pub(crate) use self::{
 };
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {

@@ -68,9 +68,14 @@ pub(super) fn handle_text_input(
             cursor_begin,
             cursor_end,
         } => {
-            let cursor_begin = usize::try_from(cursor_begin).ok();
-            let cursor_end = usize::try_from(cursor_end).ok();
             let text = text.unwrap_or_default();
+            let cursor_begin = usize::try_from(cursor_begin)
+                .ok()
+                .and_then(|idx| text.is_char_boundary(idx).then(|| idx));
+            let cursor_end = usize::try_from(cursor_end)
+                .ok()
+                .and_then(|idx| text.is_char_boundary(idx).then(|| idx));
+
             inner.pending_preedit = Some(Preedit {
                 text,
                 cursor_begin,
@@ -88,18 +93,27 @@ pub(super) fn handle_text_input(
                 _ => return,
             };
 
+            // Clear preedit at the start of `Done`.
+            event_sink.push_window_event(
+                WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                window_id,
+            );
+
+            // Send `Commit`.
             if let Some(text) = inner.pending_commit.take() {
                 event_sink.push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
             }
 
-            // Push preedit string we've got after latest commit.
+            // Send preedit.
             if let Some(preedit) = inner.pending_preedit.take() {
                 let cursor_range = preedit
                     .cursor_begin
                     .map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
-                let event = Ime::Preedit(preedit.text, cursor_range);
-                event_sink.push_window_event(WindowEvent::Ime(event), window_id);
+                event_sink.push_window_event(
+                    WindowEvent::Ime(Ime::Preedit(preedit.text, cursor_range)),
+                    window_id,
+                );
             }
         }
         _ => (),

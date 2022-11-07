@@ -13,7 +13,6 @@ use super::{
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
@@ -53,10 +52,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()),
-        }
+    pub fn monitor(&self) -> PlatformMonitorHandle {
+        PlatformMonitorHandle::X(self.monitor.clone().unwrap())
     }
 }
 
@@ -199,13 +196,11 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
             x.monitor = Some(monitor.clone());
-            RootVideoMode {
-                video_mode: PlatformVideoMode::X(x),
-            }
+            PlatformVideoMode::X(x)
         })
     }
 }

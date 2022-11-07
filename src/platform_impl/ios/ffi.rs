@@ -1,9 +1,14 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
+use std::convert::TryInto;
+use std::ffi::CString;
+use std::ops::BitOr;
+use std::os::raw::{c_char, c_int};
 
-use objc::foundation::{NSInteger, NSUInteger};
-use objc::{runtime::Object, Encode, Encoding};
+use objc2::encode::{Encode, Encoding};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send};
 
 use crate::{
     dpi::LogicalSize,
@@ -278,108 +283,13 @@ impl UIScreenOverscanCompensation {
 }
 
 #[link(name = "UIKit", kind = "framework")]
-#[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-    pub static kCFRunLoopDefaultMode: CFRunLoopMode;
-    pub static kCFRunLoopCommonModes: CFRunLoopMode;
-
     pub fn UIApplicationMain(
         argc: c_int,
         argv: *const c_char,
         principalClassName: id,
         delegateClassName: id,
     ) -> c_int;
-
-    pub fn CFRunLoopGetMain() -> CFRunLoopRef;
-    pub fn CFRunLoopWakeUp(rl: CFRunLoopRef);
-
-    pub fn CFRunLoopObserverCreate(
-        allocator: CFAllocatorRef,
-        activities: CFOptionFlags,
-        repeats: Boolean,
-        order: CFIndex,
-        callout: CFRunLoopObserverCallBack,
-        context: *mut CFRunLoopObserverContext,
-    ) -> CFRunLoopObserverRef;
-    pub fn CFRunLoopAddObserver(
-        rl: CFRunLoopRef,
-        observer: CFRunLoopObserverRef,
-        mode: CFRunLoopMode,
-    );
-
-    pub fn CFRunLoopTimerCreate(
-        allocator: CFAllocatorRef,
-        fireDate: CFAbsoluteTime,
-        interval: CFTimeInterval,
-        flags: CFOptionFlags,
-        order: CFIndex,
-        callout: CFRunLoopTimerCallBack,
-        context: *mut CFRunLoopTimerContext,
-    ) -> CFRunLoopTimerRef;
-    pub fn CFRunLoopAddTimer(rl: CFRunLoopRef, timer: CFRunLoopTimerRef, mode: CFRunLoopMode);
-    pub fn CFRunLoopTimerSetNextFireDate(timer: CFRunLoopTimerRef, fireDate: CFAbsoluteTime);
-    pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
-
-    pub fn CFRunLoopSourceCreate(
-        allocator: CFAllocatorRef,
-        order: CFIndex,
-        context: *mut CFRunLoopSourceContext,
-    ) -> CFRunLoopSourceRef;
-    pub fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
-    pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
-    pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
-
-    pub fn CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime;
-    pub fn CFRelease(cftype: *const c_void);
-}
-
-pub type Boolean = u8;
-pub enum CFAllocator {}
-pub type CFAllocatorRef = *mut CFAllocator;
-pub enum CFRunLoop {}
-pub type CFRunLoopRef = *mut CFRunLoop;
-pub type CFRunLoopMode = CFStringRef;
-pub enum CFRunLoopObserver {}
-pub type CFRunLoopObserverRef = *mut CFRunLoopObserver;
-pub enum CFRunLoopTimer {}
-pub type CFRunLoopTimerRef = *mut CFRunLoopTimer;
-pub enum CFRunLoopSource {}
-pub type CFRunLoopSourceRef = *mut CFRunLoopSource;
-pub enum CFString {}
-pub type CFStringRef = *const CFString;
-
-pub type CFHashCode = c_ulong;
-pub type CFIndex = c_long;
-pub type CFOptionFlags = c_ulong;
-pub type CFRunLoopActivity = CFOptionFlags;
-
-pub type CFAbsoluteTime = CFTimeInterval;
-pub type CFTimeInterval = f64;
-
-pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
-pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
-pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
-pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
-
-pub type CFRunLoopObserverCallBack =
-    extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
-pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
-
-pub enum CFRunLoopObserverContext {}
-pub enum CFRunLoopTimerContext {}
-
-#[repr(C)]
-pub struct CFRunLoopSourceContext {
-    pub version: CFIndex,
-    pub info: *mut c_void,
-    pub retain: Option<extern "C" fn(*const c_void) -> *const c_void>,
-    pub release: Option<extern "C" fn(*const c_void)>,
-    pub copyDescription: Option<extern "C" fn(*const c_void) -> CFStringRef>,
-    pub equal: Option<extern "C" fn(*const c_void, *const c_void) -> Boolean>,
-    pub hash: Option<extern "C" fn(*const c_void) -> CFHashCode>,
-    pub schedule: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub cancel: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
-    pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
 // This is named NSStringRust rather than NSString because the "Debug View Heirarchy" feature of

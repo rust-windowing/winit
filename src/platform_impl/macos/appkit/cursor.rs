@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use objc2::foundation::{NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSString};
 use objc2::rc::{DefaultId, Id, Shared};
 use objc2::runtime::Sel;
-use objc2::{extern_class, extern_methods, msg_send_id, ns_string, ClassType};
+use objc2::{extern_class, extern_methods, msg_send_id, ns_string, sel, ClassType};
 
 use super::NSImage;
 use crate::window::CursorIcon;

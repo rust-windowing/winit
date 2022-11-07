@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.27.2"
+version = "0.27.5"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -32,6 +32,7 @@ targets = [
     # WebAssembly
     "wasm32-unknown-unknown",
 ]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
@@ -48,7 +49,7 @@ once_cell = "1.12"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw_window_handle = { package = "raw-window-handle", version = "0.5" }
-raw_window_handle_04 = { package = "raw-window-handle", version = "0.4" }
+raw_window_handle_04 = { package = "raw-window-handle", version = "0.4.3" }
 bitflags = "1"
 mint = { version = "0.5.6", optional = true }
 
@@ -62,18 +63,15 @@ ndk = "0.7.0"
 ndk-glue = "0.7.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
-objc = { version = "=0.3.0-beta.3", package = "objc2" }
+objc2 = "=0.3.0-beta.3"
+core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Branch: objc2
-# TODO: Use non-git versions before we release
-cocoa = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
-core-foundation = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
-core-graphics = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
+core-graphics = "0.22.3"
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.36"
+version = "0.42"
 features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
