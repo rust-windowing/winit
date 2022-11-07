@@ -173,51 +173,91 @@ impl<T> EventLoopWindowTarget<T> {
                     },
                 });
             },
+            move |device_id, location, force| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Touch(Touch {
+                        id: device_id as u64,
+                        device_id: RootDeviceId(DeviceId(device_id)),
+                        phase: TouchPhase::Moved,
+                        force: Some(force),
+                        location,
+                    }),
+                });
+            },
             prevent_default,
         );
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {
-            // A mouse down event may come in without any prior CursorMoved events,
-            // therefore we should send a CursorMoved event to make sure that the
-            // user code has the correct cursor position.
-            runner.send_events(
-                std::iter::once(Event::WindowEvent {
+        canvas.on_mouse_press(
+            move |pointer_id, position, button, modifiers| {
+                // A mouse down event may come in without any prior CursorMoved events,
+                // therefore we should send a CursorMoved event to make sure that the
+                // user code has the correct cursor position.
+                runner.send_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Focused(true),
+                    })
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::CursorMoved {
+                            device_id: RootDeviceId(DeviceId(pointer_id)),
+                            position,
+                            modifiers,
+                        },
+                    }))
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::MouseInput {
+                            device_id: RootDeviceId(DeviceId(pointer_id)),
+                            state: ElementState::Pressed,
+                            button,
+                            modifiers,
+                        },
+                    })),
+                );
+            },
+            move |device_id, location, force| {
+                runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
-                    event: WindowEvent::Focused(true),
-                })
-                .chain(std::iter::once(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::CursorMoved {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                        position,
-                        modifiers,
-                    },
-                }))
-                .chain(std::iter::once(Event::WindowEvent {
+                    event: WindowEvent::Touch(Touch {
+                        id: device_id as u64,
+                        device_id: RootDeviceId(DeviceId(device_id)),
+                        phase: TouchPhase::Started,
+                        force: Some(force),
+                        location,
+                    }),
+                });
+            },
+        );
+
+        let runner = self.runner.clone();
+        canvas.on_mouse_release(
+            move |pointer_id, button, modifiers| {
+                runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseInput {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
-                        state: ElementState::Pressed,
+                        state: ElementState::Released,
                         button,
                         modifiers,
                     },
-                })),
-            );
-        });
-
-        let runner = self.runner.clone();
-        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::MouseInput {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                    state: ElementState::Released,
-                    button,
-                    modifiers,
-                },
-            });
-        });
+                });
+            },
+            move |device_id, location, force| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Touch(Touch {
+                        id: device_id as u64,
+                        device_id: RootDeviceId(DeviceId(device_id)),
+                        phase: TouchPhase::Ended,
+                        force: Some(force),
+                        location,
+                    }),
+                });
+            },
+        );
 
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(
@@ -263,48 +303,6 @@ impl<T> EventLoopWindowTarget<T> {
                 event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(RootWindowId(id));
-        });
-
-        let runner = self.runner.clone();
-        canvas.on_touch_move(move |device_id, location, force| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Touch(Touch {
-                    id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
-                    phase: TouchPhase::Moved,
-                    force: Some(force),
-                    location,
-                }),
-            });
-        });
-
-        let runner = self.runner.clone();
-        canvas.on_touch_down(move |device_id, location, force| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Touch(Touch {
-                    id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
-                    phase: TouchPhase::Started,
-                    force: Some(force),
-                    location,
-                }),
-            });
-        });
-
-        let runner = self.runner.clone();
-        canvas.on_touch_up(move |device_id, location, force| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Touch(Touch {
-                    id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
-                    phase: TouchPhase::Ended,
-                    force: Some(force),
-                    location,
-                }),
-            });
         });
 
         let runner = self.runner.clone();
