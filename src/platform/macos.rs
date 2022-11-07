@@ -152,7 +152,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_automatic_window_tabbing(self, automatic_tabbing: bool) -> WindowBuilder;
     /// Defines the window tabbing identifier.
     ///
-    /// https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
     fn with_tabbing_identifier(self, identifier: &str) -> WindowBuilder;
 }
 
