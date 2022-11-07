@@ -1216,6 +1216,14 @@ impl WindowExtMacOS for WinitWindow {
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
     }
+
+    fn is_document_edited(&self) -> bool {
+        self.isDocumentEdited()
+    }
+
+    fn set_decoument_edited(&self, edited: bool) {
+        self.setDocumentEdited(edited)
+    }
 }
 
 pub(super) fn get_ns_theme() -> Theme {

@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, add `WindowExtMacOS::is_document_edited` and `WindowExtMacOS::set_document_edited` APIs.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.

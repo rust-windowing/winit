@@ -165,6 +165,9 @@ extern_methods!(
         #[sel(setLevel:)]
         pub fn setLevel(&self, level: NSWindowLevel);
 
+        #[sel(setDocumentEdited:)]
+        pub fn setDocumentEdited(&self, val: bool);
+
         #[sel(occlusionState)]
         pub fn occlusionState(&self) -> NSWindowOcclusionState;
 
@@ -182,6 +185,9 @@ extern_methods!(
 
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
+
+        #[sel(isDocumentEdited)]
+        pub fn isDocumentEdited(&self) -> bool;
 
         #[sel(close)]
         pub fn close(&self);
