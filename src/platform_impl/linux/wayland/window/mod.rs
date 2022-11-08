@@ -621,9 +621,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme(&self, _theme: Theme) {
-        #[cfg(feature = "sctk-adwaita")]
-        window.set_frame_config(theme.into());
+    pub fn set_theme(&self, theme: Theme) {
+        self.send_request(WindowRequest::Theme(theme));
     }
 
     #[inline]

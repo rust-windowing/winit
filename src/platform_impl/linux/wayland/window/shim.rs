@@ -96,6 +96,9 @@ pub enum WindowRequest {
 
     /// Window should be closed.
     Close,
+
+    /// Change window theme.
+    Theme(Theme),
 }
 
 // The window update comming from the compositor.
@@ -536,6 +539,10 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // Send event that the window was destroyed.
                     let event_sink = &mut winit_state.event_sink;
                     event_sink.push_window_event(WindowEvent::Destroyed, *window_id);
+                }
+                WindowRequest::Theme(_theme) => {
+                    #[cfg(feature = "sctk-adwaita")]
+                    window_handle.window.set_frame_config(_theme.into());
                 }
             };
         }
