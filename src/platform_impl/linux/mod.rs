@@ -585,7 +585,7 @@ impl Window {
         x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
     }
 
-    #[inlnie]
+    #[inline]
     pub fn set_theme(&self, theme: Theme) {
         x11_or_wayland!(match self; Window(window) => window.set_theme())
     }
