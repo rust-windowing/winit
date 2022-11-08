@@ -943,11 +943,21 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
-    /// Returns the current window theme.
+    /// Sets the current window theme.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn set_theme(&self, theme: Theme) {
+        self.window.set_theme(theme)
+    }
+
+    /// Returns the current window theme.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()

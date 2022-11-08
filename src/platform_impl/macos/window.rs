@@ -1123,6 +1123,11 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Theme) {
+        set_ns_theme(theme);
+    }
+
+    #[inline]
     pub fn title(&self) -> String {
         self.title_().to_string()
     }

@@ -1548,6 +1548,9 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn set_theme(&self, _theme: Theme) {}
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         None
     }
