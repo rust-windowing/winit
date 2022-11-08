@@ -922,11 +922,13 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         let attributes = self.attributes.clone();
 
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
+
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
-
-        win.set_content_protected(attributes.content_protected);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
