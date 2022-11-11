@@ -453,10 +453,7 @@ pub enum WindowEvent<'a> {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS**.
-    TouchpadSmartMagnify {
-        device_id: DeviceId,
-        position: PhysicalPosition<f64>,
-    },
+    TouchpadSmartMagnify { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -604,12 +601,8 @@ impl Clone for WindowEvent<'static> {
                 delta: *delta,
                 phase: *phase,
             },
-            TouchpadSmartMagnify {
-                device_id,
-                position,
-            } => TouchpadSmartMagnify {
+            TouchpadSmartMagnify { device_id } => TouchpadSmartMagnify {
                 device_id: *device_id,
-                position: *position,
             },
             TouchpadRotate {
                 device_id,
@@ -717,13 +710,7 @@ impl<'a> WindowEvent<'a> {
                 delta,
                 phase,
             }),
-            TouchpadSmartMagnify {
-                device_id,
-                position,
-            } => Some(TouchpadSmartMagnify {
-                device_id,
-                position,
-            }),
+            TouchpadSmartMagnify { device_id } => Some(TouchpadSmartMagnify { device_id }),
             TouchpadRotate {
                 device_id,
                 delta,
