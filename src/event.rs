@@ -444,6 +444,13 @@ pub enum WindowEvent<'a> {
         phase: TouchPhase,
     },
 
+    /// Touchpad smart magnification event.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
+    TouchpadSmartMagnify { device_id: DeviceId },
+
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
     /// Positive delta values indicate rotation counterclockwise and
@@ -590,6 +597,9 @@ impl Clone for WindowEvent<'static> {
                 delta: *delta,
                 phase: *phase,
             },
+            TouchpadSmartMagnify { device_id } => TouchpadSmartMagnify {
+                device_id: *device_id,
+            },
             TouchpadRotate {
                 device_id,
                 delta,
@@ -696,6 +706,7 @@ impl<'a> WindowEvent<'a> {
                 delta,
                 phase,
             }),
+            TouchpadSmartMagnify { device_id } => Some(TouchpadSmartMagnify { device_id }),
             TouchpadRotate {
                 device_id,
                 delta,

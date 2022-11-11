@@ -859,6 +859,20 @@ declare_class!(
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
         }
 
+        #[sel(smartMagnifyWithEvent:)]
+        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+            trace_scope!("smartMagnifyWithEvent:");
+
+            let window_event = Event::WindowEvent {
+                window_id: self.window_id(),
+                event: WindowEvent::TouchpadSmartMagnify {
+                    device_id: DEVICE_ID,
+                },
+            };
+
+            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        }
+
         #[sel(rotateWithEvent:)]
         fn rotate_with_event(&self, event: &NSEvent) {
             trace_scope!("rotateWithEvent:");

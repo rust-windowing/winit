@@ -29,6 +29,9 @@ fn main() {
                         println!("Zoomed out {}", delta);
                     }
                 }
+                WindowEvent::TouchpadSmartMagnify { .. } => {
+                    println!("Smart zoom");
+                }
                 WindowEvent::TouchpadRotate { delta, .. } => {
                     if delta > 0.0 {
                         println!("Rotated counterclockwise {}", delta);
