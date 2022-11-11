@@ -860,13 +860,22 @@ declare_class!(
         }
 
         #[sel(smartMagnifyWithEvent:)]
-        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+        fn smart_magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("smartMagnifyWithEvent:");
+
+            let window_point = event.locationInWindow();
+            let view_point = self.convertPoint_fromView(window_point, None);
+            let view_rect = self.frame();
+
+            let x = view_point.x as f64;
+            let y = view_rect.size.height as f64 - view_point.y as f64;
+            let logical_position = LogicalPosition::new(x, y);
 
             let window_event = Event::WindowEvent {
                 window_id: self.window_id(),
                 event: WindowEvent::TouchpadSmartMagnify {
                     device_id: DEVICE_ID,
+                    position: logical_position.to_physical(self.scale_factor()),
                 },
             };
 
