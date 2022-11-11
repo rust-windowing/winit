@@ -446,6 +446,10 @@ pub enum WindowEvent<'a> {
 
     /// Touchpad smart magnification event.
     ///
+    /// Generally used to magnify by an automatically calculated factor
+    /// to fit a certain portion of the window, e.g. a paragraph of a PDF,
+    /// or to reset any magnification.
+    ///
     /// ## Platform-specific
     ///
     /// - Only available on **macOS**.
