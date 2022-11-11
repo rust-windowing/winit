@@ -19,7 +19,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
 - **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - Removed `parking_lot` dependency.
-- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
+- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`. Also add support for touchpad smart-magnification gesture with a new event `WindowEvent::SmartMagnify`.
 - **Breaking:** On web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
