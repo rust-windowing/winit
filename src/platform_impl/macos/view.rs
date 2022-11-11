@@ -865,7 +865,7 @@ declare_class!(
 
             let window_event = Event::WindowEvent {
                 window_id: self.window_id(),
-                event: WindowEvent::TouchpadSmartMagnify {
+                event: WindowEvent::SmartMagnify {
                     device_id: DEVICE_ID,
                 },
             };

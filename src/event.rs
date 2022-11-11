@@ -444,16 +444,16 @@ pub enum WindowEvent<'a> {
         phase: TouchPhase,
     },
 
-    /// Touchpad smart magnification event.
+    /// Smart magnification event.
     ///
     /// Generally used to magnify by an automatically calculated factor
-    /// to fit a certain portion of the window, e.g. a paragraph of a PDF,
-    /// or to reset any magnification.
+    /// to fit a certain portion of the window currently under the cursor,
+    /// e.g. a paragraph of a PDF, or to reset any magnification.
     ///
     /// ## Platform-specific
     ///
     /// - Only available on **macOS**.
-    TouchpadSmartMagnify { device_id: DeviceId },
+    SmartMagnify { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -601,7 +601,7 @@ impl Clone for WindowEvent<'static> {
                 delta: *delta,
                 phase: *phase,
             },
-            TouchpadSmartMagnify { device_id } => TouchpadSmartMagnify {
+            SmartMagnify { device_id } => SmartMagnify {
                 device_id: *device_id,
             },
             TouchpadRotate {
@@ -710,7 +710,7 @@ impl<'a> WindowEvent<'a> {
                 delta,
                 phase,
             }),
-            TouchpadSmartMagnify { device_id } => Some(TouchpadSmartMagnify { device_id }),
+            SmartMagnify { device_id } => Some(SmartMagnify { device_id }),
             TouchpadRotate {
                 device_id,
                 delta,

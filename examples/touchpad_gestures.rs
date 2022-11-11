@@ -29,7 +29,7 @@ fn main() {
                         println!("Zoomed out {}", delta);
                     }
                 }
-                WindowEvent::TouchpadSmartMagnify { .. } => {
+                WindowEvent::SmartMagnify { .. } => {
                     println!("Smart zoom");
                 }
                 WindowEvent::TouchpadRotate { delta, .. } => {
