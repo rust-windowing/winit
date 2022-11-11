@@ -452,7 +452,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
+    /// - Only available on **macOS 10.8** and later.
     SmartMagnify { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
