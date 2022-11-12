@@ -100,8 +100,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
-    #[cfg(feature = "x11")]
-    pub gtk_theme_variant: Option<String>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -120,8 +118,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
-            #[cfg(feature = "x11")]
-            gtk_theme_variant: None,
         }
     }
 }

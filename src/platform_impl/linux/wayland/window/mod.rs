@@ -440,11 +440,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_csd_theme(&self, theme: Theme) {
-        self.send_request(WindowRequest::CsdThemeVariant(theme));
-    }
-
-    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {
