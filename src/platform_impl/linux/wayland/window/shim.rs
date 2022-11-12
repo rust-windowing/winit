@@ -531,7 +531,7 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::Theme(_theme) => {
                     #[cfg(feature = "sctk-adwaita")]
                     {
-                        window_handle.window.set_frame_config(match theme {
+                        window_handle.window.set_frame_config(match _theme {
                             Some(theme) => theme.into(),
                             None => sctk_adwaita::FrameConfig::auto(),
                         });

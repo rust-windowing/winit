@@ -582,7 +582,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
+    pub fn set_theme(&self, theme: Option<Theme>) {
         x11_or_wayland!(match self; Window(window) => window.set_theme(theme))
     }
 

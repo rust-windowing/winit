@@ -300,7 +300,7 @@ impl UnownedWindow {
             .queue();
 
         if let Some(theme) = window_attrs.preferred_theme {
-            window.set_theme_inner(theme).queue();
+            window.set_theme_inner(Some(theme)).queue();
         }
 
         {
