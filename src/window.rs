@@ -944,7 +944,7 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
-    /// Sets the current window theme.
+    /// Sets the current window theme. Use `None` to fallback to system default.
     ///
     /// ## Platform-specific
     ///
@@ -953,7 +953,7 @@ impl Window {
     /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light`.
     /// - **iOS / Android / Web / x11:** Unsupported.
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
+    pub fn set_theme(&self, theme: Option<Theme>) {
         self.window.set_theme(theme)
     }
 

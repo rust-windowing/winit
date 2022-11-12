@@ -375,7 +375,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme(&self, _theme: Theme) {}
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {

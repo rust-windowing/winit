@@ -349,7 +349,7 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_theme(&self, _theme: Theme) {
+    pub fn set_theme(&self, _theme: Option<Theme>) {
         warn!("`Window::set_theme` is ignored on iOS");
     }
 

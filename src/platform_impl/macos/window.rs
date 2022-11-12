@@ -395,7 +395,7 @@ impl WinitWindow {
 
         match attrs.preferred_theme {
             Some(theme) => {
-                set_ns_theme(theme);
+                set_ns_theme(Some(theme));
                 let mut state = this.shared_state.lock().unwrap();
                 state.current_theme = Some(theme);
             }
@@ -1123,7 +1123,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
+    pub fn set_theme(&self, theme: Option<Theme>) {
         set_ns_theme(theme);
     }
 
@@ -1240,13 +1240,13 @@ pub(super) fn get_ns_theme() -> Theme {
     }
 }
 
-fn set_ns_theme(theme: Theme) {
+fn set_ns_theme(theme: Option<Theme>) {
     let app = NSApp();
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
         let name = match theme {
-            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+            Some(Theme::Dark) => NSString::from_str("NSAppearanceNameDarkAqua"),
+            Some(Theme::Light) | None => NSString::from_str("NSAppearanceNameAqua"),
         };
         let appearance = NSAppearance::appearanceNamed(&name);
         app.setAppearance(&appearance);

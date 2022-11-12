@@ -616,7 +616,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
+    pub fn set_theme(&self, theme: Option<Theme>) {
         self.send_request(WindowRequest::Theme(theme));
     }
 

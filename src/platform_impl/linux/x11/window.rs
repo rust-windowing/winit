@@ -564,12 +564,13 @@ impl UnownedWindow {
         )
     }
 
-    pub fn set_theme_inner(&self, theme: Theme) -> util::Flusher<'_> {
+    pub fn set_theme_inner(&self, theme: Option<Theme>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
         let variant = match theme {
-            Theme::Dark => "dark",
-            Theme::Light => "light",
+            Some(Theme::Dark) => "dark",
+            Some(Theme::Light) => "light",
+            None => "",
         };
         let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
         self.xconn.change_property(
@@ -582,7 +583,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
+    pub fn set_theme(&self, theme: Option<Theme>) {
         self.set_theme_inner(theme)
             .flush()
             .expect("Failed to change window theme")

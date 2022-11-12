@@ -95,7 +95,7 @@ pub enum WindowRequest {
     Close,
 
     /// Change window theme.
-    Theme(Theme),
+    Theme(Option<Theme>),
 }
 
 // The window update comming from the compositor.
@@ -531,7 +531,10 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::Theme(_theme) => {
                     #[cfg(feature = "sctk-adwaita")]
                     {
-                        window_handle.window.set_frame_config(_theme.into());
+                        window_handle.window.set_frame_config(match theme {
+                            Some(theme) => theme.into(),
+                            None => sctk_adwaita::FrameConfig::auto(),
+                        });
 
                         let window_requst = window_user_requests.get_mut(window_id).unwrap();
                         window_requst.refresh_frame = true;

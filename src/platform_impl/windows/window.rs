@@ -694,8 +694,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme(&self, theme: Theme) {
-        try_theme(self.window.0, Some(theme));
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        try_theme(self.window.0, theme);
     }
 
     #[inline]
