@@ -123,7 +123,6 @@ pub enum ImeState {
 impl WindowState {
     pub(crate) fn new(
         attributes: &WindowAttributes,
-        taskbar_icon: Option<Icon>,
         scale_factor: f64,
         current_theme: Theme,
         preferred_theme: Option<Theme>,
@@ -140,7 +139,7 @@ impl WindowState {
             max_size: attributes.max_inner_size,
 
             window_icon: attributes.window_icon.clone(),
-            taskbar_icon,
+            taskbar_icon: None,
 
             saved_window: None,
             scale_factor,
