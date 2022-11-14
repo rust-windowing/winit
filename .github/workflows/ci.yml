@@ -77,15 +77,22 @@ jobs:
       shell: bash
       run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
+    - name: Build crate
+      shell: bash
+      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
     - name: Build tests
       shell: bash
+      if: matrix.rust_version != '1.60.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
     - name: Run tests
       shell: bash
       if: (
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        matrix.rust_version != '1.60.0')
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Lint with clippy
@@ -95,11 +102,13 @@ jobs:
 
     - name: Build tests with serde enabled
       shell: bash
+      if: matrix.rust_version != '1.60.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
       if: (
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        matrix.rust_version != '1.60.0')
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
