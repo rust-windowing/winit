@@ -1116,7 +1116,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 
