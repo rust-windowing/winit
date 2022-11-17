@@ -35,6 +35,7 @@ pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Clone, Copy)]
 pub(crate) struct ScaleChangeArgs {

@@ -1,6 +1,10 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
+use raw_window_handle::{
+    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
@@ -83,6 +87,18 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0.into()
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id.into())
+    }
+}
+
 /// Object that allows building windows.
 #[derive(Clone, Default)]
 #[must_use]
@@ -111,7 +127,7 @@ pub(crate) struct WindowAttributes {
     pub position: Option<Position>,
     pub resizable: bool,
     pub title: String,
-    pub fullscreen: Option<Fullscreen>,
+    pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -119,6 +135,8 @@ pub(crate) struct WindowAttributes {
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
     pub multitouch_enabled: bool,
+    pub preferred_theme: Option<Theme>,
+    pub resize_increments: Option<Size>,
 }
 
 impl Default for WindowAttributes {
@@ -139,6 +157,8 @@ impl Default for WindowAttributes {
             always_on_top: false,
             window_icon: None,
             multitouch_enabled: false,
+            preferred_theme: None,
+            resize_increments: None,
         }
     }
 }
@@ -193,20 +213,20 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: The top left corner position of the window content, the
+    /// - **macOS:** The top left corner position of the window content, the
     ///   window's "inner" position. The window title bar will be placed above
     ///   it. The window will be positioned such that it fits on screen,
     ///   maintaining set `inner_size` if any.
     ///   If you need to precisely position the top left corner of the whole
     ///   window you have to use [`Window::set_outer_position`] after creating
     ///   the window.
-    /// - **Windows**: The top left corner position of the window title bar,
+    /// - **Windows:** The top left corner position of the window title bar,
     ///   the window's "outer" position.
     ///   There may be a small gap between this position and the window due to
     ///   the specifics of the Window Manager.
-    /// - **X11**: The top left corner of the window, the window's "outer"
+    /// - **X11:** The top left corner of the window, the window's "outer"
     ///   position.
-    /// - **Others**: Ignored.
+    /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
         self.window.position = Some(position.into());
@@ -242,7 +262,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.window.fullscreen = fullscreen.map(|f| f.into());
         self
     }
 
@@ -329,13 +349,41 @@ impl WindowBuilder {
         self.window.multitouch_enabled = enabled;
         self
     }
+    /// Sets a specific theme for the window.
+    ///
+    /// If `None` is provided, the window will use the system theme.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    ///   Possible values for env variable are: "dark" and light".
+    /// - **iOS / Android / Web / x11:** Ignored.
+    #[inline]
+    pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
+        self.window.preferred_theme = theme;
+        self
+    }
+
+    /// Build window with resize increments hint.
+    ///
+    /// The default is `None`.
+    ///
+    /// See [`Window::set_resize_increments`] for details.
+    #[inline]
+    pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
+        self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
 
     /// Builds the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
@@ -360,8 +408,9 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
@@ -599,6 +648,32 @@ impl Window {
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
     }
+
+    /// Returns window resize increments if any were set.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland / Windows:** Always returns [`None`].
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.window.resize_increments()
+    }
+
+    /// Sets window resize increments.
+    ///
+    /// This is a niche constraint hint usually employed by terminal emulators
+    /// and other apps that need "blocky" resizes.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole numbers.
+    /// - **Wayland / Windows:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn set_resize_increments<S: Into<Size>>(&self, increments: Option<S>) {
+        self.window
+            .set_resize_increments(increments.map(Into::into))
+    }
 }
 
 /// Misc. attribute functions.
@@ -626,7 +701,7 @@ impl Window {
         self.window.set_visible(visible)
     }
 
-    /// Gets the window's current vibility state.
+    /// Gets the window's current visibility state.
     ///
     /// `None` means it couldn't be determined, so it is not recommended to use this to drive your rendering backend.
     ///
@@ -649,10 +724,7 @@ impl Window {
     ///
     /// This only has an effect on desktop platforms.
     ///
-    /// Due to a bug in XFCE, this has no effect on Xfwm.
-    ///
-    /// ## Platform-specific
-    ///
+    /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
@@ -725,7 +797,7 @@ impl Window {
     /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        self.window.set_fullscreen(fullscreen)
+        self.window.set_fullscreen(fullscreen.map(|f| f.into()))
     }
 
     /// Gets the window's current fullscreen state.
@@ -737,7 +809,7 @@ impl Window {
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        self.window.fullscreen()
+        self.window.fullscreen().map(|f| f.into())
     }
 
     /// Turn window decorations on or off.
@@ -840,7 +912,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - ** iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -874,13 +946,33 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
+    }
+
+    /// Returns the current window theme.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        self.window.theme()
+    }
+
+    /// Gets the current title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
+    #[inline]
+    pub fn title(&self) -> String {
+        self.window.title()
     }
 }
 
@@ -925,7 +1017,7 @@ impl Window {
     ///
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
-    /// ```no-run
+    /// ```no_run
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::{CursorGrabMode, Window};
     /// # let mut event_loop = EventLoop::new();
@@ -997,7 +1089,9 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        self.window.current_monitor()
+        self.window
+            .current_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the list of all the monitors available on the system.
@@ -1031,19 +1125,142 @@ impl Window {
     /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.window.primary_monitor()
+        self.window
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 }
-
-unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
-    /// *try to get the handle outside of that period, this function will panic*!
-    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+    /// ### Android
+    ///
+    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
+    /// try to get the handle outside of that period, this function will panic*!
+    ///
+    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
+    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
+    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
+    ///
+    /// [`Event::Resumed`]: crate::event::Event::Resumed
+    /// [`Event::Suspended`]: crate::event::Event::Suspended
+    fn raw_window_handle(&self) -> RawWindowHandle {
         self.window.raw_window_handle()
+    }
+}
+
+unsafe impl HasRawDisplayHandle for Window {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
+    /// created a window.
+    ///
+    /// [`EventLoop`]: crate::event_loop::EventLoop
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.window.raw_display_handle()
+    }
+}
+unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
+    /// Returns a [`raw_window_handle_04::RawWindowHandle`] for the Window
+    ///
+    /// This provides backwards compatibility for downstream crates that have not yet
+    /// upgraded to `raw_window_handle` version 0.5, such as Wgpu version 0.13.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
+    /// try to get the handle outside of that period, this function will panic*!
+    ///
+    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
+    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
+    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
+    ///
+    /// [`Event::Resumed`]: crate::event::Event::Resumed
+    /// [`Event::Suspended`]: crate::event::Event::Suspended
+    fn raw_window_handle(&self) -> raw_window_handle_04::RawWindowHandle {
+        use raw_window_handle_04::{
+            AndroidNdkHandle, AppKitHandle, HaikuHandle, OrbitalHandle, UiKitHandle, WaylandHandle,
+            WebHandle, Win32Handle, WinRtHandle, XcbHandle, XlibHandle,
+        };
+
+        // XXX: Ideally this would be encapsulated either through a
+        // compatibility API from raw_window_handle_05 or else within the
+        // backends but since this is only to provide short-term backwards
+        // compatibility, we just handle the full mapping inline here.
+        //
+        // The intention is to remove this trait implementation before Winit
+        // 0.28, once crates have had time to upgrade to raw_window_handle 0.5
+
+        match (self.window.raw_window_handle(), self.window.raw_display_handle()) {
+            (RawWindowHandle::UiKit(window_handle), _) => {
+                let mut handle = UiKitHandle::empty();
+                handle.ui_view = window_handle.ui_view;
+                handle.ui_window = window_handle.ui_window;
+                handle.ui_view_controller = window_handle.ui_view_controller;
+                raw_window_handle_04::RawWindowHandle::UiKit(handle)
+            },
+            (RawWindowHandle::AppKit(window_handle), _) => {
+                let mut handle = AppKitHandle::empty();
+                handle.ns_window = window_handle.ns_window;
+                handle.ns_view = window_handle.ns_view;
+                raw_window_handle_04::RawWindowHandle::AppKit(handle)
+            },
+            (RawWindowHandle::Orbital(window_handle), _) => {
+                let mut handle = OrbitalHandle::empty();
+                handle.window = window_handle.window;
+                raw_window_handle_04::RawWindowHandle::Orbital(handle)
+            },
+            (RawWindowHandle::Xlib(window_handle), RawDisplayHandle::Xlib(display_handle)) => {
+                let mut handle = XlibHandle::empty();
+                handle.display = display_handle.display;
+                handle.window = window_handle.window;
+                handle.visual_id = window_handle.visual_id;
+                raw_window_handle_04::RawWindowHandle::Xlib(handle)
+            },
+            (RawWindowHandle::Xcb(window_handle), RawDisplayHandle::Xcb(display_handle)) => {
+                let mut handle = XcbHandle::empty();
+                handle.connection = display_handle.connection;
+                handle.window = window_handle.window;
+                handle.visual_id = window_handle.visual_id;
+                raw_window_handle_04::RawWindowHandle::Xcb(handle)
+            },
+            (RawWindowHandle::Wayland(window_handle), RawDisplayHandle::Wayland(display_handle)) => {
+                let mut handle = WaylandHandle::empty();
+                handle.display = display_handle.display;
+                handle.surface = window_handle.surface;
+                raw_window_handle_04::RawWindowHandle::Wayland(handle)
+            },
+            (RawWindowHandle::Win32(window_handle), _) => {
+                let mut handle = Win32Handle::empty();
+                handle.hwnd = window_handle.hwnd;
+                handle.hinstance = window_handle.hinstance;
+                raw_window_handle_04::RawWindowHandle::Win32(handle)
+            },
+            (RawWindowHandle::WinRt(window_handle), _) => {
+                let mut handle = WinRtHandle::empty();
+                handle.core_window = window_handle.core_window;
+                raw_window_handle_04::RawWindowHandle::WinRt(handle)
+            },
+            (RawWindowHandle::Web(window_handle), _) => {
+                let mut handle = WebHandle::empty();
+                handle.id = window_handle.id;
+                raw_window_handle_04::RawWindowHandle::Web(handle)
+            },
+            (RawWindowHandle::AndroidNdk(window_handle), _) => {
+                let mut handle = AndroidNdkHandle::empty();
+                handle.a_native_window = window_handle.a_native_window;
+                raw_window_handle_04::RawWindowHandle::AndroidNdk(handle)
+            },
+            (RawWindowHandle::Haiku(window_handle), _) => {
+                let mut handle = HaikuHandle::empty();
+                handle.b_window = window_handle.b_window;
+                handle.b_direct_window = window_handle.b_direct_window;
+                raw_window_handle_04::RawWindowHandle::Haiku(handle)
+            },
+            _ => panic!("No HasRawWindowHandle version 0.4 backwards compatibility for new Winit window type"),
+        }
     }
 }
 
@@ -1064,7 +1281,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - ** iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1075,7 +1292,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - ** iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 
@@ -1168,10 +1385,12 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     Critical,
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
     Informational,

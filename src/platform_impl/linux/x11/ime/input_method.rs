@@ -2,13 +2,12 @@ use std::{
     env,
     ffi::{CStr, CString, IntoStringError},
     fmt,
-    os::raw::c_char,
+    os::raw::{c_char, c_ulong, c_ushort},
     ptr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 use super::{ffi, util, XConnection, XError};
 
@@ -41,14 +40,96 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
 #[derive(Debug)]
 pub struct InputMethod {
     pub im: ffi::XIM,
+    pub preedit_style: Style,
+    pub none_style: Style,
     _name: String,
 }
 
 impl InputMethod {
-    fn new(im: ffi::XIM, name: String) -> Self {
-        InputMethod { im, _name: name }
+    fn new(xconn: &Arc<XConnection>, im: ffi::XIM, name: String) -> Option<Self> {
+        let mut styles: *mut XIMStyles = std::ptr::null_mut();
+
+        // Query the styles supported by the XIM.
+        unsafe {
+            if !(xconn.xlib.XGetIMValues)(
+                im,
+                ffi::XNQueryInputStyle_0.as_ptr() as *const _,
+                (&mut styles) as *mut _,
+                std::ptr::null_mut::<()>(),
+            )
+            .is_null()
+            {
+                return None;
+            }
+        }
+
+        let mut preedit_style = None;
+        let mut none_style = None;
+
+        unsafe {
+            std::slice::from_raw_parts((*styles).supported_styles, (*styles).count_styles as _)
+                .iter()
+                .for_each(|style| match *style {
+                    XIM_PREEDIT_STYLE => {
+                        preedit_style = Some(Style::Preedit(*style));
+                    }
+                    XIM_NOTHING_STYLE if preedit_style.is_none() => {
+                        preedit_style = Some(Style::Nothing(*style))
+                    }
+                    XIM_NONE_STYLE => none_style = Some(Style::None(*style)),
+                    _ => (),
+                });
+
+            (xconn.xlib.XFree)(styles.cast());
+        };
+
+        if preedit_style.is_none() && none_style.is_none() {
+            return None;
+        }
+
+        let preedit_style = preedit_style.unwrap_or_else(|| none_style.unwrap());
+        let none_style = none_style.unwrap_or(preedit_style);
+
+        Some(InputMethod {
+            im,
+            _name: name,
+            preedit_style,
+            none_style,
+        })
     }
 }
+
+const XIM_PREEDIT_STYLE: XIMStyle = (ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing) as XIMStyle;
+const XIM_NOTHING_STYLE: XIMStyle = (ffi::XIMPreeditNothing | ffi::XIMStatusNothing) as XIMStyle;
+const XIM_NONE_STYLE: XIMStyle = (ffi::XIMPreeditNone | ffi::XIMStatusNone) as XIMStyle;
+
+/// Style of the IME context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Style {
+    /// Preedit callbacks.
+    Preedit(XIMStyle),
+
+    /// Nothing.
+    Nothing(XIMStyle),
+
+    /// No IME.
+    None(XIMStyle),
+}
+
+impl Default for Style {
+    fn default() -> Self {
+        Style::None(XIM_NONE_STYLE)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct XIMStyles {
+    count_styles: c_ushort,
+    supported_styles: *const XIMStyle,
+}
+
+pub(crate) type XIMStyle = c_ulong;
 
 #[derive(Debug)]
 pub enum InputMethodResult {
@@ -175,15 +256,15 @@ impl PotentialInputMethod {
     pub fn open_im(&mut self, xconn: &Arc<XConnection>) -> Option<InputMethod> {
         let im = unsafe { open_im(xconn, &self.name.c_string) };
         self.successful = Some(im.is_some());
-        im.map(|im| InputMethod::new(im, self.name.string.clone()))
+        im.and_then(|im| InputMethod::new(xconn, im, self.name.string.clone()))
     }
 }
 
 // By logging this struct, you get a sequential listing of every locale modifier tried, where it
-// came from, and if it succceeded.
+// came from, and if it succeeded.
 #[derive(Debug, Clone)]
 pub struct PotentialInputMethods {
-    // On correctly configured systems, the XMODIFIERS environemnt variable tells us everything we
+    // On correctly configured systems, the XMODIFIERS environment variable tells us everything we
     // need to know.
     xmodifiers: Option<PotentialInputMethod>,
     // We have some standard options at our disposal that should ostensibly always work. For users
@@ -213,7 +294,7 @@ impl PotentialInputMethods {
             // that case, we get `None` and end up skipping ahead to the next method.
             xmodifiers,
             fallbacks: [
-                // This is a standard input method that supports compose equences, which should
+                // This is a standard input method that supports compose sequences, which should
                 // always be available. `@im=none` appears to mean the same thing.
                 PotentialInputMethod::from_str("@im=local"),
                 // This explicitly specifies to use the implementation-dependent default, though

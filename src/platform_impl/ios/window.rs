@@ -1,18 +1,18 @@
-use raw_window_handle::{RawWindowHandle, UiKitHandle};
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object, BOOL, NO, YES};
+use objc2::runtime::{Class, Object};
+use objc2::{class, msg_send};
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
+    platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state,
         event_loop::{self, EventProxy, EventWrapper},
@@ -20,10 +20,10 @@ use crate::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
         },
-        monitor, view, EventLoopWindowTarget, MonitorHandle,
+        monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };
@@ -51,14 +51,7 @@ impl Inner {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => unsafe {
-                let _: () = msg_send![self.window, setHidden: NO];
-            },
-            false => unsafe {
-                let _: () = msg_send![self.window, setHidden: YES];
-            },
-        }
+        unsafe { msg_send![self.window, setHidden: !visible] }
     }
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -161,6 +154,15 @@ impl Inner {
         warn!("`Window::set_max_inner_size` is ignored on iOS")
     }
 
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`Window::set_resize_increments` is ignored on iOS")
+    }
+
     pub fn set_resizable(&self, _resizable: bool) {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
@@ -216,18 +218,18 @@ impl Inner {
         false
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
-                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
-                    let _: () =
-                        msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
+                    let uiscreen = video_mode.monitor.ui_screen() as id;
+                    let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
                     uiscreen
                 }
-                Some(Fullscreen::Borderless(monitor)) => monitor
-                    .unwrap_or_else(|| self.current_monitor_inner())
-                    .ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(None)) => {
+                    self.current_monitor_inner().ui_screen() as id
+                }
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;
@@ -253,10 +255,10 @@ impl Inner {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor_inner();
-            let uiscreen = monitor.inner.ui_screen();
+            let uiscreen = monitor.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
 
@@ -307,16 +309,14 @@ impl Inner {
     }
 
     // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> RootMonitorHandle {
+    fn current_monitor_inner(&self) -> MonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
-            RootMonitorHandle {
-                inner: MonitorHandle::retained_new(uiscreen),
-            }
+            MonitorHandle::retained_new(uiscreen)
         }
     }
 
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -324,9 +324,9 @@ impl Inner {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = unsafe { monitor::main_uiscreen() };
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     pub fn id(&self) -> WindowId {
@@ -334,11 +334,25 @@ impl Inner {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = UiKitHandle::empty();
-        handle.ui_window = self.window as _;
-        handle.ui_view = self.view as _;
-        handle.ui_view_controller = self.view_controller as _;
-        RawWindowHandle::UiKit(handle)
+        let mut window_handle = UiKitWindowHandle::empty();
+        window_handle.ui_window = self.window as _;
+        window_handle.ui_view = self.view as _;
+        window_handle.ui_view_controller = self.view_controller as _;
+        RawWindowHandle::UiKit(window_handle)
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
+
+    pub fn theme(&self) -> Option<Theme> {
+        warn!("`Window::theme` is ignored on iOS");
+        None
+    }
+
+    pub fn title(&self) -> String {
+        warn!("`Window::title` is ignored on iOS");
+        String::new()
     }
 }
 
@@ -348,9 +362,7 @@ pub struct Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
     }
 }
 
@@ -361,18 +373,14 @@ impl Deref for Window {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
         &self.inner
     }
 }
 
 impl DerefMut for Window {
     fn deref_mut(&mut self) -> &mut Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
         &mut self.inner
     }
 }
@@ -396,10 +404,8 @@ impl Window {
 
         unsafe {
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(ref video_mode)) => {
-                    video_mode.video_mode.monitor.ui_screen() as id
-                }
-                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
                 Some(Fullscreen::Borderless(None)) | None => {
                     monitor::main_uiscreen().ui_screen() as id
                 }
@@ -409,8 +415,8 @@ impl Window {
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
-                    let scale_factor = msg_send![screen, scale];
-                    let size = dim.to_logical::<f64>(scale_factor);
+                    let scale_factor: CGFloat = msg_send![screen, scale];
+                    let size = dim.to_logical::<f64>(scale_factor as f64);
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {
@@ -425,12 +431,11 @@ impl Window {
             let view = view::create_view(&window_attributes, &platform_attributes, frame);
 
             let gl_or_metal_backed = {
-                let view_class: id = msg_send![view, class];
-                let layer_class: id = msg_send![view_class, layerClass];
-                let is_metal: BOOL =
-                    msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
-                let is_gl: BOOL = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
-                is_metal == YES || is_gl == YES
+                let view_class: *const Class = msg_send![view, class];
+                let layer_class: *const Class = msg_send![view_class, layerClass];
+                let is_metal = msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
+                let is_gl = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
+                is_metal || is_gl
             };
 
             let view_controller =
@@ -461,7 +466,7 @@ impl Window {
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
-                    msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
+                    msg_send![view, convertRect: bounds, toCoordinateSpace: screen_space];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
@@ -525,10 +530,9 @@ impl Inner {
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         unsafe {
-            let prefers_home_indicator_hidden = if hidden { YES } else { NO };
             let _: () = msg_send![
                 self.view_controller,
-                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+                setPrefersHomeIndicatorAutoHidden: hidden,
             ];
         }
     }
@@ -545,11 +549,7 @@ impl Inner {
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         unsafe {
-            let status_bar_hidden = if hidden { YES } else { NO };
-            let _: () = msg_send![
-                self.view_controller,
-                setPrefersStatusBarHidden: status_bar_hidden
-            ];
+            let _: () = msg_send![self.view_controller, setPrefersStatusBarHidden: hidden,];
         }
     }
 }
@@ -565,7 +565,11 @@ impl Inner {
         let screen: id = msg_send![self.window, screen];
         if !screen.is_null() {
             let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect toCoordinateSpace:screen_space]
+            msg_send![
+                self.window,
+                convertRect: rect,
+                toCoordinateSpace: screen_space,
+            ]
         } else {
             rect
         }
@@ -576,7 +580,11 @@ impl Inner {
         let screen: id = msg_send![self.window, screen];
         if !screen.is_null() {
             let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect fromCoordinateSpace:screen_space]
+            msg_send![
+                self.window,
+                convertRect: rect,
+                fromCoordinateSpace: screen_space,
+            ]
         } else {
             rect
         }
@@ -639,6 +647,20 @@ impl WindowId {
     pub const unsafe fn dummy() -> Self {
         WindowId {
             window: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.window as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self {
+            window: raw_id as _,
         }
     }
 }

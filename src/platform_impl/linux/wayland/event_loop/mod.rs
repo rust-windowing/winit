@@ -2,9 +2,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Result as IOResult;
+use std::mem;
 use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+
+use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
 
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -24,7 +27,7 @@ use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
 use super::seat::SeatManager;
-use super::window::shim::{self, WindowUpdate};
+use super::window::shim::{self, WindowCompositorUpdate, WindowUserRequest};
 use super::{DeviceId, WindowId};
 
 mod proxy;
@@ -64,14 +67,25 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Theme manager to manage cursors.
     ///
-    /// It's being shared amoung all windows to avoid loading
+    /// It's being shared between all windows to avoid loading
     /// multiple similar themes.
     pub theme_manager: ThemeManager,
 
     _marker: std::marker::PhantomData<T>,
 }
 
+impl<T> EventLoopWindowTarget<T> {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
+    }
+}
+
 pub struct EventLoop<T: 'static> {
+    /// Dispatcher of Wayland events.
+    pub wayland_dispatcher: WinitDispatcher,
+
     /// Event loop.
     event_loop: calloop::EventLoop<'static, WinitState>,
 
@@ -83,9 +97,6 @@ pub struct EventLoop<T: 'static> {
 
     /// Sender of user events.
     user_events_sender: calloop::channel::Sender<T>,
-
-    /// Dispatcher of Wayland events.
-    pub wayland_dispatcher: WinitDispatcher,
 
     /// Window target.
     window_target: RootEventLoopWindowTarget<T>,
@@ -154,17 +165,19 @@ impl<T: 'static> EventLoop<T> {
         let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping()?;
 
         // Handler of window requests.
-        event_loop.handle().insert_source(
-            event_loop_awakener_source,
-            move |_, _, winit_state| {
-                shim::handle_window_requests(winit_state);
-            },
-        )?;
+        event_loop
+            .handle()
+            .insert_source(event_loop_awakener_source, move |_, _, state| {
+                // Drain events here as well to account for application doing batch event processing
+                // on RedrawEventsCleared.
+                shim::handle_window_requests(state);
+            })?;
 
         let event_loop_handle = event_loop.handle();
         let window_map = HashMap::new();
         let event_sink = EventSink::new();
-        let window_updates = HashMap::new();
+        let window_user_requests = HashMap::new();
+        let window_compositor_updates = HashMap::new();
 
         // Create event loop window target.
         let event_loop_window_target = EventLoopWindowTarget {
@@ -173,7 +186,8 @@ impl<T: 'static> EventLoop<T> {
             state: RefCell::new(WinitState {
                 window_map,
                 event_sink,
-                window_updates,
+                window_user_requests,
+                window_compositor_updates,
             }),
             event_loop_handle,
             output_manager,
@@ -222,7 +236,12 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
-        let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
+        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        callback(Event::Resumed, &self.window_target, &mut control_flow);
+
+        let mut window_compositor_updates: Vec<(WindowId, WindowCompositorUpdate)> = Vec::new();
+        let mut window_user_requests: Vec<(WindowId, WindowUserRequest)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
 
         // NOTE We break on errors from dispatches, since if we've got protocol error
@@ -343,25 +362,26 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            // Process 'new' pending updates.
+            // Process 'new' pending updates from compositor.
             self.with_state(|state| {
-                window_updates.clear();
-                window_updates.extend(
+                window_compositor_updates.clear();
+                window_compositor_updates.extend(
                     state
-                        .window_updates
+                        .window_compositor_updates
                         .iter_mut()
-                        .map(|(wid, window_update)| (*wid, window_update.take())),
+                        .map(|(wid, window_update)| (*wid, mem::take(window_update))),
                 );
             });
 
-            for (window_id, window_update) in window_updates.iter_mut() {
-                if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
+            for (window_id, window_compositor_update) in window_compositor_updates.iter_mut() {
+                if let Some(scale_factor) = window_compositor_update.scale_factor.map(|f| f as f64)
+                {
                     let mut physical_size = self.with_state(|state| {
                         let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
                         // Update the new logical size if it was changed.
-                        let window_size = window_update.size.unwrap_or(*size);
+                        let window_size = window_compositor_update.size.unwrap_or(*size);
                         *size = window_size;
 
                         window_size.to_physical(scale_factor)
@@ -369,9 +389,7 @@ impl<T: 'static> EventLoop<T> {
 
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::ScaleFactorChanged {
                                 scale_factor,
                                 new_inner_size: &mut physical_size,
@@ -385,26 +403,27 @@ impl<T: 'static> EventLoop<T> {
                     // We don't update size on a window handle since we'll do that later
                     // when handling size update.
                     let new_logical_size = physical_size.to_logical(scale_factor);
-                    window_update.size = Some(new_logical_size);
+                    window_compositor_update.size = Some(new_logical_size);
                 }
 
-                if let Some(size) = window_update.size.take() {
+                if let Some(size) = window_compositor_update.size.take() {
                     let physical_size = self.with_state(|state| {
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
                         // Always issue resize event on scale factor change.
-                        let physical_size =
-                            if window_update.scale_factor.is_none() && *window_size == size {
-                                // The size hasn't changed, don't inform downstream about that.
-                                None
-                            } else {
-                                *window_size = size;
-                                let scale_factor =
-                                    sctk::get_surface_scale_factor(window_handle.window.surface());
-                                let physical_size = size.to_physical(scale_factor as f64);
-                                Some(physical_size)
-                            };
+                        let physical_size = if window_compositor_update.scale_factor.is_none()
+                            && *window_size == size
+                        {
+                            // The size hasn't changed, don't inform downstream about that.
+                            None
+                        } else {
+                            *window_size = size;
+                            let scale_factor =
+                                sctk::get_surface_scale_factor(window_handle.window.surface());
+                            let physical_size = size.to_physical(scale_factor as f64);
+                            Some(physical_size)
+                        };
 
                         // We still perform all of those resize related logic even if the size
                         // hasn't changed, since GNOME relies on `set_geometry` calls after
@@ -413,7 +432,11 @@ impl<T: 'static> EventLoop<T> {
                         window_handle.window.refresh();
 
                         // Mark that refresh isn't required, since we've done it right now.
-                        window_update.refresh_frame = false;
+                        state
+                            .window_user_requests
+                            .get_mut(window_id)
+                            .unwrap()
+                            .refresh_frame = false;
 
                         physical_size
                     });
@@ -421,9 +444,7 @@ impl<T: 'static> EventLoop<T> {
                     if let Some(physical_size) = physical_size {
                         sticky_exit_callback(
                             Event::WindowEvent {
-                                window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Wayland(*window_id),
-                                ),
+                                window_id: crate::window::WindowId(*window_id),
                                 event: WindowEvent::Resized(physical_size),
                             },
                             &self.window_target,
@@ -433,12 +454,11 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
 
-                if window_update.close_window {
+                // If the close is requested, send it here.
+                if window_compositor_update.close_window {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::CloseRequested,
                         },
                         &self.window_target,
@@ -472,25 +492,42 @@ impl<T: 'static> EventLoop<T> {
                 &mut callback,
             );
 
+            // Apply user requests, so every event required resize and latter surface commit will
+            // be applied right before drawing. This will also ensure that every `RedrawRequested`
+            // event will be delivered in time.
+            self.with_state(|state| {
+                shim::handle_window_requests(state);
+            });
+
+            // Process 'new' pending updates from compositor.
+            self.with_state(|state| {
+                window_user_requests.clear();
+                window_user_requests.extend(
+                    state
+                        .window_user_requests
+                        .iter_mut()
+                        .map(|(wid, window_request)| (*wid, mem::take(window_request))),
+                );
+            });
+
             // Handle RedrawRequested events.
-            for (window_id, window_update) in window_updates.iter() {
+            for (window_id, mut window_request) in window_user_requests.iter() {
                 // Handle refresh of the frame.
-                if window_update.refresh_frame {
+                if window_request.refresh_frame {
                     self.with_state(|state| {
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         window_handle.window.refresh();
-                        if !window_update.redraw_requested {
-                            window_handle.window.surface().commit();
-                        }
                     });
+
+                    // In general refreshing the frame requires surface commit, those force user
+                    // to redraw.
+                    window_request.redraw_requested = true;
                 }
 
                 // Handle redraw request.
-                if window_update.redraw_requested {
+                if window_request.redraw_requested {
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(
-                            crate::platform_impl::WindowId::Wayland(*window_id),
-                        )),
+                        Event::RedrawRequested(crate::window::WindowId(*window_id)),
                         &self.window_target,
                         &mut control_flow,
                         &mut callback,
@@ -538,6 +575,8 @@ impl<T: 'static> EventLoop<T> {
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, state)
+        self.event_loop
+            .dispatch(timeout, state)
+            .map_err(|error| error.into())
     }
 }

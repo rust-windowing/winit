@@ -9,7 +9,15 @@ use std::{
     time::Instant,
 };
 
-use objc::runtime::{BOOL, YES};
+use core_foundation::base::CFRelease;
+use core_foundation::date::CFAbsoluteTimeGetCurrent;
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
+    CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send, sel};
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -18,12 +26,7 @@ use crate::{
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{
-            id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
-            CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
-            NSOperatingSystemVersion, NSUInteger,
-        },
+        ffi::{id, CGRect, CGSize, NSOperatingSystemVersion},
     },
     window::WindowId as RootWindowId,
 };
@@ -472,10 +475,7 @@ impl AppState {
 // retains window
 pub unsafe fn set_key_window(window: id) {
     bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
+        msg_send![window, isKindOfClass: class!(UIWindow)],
         "set_key_window called with an incorrect type"
     );
     let mut this = AppState::get_mut();
@@ -502,10 +502,7 @@ pub unsafe fn set_key_window(window: id) {
 // retains window
 pub unsafe fn queue_gl_or_metal_redraw(window: id) {
     bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
+        msg_send![window, isKindOfClass: class!(UIWindow)],
         "set_key_window called with an incorrect type"
     );
     let mut this = AppState::get_mut();
@@ -582,7 +579,7 @@ pub unsafe fn did_finish_launching() {
             let _: () = msg_send![window, setScreen: screen];
             let _: () = msg_send![screen, release];
             let controller: id = msg_send![window, rootViewController];
-            let _: () = msg_send![window, setRootViewController:ptr::null::<()>()];
+            let _: () = msg_send![window, setRootViewController:ptr::null::<Object>()];
             let _: () = msg_send![window, setRootViewController: controller];
             let _: () = msg_send![window, makeKeyAndVisible];
         }
@@ -785,7 +782,7 @@ pub unsafe fn handle_main_events_cleared() {
         return;
     }
     match this.state_mut() {
-        &mut AppStateImpl::ProcessingEvents { .. } => {}
+        AppStateImpl::ProcessingEvents { .. } => {}
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
     drop(this);
@@ -878,8 +875,11 @@ fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
         let bounds: CGRect = msg_send![window_id, bounds];
         let screen: id = msg_send![window_id, screen];
         let screen_space: id = msg_send![screen, coordinateSpace];
-        let screen_frame: CGRect =
-            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
+        let screen_frame: CGRect = msg_send![
+            window_id,
+            convertRect: bounds,
+            toCoordinateSpace: screen_space,
+        ];
         (view, screen_frame)
     }
 }
@@ -982,20 +982,20 @@ macro_rules! os_capabilities {
 }
 
 os_capabilities! {
-    /// https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc>
     #[allow(unused)] // error message unused
     safe_area_err_msg: "-[UIView safeAreaInsets]",
     safe_area: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc>
     home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
     home_indicator_hidden: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc>
     defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
     defer_system_gestures: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc>
     maximum_frames_per_second_err_msg: "-[UIScreen maximumFramesPerSecond]",
     maximum_frames_per_second: 10-3,
-    /// https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc>
     #[allow(unused)] // error message unused
     force_touch_err_msg: "-[UITouch force]",
     force_touch: 9-0,
@@ -1011,7 +1011,7 @@ pub fn os_capabilities() -> OSCapabilities {
     static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
         let version: NSOperatingSystemVersion = unsafe {
             let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
-            let atleast_ios_8: BOOL = msg_send![
+            let atleast_ios_8: bool = msg_send![
                 process_info,
                 respondsToSelector: sel!(operatingSystemVersion)
             ];
@@ -1022,10 +1022,7 @@ pub fn os_capabilities() -> OSCapabilities {
             // has been tested to not even run on macOS 10.15 - Xcode 8 might?
             //
             // The minimum required iOS version is likely to grow in the future.
-            assert!(
-                atleast_ios_8 == YES,
-                "`winit` requires iOS version 8 or greater"
-            );
+            assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
             msg_send![process_info, operatingSystemVersion]
         };
         version.into()

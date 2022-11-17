@@ -1,14 +1,3 @@
-#![cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "android",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
-
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -37,7 +26,7 @@ pub trait EventLoopExtRunReturn {
     ///
     /// ## Platform-specific
     ///
-    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
+    /// - **X11 / Wayland:** This function returns `1` upon disconnection from
     ///   the display server.
     fn run_return<F>(&mut self, event_handler: F) -> i32
     where

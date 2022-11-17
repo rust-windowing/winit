@@ -1,4 +1,3 @@
-use raw_window_handle::XlibHandle;
 use std::{
     cmp, env,
     ffi::CString,
@@ -6,23 +5,22 @@ use std::{
     os::raw::*,
     path::Path,
     ptr, slice,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
 };
-use x11_dl::xlib::TrueColor;
 
 use libc;
-use parking_lot::Mutex;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
+use x11_dl::xlib::TrueColor;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
-        MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
-        VideoMode as PlatformVideoMode,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -41,9 +39,9 @@ pub struct SharedState {
     pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // Set when application calls `set_fullscreen` when window is not visible
-    pub desired_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) desired_fullscreen: Option<Option<Fullscreen>>,
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
@@ -107,6 +105,7 @@ pub struct UnownedWindow {
     screen_id: i32,              // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
+    #[allow(clippy::mutex_atomic)]
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
@@ -120,7 +119,12 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = event_loop.root;
+        let root = if let Some(id) = pl_attribs.parent_id {
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
+            u64::from(id) as _
+        } else {
+            event_loop.root
+        };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
@@ -270,6 +274,7 @@ impl UnownedWindow {
             )
         };
 
+        #[allow(clippy::mutex_atomic)]
         let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
@@ -371,14 +376,14 @@ impl UnownedWindow {
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
-
-                        let mut shared_state = window.shared_state.get_mut();
-                        shared_state.min_inner_size = window_attrs.min_inner_size;
-                        shared_state.max_inner_size = window_attrs.max_inner_size;
-                        shared_state.resize_increments = pl_attribs.resize_increments;
-                        shared_state.base_size = pl_attribs.base_size;
                     }
                 }
+
+                let mut shared_state = window.shared_state.get_mut().unwrap();
+                shared_state.min_inner_size = min_inner_size.map(Into::into);
+                shared_state.max_inner_size = max_inner_size.map(Into::into);
+                shared_state.resize_increments = window_attrs.resize_increments;
+                shared_state.base_size = pl_attribs.base_size;
 
                 let mut normal_hints = util::NormalHints::new(xconn);
                 normal_hints.set_position(position.map(|PhysicalPosition { x, y }| (x, y)));
@@ -386,7 +391,7 @@ impl UnownedWindow {
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
                 normal_hints.set_resize_increments(
-                    pl_attribs
+                    window_attrs
                         .resize_increments
                         .map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
@@ -480,7 +485,7 @@ impl UnownedWindow {
                 }
 
                 if let Some(PhysicalPosition { x, y }) = position {
-                    let shared_state = window.shared_state.get_mut();
+                    let shared_state = window.shared_state.get_mut().unwrap();
 
                     shared_state.restore_position = Some((x, y));
                 }
@@ -497,6 +502,10 @@ impl UnownedWindow {
             .sync_with_server()
             .map(|_| window)
             .map_err(|x_err| os_error!(OsError::XError(x_err)))
+    }
+
+    pub(super) fn shared_state_lock(&self) -> MutexGuard<'_, SharedState> {
+        self.shared_state.lock().unwrap()
     }
 
     fn set_pid(&self) -> Option<util::Flusher<'_>> {
@@ -611,7 +620,7 @@ impl UnownedWindow {
     }
 
     fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
-        let mut shared_state_lock = self.shared_state.lock();
+        let mut shared_state_lock = self.shared_state_lock();
 
         match shared_state_lock.visibility {
             // Setting fullscreen on a window that is not visible will generate an error.
@@ -633,17 +642,10 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (
-                &None,
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
-            )
+            (&None, &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))))
             | (
                 &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
+                &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
@@ -665,7 +667,7 @@ impl UnownedWindow {
         match fullscreen {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
-                let mut shared_state_lock = self.shared_state.lock();
+                let mut shared_state_lock = self.shared_state_lock();
                 if let Some(position) = shared_state_lock.restore_position.take() {
                     drop(shared_state_lock);
                     self.set_position_inner(position.0, position.1).queue();
@@ -674,12 +676,12 @@ impl UnownedWindow {
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(RootVideoMode {
-                        video_mode: PlatformVideoMode::X(ref video_mode),
-                    }) => (Some(video_mode), video_mode.monitor.clone().unwrap()),
-                    Fullscreen::Borderless(Some(RootMonitorHandle {
-                        inner: PlatformMonitorHandle::X(monitor),
-                    })) => (None, monitor),
+                    Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode)) => {
+                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    }
+                    Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
+                        (None, monitor)
+                    }
                     Fullscreen::Borderless(None) => (None, self.current_monitor()),
                     #[cfg(feature = "wayland")]
                     _ => unreachable!(),
@@ -722,7 +724,7 @@ impl UnownedWindow {
                 }
 
                 let window_position = self.outer_position_physical();
-                self.shared_state.lock().restore_position = Some(window_position);
+                self.shared_state_lock().restore_position = Some(window_position);
                 let monitor_origin: (i32, i32) = monitor.position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
@@ -732,8 +734,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
-        let shared_state = self.shared_state.lock();
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        let shared_state = self.shared_state_lock();
 
         shared_state
             .desired_fullscreen
@@ -742,7 +744,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
             flusher
                 .sync()
@@ -753,7 +755,7 @@ impl UnownedWindow {
 
     // Called by EventProcessor when a VisibilityNotify event is received
     pub(crate) fn visibility_notify(&self) {
-        let mut shared_state = self.shared_state.lock();
+        let mut shared_state = self.shared_state_lock();
 
         match shared_state.visibility {
             Visibility::No => unsafe {
@@ -773,7 +775,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn current_monitor(&self) -> X11MonitorHandle {
-        self.shared_state.lock().last_monitor.clone()
+        self.shared_state_lock().last_monitor.clone()
     }
 
     pub fn available_monitors(&self) -> Vec<X11MonitorHandle> {
@@ -888,7 +890,7 @@ impl UnownedWindow {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
-        self.shared_state.lock().is_decorated = decorations;
+        self.shared_state_lock().is_decorated = decorations;
         let mut hints = self.xconn.get_motif_hints(self.xwindow);
 
         hints.set_decorations(decorations);
@@ -906,7 +908,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        self.shared_state.lock().is_decorated
+        self.shared_state_lock().is_decorated
     }
 
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
@@ -965,7 +967,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        let mut shared_state = self.shared_state.lock();
+        let mut shared_state = self.shared_state_lock();
 
         match (visible, shared_state.visibility) {
             (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => {
@@ -995,22 +997,22 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        Some(self.shared_state.lock().visibility == Visibility::Yes)
+        Some(self.shared_state_lock().visibility == Visibility::Yes)
     }
 
     fn update_cached_frame_extents(&self) {
         let extents = self
             .xconn
             .get_frame_extents_heuristic(self.xwindow, self.root);
-        (*self.shared_state.lock()).frame_extents = Some(extents);
+        (*self.shared_state_lock()).frame_extents = Some(extents);
     }
 
     pub(crate) fn invalidate_cached_frame_extents(&self) {
-        (*self.shared_state.lock()).frame_extents.take();
+        (*self.shared_state_lock()).frame_extents.take();
     }
 
     pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
-        let extents = (*self.shared_state.lock()).frame_extents.clone();
+        let extents = (*self.shared_state_lock()).frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             extents.inner_pos_to_outer(x, y)
@@ -1022,7 +1024,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let extents = (*self.shared_state.lock()).frame_extents.clone();
+        let extents = (*self.shared_state_lock()).frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             Ok(extents.inner_pos_to_outer(x, y).into())
@@ -1050,7 +1052,7 @@ impl UnownedWindow {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
-            let extents = (*self.shared_state.lock()).frame_extents.clone();
+            let extents = (*self.shared_state_lock()).frame_extents.clone();
             if let Some(extents) = extents {
                 x += extents.frame_extents.left as i32;
                 y += extents.frame_extents.top as i32;
@@ -1093,7 +1095,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        let extents = self.shared_state.lock().frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (width, height) = self.inner_size_physical();
             extents.inner_size_to_outer(width, height).into()
@@ -1120,7 +1122,7 @@ impl UnownedWindow {
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
         let size = size.to_physical::<u32>(scale_factor).into();
-        if !self.shared_state.lock().is_resizable {
+        if !self.shared_state_lock().is_resizable {
             self.update_normal_hints(|normal_hints| {
                 normal_hints.set_min_size(Some(size));
                 normal_hints.set_max_size(Some(size));
@@ -1148,7 +1150,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        self.shared_state.lock().min_inner_size = dimensions;
+        self.shared_state_lock().min_inner_size = dimensions;
         let physical_dimensions =
             dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_min_inner_size_physical(physical_dimensions);
@@ -1161,10 +1163,28 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        self.shared_state.lock().max_inner_size = dimensions;
+        self.shared_state_lock().max_inner_size = dimensions;
         let physical_dimensions =
             dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_max_inner_size_physical(physical_dimensions);
+    }
+
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.xconn
+            .get_normal_hints(self.xwindow)
+            .ok()
+            .and_then(|hints| hints.get_resize_increments())
+            .map(Into::into)
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        self.shared_state_lock().resize_increments = increments;
+        let physical_increments =
+            increments.map(|increments| increments.to_physical::<u32>(self.scale_factor()).into());
+        self.update_normal_hints(|hints| hints.set_resize_increments(physical_increments))
+            .expect("Failed to call `XSetWMNormalHints`");
     }
 
     pub(crate) fn adjust_for_dpi(
@@ -1206,7 +1226,7 @@ impl UnownedWindow {
         }
 
         let (min_size, max_size) = if resizable {
-            let shared_state_lock = self.shared_state.lock();
+            let shared_state_lock = self.shared_state_lock();
             (
                 shared_state_lock.min_inner_size,
                 shared_state_lock.max_inner_size,
@@ -1215,7 +1235,7 @@ impl UnownedWindow {
             let window_size = Some(Size::from(self.inner_size()));
             (window_size, window_size)
         };
-        self.shared_state.lock().is_resizable = resizable;
+        self.shared_state_lock().is_resizable = resizable;
 
         self.set_maximizable_inner(resizable).queue();
 
@@ -1235,7 +1255,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        self.shared_state.lock().is_resizable
+        self.shared_state_lock().is_resizable
     }
 
     #[inline]
@@ -1265,15 +1285,16 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let old_cursor = replace(&mut *self.cursor.lock(), cursor);
-        if cursor != old_cursor && *self.cursor_visible.lock() {
+        let old_cursor = replace(&mut *self.cursor.lock().unwrap(), cursor);
+        #[allow(clippy::mutex_atomic)]
+        if cursor != old_cursor && *self.cursor_visible.lock().unwrap() {
             self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
         }
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        let mut grabbed_lock = self.cursor_grabbed_mode.lock();
+        let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         if mode == *grabbed_lock {
             return Ok(());
         }
@@ -1346,12 +1367,13 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        let mut visible_lock = self.cursor_visible.lock();
+        #[allow(clippy::mutex_atomic)]
+        let mut visible_lock = self.cursor_visible.lock().unwrap();
         if visible == *visible_lock {
             return;
         }
         let cursor = if visible {
-            Some(*self.cursor.lock())
+            Some(*self.cursor.lock().unwrap())
         } else {
             None
         };
@@ -1397,7 +1419,7 @@ impl UnownedWindow {
 
         // we can't use `set_cursor_grab(false)` here because it doesn't run `XUngrabPointer`
         // if the cursor isn't currently grabbed
-        let mut grabbed_lock = self.cursor_grabbed_mode.lock();
+        let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         unsafe {
             (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
@@ -1431,6 +1453,7 @@ impl UnownedWindow {
         let _ = self
             .ime_sender
             .lock()
+            .unwrap()
             .send(ImeRequest::Position(self.xwindow, x, y));
     }
 
@@ -1439,6 +1462,7 @@ impl UnownedWindow {
         let _ = self
             .ime_sender
             .lock()
+            .unwrap()
             .send(ImeRequest::Allow(self.xwindow, allowed));
     }
 
@@ -1454,7 +1478,7 @@ impl UnownedWindow {
         } else {
             false
         };
-        let is_visible = match self.shared_state.lock().visibility {
+        let is_visible = match self.shared_state_lock().visibility {
             Visibility::Yes => true,
             Visibility::YesWait | Visibility::No => false,
         };
@@ -1496,23 +1520,40 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow)
+        WindowId(self.xwindow as u64)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
             .sender
-            .send(WindowId(self.xwindow))
+            .send(WindowId(self.xwindow as u64))
             .unwrap();
         self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> XlibHandle {
-        let mut handle = XlibHandle::empty();
-        handle.window = self.xlib_window();
-        handle.display = self.xlib_display();
-        handle
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut window_handle = XlibWindowHandle::empty();
+        window_handle.window = self.xlib_window();
+        RawWindowHandle::Xlib(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xlib_display();
+        display_handle.screen = self.screen_id;
+        RawDisplayHandle::Xlib(display_handle)
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        String::new()
     }
 }

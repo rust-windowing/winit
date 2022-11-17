@@ -74,9 +74,107 @@ pub enum Event<'a, T: 'static> {
     UserEvent(T),
 
     /// Emitted when the application has been suspended.
+    ///
+    /// # Portability
+    ///
+    /// Not all platforms support the notion of suspending applications, and there may be no
+    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
+    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// Winit does not currently try to emit pseudo `Suspended` events before the application
+    /// quits on platforms without an application lifecycle.
+    ///
+    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
+    ///
+    /// Also see [`Resumed`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Suspended` event is only sent when the application's associated
+    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
+    /// lifecycle event but there may technically be a discrepancy.
+    ///
+    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
+    ///
+    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
+    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
+    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
+    ///
+    /// After being `Suspended` on Android applications must drop all render surfaces before
+    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Suspended` event is currently emitted in response to an
+    /// [`applicationWillResignActive`] callback which means that the application is
+    /// about to transition from the active to inactive state (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Resumed`]: Self::Resumed
     Suspended,
 
     /// Emitted when the application has been resumed.
+    ///
+    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
+    /// formal suspend/resume lifecycle. For systems without a standard suspend/resume lifecycle
+    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
+    /// event.
+    ///
+    /// # Portability
+    ///
+    /// It's recommended that applications should only initialize their graphics context and create
+    /// a window after they have received their first `Resumed` event. Some systems
+    /// (specifically Android) won't allow applications to create a render surface until they are
+    /// resumed.
+    ///
+    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
+    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
+    /// be a discrepancy.
+    ///
+    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
+    ///
+    /// Applications that need to run on Android must wait until they have been `Resumed`
+    /// before they will be able to create a render surface (such as an `EGLSurface`,
+    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
+    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
+    /// render surfaces are invalid and should be dropped.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
+    /// callback which means the application is "active" (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Suspended`]: Self::Suspended
     Resumed,
 
     /// Emitted when all of the event loop's input events have been processed and redraw processing
@@ -268,6 +366,10 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
@@ -322,17 +424,19 @@ pub enum WindowEvent<'a> {
 
     /// The keyboard modifiers have changed.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    /// ## Platform-specific
+    ///
+    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// An event from input method.
+    /// An event from an input method.
     ///
-    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    /// **Note:** You have to explicitly enable this event using [`Window::set_ime_allowed`].
     ///
-    /// Platform-specific behavior:
-    /// - **iOS / Android / Web :** Unsupported.
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
@@ -369,6 +473,34 @@ pub enum WindowEvent<'a> {
         button: MouseButton,
         #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
+    },
+
+    /// Touchpad magnification event with two-finger pinch gesture.
+    ///
+    /// Positive delta values indicate magnification (zooming in) and
+    /// negative delta values indicate shrinking (zooming out).
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
+    TouchpadMagnify {
+        device_id: DeviceId,
+        delta: f64,
+        phase: TouchPhase,
+    },
+
+    /// Touchpad rotation event with two-finger rotation gesture.
+    ///
+    /// Positive delta values indicate rotation counterclockwise and
+    /// negative delta values indicate rotation clockwise.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
+    TouchpadRotate {
+        device_id: DeviceId,
+        delta: f32,
+        phase: TouchPhase,
     },
 
     /// Touchpad pressure event.
@@ -415,8 +547,19 @@ pub enum WindowEvent<'a> {
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
     ///
-    /// At the moment this is only supported on Windows.
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / X11 / Wayland:** Unsupported.
     ThemeChanged(Theme),
+
+    /// The window has been occluded (completely hidden from view).
+    ///
+    /// This is different to window visibility as it depends on whether the window is closed,
+    /// minimised, set invisible, or fully occluded by another window.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    Occluded(bool),
 }
 
 impl Clone for WindowEvent<'static> {
@@ -483,6 +626,24 @@ impl Clone for WindowEvent<'static> {
                 button: *button,
                 modifiers: *modifiers,
             },
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadMagnify {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadRotate {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
             TouchpadPressure {
                 device_id,
                 pressure,
@@ -506,6 +667,7 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            Occluded(occluded) => Occluded(*occluded),
         };
     }
 }
@@ -570,6 +732,24 @@ impl<'a> WindowEvent<'a> {
                 button,
                 modifiers,
             }),
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            } => Some(TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            }),
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => Some(TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            }),
             TouchpadPressure {
                 device_id,
                 pressure,
@@ -591,6 +771,7 @@ impl<'a> WindowEvent<'a> {
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
+            Occluded(occluded) => Some(Occluded(occluded)),
         }
     }
 }
@@ -705,8 +886,9 @@ pub struct KeyboardInput {
 /// the character you want to apply the accent to. This will generate the following event sequence:
 /// ```ignore
 /// // Press "`" key
-/// Ime::Preedit("`", Some(0), Some(0))
+/// Ime::Preedit("`", Some((0, 0)))
 /// // Press "E" key
+/// Ime::Preedit("", None) // Synthetic event generated by winit to clear preedit.
 /// Ime::Commit("é")
 /// ```
 ///
@@ -717,14 +899,15 @@ pub struct KeyboardInput {
 /// sequence could be obtained:
 /// ```ignore
 /// // Press "A" key
-/// Ime::Preedit("a", Some(1), Some(1))
+/// Ime::Preedit("a", Some((1, 1)))
 /// // Press "B" key
-/// Ime::Preedit("a b", Some(3), Some(3))
+/// Ime::Preedit("a b", Some((3, 3)))
 /// // Press left arrow key
-/// Ime::Preedit("a b", Some(1), Some(1))
+/// Ime::Preedit("a b", Some((1, 1)))
 /// // Press space key
-/// Ime::Preedit("啊b", Some(3), Some(3))
+/// Ime::Preedit("啊b", Some((3, 3)))
 /// // Press space key
+/// Ime::Preedit("", None) // Synthetic event generated by winit to clear preedit.
 /// Ime::Commit("啊不")
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -740,20 +923,21 @@ pub enum Ime {
     /// Notifies when a new composing text should be set at the cursor position.
     ///
     /// The value represents a pair of the preedit string and the cursor begin position and end
-    /// position. When it's `None`, the cursor should be hidden.
+    /// position. When it's `None`, the cursor should be hidden. When `String` is an empty string
+    /// this indicates that preedit was cleared.
     ///
     /// The cursor position is byte-wise indexed.
     Preedit(String, Option<(usize, usize)>),
 
     /// Notifies when text should be inserted into the editor widget.
     ///
-    /// Any pending [`Preedit`](Self::Preedit) must be cleared.
+    /// Right before this event winit will send empty [`Self::Preedit`] event.
     Commit(String),
 
     /// Notifies when the IME was disabled.
     ///
     /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
-    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You can
+    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You should
     /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
     /// preedit text.
     Disabled,

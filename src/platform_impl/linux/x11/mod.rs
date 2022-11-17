@@ -40,6 +40,7 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
+use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -53,7 +54,10 @@ use crate::{
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
-    platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
+    platform_impl::{
+        platform::{sticky_exit_callback, WindowId},
+        PlatformSpecificWindowBuilderAttributes,
+    },
     window::WindowAttributes,
 };
 
@@ -329,6 +333,17 @@ impl<T: 'static> EventLoop<T> {
                 callback,
             );
 
+            // NB: For consistency all platforms must emit a 'resumed' event even though X11
+            // applications don't themselves have a formal suspend/resume lifecycle.
+            if *cause == StartCause::Init {
+                sticky_exit_callback(
+                    crate::event::Event::Resumed,
+                    &this.target,
+                    control_flow,
+                    callback,
+                );
+            }
+
             // Process all pending events
             this.drain_events(callback, control_flow);
 
@@ -361,7 +376,7 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 for window_id in windows {
-                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
+                    let window_id = crate::window::WindowId(window_id);
                     sticky_exit_callback(
                         Event::RedrawRequested(window_id),
                         &this.target,
@@ -454,7 +469,7 @@ impl<T: 'static> EventLoop<T> {
                     // must do this because during the execution of the iteration we sometimes wake
                     // the mio waker, and if the waker is already awaken before we call poll(),
                     // then poll doesn't block, but it returns immediately. This caused the event
-                    // loop to run continously even if the control_flow was `Wait`
+                    // loop to run continuously even if the control_flow was `Wait`
                     continue;
                 }
             }
@@ -505,10 +520,7 @@ impl<T: 'static> EventLoop<T> {
                     target,
                     control_flow,
                     &mut |event, window_target, control_flow| {
-                        if let Event::RedrawRequested(crate::window::WindowId(
-                            super::WindowId::X(wid),
-                        )) = event
-                        {
+                        if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
                             wt.redraw_sender.sender.send(wid).unwrap();
                             wt.redraw_sender.waker.wake().unwrap();
                         } else {
@@ -557,6 +569,14 @@ impl<T> EventLoopWindowTarget<T> {
         self.xconn
             .select_xinput_events(self.root, ffi::XIAllMasterDevices, mask)
             .queue();
+    }
+
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xconn.display as *mut _;
+        display_handle.screen =
+            unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
+        RawDisplayHandle::Xlib(display_handle)
     }
 }
 
@@ -610,15 +630,6 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(ffi::Window);
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
 impl DeviceId {
@@ -657,7 +668,7 @@ impl Drop for Window {
         let window = self.deref();
         let xconn = &window.xconn;
         unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
+            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0 as ffi::Window);
             // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
             let _ = xconn.check_errors();
         }
@@ -700,7 +711,7 @@ struct XExtension {
 }
 
 fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::WindowId::X(WindowId(w)))
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))

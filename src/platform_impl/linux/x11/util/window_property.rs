@@ -58,7 +58,7 @@ impl XConnection {
                     property,
                     // This offset is in terms of 32-bit chunks.
                     offset,
-                    // This is the quanity of 32-bit chunks to receive at once.
+                    // This is the quantity of 32-bit chunks to receive at once.
                     PROPERTY_BUFFER_SIZE,
                     ffi::False,
                     property_type,

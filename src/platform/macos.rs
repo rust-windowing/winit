@@ -1,9 +1,7 @@
-#![cfg(target_os = "macos")]
-
+use objc2::rc::Id;
 use std::os::raw::c_void;
 
 use crate::{
-    dpi::LogicalSize,
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -111,10 +109,10 @@ pub trait WindowBuilderExtMacOS {
     fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
-    /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Window accepts click-through mouse events.
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -158,12 +156,6 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments);
-        self
-    }
-
-    #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
@@ -172,6 +164,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 }
@@ -251,7 +249,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 
     fn ns_screen(&self) -> Option<*mut c_void> {
-        self.inner.ns_screen().map(|s| s as *mut c_void)
+        self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
     }
 }
 

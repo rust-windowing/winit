@@ -8,7 +8,6 @@ use sctk::environment::Environment;
 use sctk::output::OutputStatusListener;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 use crate::platform_impl::platform::{
     MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
@@ -168,24 +167,34 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        sctk::output::with_output_info(&self.proxy, |info| {
+            info.modes
+                .iter()
+                .find_map(|mode| mode.is_current.then(|| mode.refresh_rate as u32))
+        })
+        .flatten()
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> i32 {
         sctk::output::with_output_info(&self.proxy, |info| info.scale_factor).unwrap_or(1)
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
         let modes = sctk::output::with_output_info(&self.proxy, |info| info.modes.clone())
             .unwrap_or_default();
 
         let monitor = self.clone();
 
-        modes.into_iter().map(move |mode| RootVideoMode {
-            video_mode: PlatformVideoMode::Wayland(VideoMode {
+        modes.into_iter().map(move |mode| {
+            PlatformVideoMode::Wayland(VideoMode {
                 size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
-                refresh_rate: (mode.refresh_rate as f32 / 1000.0).round() as u16,
+                refresh_rate_millihertz: mode.refresh_rate as u32,
                 bit_depth: 32,
                 monitor: monitor.clone(),
-            }),
+            })
         })
     }
 }
@@ -194,7 +203,7 @@ impl MonitorHandle {
 pub struct VideoMode {
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate: u16,
+    pub(crate) refresh_rate_millihertz: u32,
     pub(crate) monitor: MonitorHandle,
 }
 
@@ -210,14 +219,12 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
-        }
+    pub fn monitor(&self) -> PlatformMonitorHandle {
+        PlatformMonitorHandle::Wayland(self.monitor.clone())
     }
 }
 
@@ -233,7 +240,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
         // There's no primary monitor on Wayland.
         None
     }

@@ -39,8 +39,8 @@ impl Ord for VideoMode {
         self.monitor().cmp(&other.monitor()).then(
             size.cmp(&other_size)
                 .then(
-                    self.refresh_rate()
-                        .cmp(&other.refresh_rate())
+                    self.refresh_rate_millihertz()
+                        .cmp(&other.refresh_rate_millihertz())
                         .then(self.bit_depth().cmp(&other.bit_depth())),
                 )
                 .reverse(),
@@ -68,19 +68,19 @@ impl VideoMode {
         self.video_mode.bit_depth()
     }
 
-    /// Returns the refresh rate of this video mode. **Note**: the returned
-    /// refresh rate is an integer approximation, and you shouldn't rely on this
-    /// value to be exact.
+    /// Returns the refresh rate of this video mode in mHz.
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        self.video_mode.refresh_rate()
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.video_mode.refresh_rate_millihertz()
     }
 
     /// Returns the monitor that this video mode is valid for. Each monitor has
     /// a separate set of valid video modes.
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        self.video_mode.monitor()
+        MonitorHandle {
+            inner: self.video_mode.monitor(),
+        }
     }
 }
 
@@ -88,10 +88,10 @@ impl std::fmt::Display for VideoMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}x{} @ {} Hz ({} bpp)",
+            "{}x{} @ {} mHz ({} bpp)",
             self.size().width,
             self.size().height,
-            self.refresh_rate(),
+            self.refresh_rate_millihertz(),
             self.bit_depth()
         )
     }
@@ -141,6 +141,15 @@ impl MonitorHandle {
         self.inner.position()
     }
 
+    /// The monitor refresh rate used by the system.
+    ///
+    /// When using exclusive fullscreen, the refresh rate of the [`VideoMode`] that was used to
+    /// enter fullscreen should be used instead.
+    #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        self.inner.refresh_rate_millihertz()
+    }
+
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
@@ -162,6 +171,8 @@ impl MonitorHandle {
     /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.inner.video_modes()
+        self.inner
+            .video_modes()
+            .map(|video_mode| VideoMode { video_mode })
     }
 }

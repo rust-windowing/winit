@@ -15,10 +15,10 @@ pub(crate) use self::{
 };
 
 pub use self::icon::WinIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
-use crate::window::Theme;
 
 #[derive(Clone)]
 pub enum Parent {
@@ -34,8 +34,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
-    pub preferred_theme: Option<Theme>,
     pub skip_taskbar: bool,
+    pub decoration_shadow: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -46,8 +46,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             taskbar_icon: None,
             no_redirection_bitmap: false,
             drag_and_drop: true,
-            preferred_theme: None,
             skip_taskbar: false,
+            decoration_shadow: false,
         }
     }
 }
@@ -97,6 +97,24 @@ unsafe impl Sync for WindowId {}
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
         WindowId(0)
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<WindowId> for HWND {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as HWND)
     }
 }
 

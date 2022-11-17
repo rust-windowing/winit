@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
@@ -97,56 +98,38 @@ pub enum WindowRequest {
     Close,
 }
 
-/// Pending update to a window from SCTK window.
-#[derive(Debug, Clone, Copy)]
-pub struct WindowUpdate {
+// The window update comming from the compositor.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct WindowCompositorUpdate {
     /// New window size.
     pub size: Option<LogicalSize<u32>>,
 
     /// New scale factor.
     pub scale_factor: Option<i32>,
 
+    /// Close the window.
+    pub close_window: bool,
+}
+
+impl WindowCompositorUpdate {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+/// Pending update to a window requested by the user.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct WindowUserRequest {
     /// Whether `redraw` was requested.
     pub redraw_requested: bool,
 
     /// Wether the frame should be refreshed.
     pub refresh_frame: bool,
-
-    /// Close the window.
-    pub close_window: bool,
 }
 
-impl WindowUpdate {
+impl WindowUserRequest {
     pub fn new() -> Self {
-        Self {
-            size: None,
-            scale_factor: None,
-            redraw_requested: false,
-            refresh_frame: false,
-            close_window: false,
-        }
-    }
-
-    pub fn take(&mut self) -> Self {
-        let size = self.size.take();
-        let scale_factor = self.scale_factor.take();
-
-        let redraw_requested = self.redraw_requested;
-        self.redraw_requested = false;
-
-        let refresh_frame = self.refresh_frame;
-        self.refresh_frame = false;
-
-        let close_window = self.close_window;
-        self.close_window = false;
-
-        Self {
-            size,
-            scale_factor,
-            redraw_requested,
-            refresh_frame,
-            close_window,
-        }
+        Default::default()
     }
 }
 
@@ -154,7 +137,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<WinitFrame>,
+    pub window: ManuallyDrop<Window<WinitFrame>>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -206,7 +189,7 @@ impl WindowHandle {
         let compositor = env.get_global::<WlCompositor>().unwrap();
 
         Self {
-            window,
+            window: ManuallyDrop::new(window),
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
@@ -421,7 +404,8 @@ impl WindowHandle {
 #[inline]
 pub fn handle_window_requests(winit_state: &mut WinitState) {
     let window_map = &mut winit_state.window_map;
-    let window_updates = &mut winit_state.window_updates;
+    let window_user_requests = &mut winit_state.window_user_requests;
+    let window_compositor_updates = &mut winit_state.window_compositor_updates;
     let mut windows_to_close: Vec<WindowId> = Vec::new();
 
     // Process the rest of the events.
@@ -477,15 +461,15 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.set_decorate(decorations);
 
                     // We should refresh the frame to apply decorations change.
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 #[cfg(feature = "sctk-adwaita")]
                 WindowRequest::CsdThemeVariant(theme) => {
                     window_handle.window.set_frame_config(theme.into());
 
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_requst = window_user_requests.get_mut(window_id).unwrap();
+                    window_requst.refresh_frame = true;
                 }
                 #[cfg(not(feature = "sctk-adwaita"))]
                 WindowRequest::CsdThemeVariant(_) => {}
@@ -493,29 +477,29 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.set_resizable(resizeable);
 
                     // We should refresh the frame to update button state.
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::Title(title) => {
                     window_handle.window.set_title(title);
 
                     // We should refresh the frame to draw new title.
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::MinSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_min_size(size);
 
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.redraw_requested = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::MaxSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_max_size(size);
 
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.redraw_requested = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::FrameSize(size) => {
                     if !window_handle.is_resizable.get() {
@@ -529,21 +513,21 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::PassthroughMouseInput(passthrough) => {
                     window_handle.passthrough_mouse_input(passthrough);
 
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.refresh_frame = true;
                 }
                 WindowRequest::Attention(request_type) => {
                     window_handle.set_user_attention(request_type);
                 }
                 WindowRequest::Redraw => {
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.redraw_requested = true;
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.redraw_requested = true;
                 }
                 WindowRequest::Close => {
                     // The window was requested to be closed.
@@ -560,6 +544,18 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
     // Close the windows.
     for window in windows_to_close {
         let _ = window_map.remove(&window);
-        let _ = window_updates.remove(&window);
+        let _ = window_user_requests.remove(&window);
+        let _ = window_compositor_updates.remove(&window);
+    }
+}
+
+impl Drop for WindowHandle {
+    fn drop(&mut self) {
+        unsafe {
+            let surface = self.window.surface().clone();
+            // The window must be destroyed before wl_surface.
+            ManuallyDrop::drop(&mut self.window);
+            surface.destroy();
+        }
     }
 }
