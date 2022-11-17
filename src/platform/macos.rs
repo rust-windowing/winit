@@ -1,3 +1,4 @@
+use objc2::rc::Id;
 use std::os::raw::c_void;
 
 use crate::{
@@ -110,6 +111,8 @@ pub trait WindowBuilderExtMacOS {
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Window accepts click-through mouse events.
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -161,6 +164,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 }
@@ -240,7 +249,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 
     fn ns_screen(&self) -> Option<*mut c_void> {
-        self.inner.ns_screen().map(|s| s as *mut c_void)
+        self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
     }
 }
 

@@ -15,7 +15,6 @@ use crate::event::{
     WindowEvent,
 };
 use crate::event_loop::ControlFlow;
-use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -289,10 +288,8 @@ impl<T> EventLoopWindowTarget<T> {
         VecDeque::new().into_iter()
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

@@ -15,10 +15,10 @@ pub(crate) use self::{
 };
 
 pub use self::icon::WinIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
-use crate::window::Theme;
 
 #[derive(Clone)]
 pub enum Parent {
@@ -34,7 +34,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
-    pub preferred_theme: Option<Theme>,
     pub skip_taskbar: bool,
     pub decoration_shadow: bool,
 }
@@ -47,7 +46,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             taskbar_icon: None,
             no_redirection_bitmap: false,
             drag_and_drop: true,
-            preferred_theme: None,
             skip_taskbar: false,
             decoration_shadow: false,
         }
