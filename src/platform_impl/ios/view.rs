@@ -545,13 +545,8 @@ declare_class!(
         }
     }
 
-    extern "C" fn open_url(
-        _: &mut Object,
-        _: Sel,
-        _application: id,
-        url: id,
-        _options: id,
-    ) -> BOOL {
+    #[sel(application:openURL:options:)]
+    fn open_url(_: &mut Object, _: Sel, _application: id, url: id, _options: id) -> BOOL {
         let url = unsafe {
             let absolute_string: id = msg_send![url, absoluteString];
             let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
@@ -566,7 +561,8 @@ declare_class!(
         YES
     }
 
-    extern "C" fn continue_user_activity(
+    #[sel(application:continueUserActivity:restorationHandler:)]
+    fn continue_user_activity(
         _: &mut Object,
         _: Sel,
         _application: id,
@@ -584,57 +580,8 @@ declare_class!(
         YES
     }
 
-    extern "C" fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
+    #[sel(applicationDidReceiveMemoryWarning:)]
+    fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
         unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning)) }
-    }
-
-    let ui_responder = class!(UIResponder);
-    let mut decl =
-        ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
-
-    unsafe {
-        decl.add_method(
-            sel!(application:openURL:options:),
-            open_url as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
-        );
-
-        decl.add_method(
-            sel!(application:continueUserActivity:restorationHandler:),
-            continue_user_activity as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
-        );
-
-        decl.add_method(
-            sel!(application:didFinishLaunchingWithOptions:),
-            did_finish_launching as extern "C" fn(&mut Object, Sel, id, id) -> BOOL,
-        );
-
-        decl.add_method(
-            sel!(applicationDidBecomeActive:),
-            did_become_active as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationWillResignActive:),
-            will_resign_active as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationDidEnterBackground:),
-            did_enter_background as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.add_method(
-            sel!(applicationWillTerminate:),
-            will_terminate as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.add_method(
-            sel!(applicationDidReceiveMemoryWarning:),
-            did_receive_memory_warning as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.register();
     }
 );
