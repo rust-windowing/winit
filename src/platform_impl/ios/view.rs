@@ -543,45 +543,47 @@ declare_class!(
                 app_state::terminated();
             }
         }
-    }
 
-    #[sel(application:openURL:options:)]
-    fn open_url(_: &mut Object, _: Sel, _application: id, url: id, _options: id) -> BOOL {
-        let url = unsafe {
-            let absolute_string: id = msg_send![url, absoluteString];
-            let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
-            std::ffi::CStr::from_ptr(ptr)
-                .to_str()
-                .unwrap_or_default()
-                .to_string()
-        };
-        unsafe {
-            app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::OpenURL { url }))
+        #[sel(application:openURL:options:)]
+        fn open_url(_: &mut Object, _: Sel, _application: id, url: id, _options: id) -> BOOL {
+            let url = unsafe {
+                let absolute_string: id = msg_send![url, absoluteString];
+                let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
+                std::ffi::CStr::from_ptr(ptr)
+                    .to_str()
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            unsafe {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::OpenURL { url }))
+            }
+            YES
         }
-        YES
-    }
 
-    #[sel(application:continueUserActivity:restorationHandler:)]
-    fn continue_user_activity(
-        _: &mut Object,
-        _: Sel,
-        _application: id,
-        user_activity: id,
-        restoration_handler: id,
-    ) -> BOOL {
-        unsafe {
-            app_state::handle_nonuser_event(EventWrapper::StaticEvent(
-                Event::ContinueUserActivity {
-                    user_activity,
-                    restoration_handler,
-                },
-            ))
+        #[sel(application:continueUserActivity:restorationHandler:)]
+        fn continue_user_activity(
+            _: &mut Object,
+            _: Sel,
+            _application: id,
+            user_activity: id,
+            restoration_handler: id,
+        ) -> BOOL {
+            unsafe {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(
+                    Event::ContinueUserActivity {
+                        user_activity,
+                        restoration_handler,
+                    },
+                ))
+            }
+            YES
         }
-        YES
-    }
 
-    #[sel(applicationDidReceiveMemoryWarning:)]
-    fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning)) }
+        #[sel(applicationDidReceiveMemoryWarning:)]
+        fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
+            unsafe {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning))
+            }
+        }
     }
 );
