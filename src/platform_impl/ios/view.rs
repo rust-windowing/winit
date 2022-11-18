@@ -545,7 +545,7 @@ declare_class!(
         }
 
         #[sel(application:openURL:options:)]
-        fn open_url(_: &mut Object, _: Sel, _application: id, url: id, _options: id) -> BOOL {
+        fn open_url(&self, _application: id, url: id, _options: id) -> BOOL {
             let url = unsafe {
                 let absolute_string: id = msg_send![url, absoluteString];
                 let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
@@ -562,8 +562,7 @@ declare_class!(
 
         #[sel(application:continueUserActivity:restorationHandler:)]
         fn continue_user_activity(
-            _: &mut Object,
-            _: Sel,
+            &self,
             _application: id,
             user_activity: id,
             restoration_handler: id,
@@ -580,7 +579,7 @@ declare_class!(
         }
 
         #[sel(applicationDidReceiveMemoryWarning:)]
-        fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
+        fn did_receive_memory_warning(&self, _: id) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning))
             }
