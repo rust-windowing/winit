@@ -75,7 +75,7 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
     - name: Build crate
       shell: bash
