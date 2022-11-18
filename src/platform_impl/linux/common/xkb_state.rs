@@ -83,48 +83,19 @@ impl ModifiersState {
     }
 
     fn update_with(&mut self, state: *mut ffi::xkb_state) {
-        self.ctrl = unsafe {
+        let mod_name_is_active = |mod_name: &[u8]| unsafe {
             (XKBH.xkb_state_mod_name_is_active)(
                 state,
-                ffi::XKB_MOD_NAME_CTRL.as_ptr() as *const c_char,
+                mod_name.as_ptr() as *const c_char,
                 xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
             ) > 0
         };
-        self.alt = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_ALT.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.shift = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_SHIFT.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.caps_lock = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_CAPS.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.logo = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_LOGO.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.num_lock = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_NUM.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
+        self.ctrl = mod_name_is_active(ffi::XKB_MOD_NAME_CTRL);
+        self.alt = mod_name_is_active(ffi::XKB_MOD_NAME_ALT);
+        self.shift = mod_name_is_active(ffi::XKB_MOD_NAME_SHIFT);
+        self.caps_lock = mod_name_is_active(ffi::XKB_MOD_NAME_CAPS);
+        self.logo = mod_name_is_active(ffi::XKB_MOD_NAME_LOGO);
+        self.num_lock = mod_name_is_active(ffi::XKB_MOD_NAME_NUM);
     }
 }
 
