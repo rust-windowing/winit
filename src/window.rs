@@ -318,6 +318,7 @@ impl WindowBuilder {
     }
 
     /// Sets the window level.
+    ///
     /// This is just a hint to the OS, and the system could ignore it.
     ///
     /// The default is [`WindowLevel::Normal`].
