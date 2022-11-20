@@ -154,7 +154,7 @@ impl Default for WindowAttributes {
             visible: true,
             transparent: false,
             decorations: true,
-            window_level: WindowLevel::Normal,
+            window_level: Default::default(),
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
@@ -1440,4 +1440,10 @@ pub enum WindowLevel {
     Normal,
     /// The window will always be on top of normal windows.
     AlwaysOnTop,
+}
+
+impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
+    }
 }
