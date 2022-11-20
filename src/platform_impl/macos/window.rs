@@ -1245,8 +1245,8 @@ fn set_ns_theme(theme: Option<Theme>) {
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
         let name = match theme {
-            Some(Theme::Dark) => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Some(Theme::Light) | None => NSString::from_str("NSAppearanceNameAqua"),
+            Some(Theme::Dark) | None => NSString::from_str("NSAppearanceNameDarkAqua"),
+            Some(Theme::Light) => NSString::from_str("NSAppearanceNameAqua"),
         };
         let appearance = NSAppearance::appearanceNamed(&name);
         app.setAppearance(&appearance);

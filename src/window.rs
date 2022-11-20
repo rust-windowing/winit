@@ -951,6 +951,7 @@ impl Window {
     /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
     /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light`.
+    /// -**x11 / macOS**: `None` will default to  [`Theme::Dark`].
     /// - **iOS / Android / Web / x11:** Unsupported.
     #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {

@@ -570,7 +570,7 @@ impl UnownedWindow {
         let variant = match theme {
             Some(Theme::Dark) => "dark",
             Some(Theme::Light) => "light",
-            None => "",
+            None => "dark",
         };
         let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
         self.xconn.change_property(
