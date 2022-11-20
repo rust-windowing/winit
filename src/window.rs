@@ -842,6 +842,7 @@ impl Window {
     }
 
     /// Change the window level.
+    ///
     /// This is just a hint to the OS, and the system could ignore it.
     ///
     /// See [`WindowLevel`] for details.
