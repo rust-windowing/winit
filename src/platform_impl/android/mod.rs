@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, Theme},
+    window::{self, CursorGrabMode, Theme, WindowLevel},
 };
 
 fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
