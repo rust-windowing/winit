@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, fix left mouse button release event not being sent after `Window::drag_window`
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.
