@@ -621,33 +621,6 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_cursor_rgba(&self, cursor: CursorRgba) {
-        // For an unknown reason, no memory allocation can
-        // be done when cursor redraw is being requested.
-        //
-        // ARGB => ABGR conversion must be done at some point,
-        // so it is done now.
-        let data: Vec<_> = cursor
-            .data
-            .iter()
-            .map(|&v| {
-                let mut out = 0;
-
-                out |= v & 0xFF00FF00;
-                out |= (v >> 16) & 0xFF;
-                out |= (v & 0xFF) << 16;
-
-                out
-            })
-            .collect();
-
-        let cursor = CursorRgba {
-            xhot: cursor.xhot,
-            yhot: cursor.yhot,
-            width: cursor.width,
-            height: cursor.height,
-            data,
-        };
-
         self.set_cursor_internal(NSCursor::from_rgba_cursor(cursor));
     }
 

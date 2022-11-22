@@ -235,9 +235,23 @@ impl NSCursor {
         let rep = NSBitmapImageRep::initAbgr(cursor.width as isize, cursor.height as isize);
         let pixels = rep.bitmapData();
 
+        let data: Vec<_> = cursor
+            .data
+            .into_iter()
+            .map(|v| {
+                let mut out = 0;
+
+                out |= v & 0xFF00FF00;
+                out |= (v >> 16) & 0xFF;
+                out |= (v & 0xFF) << 16;
+
+                out
+            })
+            .collect();
+
         unsafe {
             std::ptr::copy_nonoverlapping(
-                cursor.data.as_ptr() as *const u8,
+                data.as_ptr() as *const u8,
                 pixels,
                 cursor.width as usize * cursor.height as usize * std::mem::size_of::<u32>(),
             )

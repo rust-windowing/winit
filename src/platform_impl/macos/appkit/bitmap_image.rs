@@ -1,9 +1,13 @@
-use objc2::foundation::NSInteger;
+use objc2::foundation::{NSInteger, NSString};
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Bool;
-use objc2::{extern_class, extern_methods, msg_send, msg_send_id, ns_string, ClassType};
+use objc2::{extern_class, extern_methods, msg_send, msg_send_id, ClassType};
 
 use super::NSImageRep;
+
+extern "C" {
+    static NSDeviceRGBColorSpace: &'static NSString;
+}
 
 extern_class!(
     /// <https://developer.apple.com/documentation/appkit/nsbitmapimagerep?language=objc>
@@ -29,7 +33,7 @@ extern_methods!(
                     samplesPerPixel: 4 as NSInteger,
                     hasAlpha: Bool::new(true),
                     isPlanar: Bool::new(false),
-                    colorSpaceName: ns_string!("NSDeviceRGBColorSpace"),
+                    colorSpaceName: NSDeviceRGBColorSpace,
                     bytesPerRow: width * 4,
                     bitsPerPixel: 32 as NSInteger,
                 ]
