@@ -84,6 +84,9 @@ extern_methods!(
         #[sel(setMovable:)]
         pub fn setMovable(&self, movable: bool);
 
+        #[sel(setSharingType:)]
+        pub fn setSharingType(&self, sharingType: NSWindowSharingType);
+
         #[sel(setOpaque:)]
         pub fn setOpaque(&self, opaque: bool);
 
@@ -347,5 +350,18 @@ pub enum NSBackingStoreType {
 }
 
 unsafe impl Encode for NSBackingStoreType {
+    const ENCODING: Encoding = NSUInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(usize)] // NSUInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowSharingType {
+    NSWindowSharingNone = 0,
+    NSWindowSharingReadOnly = 1,
+    NSWindowSharingReadWrite = 2,
+}
+
+unsafe impl Encode for NSWindowSharingType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }

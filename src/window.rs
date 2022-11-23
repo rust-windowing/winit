@@ -136,6 +136,7 @@ pub(crate) struct WindowAttributes {
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
+    pub content_protected: bool,
 }
 
 impl Default for WindowAttributes {
@@ -157,6 +158,7 @@ impl Default for WindowAttributes {
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
+            content_protected: false,
         }
     }
 }
@@ -362,6 +364,23 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// The default is `false`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / Web / x11:** Ignored.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    #[inline]
+    pub fn with_content_protected(mut self, protected: bool) -> Self {
+        self.window.content_protected = protected;
         self
     }
 
@@ -951,6 +970,20 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    pub fn set_content_protected(&self, _protected: bool) {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        self.window.set_content_protected(_protected);
     }
 
     /// Gets the current title of the window.

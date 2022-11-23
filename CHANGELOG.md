@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On MacOS and Windows, add `Window::set_content_protected`.
 - On MacOS, add `EventLoopBuilderExtMacOS::with_activate_ignoring_other_apps`.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
