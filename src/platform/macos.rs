@@ -115,7 +115,11 @@ pub trait WindowBuilderExtMacOS {
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
     /// Sets a parent to the window to be created.
-    fn with_parent_window(self, parent: *mut c_void) -> WindowBuilder;
+    ///
+    /// # Safety
+    ///
+    /// Parameter `parent` must be a valid NSWindow.
+    unsafe fn with_parent_window(self, parent: *mut c_void) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -177,7 +181,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_parent_window(mut self, parent: *mut c_void) -> WindowBuilder {
+    unsafe fn with_parent_window(mut self, parent: *mut c_void) -> WindowBuilder {
         self.platform_specific.parent = unsafe { Id::retain(parent as *mut NSWindow) };
         self
     }
