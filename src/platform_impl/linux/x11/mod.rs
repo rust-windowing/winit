@@ -644,7 +644,7 @@ impl Deref for Window {
     type Target = UnownedWindow;
     #[inline]
     fn deref(&self) -> &UnownedWindow {
-        &*self.0
+        &self.0
     }
 }
 

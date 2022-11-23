@@ -143,7 +143,7 @@ impl WinitPointer {
         *confined_pointer.borrow_mut() = Some(init_confined_pointer(
             pointer_constraints,
             surface,
-            &*self.pointer,
+            &self.pointer,
         ));
     }
 
@@ -177,7 +177,7 @@ impl WinitPointer {
         *locked_pointer.borrow_mut() = Some(init_locked_pointer(
             pointer_constraints,
             surface,
-            &*self.pointer,
+            &self.pointer,
         ));
     }
 
@@ -267,7 +267,7 @@ impl Pointers {
         let relative_pointer = relative_pointer_manager
             .as_ref()
             .map(|relative_pointer_manager| {
-                init_relative_pointer(relative_pointer_manager, &*pointer)
+                init_relative_pointer(relative_pointer_manager, &pointer)
             });
 
         Self {

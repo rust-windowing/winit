@@ -196,7 +196,7 @@ impl Handler {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
-                    callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
+                    callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
                 }
                 EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
             }
@@ -205,7 +205,7 @@ impl Handler {
 
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
+            callback.handle_user_events(&mut self.control_flow.lock().unwrap());
         }
     }
 
@@ -226,7 +226,7 @@ impl Handler {
             },
         };
 
-        callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+        callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
 
         let physical_size = *new_inner_size;
         let logical_size = physical_size.to_logical(scale_factor);

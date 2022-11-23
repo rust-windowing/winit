@@ -343,8 +343,8 @@ impl UnownedWindow {
                 };
 
                 let mut class_hint = xconn.alloc_class_hint();
-                (*class_hint).res_name = class.as_ptr() as *mut c_char;
-                (*class_hint).res_class = instance.as_ptr() as *mut c_char;
+                class_hint.res_name = class.as_ptr() as *mut c_char;
+                class_hint.res_class = instance.as_ptr() as *mut c_char;
 
                 unsafe {
                     (xconn.xlib.XSetClassHint)(xconn.display, window.xwindow, class_hint.ptr);
@@ -1004,15 +1004,15 @@ impl UnownedWindow {
         let extents = self
             .xconn
             .get_frame_extents_heuristic(self.xwindow, self.root);
-        (*self.shared_state_lock()).frame_extents = Some(extents);
+        self.shared_state_lock().frame_extents = Some(extents);
     }
 
     pub(crate) fn invalidate_cached_frame_extents(&self) {
-        (*self.shared_state_lock()).frame_extents.take();
+        self.shared_state_lock().frame_extents.take();
     }
 
     pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             extents.inner_pos_to_outer(x, y)
@@ -1024,7 +1024,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             Ok(extents.inner_pos_to_outer(x, y).into())
@@ -1052,7 +1052,7 @@ impl UnownedWindow {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
-            let extents = (*self.shared_state_lock()).frame_extents.clone();
+            let extents = self.shared_state_lock().frame_extents.clone();
             if let Some(extents) = extents {
                 x += extents.frame_extents.left as i32;
                 y += extents.frame_extents.top as i32;
@@ -1199,10 +1199,10 @@ impl UnownedWindow {
         self.update_normal_hints(|normal_hints| {
             let dpi_adjuster =
                 |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_scale_factor).into() };
-            let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
-            let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
-            let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
-            let base_size = shared_state.base_size.map(&dpi_adjuster);
+            let max_size = shared_state.max_inner_size.map(dpi_adjuster);
+            let min_size = shared_state.min_inner_size.map(dpi_adjuster);
+            let resize_increments = shared_state.resize_increments.map(dpi_adjuster);
+            let base_size = shared_state.base_size.map(dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
@@ -1508,9 +1508,9 @@ impl UnownedWindow {
             .get_wm_hints(self.xwindow)
             .expect("`XGetWMHints` failed");
         if request_type.is_some() {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
+            wm_hints.flags |= ffi::XUrgencyHint;
         } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
+            wm_hints.flags &= !ffi::XUrgencyHint;
         }
         self.xconn
             .set_wm_hints(self.xwindow, wm_hints)
