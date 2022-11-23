@@ -1020,7 +1020,7 @@ impl WinitWindow {
     pub fn set_window_level(&self, level: WindowLevel) {
         let level = match level {
             WindowLevel::AlwaysOnTop => NSWindowLevel::Floating,
-            WindowLevel::AlwaysOnBottom => NSWindowLevel::BelowNormal,
+            WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
             WindowLevel::Normal => NSWindowLevel::Normal,
         };
         util::set_level_async(self, level);
