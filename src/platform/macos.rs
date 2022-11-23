@@ -220,7 +220,7 @@ pub trait EventLoopBuilderExtMacOS {
     fn with_default_menu(&mut self, enable: bool) -> &mut Self;
 
     /// Used to prevent the application from automatically activating when launched if
-    /// another application is already active
+    /// another application is already active.
     ///
     /// The default behavior is to ignore other applications and activate when launched.
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
