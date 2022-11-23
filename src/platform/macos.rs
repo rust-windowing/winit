@@ -4,7 +4,7 @@ use std::os::raw::c_void;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::Parent,
+    platform_impl::NSWindow,
     window::{Window, WindowBuilder},
 };
 
@@ -178,7 +178,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 
     #[inline]
     fn with_parent_window(mut self, parent: *mut c_void) -> WindowBuilder {
-        self.platform_specific.parent = Parent::ChildOf(parent);
+        self.platform_specific.parent = unsafe { Id::retain(parent as *mut NSWindow) };
         self
     }
 }

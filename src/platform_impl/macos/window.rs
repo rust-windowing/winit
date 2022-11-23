@@ -73,12 +73,6 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone)]
-pub enum Parent {
-    None,
-    ChildOf(*mut c_void),
-}
-
-#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
@@ -89,7 +83,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
-    pub parent: Parent,
+    pub(crate) parent: Option<Id<NSWindow, Shared>>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -105,7 +99,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
-            parent: Parent::None,
+            parent: None,
         }
     }
 }
@@ -356,10 +350,10 @@ impl WinitWindow {
                     }
                 }
 
-                if let Parent::ChildOf(parent) = pl_attrs.parent {
+                if let Some(parent) = pl_attrs.parent {
                     #[allow(clippy::let_unit_value)]
                     unsafe {
-                        let () = msg_send![parent as *mut Object, addChildWindow: &*this, ordered: NSWindowOrderingMode::NSWindowAbove];
+                        let () = msg_send![&parent, addChildWindow: &*this, ordered: NSWindowOrderingMode::NSWindowAbove];
                     }
                 }
 

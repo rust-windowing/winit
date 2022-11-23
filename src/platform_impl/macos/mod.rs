@@ -22,11 +22,12 @@ use std::{fmt, ops::Deref};
 use self::window::WinitWindow;
 use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
+    appkit::NSWindow,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
-    window::{Parent, PlatformSpecificWindowBuilderAttributes, WindowId},
+    window::{PlatformSpecificWindowBuilderAttributes, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
