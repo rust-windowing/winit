@@ -54,7 +54,7 @@ pub trait WindowExtMacOS {
     fn is_document_edited(&self) -> bool;
 
     /// Put the window in a state which indicates a file save is required.
-    fn set_decoument_edited(&self, edited: bool);
+    fn set_document_edited(&self, edited: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -94,8 +94,8 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
-    fn set_decoument_edited(&self, edited: bool) {
-        self.window.set_decoument_edited(edited)
+    fn set_document_edited(&self, edited: bool) {
+        self.window.set_document_edited(edited)
     }
 }
 

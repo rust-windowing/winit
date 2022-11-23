@@ -1221,7 +1221,7 @@ impl WindowExtMacOS for WinitWindow {
         self.isDocumentEdited()
     }
 
-    fn set_decoument_edited(&self, edited: bool) {
+    fn set_document_edited(&self, edited: bool) {
         self.setDocumentEdited(edited)
     }
 }
