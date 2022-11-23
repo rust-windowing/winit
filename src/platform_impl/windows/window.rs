@@ -42,11 +42,12 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
-            SetCursorPos, SetForegroundWindow, SetWindowPlacement, SetWindowPos, SetWindowTextW,
-            CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP,
-            FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY,
-            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-            SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
+            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+            WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -738,6 +739,20 @@ impl Window {
             unsafe { force_window_active(window.0) };
         }
     }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if protected {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
+    }
 }
 
 impl Drop for Window {
@@ -907,6 +922,10 @@ impl<'a, T: 'static> InitData<'a, T> {
         win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
+
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
 
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
@@ -1116,7 +1135,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 

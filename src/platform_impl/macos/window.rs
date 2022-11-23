@@ -45,7 +45,8 @@ use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -304,6 +305,10 @@ impl WinitWindow {
                 this.setReleasedWhenClosed(false);
                 this.setTitle(&NSString::from_str(&attrs.title));
                 this.setAcceptsMouseMovedEvents(true);
+
+                if attrs.content_protected {
+                    this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+                }
 
                 if pl_attrs.titlebar_transparent {
                     this.setTitlebarAppearsTransparent(true);
@@ -734,7 +739,7 @@ impl WinitWindow {
         shared_state_lock.fullscreen = None;
 
         let maximized = shared_state_lock.maximized;
-        let mask = self.saved_style(&mut *shared_state_lock);
+        let mask = self.saved_style(&mut shared_state_lock);
 
         drop(shared_state_lock);
 
@@ -1123,6 +1128,14 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        self.setSharingType(if protected {
+            NSWindowSharingType::NSWindowSharingNone
+        } else {
+            NSWindowSharingType::NSWindowSharingReadOnly
+        })
+    }
+
     pub fn title(&self) -> String {
         self.title_().to_string()
     }
@@ -1191,7 +1204,7 @@ impl WindowExtMacOS for WinitWindow {
 
             true
         } else {
-            let new_mask = self.saved_style(&mut *shared_state_lock);
+            let new_mask = self.saved_style(&mut shared_state_lock);
             self.set_style_mask_async(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 

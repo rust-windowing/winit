@@ -249,7 +249,7 @@ impl Window {
         } else {
             self.canvas
                 .borrow()
-                .set_attribute("cursor", *self.previous_pointer.borrow());
+                .set_attribute("cursor", &self.previous_pointer.borrow());
         }
     }
 

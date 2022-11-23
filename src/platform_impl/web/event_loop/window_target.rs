@@ -14,7 +14,6 @@ use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, TouchPhase,
     WindowEvent,
 };
-use crate::event_loop::ControlFlow;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -40,7 +39,7 @@ impl<T> EventLoopWindowTarget<T> {
         EventLoopProxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
         self.runner.set_listener(event_handler);
         let runner = self.runner.clone();
         self.runner.set_on_scale_change(move |arg| {
