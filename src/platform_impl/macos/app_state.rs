@@ -284,7 +284,6 @@ impl AppState {
         app.setActivationPolicy(activation_policy);
 
         window_activation_hack(&app);
-        // TODO: Consider allowing the user to specify they don't want their application activated
         app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
         HANDLER.set_ready();
