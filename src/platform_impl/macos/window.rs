@@ -651,8 +651,13 @@ impl WinitWindow {
             mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
         }
 
-        self.set_style_mask_async(mask);
+        // This must happen before the button's "enabled" status has been set,
+        // hence we do it synchronously.
+        self.set_style_mask_sync(mask);
 
+        // We edit the button directly instead of using `NSResizableWindowMask`,
+        // since that mask also affect the resizability of the window (which is
+        // controllable by other means in `winit`).
         if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
             button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));
         }
