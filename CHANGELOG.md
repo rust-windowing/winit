@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, fix the value in `MouseButton::Other`.
 - On macOS, add `WindowExtMacOS::is_document_edited` and `WindowExtMacOS::set_document_edited` APIs.
 - **Breaking:** Removed `WindowBuilderExtIOS::with_root_view_class`; instead, you should use `[[view layer] addSublayer: ...]` to add an instance of the desired layer class (e.g. `CAEAGLLayer` or `CAMetalLayer`). See `vulkano-win` or `wgpu` for examples of this.
 - On MacOS and Windows, add `Window::set_content_protected`.
