@@ -1,6 +1,7 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
+use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -171,6 +172,8 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
+    /// Build window with parent window.
+    fn with_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -224,6 +227,12 @@ impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
+        self
+    }
+
+    #[inline]
+    fn with_parent(mut self, parent_id: WindowId) -> Self {
+        self.platform_specific.parent_id = Some(parent_id.0);
         self
     }
 

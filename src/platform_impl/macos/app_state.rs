@@ -11,6 +11,7 @@ use std::{
     time::Instant,
 };
 
+use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
 use objc2::foundation::{is_main_thread, NSSize};
 use objc2::rc::autoreleasepool;
 use once_cell::sync::Lazy;
@@ -24,7 +25,7 @@ use crate::{
         event::{EventProxy, EventWrapper},
         event_loop::PanicInfo,
         menu,
-        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+        observer::EventLoopWaker,
         util::Never,
         window::WinitWindow,
     },
@@ -195,7 +196,7 @@ impl Handler {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
-                    callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
+                    callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
                 }
                 EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
             }
@@ -204,7 +205,7 @@ impl Handler {
 
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
+            callback.handle_user_events(&mut self.control_flow.lock().unwrap());
         }
     }
 
@@ -225,7 +226,7 @@ impl Handler {
             },
         };
 
-        callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+        callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
 
         let physical_size = *new_inner_size;
         let logical_size = physical_size.to_logical(scale_factor);
@@ -271,7 +272,11 @@ impl AppState {
         }
     }
 
-    pub fn launched(activation_policy: NSApplicationActivationPolicy, create_default_menu: bool) {
+    pub fn launched(
+        activation_policy: NSApplicationActivationPolicy,
+        create_default_menu: bool,
+        activate_ignoring_other_apps: bool,
+    ) {
         let app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -279,8 +284,7 @@ impl AppState {
         app.setActivationPolicy(activation_policy);
 
         window_activation_hack(&app);
-        // TODO: Consider allowing the user to specify they don't want their application activated
-        app.activateIgnoringOtherApps(true);
+        app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
         HANDLER.set_ready();
         HANDLER.waker().start();

@@ -11,6 +11,11 @@ use std::{
     sync::mpsc,
 };
 
+use core_foundation::base::{CFIndex, CFRelease};
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
+    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+};
 use objc2::foundation::is_main_thread;
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{msg_send_id, ClassType};
@@ -20,14 +25,13 @@ use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
     platform_impl::platform::{
         app::WinitApplication,
         app_delegate::ApplicationDelegate,
         app_state::{AppState, Callback},
         monitor::{self, MonitorHandle},
-        observer::*,
+        observer::setup_control_flow_observers,
     },
 };
 
@@ -78,9 +82,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]
@@ -120,6 +124,7 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
+    pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -127,6 +132,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             activation_policy: Default::default(), // Regular
             default_menu: true,
+            activate_ignoring_other_apps: true,
         }
     }
 }
@@ -150,7 +156,11 @@ impl<T> EventLoop<T> {
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
-        let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
+        let delegate = ApplicationDelegate::new(
+            activation_policy,
+            attributes.default_menu,
+            attributes.activate_ignoring_other_apps,
+        );
 
         autoreleasepool(|_| {
             app.setDelegate(&delegate);
@@ -278,13 +288,23 @@ impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
+            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
-            let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = Some(event_loop_proxy_handler);
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: event_loop_proxy_handler,
+            };
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);

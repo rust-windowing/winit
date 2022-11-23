@@ -11,6 +11,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(non_upper_case_globals)]
 
+mod appearance;
 mod application;
 mod button;
 mod color;
@@ -28,6 +29,7 @@ mod version;
 mod view;
 mod window;
 
+pub(crate) use self::appearance::NSAppearance;
 pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
@@ -52,7 +54,7 @@ pub(crate) use self::version::NSAppKitVersion;
 pub(crate) use self::view::{NSTrackingRectTag, NSView};
 pub(crate) use self::window::{
     NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
-    NSWindowStyleMask, NSWindowTitleVisibility,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTitleVisibility,
 };
 
 #[link(name = "AppKit", kind = "framework")]

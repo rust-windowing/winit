@@ -18,7 +18,6 @@ use crate::{
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
@@ -27,25 +26,27 @@ use crate::{
         util,
         view::WinitView,
         window_delegate::WinitWindowDelegate,
-        OsError,
+        Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
-    is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
+    is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
+    NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::{declare_class, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
-    NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
-    NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSWindow,
-    NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
+    NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
+    NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -79,6 +80,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub fullsize_content_view: bool,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub accepts_first_mouse: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -93,6 +95,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
+            accepts_first_mouse: true,
         }
     }
 }
@@ -131,14 +134,14 @@ pub struct SharedState {
     pub resizable: bool,
     /// This field tracks the current fullscreen state of the window
     /// (as seen by `WindowDelegate`).
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
     // or windowWillExitFullScreen and windowDidExitFullScreen.
     // We must not toggle fullscreen when this is true.
     pub in_fullscreen_transition: bool,
     // If it is attempted to toggle fullscreen when in_fullscreen_transition is true,
     // Set target_fullscreen and do after fullscreen transition is end.
-    pub target_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
@@ -149,6 +152,7 @@ pub struct SharedState {
     /// bar in exclusive fullscreen but want to restore the original options when
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
+    pub current_theme: Option<Theme>,
 }
 
 impl SharedState {
@@ -209,11 +213,11 @@ impl WinitWindow {
         }
 
         let this = autoreleasepool(|_| {
-            let screen = match attrs.fullscreen {
-                Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
-                | Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: VideoMode { ref monitor, .. },
-                })) => monitor.ns_screen().or_else(NSScreen::main),
+            let screen = match &attrs.fullscreen {
+                Some(Fullscreen::Borderless(Some(monitor)))
+                | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
+                    monitor.ns_screen().or_else(NSScreen::main)
+                }
                 Some(Fullscreen::Borderless(None)) => NSScreen::main(),
                 None => None,
             };
@@ -302,6 +306,10 @@ impl WinitWindow {
                 this.setTitle(&NSString::from_str(&attrs.title));
                 this.setAcceptsMouseMovedEvents(true);
 
+                if attrs.content_protected {
+                    this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+                }
+
                 if pl_attrs.titlebar_transparent {
                     this.setTitlebarAppearsTransparent(true);
                 }
@@ -354,7 +362,7 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let view = WinitView::new(&this);
+        let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -390,6 +398,18 @@ impl WinitWindow {
         this.registerForDraggedTypes(&NSArray::from_slice(&[
             unsafe { NSFilenamesPboardType }.copy()
         ]));
+
+        match attrs.preferred_theme {
+            Some(theme) => {
+                set_ns_theme(theme);
+                let mut state = this.shared_state.lock().unwrap();
+                state.current_theme = Some(theme);
+            }
+            None => {
+                let mut state = this.shared_state.lock().unwrap();
+                state.current_theme = Some(get_ns_theme());
+            }
+        }
 
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
@@ -719,7 +739,7 @@ impl WinitWindow {
         shared_state_lock.fullscreen = None;
 
         let maximized = shared_state_lock.maximized;
-        let mask = self.saved_style(&mut *shared_state_lock);
+        let mask = self.saved_style(&mut shared_state_lock);
 
         drop(shared_state_lock);
 
@@ -756,7 +776,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.lock_shared_state("fullscreen");
         shared_state_lock.fullscreen.clone()
     }
@@ -767,7 +787,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -789,15 +809,15 @@ impl WinitWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(borderless) => {
-                    let RootMonitorHandle { inner: monitor } = borderless
-                        .clone()
-                        .unwrap_or_else(|| self.current_monitor_inner());
-                    monitor
+                Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
+                Fullscreen::Borderless(None) => {
+                    if let Some(monitor) = self.current_monitor_inner() {
+                        monitor
+                    } else {
+                        return;
+                    }
                 }
-                Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: VideoMode { ref monitor, .. },
-                }) => monitor.clone(),
+                Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
             .ns_screen()
             .unwrap();
@@ -825,7 +845,7 @@ impl WinitWindow {
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
 
-            let display_id = video_mode.monitor().inner.native_identifier();
+            let display_id = video_mode.monitor().native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -859,7 +879,7 @@ impl WinitWindow {
             unsafe {
                 let result = ffi::CGDisplaySetDisplayMode(
                     display_id,
-                    video_mode.video_mode.native_mode.0,
+                    video_mode.native_mode.0,
                     std::ptr::null(),
                 );
                 assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
@@ -901,9 +921,9 @@ impl WinitWindow {
                     Arc::downgrade(&*self.shared_state),
                 );
             }
-            (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
+                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
                 };
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
@@ -930,15 +950,11 @@ impl WinitWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                #[allow(clippy::let_unit_value)]
-                unsafe {
-                    let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
-                }
+                let window_level =
+                    NSWindowLevel(unsafe { ffi::CGShieldingWindowLevel() } as NSInteger + 1);
+                self.setLevel(window_level);
             }
-            (
-                &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
-                &Some(Fullscreen::Borderless(_)),
-            ) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
                     shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -948,7 +964,7 @@ impl WinitWindow {
                 NSApp().setPresentationOptions(presentation_options);
 
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
+                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
                 };
 
                 // Restore the normal window level following the Borderless fullscreen
@@ -1062,16 +1078,14 @@ impl WinitWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
-        let display_id = self.screen().expect("expected screen").display_id();
-        RootMonitorHandle {
-            inner: MonitorHandle::new(display_id),
-        }
+    pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
+        let display_id = self.screen()?.display_id();
+        Some(MonitorHandle::new(display_id))
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(self.current_monitor_inner())
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        self.current_monitor_inner()
     }
 
     #[inline]
@@ -1080,9 +1094,9 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]
@@ -1105,6 +1119,25 @@ impl WinitWindow {
         } else {
             util::set_style_mask_sync(self, current_style_mask & (!mask));
         }
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        let state = self.shared_state.lock().unwrap();
+        state.current_theme
+    }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        self.setSharingType(if protected {
+            NSWindowSharingType::NSWindowSharingNone
+        } else {
+            NSWindowSharingType::NSWindowSharingReadOnly
+        })
+    }
+
+    pub fn title(&self) -> String {
+        self.title_().to_string()
     }
 }
 
@@ -1171,7 +1204,7 @@ impl WindowExtMacOS for WinitWindow {
 
             true
         } else {
-            let new_mask = self.saved_style(&mut *shared_state_lock);
+            let new_mask = self.saved_style(&mut shared_state_lock);
             self.set_style_mask_async(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
@@ -1195,5 +1228,35 @@ impl WindowExtMacOS for WinitWindow {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
+    }
+}
+
+pub(super) fn get_ns_theme() -> Theme {
+    let app = NSApp();
+    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
+    if !has_theme {
+        return Theme::Light;
+    }
+    let appearance = app.effectiveAppearance();
+    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[
+        NSString::from_str("NSAppearanceNameAqua"),
+        NSString::from_str("NSAppearanceNameDarkAqua"),
+    ]));
+    match &*name.to_string() {
+        "NSAppearanceNameDarkAqua" => Theme::Dark,
+        _ => Theme::Light,
+    }
+}
+
+fn set_ns_theme(theme: Theme) {
+    let app = NSApp();
+    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
+    if has_theme {
+        let name = match theme {
+            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+        };
+        let appearance = NSAppearance::appearanceNamed(&name);
+        app.setAppearance(&appearance);
     }
 }

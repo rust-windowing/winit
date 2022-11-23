@@ -40,13 +40,14 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
-            PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
-            CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-            GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
-            WNDCLASSEXW,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+            IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
+            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
+            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+            WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -55,7 +56,6 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -66,15 +66,16 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
-        monitor, util,
+        monitor::{self, MonitorHandle},
+        util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
-pub struct Window {
+pub(crate) struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
 
@@ -463,12 +464,12 @@ impl Window {
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(video_mode))) => {
                     let monitor = video_mode.monitor();
-                    let monitor_info = monitor::get_monitor_info(monitor.inner.hmonitor()).unwrap();
+                    let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             monitor_info.szDevice.as_ptr(),
-                            &*video_mode.video_mode.native_video_mode,
+                            &*video_mode.native_video_mode,
                             0,
                             CDS_FULLSCREEN,
                             ptr::null(),
@@ -549,9 +550,7 @@ impl Window {
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => RootMonitorHandle {
-                            inner: monitor::current_monitor(window.0),
-                        },
+                        Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
                     };
 
                     let position: (i32, i32) = monitor.position().into();
@@ -619,10 +618,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(RootMonitorHandle {
-            inner: monitor::current_monitor(self.hwnd()),
-        })
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(monitor::current_monitor(self.hwnd()))
     }
 
     #[inline]
@@ -698,8 +695,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn theme(&self) -> Theme {
-        self.window_state_lock().current_theme
+    pub fn theme(&self) -> Option<Theme> {
+        Some(self.window_state_lock().current_theme)
+    }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        let len = unsafe { GetWindowTextLengthW(self.window.0) } + 1;
+        let mut buf = vec![0; len as usize];
+        unsafe { GetWindowTextW(self.window.0, buf.as_mut_ptr(), len) };
+        util::decode_wide(&buf).to_string_lossy().to_string()
     }
 
     #[inline]
@@ -733,6 +738,20 @@ impl Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(window.0) };
         }
+    }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if protected {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
     }
 }
 
@@ -785,15 +804,14 @@ impl<'a, T: 'static> InitData<'a, T> {
         // If the system theme is dark, we need to set the window theme now
         // before we update the window flags (and possibly show the
         // window for the first time).
-        let current_theme = try_theme(window, self.pl_attribs.preferred_theme);
+        let current_theme = try_theme(window, self.attributes.preferred_theme);
 
         let window_state = {
             let window_state = WindowState::new(
                 &self.attributes,
-                self.pl_attribs.taskbar_icon.clone(),
                 scale_factor,
                 current_theme,
-                self.pl_attribs.preferred_theme,
+                self.attributes.preferred_theme,
             );
             let window_state = Arc::new(Mutex::new(window_state));
             WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {
@@ -900,8 +918,14 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
 
         win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+        win.set_window_icon(self.attributes.window_icon.clone());
+        win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
+
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
 
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
@@ -953,7 +977,7 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = register_window_class::<T>();
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1026,22 +1050,10 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(
-    window_icon: &Option<Icon>,
-    taskbar_icon: &Option<Icon>,
-) -> Vec<u16> {
+unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
 
-    let h_icon = taskbar_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
-    let h_icon_small = window_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
-
-    use windows_sys::Win32::UI::WindowsAndMessaging::COLOR_WINDOWFRAME;
+    use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1049,12 +1061,12 @@ unsafe fn register_window_class<T: 'static>(
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
-        hIcon: h_icon,
+        hIcon: 0,
         hCursor: 0, // must be null in order for cursor state to work properly
         hbrBackground: COLOR_WINDOWFRAME as _,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
-        hIconSm: h_icon_small,
+        hIconSm: 0,
     };
 
     // We ignore errors because registering the same window class twice would trigger
@@ -1123,7 +1135,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 

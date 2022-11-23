@@ -15,13 +15,12 @@ use x11_dl::xlib::TrueColor;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
-        MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
-        VideoMode as PlatformVideoMode,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -40,9 +39,9 @@ pub struct SharedState {
     pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // Set when application calls `set_fullscreen` when window is not visible
-    pub desired_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) desired_fullscreen: Option<Option<Fullscreen>>,
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
@@ -120,7 +119,12 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = event_loop.root;
+        let root = if let Some(id) = pl_attribs.parent_id {
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
+            u64::from(id) as _
+        } else {
+            event_loop.root
+        };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
@@ -339,8 +343,8 @@ impl UnownedWindow {
                 };
 
                 let mut class_hint = xconn.alloc_class_hint();
-                (*class_hint).res_name = class.as_ptr() as *mut c_char;
-                (*class_hint).res_class = instance.as_ptr() as *mut c_char;
+                class_hint.res_name = class.as_ptr() as *mut c_char;
+                class_hint.res_class = instance.as_ptr() as *mut c_char;
 
                 unsafe {
                     (xconn.xlib.XSetClassHint)(xconn.display, window.xwindow, class_hint.ptr);
@@ -638,17 +642,10 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (
-                &None,
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
-            )
+            (&None, &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))))
             | (
                 &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: PlatformVideoMode::X(ref video_mode),
-                })),
+                &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
@@ -679,12 +676,12 @@ impl UnownedWindow {
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(RootVideoMode {
-                        video_mode: PlatformVideoMode::X(ref video_mode),
-                    }) => (Some(video_mode), video_mode.monitor.clone().unwrap()),
-                    Fullscreen::Borderless(Some(RootMonitorHandle {
-                        inner: PlatformMonitorHandle::X(monitor),
-                    })) => (None, monitor),
+                    Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode)) => {
+                        (Some(video_mode), video_mode.monitor.clone().unwrap())
+                    }
+                    Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
+                        (None, monitor)
+                    }
                     Fullscreen::Borderless(None) => (None, self.current_monitor()),
                     #[cfg(feature = "wayland")]
                     _ => unreachable!(),
@@ -737,7 +734,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state = self.shared_state_lock();
 
         shared_state
@@ -747,7 +744,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
             flusher
                 .sync()
@@ -1007,15 +1004,15 @@ impl UnownedWindow {
         let extents = self
             .xconn
             .get_frame_extents_heuristic(self.xwindow, self.root);
-        (*self.shared_state_lock()).frame_extents = Some(extents);
+        self.shared_state_lock().frame_extents = Some(extents);
     }
 
     pub(crate) fn invalidate_cached_frame_extents(&self) {
-        (*self.shared_state_lock()).frame_extents.take();
+        self.shared_state_lock().frame_extents.take();
     }
 
     pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             extents.inner_pos_to_outer(x, y)
@@ -1027,7 +1024,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             Ok(extents.inner_pos_to_outer(x, y).into())
@@ -1055,7 +1052,7 @@ impl UnownedWindow {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
-            let extents = (*self.shared_state_lock()).frame_extents.clone();
+            let extents = self.shared_state_lock().frame_extents.clone();
             if let Some(extents) = extents {
                 x += extents.frame_extents.left as i32;
                 y += extents.frame_extents.top as i32;
@@ -1202,10 +1199,10 @@ impl UnownedWindow {
         self.update_normal_hints(|normal_hints| {
             let dpi_adjuster =
                 |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_scale_factor).into() };
-            let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
-            let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
-            let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
-            let base_size = shared_state.base_size.map(&dpi_adjuster);
+            let max_size = shared_state.max_inner_size.map(dpi_adjuster);
+            let min_size = shared_state.min_inner_size.map(dpi_adjuster);
+            let resize_increments = shared_state.resize_increments.map(dpi_adjuster);
+            let base_size = shared_state.base_size.map(dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
@@ -1511,9 +1508,9 @@ impl UnownedWindow {
             .get_wm_hints(self.xwindow)
             .expect("`XGetWMHints` failed");
         if request_type.is_some() {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
+            wm_hints.flags |= ffi::XUrgencyHint;
         } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
+            wm_hints.flags &= !ffi::XUrgencyHint;
         }
         self.xconn
             .set_wm_hints(self.xwindow, wm_hints)
@@ -1548,5 +1545,15 @@ impl UnownedWindow {
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
         RawDisplayHandle::Xlib(display_handle)
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        String::new()
     }
 }

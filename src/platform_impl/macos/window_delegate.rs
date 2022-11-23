@@ -4,7 +4,7 @@ use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{NSArray, NSObject, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::runtime::Object;
-use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
+use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
     NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,
@@ -16,9 +16,10 @@ use crate::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
         util,
-        window::WinitWindow,
+        window::{get_ns_theme, WinitWindow},
+        Fullscreen,
     },
-    window::{Fullscreen, WindowId},
+    window::WindowId,
 };
 
 declare_class!(
@@ -68,6 +69,22 @@ declare_class!(
                     this.emit_static_scale_factor_changed_event();
                 }
                 this.window.setDelegate(Some(this));
+
+                // Enable theme change event
+                let notification_center: Id<Object, Shared> =
+                    unsafe { msg_send_id![class!(NSDistributedNotificationCenter), defaultCenter] };
+                let notification_name =
+                    NSString::from_str("AppleInterfaceThemeChangedNotification");
+                let _: () = unsafe {
+                    msg_send![
+                        &notification_center,
+                        addObserver: &*this
+                        selector: sel!(effectiveAppearanceDidChange:)
+                        name: &*notification_name
+                        object: ptr::null::<Object>()
+                    ]
+                };
+
                 this
             })
         }
@@ -204,9 +221,9 @@ declare_class!(
         }
 
         /// Invoked when before enter fullscreen
-        #[sel(windowWillEnterFullscreen:)]
+        #[sel(windowWillEnterFullScreen:)]
         fn window_will_enter_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowWillEnterFullscreen:");
+            trace_scope!("windowWillEnterFullScreen:");
 
             let mut shared_state = self
                 .window
@@ -225,7 +242,7 @@ declare_class!(
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = Some(self.window.current_monitor_inner());
+                    let current_monitor = self.window.current_monitor_inner();
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
@@ -270,9 +287,9 @@ declare_class!(
         }
 
         /// Invoked when entered fullscreen
-        #[sel(windowDidEnterFullscreen:)]
+        #[sel(windowDidEnterFullScreen:)]
         fn window_did_enter_fullscreen(&mut self, _: Option<&Object>) {
-            trace_scope!("windowDidEnterFullscreen:");
+            trace_scope!("windowDidEnterFullScreen:");
             *self.initial_fullscreen = false;
             let mut shared_state = self.window.lock_shared_state("window_did_enter_fullscreen");
             shared_state.in_fullscreen_transition = false;
@@ -284,9 +301,9 @@ declare_class!(
         }
 
         /// Invoked when exited fullscreen
-        #[sel(windowDidExitFullscreen:)]
+        #[sel(windowDidExitFullScreen:)]
         fn window_did_exit_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowDidExitFullscreen:");
+            trace_scope!("windowDidExitFullScreen:");
 
             self.window.restore_state_from_fullscreen();
             let mut shared_state = self.window.lock_shared_state("window_did_exit_fullscreen");
@@ -314,9 +331,9 @@ declare_class!(
         /// due to being in the midst of handling some other animation or user gesture.
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
-        #[sel(windowDidFailToEnterFullscreen:)]
+        #[sel(windowDidFailToEnterFullScreen:)]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&Object>) {
-            trace_scope!("windowDidFailToEnterFullscreen:");
+            trace_scope!("windowDidFailToEnterFullScreen:");
             let mut shared_state = self
                 .window
                 .lock_shared_state("window_did_fail_to_enter_fullscreen");
@@ -347,6 +364,34 @@ declare_class!(
                     .occlusionState()
                     .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
             ))
+        }
+
+        // Observe theme change
+        #[sel(effectiveAppearanceDidChange:)]
+        fn effective_appearance_did_change(&self, sender: Option<&Object>) {
+            trace_scope!("Triggered `effectiveAppearanceDidChange:`");
+            unsafe {
+                msg_send![
+                    self,
+                    performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:),
+                    withObject: sender,
+                    waitUntilDone: false,
+                ]
+            }
+        }
+
+        #[sel(effectiveAppearanceDidChangedOnMainThread:)]
+        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&Object>) {
+            let theme = get_ns_theme();
+            let mut shared_state = self
+                .window
+                .lock_shared_state("effective_appearance_did_change");
+            let current_theme = shared_state.current_theme;
+            shared_state.current_theme = Some(theme);
+            drop(shared_state);
+            if current_theme != Some(theme) {
+                self.emit_event(WindowEvent::ThemeChanged(theme));
+            }
         }
     }
 );

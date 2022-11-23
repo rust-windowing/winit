@@ -48,15 +48,25 @@ The current maintainers are listed in the [CODEOWNERS](.github/CODEOWNERS) file.
 
 If you are interested in being pinged when testing is needed for a certain platform, please add yourself to the [Testers and Contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors) table!
 
-## Making a new release
+## Release process
 
-If you believe a new release is warranted, you can make a pull-request with:
-- An updated version number (remember to change the version everywhere it is used).
-- A new section in the changelog (below the `# Unreleased` section).
+Given that winit is a widely used library we should be able to make a patch
+releases at any time we want without blocking the development of new features.
 
-This gives contributors an opportunity to squeeze in an extra PR or two that they feel is valuable
-enough to warrant blocking the release a little.
+To achieve these goals, a new branch is created for every new release. Releases
+and later patch releases are committed and tagged in this branch.
 
-Once the PR is merged, a maintainer will create a new tag matching the version name (e.g. `v0.26.1`),
-and a CI job will automatically release the new version. Remember that the release date in the
-changelog must be kept in check with the actual release date.
+The exact steps for an exemplary `0.2.0` release might look like this:
+  1. Initially the version on the latest master is `0.1.0`
+  2. A new `v0.2.x` branch is created for the release
+  3. In the branch, the version is bumped to `v0.2.0`
+  4. The new commit in the branch is tagged `v0.2.0`
+  5. The version is pushed to crates.io
+  6. A GitHub release is created for the `v0.2.0` tag
+  7. On master, the version is bumped to `0.2.0` and the CHANGELOG is updated
+  
+When doing a patch release the process is similar:
+  1. Initially the version of the latest release is `0.2.0`
+  2. Checkout the `v0.2.x` branch
+  3. Cherry-pick the required non-breaking changes into the `v0.2.x`
+  4. Follow steps 3-7 of the regular release example

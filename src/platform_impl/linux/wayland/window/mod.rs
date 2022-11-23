@@ -14,14 +14,11 @@ use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::{
-    MonitorHandle as PlatformMonitorHandle, OsError,
+    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{
-    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
-};
+use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -173,7 +170,7 @@ impl Window {
         // Set CSD frame config from theme if specified,
         // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+        if let Some(theme) = attributes.preferred_theme.or_else(|| {
             std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
                 .ok()
                 .and_then(|s| s.as_str().try_into().ok())
@@ -218,12 +215,11 @@ impl Window {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor =
-                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
-                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                        #[cfg(feature = "x11")]
-                        PlatformMonitorHandle::X(_) => None,
-                    });
+                let monitor = monitor.and_then(|monitor| match monitor {
+                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                    #[cfg(feature = "x11")]
+                    PlatformMonitorHandle::X(_) => None,
+                });
 
                 window.set_fullscreen(monitor.as_ref());
             }
@@ -469,11 +465,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.fullscreen.load(Ordering::Relaxed) {
-            let current_monitor = self.current_monitor().map(|monitor| RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(monitor),
-            });
+            let current_monitor = self.current_monitor().map(PlatformMonitorHandle::Wayland);
 
             Some(Fullscreen::Borderless(current_monitor))
         } else {
@@ -482,19 +476,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let fullscreen_request = match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
                 return;
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor =
-                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
-                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                        #[cfg(feature = "x11")]
-                        PlatformMonitorHandle::X(_) => None,
-                    });
+                let monitor = monitor.and_then(|monitor| match monitor {
+                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                    #[cfg(feature = "x11")]
+                    PlatformMonitorHandle::X(_) => None,
+                });
 
                 WindowRequest::Fullscreen(monitor)
             }
@@ -603,7 +596,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
         None
     }
 
@@ -625,6 +618,16 @@ impl Window {
     fn send_request(&self, request: WindowRequest) {
         self.window_requests.lock().unwrap().push(request);
         self.event_loop_awakener.ping();
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    #[inline]
+    pub fn title(&self) -> String {
+        String::new()
     }
 }
 

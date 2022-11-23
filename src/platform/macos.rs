@@ -111,6 +111,8 @@ pub trait WindowBuilderExtMacOS {
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Window accepts click-through mouse events.
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -164,6 +166,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
         self
     }
+
+    #[inline]
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
 }
 
 pub trait EventLoopBuilderExtMacOS {
@@ -210,6 +218,12 @@ pub trait EventLoopBuilderExtMacOS {
     /// # }
     /// ```
     fn with_default_menu(&mut self, enable: bool) -> &mut Self;
+
+    /// Used to prevent the application from automatically activating when launched if
+    /// another application is already active.
+    ///
+    /// The default behavior is to ignore other applications and activate when launched.
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
@@ -222,6 +236,12 @@ impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     #[inline]
     fn with_default_menu(&mut self, enable: bool) -> &mut Self {
         self.platform_specific.default_menu = enable;
+        self
+    }
+
+    #[inline]
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
+        self.platform_specific.activate_ignoring_other_apps = ignore;
         self
     }
 }
