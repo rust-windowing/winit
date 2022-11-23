@@ -688,25 +688,11 @@ impl From<id> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub root_view_class: &'static Class,
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
-}
-
-impl Default for PlatformSpecificWindowBuilderAttributes {
-    fn default() -> PlatformSpecificWindowBuilderAttributes {
-        PlatformSpecificWindowBuilderAttributes {
-            root_view_class: class!(UIView),
-            scale_factor: None,
-            valid_orientations: Default::default(),
-            prefers_home_indicator_hidden: false,
-            prefers_status_bar_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: Default::default(),
-        }
-    }
 }

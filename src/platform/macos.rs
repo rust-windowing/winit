@@ -36,6 +36,25 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Get the window's edit state.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// WindowEvent::CloseRequested => {
+    ///     if window.is_document_edited() {
+    ///         // Show the user a save pop-up or similar
+    ///     } else {
+    ///         // Close the window
+    ///         drop(window);
+    ///     }
+    /// }
+    /// ```
+    fn is_document_edited(&self) -> bool;
+
+    /// Put the window in a state which indicates a file save is required.
+    fn set_document_edited(&self, edited: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -67,6 +86,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn is_document_edited(&self) -> bool {
+        self.window.is_document_edited()
+    }
+
+    #[inline]
+    fn set_document_edited(&self, edited: bool) {
+        self.window.set_document_edited(edited)
     }
 }
 
@@ -218,6 +247,12 @@ pub trait EventLoopBuilderExtMacOS {
     /// # }
     /// ```
     fn with_default_menu(&mut self, enable: bool) -> &mut Self;
+
+    /// Used to prevent the application from automatically activating when launched if
+    /// another application is already active.
+    ///
+    /// The default behavior is to ignore other applications and activate when launched.
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
@@ -230,6 +265,12 @@ impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     #[inline]
     fn with_default_menu(&mut self, enable: bool) -> &mut Self {
         self.platform_specific.default_menu = enable;
+        self
+    }
+
+    #[inline]
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
+        self.platform_specific.activate_ignoring_other_apps = ignore;
         self
     }
 }
