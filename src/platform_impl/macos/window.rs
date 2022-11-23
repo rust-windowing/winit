@@ -1244,11 +1244,13 @@ fn set_ns_theme(theme: Option<Theme>) {
     let app = NSApp();
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
-        let name = match theme {
-            Some(Theme::Dark) | None => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Some(Theme::Light) => NSString::from_str("NSAppearanceNameAqua"),
-        };
-        let appearance = NSAppearance::appearanceNamed(&name);
-        app.setAppearance(&appearance);
+        let appearance = theme.map(|t| {
+            let name = match t {
+                Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+                Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+            };
+            NSAppearance::appearanceNamed(&name)
+        });
+        app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }
 }
