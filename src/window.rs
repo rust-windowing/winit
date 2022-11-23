@@ -373,7 +373,11 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / Web / x11:** Ignored.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
@@ -972,7 +976,11 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         self.window.set_content_protected(_protected);
