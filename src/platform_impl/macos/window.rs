@@ -36,7 +36,8 @@ use crate::{
 use core_graphics::display::{CGDisplay, CGPoint};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
-    is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
+    is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
+    NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
@@ -860,7 +861,13 @@ impl WinitWindow {
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                Fullscreen::Borderless(None) => self.current_monitor_inner(),
+                Fullscreen::Borderless(None) => {
+                    if let Some(monitor) = self.current_monitor_inner() {
+                        monitor
+                    } else {
+                        return;
+                    }
+                }
                 Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
             .ns_screen()
@@ -994,10 +1001,9 @@ impl WinitWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                #[allow(clippy::let_unit_value)]
-                unsafe {
-                    let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
-                }
+                let window_level =
+                    NSWindowLevel(unsafe { ffi::CGShieldingWindowLevel() } as NSInteger + 1);
+                self.setLevel(window_level);
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
@@ -1123,14 +1129,14 @@ impl WinitWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> MonitorHandle {
-        let display_id = self.screen().expect("expected screen").display_id();
-        MonitorHandle::new(display_id)
+    pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
+        let display_id = self.screen()?.display_id();
+        Some(MonitorHandle::new(display_id))
     }
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(self.current_monitor_inner())
+        self.current_monitor_inner()
     }
 
     #[inline]

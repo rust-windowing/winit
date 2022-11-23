@@ -42,6 +42,8 @@ wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
+android-native-activity = [ "android-activity/native-activity" ]
+android-game-activity = [ "android-activity/game-activity" ]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
@@ -60,7 +62,7 @@ simple_logger = { version = "2.1.0", default_features = false }
 [target.'cfg(target_os = "android")'.dependencies]
 # Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
 ndk = "0.7.0"
-ndk-glue = "0.7.0"
+android-activity = "0.4.0-beta.1"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc2 = "=0.3.0-beta.3"

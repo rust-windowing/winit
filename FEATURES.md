@@ -188,41 +188,41 @@ Legend:
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️    |
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |✔️    |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
 
 ### System information
 |Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |WASM      |
 |---------------- | ----- | ---- | ------- | ----------- | ----- | ------- | -------- |
-|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|✔️       |**N/A**|
-|Video mode query |✔️    |✔️    |✔️       |✔️          |❌     |✔️      |**N/A**|
+|Monitor list     |✔️    |✔️    |✔️       |✔️          |✔️     |✔️      |**N/A**|
+|Video mode query |✔️    |✔️    |✔️       |✔️          |✔️     |✔️      |**N/A**|
 
 ### Input handling
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
 |Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |
 |Mouse set location      |✔️       |✔️      |✔️       |✔️(when locked)  |**N/A**|**N/A**|**N/A**|
-|Cursor locking          |❌      |✔️      |❌    |✔️         |**N/A**|**N/A**|✔️        |
-|Cursor confining        |✔️       |❌     |✔️     |✔️         |**N/A**|**N/A**|❌       |
-|Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Cursor hittest          |✔️       |✔️      |❌       |✔️           |**N/A**|**N/A**|❌        |
+|Cursor locking          |❌       |✔️      |❌       |✔️          |**N/A**|**N/A**|✔️        |
+|Cursor confining        |✔️       |❌      |✔️       |✔️          |**N/A**|**N/A**|❌       |
+|Cursor icon             |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |
+|Cursor hittest          |✔️       |✔️      |❌       |✔️          |**N/A**|**N/A**|❌        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
-|Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
+|Keyboard events         |✔️       |✔️      |✔️       |✔️          |✔️    |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
-|Drag window with cursor |✔️         |✔️       |✔️        |✔️            |**N/A**|**N/A**|**N/A**   |
+|Drag window with cursor |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
 
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |❓        |
-|Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |❌     |✔️    |❓        |
+|New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |
+|Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |✔️     |✔️    |❓        |
 |Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌    |❓        |
 
 ### Completed API Reworks
