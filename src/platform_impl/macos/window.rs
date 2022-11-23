@@ -351,9 +351,8 @@ impl WinitWindow {
                 }
 
                 if let Some(parent) = pl_attrs.parent {
-                    #[allow(clippy::let_unit_value)]
                     unsafe {
-                        let () = msg_send![&parent, addChildWindow: &*this, ordered: NSWindowOrderingMode::NSWindowAbove];
+                        parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove);
                     }
                 }
 

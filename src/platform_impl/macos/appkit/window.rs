@@ -198,6 +198,9 @@ extern_methods!(
 
         #[sel(sendEvent:)]
         pub unsafe fn sendEvent(&self, event: &NSEvent);
+
+        #[sel(addChildWindow:ordered:)]
+        pub unsafe fn addChildWindow(&self, child: &NSWindow, ordered: NSWindowOrderingMode);
     }
 );
 
