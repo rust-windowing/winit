@@ -263,9 +263,9 @@ declare_class!(
         // IMKInputSession [0x7fc573576ff0 presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self textInputContext]=0x7fc573558e10 *NO* NSRemoteViewController to client, NSError=Error Domain=NSCocoaErrorDomain Code=4099 "The connection from pid 0 was invalidated from this process." UserInfo={NSDebugDescription=The connection from pid 0 was invalidated from this process.}, com.apple.inputmethod.EmojiFunctionRowItem
         // TODO: Add an API extension for using `NSTouchBar`
         #[method(touchBar)]
-        fn touch_bar(&self) -> bool {
+        fn touch_bar(&self) -> *const Object {
             trace_scope!("touchBar");
-            false
+            ptr::null()
         }
 
         #[method(resetCursorRects)]
