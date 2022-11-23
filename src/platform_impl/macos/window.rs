@@ -734,7 +734,7 @@ impl WinitWindow {
         shared_state_lock.fullscreen = None;
 
         let maximized = shared_state_lock.maximized;
-        let mask = self.saved_style(&mut *shared_state_lock);
+        let mask = self.saved_style(&mut shared_state_lock);
 
         drop(shared_state_lock);
 
@@ -1191,7 +1191,7 @@ impl WindowExtMacOS for WinitWindow {
 
             true
         } else {
-            let new_mask = self.saved_style(&mut *shared_state_lock);
+            let new_mask = self.saved_style(&mut shared_state_lock);
             self.set_style_mask_async(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 

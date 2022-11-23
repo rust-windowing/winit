@@ -492,11 +492,11 @@ fn dur2timeout(dur: Duration) -> u32 {
         .checked_mul(1000)
         .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
         .and_then(|ms| {
-            ms.checked_add(if dur.subsec_nanos() % 1_000_000 > 0 {
-                1
+            if dur.subsec_nanos() % 1_000_000 > 0 {
+                ms.checked_add(1)
             } else {
-                0
-            })
+                Some(ms)
+            }
         })
         .map(|ms| {
             if ms > u32::MAX as u64 {
@@ -1547,7 +1547,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_LBUTTONDOWN => {
             use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1589,7 +1589,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1631,7 +1631,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1674,7 +1674,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -2155,6 +2155,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     // The direction to nudge the window in to get the window onto the monitor with
                     // the new DPI factor. We calculate this by seeing which monitor edges are
                     // shared and nudging away from the wrong monitor based on those.
+                    #[allow(clippy::bool_to_int_with_if)]
                     let delta_nudge_to_dpi_monitor = (
                         if wrong_monitor_rect.left == new_monitor_rect.right {
                             -1
@@ -2210,7 +2211,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 
-            if preferred_theme == None {
+            if preferred_theme.is_none() {
                 let new_theme = try_theme(window, preferred_theme);
                 let mut window_state = userdata.window_state_lock();
 

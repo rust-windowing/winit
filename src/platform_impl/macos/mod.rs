@@ -74,7 +74,7 @@ impl Deref for Window {
     type Target = WinitWindow;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.window
+        &self.window
     }
 }
 
