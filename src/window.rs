@@ -1435,6 +1435,8 @@ impl Default for UserAttentionType {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
+    ///
+    /// This is useful for a widget-based app.
     AlwaysOnBottom,
     /// The default.
     Normal,
