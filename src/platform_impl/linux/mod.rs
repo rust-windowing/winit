@@ -39,7 +39,7 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -472,10 +472,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
+    pub fn set_window_level(&self, _level: WindowLevel) {
         match self {
             #[cfg(feature = "x11")]
-            Window::X(ref w) => w.set_always_on_top(_always_on_top),
+            Window::X(ref w) => w.set_window_level(_level),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
         }

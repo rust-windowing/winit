@@ -72,7 +72,8 @@ pub unsafe fn set_destroy_callback(
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
 enum ReplaceImError {
-    MethodOpenFailed(PotentialInputMethods),
+    // Boxed to prevent large error type
+    MethodOpenFailed(Box<PotentialInputMethods>),
     ContextCreationFailed(ImeContextCreationError),
     SetDestroyCallbackFailed(XError),
 }
@@ -88,7 +89,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
         let is_fallback = new_im.is_fallback();
         (
             new_im.ok().ok_or_else(|| {
-                ReplaceImError::MethodOpenFailed((*inner).potential_input_methods.clone())
+                ReplaceImError::MethodOpenFailed(Box::new((*inner).potential_input_methods.clone()))
             })?,
             is_fallback,
         )

@@ -84,6 +84,9 @@ extern_methods!(
         #[sel(setMovable:)]
         pub fn setMovable(&self, movable: bool);
 
+        #[sel(setSharingType:)]
+        pub fn setSharingType(&self, sharingType: NSWindowSharingType);
+
         #[sel(setOpaque:)]
         pub fn setOpaque(&self, opaque: bool);
 
@@ -165,6 +168,9 @@ extern_methods!(
         #[sel(setLevel:)]
         pub fn setLevel(&self, level: NSWindowLevel);
 
+        #[sel(setDocumentEdited:)]
+        pub fn setDocumentEdited(&self, val: bool);
+
         #[sel(occlusionState)]
         pub fn occlusionState(&self) -> NSWindowOcclusionState;
 
@@ -182,6 +188,9 @@ extern_methods!(
 
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
+
+        #[sel(isDocumentEdited)]
+        pub fn isDocumentEdited(&self) -> bool;
 
         #[sel(close)]
         pub fn close(&self);
@@ -240,53 +249,71 @@ unsafe impl Encode for NSWindowButton {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }
 
+// CGWindowLevel.h
+//
+// Note: There are two different things at play in this header:
+// `CGWindowLevel` and `CGWindowLevelKey`.
+//
+// It seems like there was a push towards using "key" values instead of the
+// raw window level values, and then you were supposed to use
+// `CGWindowLevelForKey` to get the actual level.
+//
+// But the values that `NSWindowLevel` has are compiled in, and as such has
+// to remain ABI compatible, so they're safe for us to hardcode as well.
 #[allow(dead_code)]
-mod window_level_key {
-    use objc2::foundation::NSInteger;
-    pub const kCGBaseWindowLevelKey: NSInteger = 0;
-    pub const kCGMinimumWindowLevelKey: NSInteger = 1;
-    pub const kCGDesktopWindowLevelKey: NSInteger = 2;
-    pub const kCGBackstopMenuLevelKey: NSInteger = 3;
-    pub const kCGNormalWindowLevelKey: NSInteger = 4;
-    pub const kCGFloatingWindowLevelKey: NSInteger = 5;
-    pub const kCGTornOffMenuWindowLevelKey: NSInteger = 6;
-    pub const kCGDockWindowLevelKey: NSInteger = 7;
-    pub const kCGMainMenuWindowLevelKey: NSInteger = 8;
-    pub const kCGStatusWindowLevelKey: NSInteger = 9;
-    pub const kCGModalPanelWindowLevelKey: NSInteger = 10;
-    pub const kCGPopUpMenuWindowLevelKey: NSInteger = 11;
-    pub const kCGDraggingWindowLevelKey: NSInteger = 12;
-    pub const kCGScreenSaverWindowLevelKey: NSInteger = 13;
-    pub const kCGMaximumWindowLevelKey: NSInteger = 14;
-    pub const kCGOverlayWindowLevelKey: NSInteger = 15;
-    pub const kCGHelpWindowLevelKey: NSInteger = 16;
-    pub const kCGUtilityWindowLevelKey: NSInteger = 17;
-    pub const kCGDesktopIconWindowLevelKey: NSInteger = 18;
-    pub const kCGCursorWindowLevelKey: NSInteger = 19;
-    pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
+mod window_level {
+    const kCGNumReservedWindowLevels: i32 = 16;
+    const kCGNumReservedBaseWindowLevels: i32 = 5;
+
+    pub const kCGBaseWindowLevel: i32 = i32::MIN;
+    pub const kCGMinimumWindowLevel: i32 = kCGBaseWindowLevel + kCGNumReservedBaseWindowLevels;
+    pub const kCGMaximumWindowLevel: i32 = i32::MAX - kCGNumReservedWindowLevels;
+
+    pub const kCGDesktopWindowLevel: i32 = kCGMinimumWindowLevel + 20;
+    pub const kCGDesktopIconWindowLevel: i32 = kCGDesktopWindowLevel + 20;
+    pub const kCGBackstopMenuLevel: i32 = -20;
+    pub const kCGNormalWindowLevel: i32 = 0;
+    pub const kCGFloatingWindowLevel: i32 = 3;
+    pub const kCGTornOffMenuWindowLevel: i32 = 3;
+    pub const kCGModalPanelWindowLevel: i32 = 8;
+    pub const kCGUtilityWindowLevel: i32 = 19;
+    pub const kCGDockWindowLevel: i32 = 20;
+    pub const kCGMainMenuWindowLevel: i32 = 24;
+    pub const kCGStatusWindowLevel: i32 = 25;
+    pub const kCGPopUpMenuWindowLevel: i32 = 101;
+    pub const kCGOverlayWindowLevel: i32 = 102;
+    pub const kCGHelpWindowLevel: i32 = 200;
+    pub const kCGDraggingWindowLevel: i32 = 500;
+    pub const kCGScreenSaverWindowLevel: i32 = 1000;
+    pub const kCGAssistiveTechHighWindowLevel: i32 = 1500;
+    pub const kCGCursorWindowLevel: i32 = kCGMaximumWindowLevel - 1;
 }
-use window_level_key::*;
+use window_level::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub struct NSWindowLevel(pub NSInteger);
 
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[repr(isize)]
-pub enum NSWindowLevel {
+impl NSWindowLevel {
+    #[doc(alias = "BelowNormalWindowLevel")]
+    pub const BELOW_NORMAL: Self = Self((kCGNormalWindowLevel - 1) as _);
     #[doc(alias = "NSNormalWindowLevel")]
-    Normal = kCGBaseWindowLevelKey,
+    pub const Normal: Self = Self(kCGNormalWindowLevel as _);
     #[doc(alias = "NSFloatingWindowLevel")]
-    Floating = kCGFloatingWindowLevelKey,
+    pub const Floating: Self = Self(kCGFloatingWindowLevel as _);
     #[doc(alias = "NSTornOffMenuWindowLevel")]
-    TornOffMenu = kCGTornOffMenuWindowLevelKey,
+    pub const TornOffMenu: Self = Self(kCGTornOffMenuWindowLevel as _);
     #[doc(alias = "NSModalPanelWindowLevel")]
-    ModalPanel = kCGModalPanelWindowLevelKey,
+    pub const ModalPanel: Self = Self(kCGModalPanelWindowLevel as _);
     #[doc(alias = "NSMainMenuWindowLevel")]
-    MainMenu = kCGMainMenuWindowLevelKey,
+    pub const MainMenu: Self = Self(kCGMainMenuWindowLevel as _);
     #[doc(alias = "NSStatusWindowLevel")]
-    Status = kCGStatusWindowLevelKey,
+    pub const Status: Self = Self(kCGStatusWindowLevel as _);
     #[doc(alias = "NSPopUpMenuWindowLevel")]
-    PopUpMenu = kCGPopUpMenuWindowLevelKey,
+    pub const PopUpMenu: Self = Self(kCGPopUpMenuWindowLevel as _);
     #[doc(alias = "NSScreenSaverWindowLevel")]
-    ScreenSaver = kCGScreenSaverWindowLevelKey,
+    pub const ScreenSaver: Self = Self(kCGScreenSaverWindowLevel as _);
 }
 
 unsafe impl Encode for NSWindowLevel {
@@ -331,5 +358,18 @@ pub enum NSBackingStoreType {
 }
 
 unsafe impl Encode for NSBackingStoreType {
+    const ENCODING: Encoding = NSUInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(usize)] // NSUInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowSharingType {
+    NSWindowSharingNone = 0,
+    NSWindowSharingReadOnly = 1,
+    NSWindowSharingReadWrite = 2,
+}
+
+unsafe impl Encode for NSWindowSharingType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }

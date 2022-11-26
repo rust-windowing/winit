@@ -139,13 +139,6 @@ impl WindowExtIOS for Window {
 
 /// Additional methods on [`WindowBuilder`] that are specific to iOS.
 pub trait WindowBuilderExtIOS {
-    /// Sets the root view class used by the [`Window`], otherwise a barebones [`UIView`] is provided.
-    ///
-    /// An instance of the class will be initialized by calling [`-[UIView initWithFrame:]`](https://developer.apple.com/documentation/uikit/uiview/1622488-initwithframe?language=objc).
-    ///
-    /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
-    fn with_root_view_class(self, root_view_class: *const c_void) -> WindowBuilder;
-
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
@@ -195,12 +188,6 @@ pub trait WindowBuilderExtIOS {
 }
 
 impl WindowBuilderExtIOS for WindowBuilder {
-    #[inline]
-    fn with_root_view_class(mut self, root_view_class: *const c_void) -> WindowBuilder {
-        self.platform_specific.root_view_class = unsafe { &*(root_view_class as *const _) };
-        self
-    }
-
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> WindowBuilder {
         self.platform_specific.scale_factor = Some(scale_factor);

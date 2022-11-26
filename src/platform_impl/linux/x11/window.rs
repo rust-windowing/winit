@@ -20,7 +20,9 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowLevel,
+    },
 };
 
 use super::{
@@ -347,8 +349,8 @@ impl UnownedWindow {
                 };
 
                 let mut class_hint = xconn.alloc_class_hint();
-                (*class_hint).res_name = class.as_ptr() as *mut c_char;
-                (*class_hint).res_class = instance.as_ptr() as *mut c_char;
+                class_hint.res_name = class.as_ptr() as *mut c_char;
+                class_hint.res_class = instance.as_ptr() as *mut c_char;
 
                 unsafe {
                     (xconn.xlib.XSetClassHint)(xconn.display, window.xwindow, class_hint.ptr);
@@ -490,11 +492,10 @@ impl UnownedWindow {
                     shared_state.restore_position = Some((x, y));
                 }
             }
-            if window_attrs.always_on_top {
-                window
-                    .set_always_on_top_inner(window_attrs.always_on_top)
-                    .queue();
-            }
+
+            window
+                .set_window_level_inner(window_attrs.window_level)
+                .queue();
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -931,16 +932,25 @@ impl UnownedWindow {
         self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
-    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
-        let above_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
-        self.set_netwm(always_on_top.into(), (above_atom as c_long, 0, 0, 0))
+    fn toggle_atom(&self, atom_bytes: &[u8], enable: bool) -> util::Flusher<'_> {
+        let atom = unsafe { self.xconn.get_atom_unchecked(atom_bytes) };
+        self.set_netwm(enable.into(), (atom as c_long, 0, 0, 0))
+    }
+
+    fn set_window_level_inner(&self, level: WindowLevel) -> util::Flusher<'_> {
+        self.toggle_atom(b"_NET_WM_STATE_ABOVE\0", level == WindowLevel::AlwaysOnTop)
+            .queue();
+        self.toggle_atom(
+            b"_NET_WM_STATE_BELOW\0",
+            level == WindowLevel::AlwaysOnBottom,
+        )
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.set_always_on_top_inner(always_on_top)
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.set_window_level_inner(level)
             .flush()
-            .expect("Failed to set always-on-top state");
+            .expect("Failed to set window-level state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
@@ -1016,15 +1026,15 @@ impl UnownedWindow {
         let extents = self
             .xconn
             .get_frame_extents_heuristic(self.xwindow, self.root);
-        (*self.shared_state_lock()).frame_extents = Some(extents);
+        self.shared_state_lock().frame_extents = Some(extents);
     }
 
     pub(crate) fn invalidate_cached_frame_extents(&self) {
-        (*self.shared_state_lock()).frame_extents.take();
+        self.shared_state_lock().frame_extents.take();
     }
 
     pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             extents.inner_pos_to_outer(x, y)
@@ -1036,7 +1046,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let extents = (*self.shared_state_lock()).frame_extents.clone();
+        let extents = self.shared_state_lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
             Ok(extents.inner_pos_to_outer(x, y).into())
@@ -1064,7 +1074,7 @@ impl UnownedWindow {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
-            let extents = (*self.shared_state_lock()).frame_extents.clone();
+            let extents = self.shared_state_lock().frame_extents.clone();
             if let Some(extents) = extents {
                 x += extents.frame_extents.left as i32;
                 y += extents.frame_extents.top as i32;
@@ -1211,10 +1221,10 @@ impl UnownedWindow {
         self.update_normal_hints(|normal_hints| {
             let dpi_adjuster =
                 |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_scale_factor).into() };
-            let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
-            let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
-            let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
-            let base_size = shared_state.base_size.map(&dpi_adjuster);
+            let max_size = shared_state.max_inner_size.map(dpi_adjuster);
+            let min_size = shared_state.min_inner_size.map(dpi_adjuster);
+            let resize_increments = shared_state.resize_increments.map(dpi_adjuster);
+            let base_size = shared_state.base_size.map(dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
@@ -1520,9 +1530,9 @@ impl UnownedWindow {
             .get_wm_hints(self.xwindow)
             .expect("`XGetWMHints` failed");
         if request_type.is_some() {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
+            wm_hints.flags |= ffi::XUrgencyHint;
         } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
+            wm_hints.flags &= !ffi::XUrgencyHint;
         }
         self.xconn
             .set_wm_hints(self.xwindow, wm_hints)

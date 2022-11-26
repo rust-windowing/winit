@@ -120,7 +120,7 @@ impl From<u64> for WindowId {
 
 #[inline(always)]
 const fn get_xbutton_wparam(x: u32) -> u16 {
-    loword(x)
+    hiword(x)
 }
 
 #[inline(always)]

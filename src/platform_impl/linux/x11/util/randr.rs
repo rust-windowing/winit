@@ -46,9 +46,8 @@ impl XConnection {
         if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
             let name: &str = "Xft.dpi:\t";
             for pair in res.split('\n') {
-                if pair.starts_with(&name) {
-                    let res = &pair[name.len()..];
-                    return f64::from_str(res).ok();
+                if let Some(stripped) = pair.strip_prefix(name) {
+                    return f64::from_str(stripped).ok();
                 }
             }
         }
