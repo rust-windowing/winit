@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, macOS , X11 and Wayland, add `Window::set_theme`.
+- On Windows, macOS, X11 and Wayland, add `Window::set_theme`.
 - **Breaking:** Remove `WindowExtWayland::wayland_set_csd_theme` and `WindowBuilderExtX11::with_gtk_theme_variant`.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
