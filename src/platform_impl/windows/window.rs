@@ -1017,7 +1017,7 @@ where
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
-    // so the diffing later can work
+    // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match pl_attribs.parent {
