@@ -250,7 +250,6 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
 pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.client_x() as f64,
-        // Flip the Y axis because canvas's origin is top-left.
-        y: canvas.client_height() as f64 - event.client_y() as f64,
+        y: event.client_y() as f64,
     }
 }
