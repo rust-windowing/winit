@@ -71,7 +71,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -605,14 +605,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
+    pub fn set_window_level(&self, level: WindowLevel) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
+                f.set(
+                    WindowFlags::ALWAYS_ON_TOP,
+                    level == WindowLevel::AlwaysOnTop,
+                );
+                f.set(
+                    WindowFlags::ALWAYS_ON_BOTTOM,
+                    level == WindowLevel::AlwaysOnBottom,
+                );
             });
         });
     }
@@ -985,7 +992,14 @@ where
         WindowFlags::MARKER_UNDECORATED_SHADOW,
         pl_attribs.decoration_shadow,
     );
-    window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_TOP,
+        attributes.window_level == WindowLevel::AlwaysOnTop,
+    );
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_BOTTOM,
+        attributes.window_level == WindowLevel::AlwaysOnBottom,
+    );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,

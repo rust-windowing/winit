@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, Theme},
+    window::{self, CursorGrabMode, Theme, WindowLevel},
 };
 
 fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
@@ -981,7 +981,7 @@ impl Window {
         true
     }
 
-    pub fn set_always_on_top(&self, _always_on_top: bool) {}
+    pub fn set_window_level(&self, _level: WindowLevel) {}
 
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 

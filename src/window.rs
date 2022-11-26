@@ -132,11 +132,11 @@ pub(crate) struct WindowAttributes {
     pub visible: bool,
     pub transparent: bool,
     pub decorations: bool,
-    pub always_on_top: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
+    pub window_level: WindowLevel,
 }
 
 impl Default for WindowAttributes {
@@ -154,7 +154,7 @@ impl Default for WindowAttributes {
             visible: true,
             transparent: false,
             decorations: true,
-            always_on_top: false,
+            window_level: Default::default(),
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
@@ -317,14 +317,16 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets whether or not the window will always be on top of other windows.
+    /// Sets the window level.
     ///
-    /// The default is `false`.
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// See [`Window::set_always_on_top`] for details.
+    /// The default is [`WindowLevel::Normal`].
+    ///
+    /// See [`WindowLevel`] for details.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
-        self.window.always_on_top = always_on_top;
+    pub fn with_window_level(mut self, level: WindowLevel) -> Self {
+        self.window.window_level = level;
         self
     }
 
@@ -840,14 +842,13 @@ impl Window {
         self.window.is_decorated()
     }
 
-    /// Change whether or not the window will always be on top of other windows.
+    /// Change the window level.
     ///
-    /// ## Platform-specific
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
-    #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.window.set_always_on_top(always_on_top)
+    /// See [`WindowLevel`] for details.
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.window.set_window_level(level)
     }
 
     /// Sets the window icon.
@@ -1420,5 +1421,31 @@ pub enum UserAttentionType {
 impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
+    }
+}
+
+/// A window level groups windows with respect to their z-position.
+///
+/// The relative ordering between windows in different window levels is fixed.
+/// The z-order of a window within the same window level may change dynamically on user interaction.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Wayland:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WindowLevel {
+    /// The window will always be below normal windows.
+    ///
+    /// This is useful for a widget-based app.
+    AlwaysOnBottom,
+    /// The default.
+    Normal,
+    /// The window will always be on top of normal windows.
+    AlwaysOnTop,
+}
+
+impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
     }
 }

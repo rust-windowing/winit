@@ -296,6 +296,8 @@ pub struct NSWindowLevel(pub NSInteger);
 
 #[allow(dead_code)]
 impl NSWindowLevel {
+    #[doc(alias = "BelowNormalWindowLevel")]
+    pub const BELOW_NORMAL: Self = Self((kCGNormalWindowLevel - 1) as _);
     #[doc(alias = "NSNormalWindowLevel")]
     pub const Normal: Self = Self(kCGNormalWindowLevel as _);
     #[doc(alias = "NSFloatingWindowLevel")]

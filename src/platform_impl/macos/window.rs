@@ -30,7 +30,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -333,10 +333,6 @@ impl WinitWindow {
                     this.setMovableByWindowBackground(true);
                 }
 
-                if attrs.always_on_top {
-                    this.setLevel(NSWindowLevel::Floating);
-                }
-
                 if let Some(increments) = attrs.resize_increments {
                     let increments = increments.to_logical(this.scale_factor());
                     let (w, h) = (increments.width, increments.height);
@@ -393,6 +389,8 @@ impl WinitWindow {
         if let Some(dim) = attrs.max_inner_size {
             this.set_max_inner_size(Some(dim));
         }
+
+        this.set_window_level(attrs.window_level);
 
         // register for drag and drop operations.
         this.registerForDraggedTypes(&NSArray::from_slice(&[
@@ -1019,11 +1017,11 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        let level = if always_on_top {
-            NSWindowLevel::Floating
-        } else {
-            NSWindowLevel::Normal
+    pub fn set_window_level(&self, level: WindowLevel) {
+        let level = match level {
+            WindowLevel::AlwaysOnTop => NSWindowLevel::Floating,
+            WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
+            WindowLevel::Normal => NSWindowLevel::Normal,
         };
         util::set_level_async(self, level);
     }

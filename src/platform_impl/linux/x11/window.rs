@@ -20,7 +20,9 @@ use crate::{
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowLevel,
+    },
 };
 
 use super::{
@@ -490,11 +492,10 @@ impl UnownedWindow {
                     shared_state.restore_position = Some((x, y));
                 }
             }
-            if window_attrs.always_on_top {
-                window
-                    .set_always_on_top_inner(window_attrs.always_on_top)
-                    .queue();
-            }
+
+            window
+                .set_window_level_inner(window_attrs.window_level)
+                .queue();
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -919,16 +920,25 @@ impl UnownedWindow {
         self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
-    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
-        let above_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
-        self.set_netwm(always_on_top.into(), (above_atom as c_long, 0, 0, 0))
+    fn toggle_atom(&self, atom_bytes: &[u8], enable: bool) -> util::Flusher<'_> {
+        let atom = unsafe { self.xconn.get_atom_unchecked(atom_bytes) };
+        self.set_netwm(enable.into(), (atom as c_long, 0, 0, 0))
+    }
+
+    fn set_window_level_inner(&self, level: WindowLevel) -> util::Flusher<'_> {
+        self.toggle_atom(b"_NET_WM_STATE_ABOVE\0", level == WindowLevel::AlwaysOnTop)
+            .queue();
+        self.toggle_atom(
+            b"_NET_WM_STATE_BELOW\0",
+            level == WindowLevel::AlwaysOnBottom,
+        )
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.set_always_on_top_inner(always_on_top)
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.set_window_level_inner(level)
             .flush()
-            .expect("Failed to set always-on-top state");
+            .expect("Failed to set window-level state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
