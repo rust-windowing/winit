@@ -30,13 +30,14 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
-    is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
+    is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
+    NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
@@ -44,7 +45,8 @@ use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -304,6 +306,10 @@ impl WinitWindow {
                 this.setTitle(&NSString::from_str(&attrs.title));
                 this.setAcceptsMouseMovedEvents(true);
 
+                if attrs.content_protected {
+                    this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+                }
+
                 if pl_attrs.titlebar_transparent {
                     this.setTitlebarAppearsTransparent(true);
                 }
@@ -325,10 +331,6 @@ impl WinitWindow {
                 }
                 if pl_attrs.movable_by_window_background {
                     this.setMovableByWindowBackground(true);
-                }
-
-                if attrs.always_on_top {
-                    this.setLevel(NSWindowLevel::Floating);
                 }
 
                 if let Some(increments) = attrs.resize_increments {
@@ -387,6 +389,8 @@ impl WinitWindow {
         if let Some(dim) = attrs.max_inner_size {
             this.set_max_inner_size(Some(dim));
         }
+
+        this.set_window_level(attrs.window_level);
 
         // register for drag and drop operations.
         this.registerForDraggedTypes(&NSArray::from_slice(&[
@@ -733,7 +737,7 @@ impl WinitWindow {
         shared_state_lock.fullscreen = None;
 
         let maximized = shared_state_lock.maximized;
-        let mask = self.saved_style(&mut *shared_state_lock);
+        let mask = self.saved_style(&mut shared_state_lock);
 
         drop(shared_state_lock);
 
@@ -944,10 +948,9 @@ impl WinitWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                #[allow(clippy::let_unit_value)]
-                unsafe {
-                    let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
-                }
+                let window_level =
+                    NSWindowLevel(unsafe { ffi::CGShieldingWindowLevel() } as NSInteger + 1);
+                self.setLevel(window_level);
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
@@ -1014,11 +1017,11 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        let level = if always_on_top {
-            NSWindowLevel::Floating
-        } else {
-            NSWindowLevel::Normal
+    pub fn set_window_level(&self, level: WindowLevel) {
+        let level = match level {
+            WindowLevel::AlwaysOnTop => NSWindowLevel::Floating,
+            WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
+            WindowLevel::Normal => NSWindowLevel::Normal,
         };
         util::set_level_async(self, level);
     }
@@ -1123,6 +1126,14 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        self.setSharingType(if protected {
+            NSWindowSharingType::NSWindowSharingNone
+        } else {
+            NSWindowSharingType::NSWindowSharingReadOnly
+        })
+    }
+
     pub fn title(&self) -> String {
         self.title_().to_string()
     }
@@ -1191,7 +1202,7 @@ impl WindowExtMacOS for WinitWindow {
 
             true
         } else {
-            let new_mask = self.saved_style(&mut *shared_state_lock);
+            let new_mask = self.saved_style(&mut shared_state_lock);
             self.set_style_mask_async(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
@@ -1215,6 +1226,14 @@ impl WindowExtMacOS for WinitWindow {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
+    }
+
+    fn is_document_edited(&self) -> bool {
+        self.isDocumentEdited()
+    }
+
+    fn set_document_edited(&self, edited: bool) {
+        self.setDocumentEdited(edited)
     }
 }
 

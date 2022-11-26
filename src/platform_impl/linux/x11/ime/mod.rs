@@ -46,7 +46,8 @@ pub enum ImeRequest {
 
 #[derive(Debug)]
 pub enum ImeCreationError {
-    OpenFailure(PotentialInputMethods),
+    // Boxed to prevent large error type
+    OpenFailure(Box<PotentialInputMethods>),
     SetDestroyCallbackFailed(XError),
 }
 
@@ -90,7 +91,7 @@ impl Ime {
         if let Some(input_method) = input_method.ok() {
             inner.is_fallback = is_fallback;
             unsafe {
-                let result = set_destroy_callback(&xconn, input_method.im, &*inner)
+                let result = set_destroy_callback(&xconn, input_method.im, &inner)
                     .map_err(ImeCreationError::SetDestroyCallbackFailed);
                 if result.is_err() {
                     let _ = close_im(&xconn, input_method.im);
@@ -100,7 +101,9 @@ impl Ime {
             inner.im = Some(input_method);
             Ok(Ime { xconn, inner })
         } else {
-            Err(ImeCreationError::OpenFailure(inner.potential_input_methods))
+            Err(ImeCreationError::OpenFailure(Box::new(
+                inner.potential_input_methods,
+            )))
         }
     }
 
