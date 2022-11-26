@@ -350,17 +350,14 @@ impl WindowFlags {
         }
 
         if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {
+            let flags = MF_BYCOMMAND
+                | new
+                    .contains(WindowFlags::CLOSABLE)
+                    .then(|| MF_ENABLED)
+                    .unwrap_or(MF_DISABLED);
+
             unsafe {
-                EnableMenuItem(
-                    GetSystemMenu(window, 0),
-                    SC_CLOSE,
-                    MF_BYCOMMAND
-                        | if new.contains(WindowFlags::CLOSABLE) {
-                            MF_ENABLED
-                        } else {
-                            MF_DISABLED
-                        },
-                );
+                EnableMenuItem(GetSystemMenu(window, 0), SC_CLOSE, flags);
             }
         }
 
