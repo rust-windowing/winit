@@ -22,7 +22,6 @@ use std::{fmt, ops::Deref};
 use self::window::WinitWindow;
 use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
-    appkit::NSWindow,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },

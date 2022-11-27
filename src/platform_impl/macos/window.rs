@@ -35,14 +35,11 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
+use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::{
-    declare::{Ivar, IvarDrop},
-    runtime::Object,
-};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
@@ -83,7 +80,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
-    pub(crate) parent: Option<Id<NSWindow, Shared>>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -99,7 +95,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
-            parent: None,
         }
     }
 }
@@ -350,9 +345,13 @@ impl WinitWindow {
                     }
                 }
 
-                if let Some(parent) = pl_attrs.parent {
+                if let Some(RawWindowHandle::AppKit(handle)) = attrs.parent_window {
                     unsafe {
-                        parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove);
+                        if let Some(parent) =
+                            Id::<NSWindow, Shared>::retain(handle.ns_window as *mut NSWindow)
+                        {
+                            parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove);
+                        }
                     }
                 }
 

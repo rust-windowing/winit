@@ -1,37 +1,38 @@
-#[cfg(all(target_os = "linux", feature = "x11"))]
-use std::collections::HashMap;
-
-#[cfg(all(target_os = "linux", feature = "x11"))]
-use winit::{
-    dpi::{LogicalPosition, LogicalSize, Position},
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-    platform::x11::{WindowBuilderExtX11, WindowExtX11},
-    window::{Window, WindowBuilder, WindowId},
-};
-
-#[cfg(all(target_os = "linux", feature = "x11"))]
-fn spawn_child_window(
-    parent: u32,
-    event_loop: &EventLoopWindowTarget<()>,
-    windows: &mut HashMap<u32, Window>,
-) {
-    let child_window = WindowBuilder::new()
-        .with_parent(WindowId::from(parent as u64))
-        .with_title("child window")
-        .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
-        .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-        .with_visible(true)
-        .build(event_loop)
-        .unwrap();
-
-    let id = child_window.xlib_window().unwrap() as u32;
-    windows.insert(id, child_window);
-    println!("child window created with id: {}", id);
-}
-
-#[cfg(all(target_os = "linux", feature = "x11"))]
+#[cfg(any(
+    all(target_os = "linux", feature = "x11"),
+    target_os = "macos",
+    target_os = "windows"
+))]
 fn main() {
+    use std::collections::HashMap;
+
+    use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+    use winit::{
+        dpi::{LogicalPosition, LogicalSize, Position},
+        event::{ElementState, Event, KeyboardInput, WindowEvent},
+        event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+        window::{Window, WindowBuilder, WindowId},
+    };
+
+    fn spawn_child_window(
+        parent: RawWindowHandle,
+        event_loop: &EventLoopWindowTarget<()>,
+        windows: &mut HashMap<WindowId, Window>,
+    ) {
+        let child_window = WindowBuilder::new()
+            .with_parent_window(Some(parent))
+            .with_title("child window")
+            .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
+            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_visible(true)
+            .build(event_loop)
+            .unwrap();
+
+        let id = child_window.id();
+        windows.insert(id, child_window);
+        println!("child window created with id: {:?}", id);
+    }
+
     let mut windows = HashMap::new();
 
     let event_loop: EventLoop<()> = EventLoop::new();
@@ -42,8 +43,8 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let root = parent_window.xlib_window().unwrap() as u32;
-    println!("parent window id: {})", root);
+    let root = parent_window.raw_window_handle();
+    println!("parent window: {:?})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -77,7 +78,11 @@ fn main() {
     })
 }
 
-#[cfg(not(all(target_os = "linux", feature = "x11")))]
+#[cfg(not(any(
+    all(target_os = "linux", feature = "x11"),
+    target_os = "macos",
+    target_os = "windows"
+)))]
 fn main() {
-    panic!("This example is supported only on x11.");
+    panic!("This example is supported only on x11, macOS, and Windows.");
 }

@@ -136,6 +136,7 @@ pub(crate) struct WindowAttributes {
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
+    pub parent_window: Option<RawWindowHandle>,
 }
 
 impl Default for WindowAttributes {
@@ -157,6 +158,7 @@ impl Default for WindowAttributes {
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
+            parent_window: None,
         }
     }
 }
@@ -362,6 +364,12 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    #[inline]
+    pub fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+        self.window.parent_window = parent_window;
         self
     }
 
