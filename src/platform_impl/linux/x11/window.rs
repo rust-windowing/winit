@@ -122,7 +122,6 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let root = if let Some(RawWindowHandle::Xlib(handle)) = window_attrs.parent_window {
-            dbg!(1);
             handle.window
         } else {
             event_loop.root

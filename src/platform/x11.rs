@@ -1,7 +1,6 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
-use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
