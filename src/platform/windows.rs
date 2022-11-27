@@ -5,7 +5,7 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    platform_impl::{Parent, WinIcon},
+    platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -179,13 +179,6 @@ impl WindowExtWindows for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExtWindows {
-    /// Sets a parent to the window to be created.
-    ///
-    /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
-    ///
-    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
-    fn with_parent_window(self, parent: HWND) -> WindowBuilder;
-
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
@@ -236,14 +229,8 @@ pub trait WindowBuilderExtWindows {
 
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
-    fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Parent::ChildOf(parent);
-        self
-    }
-
-    #[inline]
     fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Parent::OwnedBy(parent);
+        self.platform_specific.parent = Some(parent);
         self
     }
 

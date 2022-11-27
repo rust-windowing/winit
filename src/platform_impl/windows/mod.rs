@@ -21,15 +21,8 @@ use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 
 #[derive(Clone)]
-pub enum Parent {
-    None,
-    ChildOf(HWND),
-    OwnedBy(HWND),
-}
-
-#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Parent,
+    pub parent: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
@@ -41,7 +34,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: Parent::None,
+            parent: None,
             menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,
