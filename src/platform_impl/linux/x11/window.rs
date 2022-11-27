@@ -121,9 +121,9 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = if let Some(id) = pl_attribs.parent_id {
-            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
-            u64::from(id) as _
+        let root = if let Some(RawWindowHandle::Xlib(handle)) = window_attrs.parent_window {
+            dbg!(1);
+            handle.window
         } else {
             event_loop.root
         };

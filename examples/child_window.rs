@@ -56,7 +56,7 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::CursorEntered { device_id: _ } => {
-                    // println when the cursor entered in a window even if the child window is created
+                    // On x11, println when the cursor entered in a window even if the child window is created
                     // by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
                     // so we also can see this log when we move the cursor arround (200, 200) in parent window.

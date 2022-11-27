@@ -394,7 +394,7 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows** : A child window has the WS_CHILD style and is confined to the client area of its parent window. 
+    /// - **Windows** : A child window has the WS_CHILD style and is confined to the client area of its parent window.
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **Android / iOS / Wayland:** Ignored.
     #[inline]
