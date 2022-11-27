@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- **Breaking:** Removed `WindowBuilderExtUnix::with_parent` and `WindowBuilderExtWindows::with_parent_window` in favor of `WindowBuilder::with_parent_window`. It now supports x11, macOS, and Windows. 
+- **Breaking:** Removed `WindowBuilderExtX11::with_parent` and `WindowBuilderExtWindows::with_parent_window` in favor of `WindowBuilder::with_parent_window`. It now supports x11, macOS, and Windows. 
 - **Breaking:** Removed `Window::set_always_on_top` and related APIs in favor of `Window::set_window_level`.
 - On Windows, MacOS and X11, add always on bottom APIs.
 - On Windows, fix the value in `MouseButton::Other`.
