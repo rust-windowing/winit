@@ -42,11 +42,12 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
-            SetCursorPos, SetForegroundWindow, SetWindowPlacement, SetWindowPos, SetWindowTextW,
-            CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP,
-            FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY,
-            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-            SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
+            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+            WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -72,6 +73,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
     },
 };
 
@@ -644,14 +646,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
+    pub fn set_window_level(&self, level: WindowLevel) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
+                f.set(
+                    WindowFlags::ALWAYS_ON_TOP,
+                    level == WindowLevel::AlwaysOnTop,
+                );
+                f.set(
+                    WindowFlags::ALWAYS_ON_BOTTOM,
+                    level == WindowLevel::AlwaysOnBottom,
+                );
             });
         });
     }
@@ -777,6 +786,20 @@ impl Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(window.0) };
         }
+    }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if protected {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
     }
 }
 
@@ -948,6 +971,10 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         let attributes = self.attributes.clone();
 
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
+
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
@@ -1008,7 +1035,14 @@ where
         WindowFlags::MARKER_UNDECORATED_SHADOW,
         pl_attribs.decoration_shadow,
     );
-    window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_TOP,
+        attributes.window_level == WindowLevel::AlwaysOnTop,
+    );
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_BOTTOM,
+        attributes.window_level == WindowLevel::AlwaysOnBottom,
+    );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,
@@ -1161,7 +1195,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 

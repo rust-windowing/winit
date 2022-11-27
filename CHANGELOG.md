@@ -9,6 +9,13 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows and MacOS, add API to enable/disable window buttons (close, minimize, ...etc).
+- **Breaking:** Removed `Window::set_always_on_top` and related APIs in favor of `Window::set_window_level`.
+- On Windows, MacOS and X11, add always on bottom APIs.
+- On Windows, fix the value in `MouseButton::Other`.
+- On macOS, add `WindowExtMacOS::is_document_edited` and `WindowExtMacOS::set_document_edited` APIs.
+- **Breaking:** Removed `WindowBuilderExtIOS::with_root_view_class`; instead, you should use `[[view layer] addSublayer: ...]` to add an instance of the desired layer class (e.g. `CAEAGLLayer` or `CAMetalLayer`). See `vulkano-win` or `wgpu` for examples of this.
+- On MacOS and Windows, add `Window::set_content_protected`.
+- On MacOS, add `EventLoopBuilderExtMacOS::with_activate_ignoring_other_apps`.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.

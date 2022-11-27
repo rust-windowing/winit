@@ -124,6 +124,7 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
+    pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -131,6 +132,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             activation_policy: Default::default(), // Regular
             default_menu: true,
+            activate_ignoring_other_apps: true,
         }
     }
 }
@@ -154,7 +156,11 @@ impl<T> EventLoop<T> {
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
-        let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
+        let delegate = ApplicationDelegate::new(
+            activation_policy,
+            attributes.default_menu,
+            attributes.activate_ignoring_other_apps,
+        );
 
         autoreleasepool(|_| {
             app.setDelegate(&delegate);

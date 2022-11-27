@@ -41,6 +41,7 @@ use crate::{
     icon::Icon,
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
     },
 };
 
@@ -488,10 +489,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
+    pub fn set_window_level(&self, _level: WindowLevel) {
         match self {
             #[cfg(feature = "x11")]
-            Window::X(ref w) => w.set_always_on_top(_always_on_top),
+            Window::X(ref w) => w.set_window_level(_level),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
         }
