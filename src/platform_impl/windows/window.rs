@@ -42,11 +42,12 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
-            SetCursorPos, SetForegroundWindow, SetWindowPlacement, SetWindowPos, SetWindowTextW,
-            CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP,
-            FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY,
-            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-            SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
+            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+            WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -70,7 +71,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -604,14 +605,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
+    pub fn set_window_level(&self, level: WindowLevel) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
+                f.set(
+                    WindowFlags::ALWAYS_ON_TOP,
+                    level == WindowLevel::AlwaysOnTop,
+                );
+                f.set(
+                    WindowFlags::ALWAYS_ON_BOTTOM,
+                    level == WindowLevel::AlwaysOnBottom,
+                );
             });
         });
     }
@@ -738,6 +746,20 @@ impl Window {
             unsafe { force_window_active(window.0) };
         }
     }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if protected {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
+    }
 }
 
 impl Drop for Window {
@@ -794,7 +816,6 @@ impl<'a, T: 'static> InitData<'a, T> {
         let window_state = {
             let window_state = WindowState::new(
                 &self.attributes,
-                self.pl_attribs.taskbar_icon.clone(),
                 scale_factor,
                 current_theme,
                 self.attributes.preferred_theme,
@@ -904,8 +925,14 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
 
         win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+        win.set_window_icon(self.attributes.window_icon.clone());
+        win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
+
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
 
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
@@ -957,7 +984,7 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = register_window_class::<T>();
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -965,7 +992,14 @@ where
         WindowFlags::MARKER_UNDECORATED_SHADOW,
         pl_attribs.decoration_shadow,
     );
-    window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_TOP,
+        attributes.window_level == WindowLevel::AlwaysOnTop,
+    );
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_BOTTOM,
+        attributes.window_level == WindowLevel::AlwaysOnBottom,
+    );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,
@@ -1030,20 +1064,8 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(
-    window_icon: &Option<Icon>,
-    taskbar_icon: &Option<Icon>,
-) -> Vec<u16> {
+unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
-
-    let h_icon = taskbar_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
-    let h_icon_small = window_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
 
     use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
@@ -1053,12 +1075,12 @@ unsafe fn register_window_class<T: 'static>(
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
-        hIcon: h_icon,
+        hIcon: 0,
         hCursor: 0, // must be null in order for cursor state to work properly
         hbrBackground: COLOR_WINDOWFRAME as _,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
-        hIconSm: h_icon_small,
+        hIconSm: 0,
     };
 
     // We ignore errors because registering the same window class twice would trigger
@@ -1127,7 +1149,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 

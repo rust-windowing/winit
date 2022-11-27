@@ -45,7 +45,7 @@ pub(crate) fn set_style_mask_async(window: &NSWindow, mask: NSWindowStyleMask) {
     // TODO(madsmtm): Remove this 'static hack!
     let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
     Queue::main().exec_async(move || {
-        set_style_mask(*window, mask);
+        set_style_mask(&window, mask);
     });
 }
 pub(crate) fn set_style_mask_sync(window: &NSWindow, mask: NSWindowStyleMask) {
@@ -54,7 +54,7 @@ pub(crate) fn set_style_mask_sync(window: &NSWindow, mask: NSWindowStyleMask) {
     } else {
         let window = MainThreadSafe(window);
         Queue::main().exec_sync(move || {
-            set_style_mask(*window, mask);
+            set_style_mask(&window, mask);
         })
     }
 }
@@ -111,13 +111,13 @@ pub(crate) fn toggle_full_screen_async(
             let required =
                 NSWindowStyleMask::NSTitledWindowMask | NSWindowStyleMask::NSResizableWindowMask;
             if !curr_mask.contains(required) {
-                set_style_mask(*window, required);
+                set_style_mask(&window, required);
                 if let Some(shared_state) = shared_state.upgrade() {
                     let mut shared_state_lock = SharedStateMutexGuard::new(
                         shared_state.lock().unwrap(),
                         "toggle_full_screen_callback",
                     );
-                    (*shared_state_lock).saved_style = Some(curr_mask);
+                    shared_state_lock.saved_style = Some(curr_mask);
                 }
             }
         }

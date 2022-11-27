@@ -24,7 +24,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -282,8 +282,8 @@ impl Inner {
         true
     }
 
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
+    pub fn set_window_level(&self, _level: WindowLevel) {
+        warn!("`Window::set_window_level` is ignored on iOS")
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
@@ -395,9 +395,7 @@ impl Window {
         if window_attributes.max_inner_size.is_some() {
             warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
         }
-        if window_attributes.always_on_top {
-            warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
-        }
+
         // TODO: transparency, visible
 
         unsafe {
@@ -688,25 +686,11 @@ impl From<id> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub root_view_class: &'static Class,
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
-}
-
-impl Default for PlatformSpecificWindowBuilderAttributes {
-    fn default() -> PlatformSpecificWindowBuilderAttributes {
-        PlatformSpecificWindowBuilderAttributes {
-            root_view_class: class!(UIView),
-            scale_factor: None,
-            valid_orientations: Default::default(),
-            prefers_home_indicator_hidden: false,
-            prefers_status_bar_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: Default::default(),
-        }
-    }
 }
