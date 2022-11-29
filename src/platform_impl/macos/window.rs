@@ -411,11 +411,11 @@ impl WinitWindow {
         match attrs.preferred_theme {
             Some(theme) => {
                 set_ns_theme(Some(theme));
-                let mut state = this.shared_state.lock().unwrap();
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(theme);
             }
             None => {
-                let mut state = this.shared_state.lock().unwrap();
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(get_ns_theme());
             }
         }
@@ -1168,8 +1168,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        let state = self.shared_state.lock().unwrap();
-        state.current_theme
+        self.lock_shared_state("theme").current_theme
     }
 
     #[inline]
@@ -1205,13 +1204,13 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.is_simple_fullscreen
+        self.lock_shared_state("simple_fullscreen")
+            .is_simple_fullscreen
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let mut shared_state_lock = self.lock_shared_state("set_simple_fullscreen");
 
         let app = NSApp();
         let is_native_fullscreen = shared_state_lock.fullscreen.is_some();
