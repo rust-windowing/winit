@@ -1069,7 +1069,6 @@ where
 unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
 
-    use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1079,7 +1078,7 @@ unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
         hInstance: util::get_instance_handle(),
         hIcon: 0,
         hCursor: 0, // must be null in order for cursor state to work properly
-        hbrBackground: COLOR_WINDOWFRAME as _,
+        hbrBackground: 0,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
         hIconSm: 0,
