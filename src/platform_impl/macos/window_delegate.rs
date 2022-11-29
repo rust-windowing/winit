@@ -57,10 +57,7 @@ declare_class!(
             this.map(|this| {
                 let scale_factor = window.scale_factor();
 
-                Ivar::write(&mut this.window, unsafe {
-                    let window: *const WinitWindow = window;
-                    Id::retain(window as *mut WinitWindow).unwrap()
-                });
+                Ivar::write(&mut this.window, window.retain());
                 Ivar::write(&mut this.initial_fullscreen, initial_fullscreen);
                 Ivar::write(&mut this.previous_position, None);
                 Ivar::write(&mut this.previous_scale_factor, scale_factor);

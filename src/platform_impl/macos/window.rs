@@ -4,7 +4,7 @@ use std::{
     os::raw::c_void,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        Mutex, MutexGuard,
     },
 };
 
@@ -105,7 +105,7 @@ declare_class!(
     pub(crate) struct WinitWindow {
         // TODO: Fix unnecessary boxing here
         // SAFETY: These are initialized in WinitWindow::new, right after it is created.
-        shared_state: IvarDrop<Box<Arc<Mutex<SharedState>>>>,
+        shared_state: IvarDrop<Box<Mutex<SharedState>>>,
         decorations: IvarDrop<Box<AtomicBool>>,
     }
 
@@ -169,7 +169,7 @@ pub(crate) struct SharedStateMutexGuard<'a> {
 
 impl<'a> SharedStateMutexGuard<'a> {
     #[inline]
-    pub(crate) fn new(guard: MutexGuard<'a, SharedState>, called_from_fn: &'static str) -> Self {
+    fn new(guard: MutexGuard<'a, SharedState>, called_from_fn: &'static str) -> Self {
         trace!("Locked shared state in `{}`", called_from_fn);
         Self {
             guard,
@@ -301,10 +301,7 @@ impl WinitWindow {
                     maximized: attrs.maximized,
                     ..Default::default()
                 };
-                Ivar::write(
-                    &mut this.shared_state,
-                    Box::new(Arc::new(Mutex::new(state))),
-                );
+                Ivar::write(&mut this.shared_state, Box::new(Mutex::new(state)));
                 Ivar::write(
                     &mut this.decorations,
                     Box::new(AtomicBool::new(attrs.decorations)),
@@ -414,11 +411,11 @@ impl WinitWindow {
         match attrs.preferred_theme {
             Some(theme) => {
                 set_ns_theme(Some(theme));
-                let mut state = this.shared_state.lock().unwrap();
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(theme);
             }
             None => {
-                let mut state = this.shared_state.lock().unwrap();
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(get_ns_theme());
             }
         }
@@ -441,6 +438,12 @@ impl WinitWindow {
         }
 
         Ok((this, delegate))
+    }
+
+    pub(super) fn retain(&self) -> Id<WinitWindow, Shared> {
+        // SAFETY: The pointer is valid, and the window is always `Shared`
+        // TODO(madsmtm): Remove the need for unsafety here
+        unsafe { Id::retain(self as *const Self as *mut Self).unwrap() }
     }
 
     pub(super) fn view(&self) -> Id<WinitView, Shared> {
@@ -826,12 +829,7 @@ impl WinitWindow {
         if is_zoomed == maximized {
             return;
         };
-        util::set_maximized_async(
-            self,
-            is_zoomed,
-            maximized,
-            Arc::downgrade(&*self.shared_state),
-        );
+        util::set_maximized_async(self.retain(), is_zoomed, maximized);
     }
 
     #[inline]
@@ -966,30 +964,18 @@ impl WinitWindow {
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => {
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &None) => {
                 // State is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
                     util::restore_display_mode_async(video_mode.monitor().native_identifier())
                 };
                 // Rest of the state is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => {
                 // If we're already in fullscreen mode, calling
@@ -1182,8 +1168,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        let state = self.shared_state.lock().unwrap();
-        state.current_theme
+        self.lock_shared_state("theme").current_theme
     }
 
     #[inline]
@@ -1219,13 +1204,13 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.is_simple_fullscreen
+        self.lock_shared_state("simple_fullscreen")
+            .is_simple_fullscreen
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let mut shared_state_lock = self.lock_shared_state("set_simple_fullscreen");
 
         let app = NSApp();
         let is_native_fullscreen = shared_state_lock.fullscreen.is_some();

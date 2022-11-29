@@ -148,7 +148,7 @@ declare_class!(
         #[sel(initWithId:acceptsFirstMouse:)]
         fn init_with_id(
             &mut self,
-            window: *mut WinitWindow,
+            window: &WinitWindow,
             accepts_first_mouse: bool,
         ) -> Option<&mut Self> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
@@ -164,10 +164,7 @@ declare_class!(
                     forward_key_to_app: false,
                 };
 
-                Ivar::write(
-                    &mut this._ns_window,
-                    unsafe { Id::retain(window) }.expect("non-null window"),
-                );
+                Ivar::write(&mut this._ns_window, window.retain());
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
                 Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
