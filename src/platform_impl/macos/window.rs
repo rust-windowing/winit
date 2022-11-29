@@ -826,7 +826,7 @@ impl WinitWindow {
         if is_zoomed == maximized {
             return;
         };
-        util::set_maximized_async(self.retain(), is_zoomed, maximized);
+        util::set_maximized_sync(self, is_zoomed, maximized);
     }
 
     #[inline]
@@ -956,23 +956,22 @@ impl WinitWindow {
             }
         }
 
-        let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
-        shared_state_lock.fullscreen = fullscreen.clone();
+        self.lock_shared_state("set_fullscreen").fullscreen = fullscreen.clone();
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => {
-                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &None) => {
                 // State is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
+                    util::restore_display_mode_sync(video_mode.monitor().native_identifier())
                 };
                 // Rest of the state is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(self.retain(), old_fullscreen.is_none());
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => {
                 // If we're already in fullscreen mode, calling
@@ -984,7 +983,8 @@ impl WinitWindow {
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 let app = NSApp();
-                shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
+                self.lock_shared_state("set_fullscreen")
+                    .save_presentation_opts = Some(app.presentationOptions());
 
                 let presentation_options =
                     NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -997,8 +997,10 @@ impl WinitWindow {
                 self.setLevel(window_level);
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
-                let presentation_options =
-                    shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
+                let presentation_options = self
+                    .lock_shared_state("set_fullscreen")
+                    .save_presentation_opts
+                    .unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
@@ -1006,7 +1008,7 @@ impl WinitWindow {
                 NSApp().setPresentationOptions(presentation_options);
 
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
+                    util::restore_display_mode_sync(video_mode.monitor().native_identifier())
                 };
 
                 // Restore the normal window level following the Borderless fullscreen

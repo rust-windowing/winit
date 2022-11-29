@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
-use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::rc::autoreleasepool;
 
 use crate::{
     dpi::LogicalSize,
@@ -90,9 +90,9 @@ pub(crate) fn set_ignore_mouse_events_sync(window: &NSWindow, ignore: bool) {
 
 // `toggleFullScreen` is thread-safe, but our additional logic to account for
 // window styles isn't.
-pub(crate) fn toggle_full_screen_async(window: Id<WinitWindow, Shared>, not_fullscreen: bool) {
+pub(crate) fn toggle_full_screen_sync(window: &WinitWindow, not_fullscreen: bool) {
     let window = MainThreadSafe(window);
-    Queue::main().exec_async(move || {
+    run_on_main(move || {
         // `toggleFullScreen` doesn't work if the `StyleMask` is none, so we
         // set a normal style temporarily. The previous state will be
         // restored in `WindowDelegate::window_did_exit_fullscreen`.
@@ -103,7 +103,7 @@ pub(crate) fn toggle_full_screen_async(window: Id<WinitWindow, Shared>, not_full
             if !curr_mask.contains(required) {
                 set_style_mask(&window, required);
                 window
-                    .lock_shared_state("toggle_full_screen_async")
+                    .lock_shared_state("toggle_full_screen_sync")
                     .saved_style = Some(curr_mask);
             }
         }
@@ -115,8 +115,8 @@ pub(crate) fn toggle_full_screen_async(window: Id<WinitWindow, Shared>, not_full
     });
 }
 
-pub(crate) unsafe fn restore_display_mode_async(ns_screen: u32) {
-    Queue::main().exec_async(move || {
+pub(crate) unsafe fn restore_display_mode_sync(ns_screen: u32) {
+    run_on_main(move || {
         unsafe { ffi::CGRestorePermanentDisplayConfiguration() };
         assert_eq!(
             unsafe { ffi::CGDisplayRelease(ns_screen) },
@@ -126,14 +126,10 @@ pub(crate) unsafe fn restore_display_mode_async(ns_screen: u32) {
 }
 
 // `setMaximized` is not thread-safe
-pub(crate) fn set_maximized_async(
-    window: Id<WinitWindow, Shared>,
-    is_zoomed: bool,
-    maximized: bool,
-) {
+pub(crate) fn set_maximized_sync(window: &WinitWindow, is_zoomed: bool, maximized: bool) {
     let window = MainThreadSafe(window);
-    Queue::main().exec_async(move || {
-        let mut shared_state = window.lock_shared_state("set_maximized_async");
+    run_on_main(move || {
+        let mut shared_state = window.lock_shared_state("set_maximized_sync");
         // Save the standard frame sized if it is not zoomed
         if !is_zoomed {
             shared_state.standard_frame = Some(window.frame());
@@ -150,6 +146,7 @@ pub(crate) fn set_maximized_async(
             .styleMask()
             .contains(NSWindowStyleMask::NSResizableWindowMask)
         {
+            drop(shared_state);
             // Just use the native zoom if resizable
             window.zoom(None);
         } else {
@@ -160,6 +157,7 @@ pub(crate) fn set_maximized_async(
             } else {
                 shared_state.saved_standard_frame()
             };
+            drop(shared_state);
             window.setFrame_display(new_rect, false);
         }
     });
