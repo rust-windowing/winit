@@ -1041,6 +1041,8 @@ impl Window {
         self.app.content_rect()
     }
 
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
+
     pub fn theme(&self) -> Option<Theme> {
         None
     }

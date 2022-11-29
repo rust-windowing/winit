@@ -349,8 +349,10 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
+    /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
@@ -963,11 +965,26 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
+    /// Sets the current window theme. Use `None` to fallback to system default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This is an app-wide setting.
+    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.window.set_theme(theme)
+    }
+
     /// Returns the current window theme.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / x11:** Unsupported.
+    /// - **macOS:** This is an app-wide setting.
+    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()

@@ -399,7 +399,7 @@ impl WinitWindow {
 
         match attrs.preferred_theme {
             Some(theme) => {
-                set_ns_theme(theme);
+                set_ns_theme(Some(theme));
                 let mut state = this.shared_state.lock().unwrap();
                 state.current_theme = Some(theme);
             }
@@ -1126,6 +1126,12 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        set_ns_theme(theme);
+        self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));
+    }
+
+    #[inline]
     pub fn set_content_protected(&self, protected: bool) {
         self.setSharingType(if protected {
             NSWindowSharingType::NSWindowSharingNone
@@ -1254,15 +1260,17 @@ pub(super) fn get_ns_theme() -> Theme {
     }
 }
 
-fn set_ns_theme(theme: Theme) {
+fn set_ns_theme(theme: Option<Theme>) {
     let app = NSApp();
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
-        let name = match theme {
-            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
-        };
-        let appearance = NSAppearance::appearanceNamed(&name);
-        app.setAppearance(&appearance);
+        let appearance = theme.map(|t| {
+            let name = match t {
+                Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+                Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+            };
+            NSAppearance::appearanceNamed(&name)
+        });
+        app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }
 }

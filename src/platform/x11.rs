@@ -190,9 +190,6 @@ pub trait WindowBuilderExtX11 {
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
 
-    /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
-    fn with_gtk_theme_variant(self, variant: String) -> Self;
-
     /// Build window with base size hint. Only implemented on X11.
     ///
     /// ```
@@ -245,12 +242,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
         self.platform_specific.x11_window_types = x11_window_types;
-        self
-    }
-
-    #[inline]
-    fn with_gtk_theme_variant(mut self, variant: String) -> Self {
-        self.platform_specific.gtk_theme_variant = Some(variant);
         self
     }
 

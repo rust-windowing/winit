@@ -2,7 +2,7 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Theme, WindowBuilder},
 };
@@ -18,6 +18,10 @@ fn main() {
         .unwrap();
 
     println!("Initial theme: {:?}", window.theme());
+    println!("debugging keys:");
+    println!("  (A) Automatic theme");
+    println!("  (L) Light theme");
+    println!("  (D) Dark theme");
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -34,6 +38,33 @@ fn main() {
             } if window_id == window.id() => {
                 println!("Theme is changed: {:?}", theme)
             }
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                virtual_keycode: Some(key),
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => match key {
+                VirtualKeyCode::A => {
+                    println!("Theme was: {:?}", window.theme());
+                    window.set_theme(None);
+                }
+                VirtualKeyCode::L => {
+                    println!("Theme was: {:?}", window.theme());
+                    window.set_theme(Some(Theme::Light));
+                }
+                VirtualKeyCode::D => {
+                    println!("Theme was: {:?}", window.theme());
+                    window.set_theme(Some(Theme::Dark));
+                }
+                _ => (),
+            },
             _ => (),
         }
     });

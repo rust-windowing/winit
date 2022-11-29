@@ -702,6 +702,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        try_theme(self.window.0, theme);
+    }
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         Some(self.window_state_lock().current_theme)
     }
