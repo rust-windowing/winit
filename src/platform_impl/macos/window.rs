@@ -46,7 +46,7 @@ use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTitleVisibility,
 };
 
@@ -348,13 +348,20 @@ impl WinitWindow {
                 }
 
                 if let Some(RawWindowHandle::AppKit(handle)) = attrs.parent_window {
-                    unsafe {
-                        if let Some(parent) =
-                            Id::<NSWindow, Shared>::retain(handle.ns_window as *mut NSWindow)
-                        {
-                            parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove);
-                        }
-                    }
+                    // SAFETY: Caller ensures the pointer is valid or NULL
+                    let parent: Id<NSWindow, Shared> =
+                        unsafe { Id::retain(handle.ns_window.cast()) }.unwrap_or_else(|| {
+                            // SAFETY: Caller ensures the pointer is valid or NULL
+                            let parent_view: Id<NSView, Shared> =
+                                unsafe { Id::retain(handle.ns_view.cast()) }
+                                    .expect("raw window handle should be non-empty");
+                            parent_view
+                                .window()
+                                .expect("parent view should be installed in a window")
+                        });
+                    // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
+                    // where we allow making a window a child window is right here, just after it's been created.
+                    unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
                 }
 
                 if !pl_attrs.has_shadow {

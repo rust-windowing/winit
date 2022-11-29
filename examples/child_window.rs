@@ -19,17 +19,14 @@ fn main() {
         event_loop: &EventLoopWindowTarget<()>,
         windows: &mut HashMap<WindowId, Window>,
     ) {
+        let mut builder = WindowBuilder::new()
+            .with_title("child window")
+            .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
+            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_visible(true);
         // `with_parent_window` is unsafe. Parent window must a valid window.
-        let child_window = unsafe {
-            WindowBuilder::new()
-                .with_parent_window(Some(parent))
-                .with_title("child window")
-                .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
-                .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-                .with_visible(true)
-                .build(event_loop)
-                .unwrap()
-        };
+        builder = unsafe { builder.with_parent_window(Some(parent)) };
+        let child_window = builder.build(event_loop).unwrap();
 
         let id = child_window.id();
         windows.insert(id, child_window);
