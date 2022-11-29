@@ -1,16 +1,16 @@
 #![allow(clippy::unnecessary_cast)]
 
-use objc2::foundation::{CGFloat, CGPoint, CGRect, NSObject};
-use objc2::{class, declare_class, msg_send, ClassType};
+use objc2::foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject};
+use objc2::{declare_class, msg_send, ClassType};
 
-use super::uikit::{UIApplication, UIResponder, UIView, UIViewController, UIWindow};
+use super::uikit::{UIApplication, UIDevice, UIResponder, UIView, UIViewController, UIWindow};
 use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform_impl::platform::{
         app_state,
-        event_loop::{self, EventProxy, EventWrapper},
+        event_loop::{EventProxy, EventWrapper},
         ffi::{
             id, nil, UIForceTouchCapability, UIInterfaceOrientationMask, UIRectEdge, UITouchPhase,
             UITouchType,
@@ -389,10 +389,9 @@ pub(crate) unsafe fn create_view_controller(
         "Failed to initialize `UIViewController` instance"
     );
     let status_bar_hidden = platform_attributes.prefers_status_bar_hidden;
-    let idiom = event_loop::get_idiom();
     let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
         platform_attributes.valid_orientations,
-        idiom,
+        UIDevice::current(MainThreadMarker::new().unwrap()).userInterfaceIdiom(),
     );
     let prefers_home_indicator_hidden = platform_attributes.prefers_home_indicator_hidden;
     let edges: UIRectEdge = platform_attributes

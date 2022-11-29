@@ -10,7 +10,7 @@ use objc2::runtime::{Class, Object};
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
-use super::uikit::UIApplication;
+use super::uikit::{UIApplication, UIDevice};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -19,7 +19,7 @@ use crate::{
     platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state,
-        event_loop::{self, EventProxy, EventWrapper},
+        event_loop::{EventProxy, EventWrapper},
         ffi::{
             id, UIEdgeInsets, UIInterfaceOrientationMask, UIRectEdge, UIScreenOverscanCompensation,
         },
@@ -531,10 +531,9 @@ impl Inner {
 
     pub fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
         unsafe {
-            let idiom = event_loop::get_idiom();
             let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
                 valid_orientations,
-                idiom,
+                UIDevice::current(MainThreadMarker::new().unwrap()).userInterfaceIdiom(),
             );
             msg_send![
                 self.view_controller,

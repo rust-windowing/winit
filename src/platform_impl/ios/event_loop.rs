@@ -15,10 +15,10 @@ use core_foundation::runloop::{
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::foundation::MainThreadMarker;
-use objc2::{class, msg_send, ClassType};
+use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
-use super::uikit::UIApplication;
+use super::uikit::{UIApplication, UIDevice};
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -30,7 +30,7 @@ use crate::{
 
 use crate::platform_impl::platform::{
     app_state,
-    ffi::{id, nil, NSStringRust, UIApplicationMain, UIUserInterfaceIdiom},
+    ffi::{id, nil, NSStringRust, UIApplicationMain},
     monitor, view, MonitorHandle,
 };
 
@@ -149,8 +149,9 @@ impl<T: 'static> EventLoop<T> {
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
-        // guaranteed to be on main thread
-        unsafe { self::get_idiom() }
+        UIDevice::current(MainThreadMarker::new().unwrap())
+            .userInterfaceIdiom()
+            .into()
     }
 }
 
@@ -352,11 +353,4 @@ where
             (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
         }
     }
-}
-
-// must be called on main thread
-pub unsafe fn get_idiom() -> Idiom {
-    let device: id = msg_send![class!(UIDevice), currentDevice];
-    let raw_idiom: UIUserInterfaceIdiom = msg_send![device, userInterfaceIdiom];
-    raw_idiom.into()
 }
