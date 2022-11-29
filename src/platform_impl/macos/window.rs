@@ -510,7 +510,7 @@ impl WinitWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        util::set_frame_top_left_point_async(self, util::window_position(position));
+        util::set_frame_top_left_point_sync(self, util::window_position(position));
     }
 
     #[inline]
@@ -532,7 +532,7 @@ impl WinitWindow {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        util::set_content_size_async(self, size.to_logical(scale_factor));
+        util::set_content_size_sync(self, size.to_logical(scale_factor));
     }
 
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
@@ -882,7 +882,7 @@ impl WinitWindow {
                 // The coordinate system here has its origin at bottom-left
                 // and Y goes up
                 screen_frame.origin.y += screen_frame.size.height;
-                util::set_frame_top_left_point_async(self, screen_frame.origin);
+                util::set_frame_top_left_point_sync(self, screen_frame.origin);
             }
         }
 

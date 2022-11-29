@@ -57,18 +57,18 @@ pub(crate) fn set_style_mask_sync(window: &NSWindow, mask: NSWindowStyleMask) {
 
 // `setContentSize:` isn't thread-safe either, though it doesn't log any errors
 // and just fails silently. Anyway, GCD to the rescue!
-pub(crate) fn set_content_size_async(window: &NSWindow, size: LogicalSize<f64>) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn set_content_size_sync(window: &NSWindow, size: LogicalSize<f64>) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.setContentSize(NSSize::new(size.width as CGFloat, size.height as CGFloat));
     });
 }
 
 // `setFrameTopLeftPoint:` isn't thread-safe, but fortunately has the courtesy
 // to log errors.
-pub(crate) fn set_frame_top_left_point_async(window: &NSWindow, point: NSPoint) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn set_frame_top_left_point_sync(window: &NSWindow, point: NSPoint) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.setFrameTopLeftPoint(point);
     });
 }
