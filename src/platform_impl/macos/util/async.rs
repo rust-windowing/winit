@@ -29,6 +29,14 @@ impl<T> Deref for MainThreadSafe<T> {
     }
 }
 
+fn run_on_main<R: Send>(f: impl FnOnce() -> R + Send) -> R {
+    if is_main_thread() {
+        f()
+    } else {
+        Queue::main().exec_sync(f)
+    }
+}
+
 fn set_style_mask(window: &NSWindow, mask: NSWindowStyleMask) {
     window.setStyleMask(mask);
     // If we don't do this, key handling will break
@@ -48,14 +56,10 @@ pub(crate) fn set_style_mask_async(window: &NSWindow, mask: NSWindowStyleMask) {
     });
 }
 pub(crate) fn set_style_mask_sync(window: &NSWindow, mask: NSWindowStyleMask) {
-    if is_main_thread() {
-        set_style_mask(window, mask);
-    } else {
-        let window = MainThreadSafe(window);
-        Queue::main().exec_sync(move || {
-            set_style_mask(&window, mask);
-        })
-    }
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
+        set_style_mask(&window, mask);
+    })
 }
 
 // `setContentSize:` isn't thread-safe either, though it doesn't log any errors
@@ -199,12 +203,9 @@ pub(crate) fn set_title_async(window: &NSWindow, title: String) {
 
 // `close:` is thread-safe, but we want the event to be triggered from the main
 // thread. Though, it's a good idea to look into that more...
-//
-// ArturKovacs: It's important that this operation keeps the underlying window alive
-// through the `Id` because otherwise it would dereference free'd memory
-pub(crate) fn close_async(window: Id<NSWindow, Shared>) {
+pub(crate) fn close_sync(window: &NSWindow) {
     let window = MainThreadSafe(window);
-    Queue::main().exec_async(move || {
+    run_on_main(move || {
         autoreleasepool(move |_| {
             window.close();
         });
