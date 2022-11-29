@@ -751,7 +751,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        util::set_ignore_mouse_events(self, !hittest);
+        util::set_ignore_mouse_events_sync(self, !hittest);
         Ok(())
     }
 

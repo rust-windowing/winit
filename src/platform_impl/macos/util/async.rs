@@ -1,4 +1,3 @@
-use std::mem;
 use std::ops::Deref;
 
 use dispatch::Queue;
@@ -82,9 +81,9 @@ pub(crate) fn set_level_sync(window: &NSWindow, level: NSWindowLevel) {
 }
 
 // `setIgnoresMouseEvents_:` isn't thread-safe, and fails silently.
-pub(crate) fn set_ignore_mouse_events(window: &NSWindow, ignore: bool) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn set_ignore_mouse_events_sync(window: &NSWindow, ignore: bool) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.setIgnoresMouseEvents(ignore);
     });
 }
