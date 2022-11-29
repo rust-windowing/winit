@@ -230,7 +230,7 @@ pub trait WindowBuilderExtWindows {
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Some(parent);
+        self.platform_specific.owner = Some(parent);
         self
     }
 

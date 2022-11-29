@@ -1016,7 +1016,7 @@ where
             }
             Some(handle.hwnd as HWND)
         }
-        _ => match pl_attribs.parent {
+        _ => match pl_attribs.owner {
             Some(parent) => {
                 window_flags.set(WindowFlags::POPUP, true);
                 Some(parent)

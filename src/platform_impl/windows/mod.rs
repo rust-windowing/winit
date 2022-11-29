@@ -22,7 +22,7 @@ use crate::icon::Icon;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Option<HWND>,
+    pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
@@ -34,7 +34,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: None,
+            owner: None,
             menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,
