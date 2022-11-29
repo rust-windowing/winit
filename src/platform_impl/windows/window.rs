@@ -1016,7 +1016,8 @@ where
             }
             Some(handle.hwnd as HWND)
         }
-        _ => match pl_attribs.owner {
+        Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
+        None => match pl_attribs.owner {
             Some(parent) => {
                 window_flags.set(WindowFlags::POPUP, true);
                 Some(parent)

@@ -121,10 +121,10 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = if let Some(RawWindowHandle::Xlib(handle)) = window_attrs.parent_window {
-            handle.window
-        } else {
-            event_loop.root
+        let root = match window_attrs.parent_window {
+            Some(RawWindowHandle::Xlib(handle)) => handle.window,
+            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
+            None => event_loop.root,
         };
 
         let mut monitors = xconn.available_monitors();
