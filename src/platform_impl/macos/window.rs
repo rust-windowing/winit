@@ -468,7 +468,7 @@ impl WinitWindow {
     }
 
     pub fn set_title(&self, title: &str) {
-        util::set_title_async(self, title.to_string());
+        util::set_title_sync(self, title);
     }
 
     pub fn set_visible(&self, visible: bool) {
