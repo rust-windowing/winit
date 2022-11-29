@@ -30,7 +30,7 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
         WindowId as RootWindowId, WindowLevel,
     },
 };
@@ -270,6 +270,14 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMask::NSResizableWindowMask;
             }
 
+            if !attrs.enabled_buttons.contains(WindowButtons::MINIMIZE) {
+                masks &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+            }
+
+            if !attrs.enabled_buttons.contains(WindowButtons::CLOSE) {
+                masks &= !NSWindowStyleMask::NSClosableWindowMask;
+            }
+
             if pl_attrs.fullsize_content_view {
                 masks |= NSWindowStyleMask::NSFullSizeContentViewWindowMask;
             }
@@ -332,6 +340,12 @@ impl WinitWindow {
                 }
                 if pl_attrs.movable_by_window_background {
                     this.setMovableByWindowBackground(true);
+                }
+
+                if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
+                    if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
+                        button.setEnabled(false);
+                    }
                 }
 
                 if let Some(increments) = attrs.resize_increments {
@@ -423,7 +437,7 @@ impl WinitWindow {
 
         match attrs.preferred_theme {
             Some(theme) => {
-                set_ns_theme(theme);
+                set_ns_theme(Some(theme));
                 let mut state = this.shared_state.lock().unwrap();
                 state.current_theme = Some(theme);
             }
@@ -646,6 +660,53 @@ impl WinitWindow {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.isResizable()
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        let mut mask = self.styleMask();
+
+        if buttons.contains(WindowButtons::CLOSE) {
+            mask |= NSWindowStyleMask::NSClosableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSClosableWindowMask;
+        }
+
+        if buttons.contains(WindowButtons::MINIMIZE) {
+            mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+        }
+
+        // This must happen before the button's "enabled" status has been set,
+        // hence we do it synchronously.
+        self.set_style_mask_sync(mask);
+
+        // We edit the button directly instead of using `NSResizableWindowMask`,
+        // since that mask also affect the resizability of the window (which is
+        // controllable by other means in `winit`).
+        if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
+            button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));
+        }
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        if self.isMiniaturizable() {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if self
+            .standardWindowButton(NSWindowButton::Zoom)
+            .map(|b| b.isEnabled())
+            .unwrap_or(true)
+        {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if self.hasCloseBox() {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
     }
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
@@ -1150,6 +1211,12 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        set_ns_theme(theme);
+        self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));
+    }
+
+    #[inline]
     pub fn set_content_protected(&self, protected: bool) {
         self.setSharingType(if protected {
             NSWindowSharingType::NSWindowSharingNone
@@ -1278,15 +1345,17 @@ pub(super) fn get_ns_theme() -> Theme {
     }
 }
 
-fn set_ns_theme(theme: Theme) {
+fn set_ns_theme(theme: Option<Theme>) {
     let app = NSApp();
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
-        let name = match theme {
-            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
-        };
-        let appearance = NSAppearance::appearanceNamed(&name);
-        app.setAppearance(&appearance);
+        let appearance = theme.map(|t| {
+            let name = match t {
+                Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+                Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+            };
+            NSAppearance::appearanceNamed(&name)
+        });
+        app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }
 }

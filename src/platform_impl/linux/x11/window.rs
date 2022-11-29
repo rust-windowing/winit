@@ -21,7 +21,8 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowLevel,
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -300,6 +301,10 @@ impl UnownedWindow {
             .set_decorations_inner(window_attrs.decorations)
             .queue();
 
+        if let Some(theme) = window_attrs.preferred_theme {
+            window.set_theme_inner(Some(theme)).queue();
+        }
+
         {
             // Enable drag and drop (TODO: extend API to make this toggleable)
             unsafe {
@@ -357,10 +362,6 @@ impl UnownedWindow {
             }
 
             window.set_window_types(pl_attribs.x11_window_types).queue();
-
-            if let Some(variant) = pl_attribs.gtk_theme_variant {
-                window.set_gtk_theme_variant(variant).queue();
-            }
 
             // set size hints
             {
@@ -564,9 +565,14 @@ impl UnownedWindow {
         )
     }
 
-    fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher<'_> {
+    pub fn set_theme_inner(&self, theme: Option<Theme>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
+        let variant = match theme {
+            Some(Theme::Dark) => "dark",
+            Some(Theme::Light) => "light",
+            None => "dark",
+        };
         let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
         self.xconn.change_property(
             self.xwindow,
@@ -575,6 +581,13 @@ impl UnownedWindow {
             util::PropMode::Replace,
             variant.as_bytes(),
         )
+    }
+
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.set_theme_inner(theme)
+            .flush()
+            .expect("Failed to change window theme")
     }
 
     fn set_netwm(
@@ -1265,6 +1278,14 @@ impl UnownedWindow {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.shared_state_lock().is_resizable
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]
