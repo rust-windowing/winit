@@ -14,10 +14,11 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::runtime::Object;
+use objc2::foundation::MainThreadMarker;
 use objc2::{class, msg_send, ClassType};
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
+use super::uikit::UIApplication;
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -113,13 +114,10 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            assert_eq!(
-                application,
-                ptr::null_mut(),
+            let _application = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
                 "\
-                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
-                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
+                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
+                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
             );
             app_state::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,

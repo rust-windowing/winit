@@ -3,7 +3,8 @@
 use objc2::foundation::{CGFloat, CGPoint, CGRect, NSObject};
 use objc2::{class, declare_class, msg_send, ClassType};
 
-use super::uikit::{UIResponder, UIView, UIViewController, UIWindow};
+use super::uikit::{UIApplication, UIResponder, UIView, UIViewController, UIWindow};
+use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
@@ -455,6 +456,12 @@ pub(crate) unsafe fn create_window(
     window
 }
 
+impl WinitUIWindow {
+    pub(crate) fn id(&self) -> WindowId {
+        (self as *const Self as usize as u64).into()
+    }
+}
+
 declare_class!(
     pub struct WinitApplicationDelegate {}
 
@@ -465,7 +472,7 @@ declare_class!(
     // UIApplicationDelegate protocol
     unsafe impl WinitApplicationDelegate {
         #[sel(application:didFinishLaunchingWithOptions:)]
-        fn did_finish_launching(&self, _: id, _: id) -> bool {
+        fn did_finish_launching(&self, _application: &UIApplication, _: id) -> bool {
             unsafe {
                 app_state::did_finish_launching();
             }
@@ -473,40 +480,38 @@ declare_class!(
         }
 
         #[sel(applicationDidBecomeActive:)]
-        fn did_become_active(&self, _: id) {
+        fn did_become_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
         }
 
         #[sel(applicationWillResignActive:)]
-        fn will_resign_active(&self, _: id) {
+        fn will_resign_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
         }
 
         #[sel(applicationWillEnterForeground:)]
-        fn will_enter_foreground(&self, _: id) {}
+        fn will_enter_foreground(&self, _application: &UIApplication) {}
         #[sel(applicationDidEnterBackground:)]
-        fn did_enter_background(&self, _: id) {}
+        fn did_enter_background(&self, _application: &UIApplication) {}
 
         #[sel(applicationWillTerminate:)]
-        fn will_terminate(&self, _: id) {
-            unsafe {
-                let app: id = msg_send![class!(UIApplication), sharedApplication];
-                let windows: id = msg_send![app, windows];
-                let windows_enum: id = msg_send![windows, objectEnumerator];
-                let mut events = Vec::new();
-                loop {
-                    let window: id = msg_send![windows_enum, nextObject];
-                    if window == nil {
-                        break;
-                    }
-                    let is_winit_window = msg_send![window, isKindOfClass: WinitUIWindow::class()];
-                    if is_winit_window {
-                        events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                            window_id: RootWindowId(window.into()),
-                            event: WindowEvent::Destroyed,
-                        }));
-                    }
+        fn will_terminate(&self, application: &UIApplication) {
+            let mut events = Vec::new();
+            for window in application.windows().iter() {
+                if window.is_kind_of::<WinitUIWindow>() {
+                    // SAFETY: We just checked that the window is a `winit` window
+                    let window = unsafe {
+                        let ptr: *const UIWindow = window;
+                        let ptr: *const WinitUIWindow = ptr.cast();
+                        &*ptr
+                    };
+                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::Destroyed,
+                    }));
                 }
+            }
+            unsafe {
                 app_state::handle_nonuser_events(events);
                 app_state::terminated();
             }

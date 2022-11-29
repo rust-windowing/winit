@@ -5,11 +5,12 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize};
+use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
 use objc2::runtime::{Class, Object};
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
+use super::uikit::UIApplication;
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -622,13 +623,11 @@ impl Inner {
             self.rect_to_screen_space(safe_bounds)
         } else {
             let screen_frame = self.rect_to_screen_space(bounds);
-            let status_bar_frame: CGRect = {
-                let app: id = msg_send![class!(UIApplication), sharedApplication];
-                assert!(
-                    !app.is_null(),
-                    "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
+            let status_bar_frame = {
+                let app = UIApplication::shared(MainThreadMarker::new().unwrap_unchecked()).expect(
+                    "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS",
                 );
-                msg_send![app, statusBarFrame]
+                app.statusBarFrame()
             };
             let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
                 (screen_frame.origin.y, screen_frame.size.height)
