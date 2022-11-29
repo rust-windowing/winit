@@ -39,7 +39,10 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
+    },
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -399,6 +402,16 @@ impl Window {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         x11_or_wayland!(match self; Window(w) => w.is_resizable())
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
     }
 
     #[inline]

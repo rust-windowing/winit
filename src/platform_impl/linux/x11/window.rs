@@ -21,7 +21,8 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes, WindowLevel,
+        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -1278,6 +1279,14 @@ impl UnownedWindow {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.shared_state_lock().is_resizable
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

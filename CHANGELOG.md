@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows and MacOS, add API to enable/disable window buttons (close, minimize, ...etc).
 - On Windows, macOS, X11 and Wayland, add `Window::set_theme`.
 - **Breaking:** Remove `WindowExtWayland::wayland_set_csd_theme` and `WindowBuilderExtX11::with_gtk_theme_variant`.
 - On Windows, revert window background to an empty brush to avoid white flashes when changing scaling.

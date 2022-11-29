@@ -126,6 +126,7 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub enabled_buttons: WindowButtons,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
@@ -148,6 +149,7 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
@@ -241,6 +243,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
+        self
+    }
+
+    /// Sets the enabled window buttons.
+    ///
+    /// The default is [`WindowButtons::all`]
+    ///
+    /// See [`Window::set_enabled_buttons`] for details.
+    #[inline]
+    pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
+        self.window.enabled_buttons = buttons;
         self
     }
 
@@ -753,6 +766,26 @@ impl Window {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.window.is_resizable()
+    }
+
+    /// Sets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.window.set_enabled_buttons(buttons)
+    }
+
+    /// Gets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        self.window.enabled_buttons()
     }
 
     /// Sets the window to minimized or back
@@ -1438,6 +1471,14 @@ pub enum UserAttentionType {
 impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
+    }
+}
+
+bitflags! {
+    pub struct WindowButtons: u32 {
+        const CLOSE  = 1 << 0;
+        const MINIMIZE  = 1 << 1;
+        const MAXIMIZE  = 1 << 2;
     }
 }
 

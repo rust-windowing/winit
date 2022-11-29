@@ -3,8 +3,8 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowId as RootWI,
-    WindowLevel,
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    WindowId as RootWI, WindowLevel,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -170,6 +170,14 @@ impl Window {
 
     pub fn is_resizable(&self) -> bool {
         true
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

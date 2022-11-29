@@ -18,7 +18,9 @@ use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -419,6 +421,14 @@ impl Window {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.resizeable.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
     }
 
     #[inline]

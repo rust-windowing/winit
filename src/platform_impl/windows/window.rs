@@ -71,7 +71,10 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
+    },
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -263,6 +266,44 @@ impl Window {
         window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
+    #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(
+                    WindowFlags::MINIMIZABLE,
+                    buttons.contains(WindowButtons::MINIMIZE),
+                );
+                f.set(
+                    WindowFlags::MAXIMIZABLE,
+                    buttons.contains(WindowButtons::MAXIMIZE),
+                );
+                f.set(
+                    WindowFlags::CLOSABLE,
+                    buttons.contains(WindowButtons::CLOSE),
+                )
+            });
+        });
+    }
+
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        let window_state = self.window_state_lock();
+        if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::MAXIMIZABLE) {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::CLOSABLE) {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
+    }
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
@@ -943,6 +984,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
+        win.set_enabled_buttons(attributes.enabled_buttons);
+
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
             force_window_active(win.window.0);
@@ -1012,6 +1055,9 @@ where
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
+    // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
+    // so the diffing later can work.
+    window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match pl_attribs.parent {
         Parent::ChildOf(parent) => {
