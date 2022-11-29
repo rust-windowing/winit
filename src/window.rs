@@ -392,13 +392,18 @@ impl WindowBuilder {
     ///
     /// The default is `None`.
     ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
     /// ## Platform-specific
     ///
-    /// - **Windows** : A child window has the WS_CHILD style and is confined to the client area of its parent window.
-    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
-    /// - **Android / iOS / Wayland:** Ignored.
+    /// - **Windows** : A child window has the WS_CHILD style and is confined
+    /// to the client area of its parent window. For more information, see
+    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **Android / iOS / Wayland:** Unsupported.
     #[inline]
-    pub fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
         self.window.parent_window = parent_window;
         self
     }
