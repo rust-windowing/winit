@@ -12,9 +12,9 @@ use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::uikit::{
-    UIApplication, UIDevice, UIScreen, UIScreenOverscanCompensation, UIViewController,
+    UIApplication, UIScreen, UIScreenOverscanCompensation,
 };
-use super::view::WinitUIWindow;
+use super::view::{WinitViewController, WinitUIWindow};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -24,7 +24,7 @@ use crate::{
     platform_impl::platform::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
-        ffi::{id, UIInterfaceOrientationMask, UIRectEdge},
+        ffi::{id, UIRectEdge},
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
@@ -35,7 +35,7 @@ use crate::{
 
 pub struct Inner {
     pub(crate) window: Id<WinitUIWindow, Shared>,
-    pub view_controller: id,
+    pub(crate) view_controller: Id<WinitViewController, Shared>,
     pub view: id,
     gl_or_metal_backed: bool,
 }
@@ -44,7 +44,6 @@ impl Drop for Inner {
     fn drop(&mut self) {
         unsafe {
             let _: () = msg_send![self.view, release];
-            let _: () = msg_send![self.view_controller, release];
         }
     }
 }
@@ -341,7 +340,7 @@ impl Inner {
         let mut window_handle = UiKitWindowHandle::empty();
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = self.view as _;
-        window_handle.ui_view_controller = self.view_controller as _;
+        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
         RawWindowHandle::UiKit(window_handle)
     }
 
@@ -447,13 +446,13 @@ impl Window {
             };
 
             let view_controller =
-                view::create_view_controller(&window_attributes, &platform_attributes, view);
+                WinitViewController::new(mtm, &window_attributes, &platform_attributes, &*(view as *const _));
             let window = WinitUIWindow::new(
                 mtm,
                 &window_attributes,
                 &platform_attributes,
                 frame,
-                &*(view_controller as *const UIViewController),
+                &view_controller,
             );
 
             app_state::set_key_window(&window);
@@ -506,7 +505,7 @@ impl Inner {
         Id::as_ptr(&self.window) as id
     }
     pub fn ui_view_controller(&self) -> id {
-        self.view_controller
+        Id::as_ptr(&self.view_controller) as id
     }
     pub fn ui_view(&self) -> id {
         self.view
@@ -524,41 +523,20 @@ impl Inner {
     }
 
     pub fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
-        unsafe {
-            let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
-                valid_orientations,
-                UIDevice::current(MainThreadMarker::new().unwrap()).userInterfaceIdiom(),
-            );
-            msg_send![
-                self.view_controller,
-                setSupportedInterfaceOrientations: supported_orientations
-            ]
-        }
+        self.view_controller.set_supported_interface_orientations(MainThreadMarker::new().unwrap(), valid_orientations);
     }
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        unsafe {
-            let _: () = msg_send![
-                self.view_controller,
-                setPrefersHomeIndicatorAutoHidden: hidden,
-            ];
-        }
+        self.view_controller.setPrefersHomeIndicatorAutoHidden(hidden);
     }
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
         let edges: UIRectEdge = edges.into();
-        unsafe {
-            let _: () = msg_send![
-                self.view_controller,
-                setPreferredScreenEdgesDeferringSystemGestures: edges
-            ];
-        }
+        self.view_controller.setPreferredScreenEdgesDeferringSystemGestures(edges);
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        unsafe {
-            let _: () = msg_send![self.view_controller, setPrefersStatusBarHidden: hidden,];
-        }
+        self.view_controller.setPrefersStatusBarHidden(hidden);
     }
 }
 

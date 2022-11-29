@@ -2,7 +2,6 @@
 
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::ops::BitOr;
 use std::os::raw::{c_char, c_int};
 
 use objc2::encode::{Encode, Encoding};
@@ -10,7 +9,7 @@ use objc2::foundation::{NSInteger, NSUInteger};
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
 
-use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
+use crate::platform::ios::{Idiom, ScreenEdge};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -111,57 +110,6 @@ impl From<UIUserInterfaceIdiom> for Idiom {
             UIUserInterfaceIdiom::TV => Idiom::TV,
             UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
             _ => unreachable!(),
-        }
-    }
-}
-
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug)]
-pub struct UIInterfaceOrientationMask(NSUInteger);
-
-unsafe impl Encode for UIInterfaceOrientationMask {
-    const ENCODING: Encoding = NSUInteger::ENCODING;
-}
-
-impl UIInterfaceOrientationMask {
-    pub const Portrait: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 1);
-    pub const PortraitUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 2);
-    pub const LandscapeLeft: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 4);
-    pub const LandscapeRight: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 3);
-    pub const Landscape: UIInterfaceOrientationMask =
-        UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
-    pub const AllButUpsideDown: UIInterfaceOrientationMask =
-        UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
-    pub const All: UIInterfaceOrientationMask =
-        UIInterfaceOrientationMask(Self::AllButUpsideDown.0 | Self::PortraitUpsideDown.0);
-}
-
-impl BitOr for UIInterfaceOrientationMask {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self {
-        UIInterfaceOrientationMask(self.0 | rhs.0)
-    }
-}
-
-impl UIInterfaceOrientationMask {
-    pub fn from_valid_orientations_idiom(
-        valid_orientations: ValidOrientations,
-        idiom: UIUserInterfaceIdiom,
-    ) -> UIInterfaceOrientationMask {
-        match (valid_orientations, idiom) {
-            (ValidOrientations::LandscapeAndPortrait, UIUserInterfaceIdiom::Phone) => {
-                UIInterfaceOrientationMask::AllButUpsideDown
-            }
-            (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
-            (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
-            (ValidOrientations::Portrait, UIUserInterfaceIdiom::Phone) => {
-                UIInterfaceOrientationMask::Portrait
-            }
-            (ValidOrientations::Portrait, _) => {
-                UIInterfaceOrientationMask::Portrait
-                    | UIInterfaceOrientationMask::PortraitUpsideDown
-            }
         }
     }
 }

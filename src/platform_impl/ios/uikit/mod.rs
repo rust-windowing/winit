@@ -20,5 +20,5 @@ pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};
 pub(crate) use self::screen_mode::UIScreenMode;
 #[allow(unused_imports)]
 pub(crate) use self::view::{UIEdgeInsets, UIView};
-pub(crate) use self::view_controller::UIViewController;
+pub(crate) use self::view_controller::{UIInterfaceOrientationMask, UIViewController};
 pub(crate) use self::window::UIWindow;

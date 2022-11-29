@@ -2,9 +2,9 @@
 
 use objc2::foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject};
 use objc2::rc::{Id, Shared};
-use objc2::{declare_class, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, extern_methods, ClassType};
 
-use super::uikit::{UIApplication, UIDevice, UIResponder, UIView, UIViewController, UIWindow};
+use super::uikit::{UIInterfaceOrientationMask, UIApplication, UIDevice, UIResponder, UIView, UIViewController, UIWindow};
 use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
@@ -13,12 +13,13 @@ use crate::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
         ffi::{
-            id, nil, UIForceTouchCapability, UIInterfaceOrientationMask, UIRectEdge, UITouchPhase,
-            UITouchType,
+            id, nil, UIForceTouchCapability, UIRectEdge, UITouchPhase,
+            UITouchType, UIUserInterfaceIdiom
         },
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId, Fullscreen,
     },
+    platform::ios::ValidOrientations,
     window::{WindowAttributes, WindowId as RootWindowId},
 };
 
@@ -234,7 +235,7 @@ impl WinitView {
 }
 
 declare_class!(
-    struct WinitViewController {
+    pub(crate) struct WinitViewController {
         _prefers_status_bar_hidden: bool,
         _prefers_home_indicator_auto_hidden: bool,
         _supported_orientations: UIInterfaceOrientationMask,
@@ -263,9 +264,7 @@ declare_class!(
         #[sel(setPrefersStatusBarHidden:)]
         fn set_prefers_status_bar_hidden(&mut self, val: bool) {
             *self._prefers_status_bar_hidden = val;
-            unsafe {
-                let _: () = msg_send![self, setNeedsStatusBarAppearanceUpdate];
-            }
+            self.setNeedsStatusBarAppearanceUpdate();
         }
 
         #[sel(prefersHomeIndicatorAutoHidden)]
@@ -278,9 +277,7 @@ declare_class!(
             *self._prefers_home_indicator_auto_hidden = val;
             let os_capabilities = app_state::os_capabilities();
             if os_capabilities.home_indicator_hidden {
-                unsafe {
-                    let _: () = msg_send![self, setNeedsUpdateOfHomeIndicatorAutoHidden];
-                }
+                self.setNeedsUpdateOfHomeIndicatorAutoHidden();
             } else {
                 os_capabilities.home_indicator_hidden_err_msg("ignoring")
             }
@@ -294,12 +291,7 @@ declare_class!(
         #[sel(setSupportedInterfaceOrientations:)]
         fn set_supported_orientations(&mut self, val: UIInterfaceOrientationMask) {
             *self._supported_orientations = val;
-            unsafe {
-                let _: () = msg_send![
-                    UIViewController::class(),
-                    attemptRotationToDeviceOrientation
-                ];
-            }
+            UIViewController::attemptRotationToDeviceOrientation();
         }
 
         #[sel(preferredScreenEdgesDeferringSystemGestures)]
@@ -312,15 +304,77 @@ declare_class!(
             *self._preferred_screen_edges_deferring_system_gestures = val;
             let os_capabilities = app_state::os_capabilities();
             if os_capabilities.defer_system_gestures {
-                unsafe {
-                    let _: () = msg_send![self, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
-                }
+                self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
             } else {
                 os_capabilities.defer_system_gestures_err_msg("ignoring")
             }
         }
     }
 );
+
+extern_methods!(
+    #[allow(non_snake_case)]
+    unsafe impl WinitViewController {
+        #[sel(setPrefersStatusBarHidden:)]
+        pub(crate) fn setPrefersStatusBarHidden(&self, flag: bool);
+
+        #[sel(setSupportedInterfaceOrientations:)]
+        pub(crate) fn setSupportedInterfaceOrientations(&self, val: UIInterfaceOrientationMask);
+
+        #[sel(setPrefersHomeIndicatorAutoHidden:)]
+        pub(crate) fn setPrefersHomeIndicatorAutoHidden(&self, val: bool);
+
+        #[sel(setPreferredScreenEdgesDeferringSystemGestures:)]
+        pub(crate) fn setPreferredScreenEdgesDeferringSystemGestures(&self, val: UIRectEdge);
+    }
+);
+
+impl WinitViewController {
+    pub(crate) fn set_supported_interface_orientations(&self, mtm: MainThreadMarker, valid_orientations: ValidOrientations) {
+        let mask = match (valid_orientations, UIDevice::current(mtm).userInterfaceIdiom()) {
+            (ValidOrientations::LandscapeAndPortrait, UIUserInterfaceIdiom::Phone) => {
+                UIInterfaceOrientationMask::AllButUpsideDown
+            }
+            (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
+            (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
+            (ValidOrientations::Portrait, UIUserInterfaceIdiom::Phone) => {
+                UIInterfaceOrientationMask::Portrait
+            }
+            (ValidOrientations::Portrait, _) => {
+                UIInterfaceOrientationMask::Portrait
+                    | UIInterfaceOrientationMask::PortraitUpsideDown
+            }
+        };
+        self.setSupportedInterfaceOrientations(mask);
+    }
+
+    pub(crate) fn new(
+        mtm: MainThreadMarker,
+        _window_attributes: &WindowAttributes,
+        platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+        view: &UIView,
+    ) -> Id<Self, Shared> {
+        let this: Id<Self, Shared> = unsafe {
+            msg_send_id![msg_send_id![Self::class(), alloc], init]
+        };
+
+        this.setPrefersStatusBarHidden(platform_attributes.prefers_status_bar_hidden);
+
+        this.set_supported_interface_orientations(mtm, platform_attributes.valid_orientations);
+
+        this.setPrefersHomeIndicatorAutoHidden(platform_attributes.prefers_home_indicator_hidden);
+
+        this.setPreferredScreenEdgesDeferringSystemGestures(
+            platform_attributes
+                .preferred_screen_edges_deferring_system_gestures
+                .into()
+        );
+
+        this.setView(Some(view));
+
+        this
+    }
+}
 
 declare_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -368,53 +422,6 @@ pub(crate) unsafe fn create_view(
     }
 
     view
-}
-
-// requires main thread
-pub(crate) unsafe fn create_view_controller(
-    _window_attributes: &WindowAttributes,
-    platform_attributes: &PlatformSpecificWindowBuilderAttributes,
-    view: id,
-) -> id {
-    let class = WinitViewController::class();
-
-    let view_controller: id = msg_send![class, alloc];
-    assert!(
-        !view_controller.is_null(),
-        "Failed to create `UIViewController` instance"
-    );
-    let view_controller: id = msg_send![view_controller, init];
-    assert!(
-        !view_controller.is_null(),
-        "Failed to initialize `UIViewController` instance"
-    );
-    let status_bar_hidden = platform_attributes.prefers_status_bar_hidden;
-    let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
-        platform_attributes.valid_orientations,
-        UIDevice::current(MainThreadMarker::new().unwrap()).userInterfaceIdiom(),
-    );
-    let prefers_home_indicator_hidden = platform_attributes.prefers_home_indicator_hidden;
-    let edges: UIRectEdge = platform_attributes
-        .preferred_screen_edges_deferring_system_gestures
-        .into();
-    let _: () = msg_send![
-        view_controller,
-        setPrefersStatusBarHidden: status_bar_hidden
-    ];
-    let _: () = msg_send![
-        view_controller,
-        setSupportedInterfaceOrientations: supported_orientations
-    ];
-    let _: () = msg_send![
-        view_controller,
-        setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
-    ];
-    let _: () = msg_send![
-        view_controller,
-        setPreferredScreenEdgesDeferringSystemGestures: edges
-    ];
-    let _: () = msg_send![view_controller, setView: view];
-    view_controller
 }
 
 impl WinitUIWindow {
