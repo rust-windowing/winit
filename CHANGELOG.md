@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, fix panic when getting current monitor without any monitor attached.
 - On Windows and MacOS, add API to enable/disable window buttons (close, minimize, ...etc).
 - On Windows, macOS, X11 and Wayland, add `Window::set_theme`.
 - **Breaking:** Remove `WindowExtWayland::wayland_set_csd_theme` and `WindowBuilderExtX11::with_gtk_theme_variant`.
@@ -41,7 +42,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
-- On macOS, fix panic when getting current monitor without any monitor attached.
 - **Breaking:** On Android, switched to using [`android-activity`](https://github.com/rib/android-activity) crate as a glue layer instead of [`ndk-glue](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue). See [README.md#Android](https://github.com/rust-windowing/winit#Android) for more details. ([#2444](https://github.com/rust-windowing/winit/pull/2444))
 
 # 0.27.5
