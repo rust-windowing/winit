@@ -180,6 +180,7 @@ impl WindowExtWindows for Window {
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
+    /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
