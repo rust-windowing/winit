@@ -74,9 +74,9 @@ pub(crate) fn set_frame_top_left_point_async(window: &NSWindow, point: NSPoint) 
 }
 
 // `setFrameTopLeftPoint:` isn't thread-safe, and fails silently.
-pub(crate) fn set_level_async(window: &NSWindow, level: NSWindowLevel) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn set_level_sync(window: &NSWindow, level: NSWindowLevel) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.setLevel(level);
     });
 }

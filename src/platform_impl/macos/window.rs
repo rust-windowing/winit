@@ -1067,7 +1067,7 @@ impl WinitWindow {
             WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
             WindowLevel::Normal => NSWindowLevel::Normal,
         };
-        util::set_level_async(self, level);
+        util::set_level_sync(self, level);
     }
 
     #[inline]
