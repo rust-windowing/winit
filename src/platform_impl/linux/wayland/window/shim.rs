@@ -59,9 +59,6 @@ pub enum WindowRequest {
     /// Request decorations change.
     Decorate(bool),
 
-    /// Request decorations change.
-    CsdThemeVariant(Theme),
-
     /// Make the window resizeable.
     Resizeable(bool),
 
@@ -96,6 +93,9 @@ pub enum WindowRequest {
 
     /// Window should be closed.
     Close,
+
+    /// Change window theme.
+    Theme(Option<Theme>),
 }
 
 // The window update comming from the compositor.
@@ -464,15 +464,6 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let window_request = window_user_requests.get_mut(window_id).unwrap();
                     window_request.refresh_frame = true;
                 }
-                #[cfg(feature = "sctk-adwaita")]
-                WindowRequest::CsdThemeVariant(theme) => {
-                    window_handle.window.set_frame_config(theme.into());
-
-                    let window_requst = window_user_requests.get_mut(window_id).unwrap();
-                    window_requst.refresh_frame = true;
-                }
-                #[cfg(not(feature = "sctk-adwaita"))]
-                WindowRequest::CsdThemeVariant(_) => {}
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 
@@ -536,6 +527,18 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // Send event that the window was destroyed.
                     let event_sink = &mut winit_state.event_sink;
                     event_sink.push_window_event(WindowEvent::Destroyed, *window_id);
+                }
+                WindowRequest::Theme(_theme) => {
+                    #[cfg(feature = "sctk-adwaita")]
+                    {
+                        window_handle.window.set_frame_config(match _theme {
+                            Some(theme) => theme.into(),
+                            None => sctk_adwaita::FrameConfig::auto(),
+                        });
+
+                        let window_requst = window_user_requests.get_mut(window_id).unwrap();
+                        window_requst.refresh_frame = true;
+                    }
                 }
             };
         }

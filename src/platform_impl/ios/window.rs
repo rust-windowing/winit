@@ -359,6 +359,11 @@ impl Inner {
         None
     }
 
+    #[inline]
+    pub fn set_theme(&self, _theme: Option<Theme>) {
+        warn!("`Window::set_theme` is ignored on iOS");
+    }
+
     pub fn title(&self) -> String {
         warn!("`Window::title` is ignored on iOS");
         String::new()
