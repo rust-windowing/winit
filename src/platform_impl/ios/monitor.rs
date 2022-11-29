@@ -6,7 +6,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::foundation::{CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
 use objc2::{class, msg_send};
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     monitor::VideoMode as RootVideoMode,
     platform_impl::platform::{
         app_state,
-        ffi::{id, nil, CGFloat, CGRect, CGSize},
+        ffi::{id, nil},
     },
 };
 

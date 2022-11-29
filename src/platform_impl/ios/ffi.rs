@@ -6,22 +6,14 @@ use std::ops::BitOr;
 use std::os::raw::{c_char, c_int};
 
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::foundation::{CGFloat, NSInteger, NSUInteger};
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
 
-use crate::{
-    dpi::LogicalSize,
-    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
-};
+use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
-
-#[cfg(target_pointer_width = "32")]
-pub type CGFloat = f32;
-#[cfg(target_pointer_width = "64")]
-pub type CGFloat = f64;
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -40,54 +32,6 @@ unsafe impl Encode for NSOperatingSystemVersion {
             NSInteger::ENCODING,
         ],
     );
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CGPoint {
-    pub x: CGFloat,
-    pub y: CGFloat,
-}
-
-unsafe impl Encode for CGPoint {
-    const ENCODING: Encoding = Encoding::Struct("CGPoint", &[CGFloat::ENCODING, CGFloat::ENCODING]);
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CGSize {
-    pub width: CGFloat,
-    pub height: CGFloat,
-}
-
-impl CGSize {
-    pub fn new(size: LogicalSize<f64>) -> CGSize {
-        CGSize {
-            width: size.width as _,
-            height: size.height as _,
-        }
-    }
-}
-
-unsafe impl Encode for CGSize {
-    const ENCODING: Encoding = Encoding::Struct("CGSize", &[CGFloat::ENCODING, CGFloat::ENCODING]);
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CGRect {
-    pub origin: CGPoint,
-    pub size: CGSize,
-}
-
-impl CGRect {
-    pub fn new(origin: CGPoint, size: CGSize) -> CGRect {
-        CGRect { origin, size }
-    }
-}
-
-unsafe impl Encode for CGRect {
-    const ENCODING: Encoding = Encoding::Struct("CGRect", &[CGPoint::ENCODING, CGSize::ENCODING]);
 }
 
 #[derive(Debug)]

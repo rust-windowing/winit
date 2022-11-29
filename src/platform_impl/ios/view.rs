@@ -1,6 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 
-use objc2::foundation::NSObject;
+use objc2::foundation::{CGFloat, CGPoint, CGRect, NSObject};
 use objc2::{class, declare_class, msg_send, ClassType};
 
 use super::uikit::{UIResponder, UIView, UIViewController, UIWindow};
@@ -11,8 +11,8 @@ use crate::{
         app_state,
         event_loop::{self, EventProxy, EventWrapper},
         ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
-            UIRectEdge, UITouchPhase, UITouchType,
+            id, nil, UIForceTouchCapability, UIInterfaceOrientationMask, UIRectEdge, UITouchPhase,
+            UITouchType,
         },
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId, Fullscreen,

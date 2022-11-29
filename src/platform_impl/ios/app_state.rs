@@ -15,7 +15,7 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::foundation::{CGRect, CGSize, NSInteger, NSUInteger};
 use objc2::runtime::Object;
 use objc2::{class, msg_send, sel};
 use once_cell::sync::Lazy;
@@ -26,7 +26,7 @@ use crate::{
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{id, CGRect, CGSize, NSOperatingSystemVersion},
+        ffi::{id, NSOperatingSystemVersion},
     },
     window::WindowId as RootWindowId,
 };
@@ -869,7 +869,7 @@ fn handle_hidpi_proxy(
     let (view, screen_frame) = get_view_and_screen_frame(window_id);
     let physical_size = *new_inner_size;
     let logical_size = physical_size.to_logical(scale_factor);
-    let size = CGSize::new(logical_size);
+    let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
     unsafe {
         let _: () = msg_send![view, setFrame: new_frame];

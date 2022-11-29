@@ -5,6 +5,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize};
 use objc2::runtime::{Class, Object};
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
@@ -19,8 +20,7 @@ use crate::{
         app_state,
         event_loop::{self, EventProxy, EventWrapper},
         ffi::{
-            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
-            UIRectEdge, UIScreenOverscanCompensation,
+            id, UIEdgeInsets, UIInterfaceOrientationMask, UIRectEdge, UIScreenOverscanCompensation,
         },
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
