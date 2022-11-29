@@ -473,8 +473,8 @@ impl WinitWindow {
 
     pub fn set_visible(&self, visible: bool) {
         match visible {
-            true => util::make_key_and_order_front_async(self),
-            false => util::order_out_async(self),
+            true => util::make_key_and_order_front_sync(self),
+            false => util::order_out_sync(self),
         }
     }
 
@@ -1103,7 +1103,7 @@ impl WinitWindow {
 
         if !is_minimized && is_visible {
             NSApp().activateIgnoringOtherApps(true);
-            util::make_key_and_order_front_async(self);
+            util::make_key_and_order_front_sync(self);
         }
     }
 

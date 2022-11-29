@@ -168,18 +168,18 @@ pub(crate) fn set_maximized_async(
 
 // `orderOut:` isn't thread-safe. Calling it from another thread actually works,
 // but with an odd delay.
-pub(crate) fn order_out_async(window: &NSWindow) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn order_out_sync(window: &NSWindow) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.orderOut(None);
     });
 }
 
 // `makeKeyAndOrderFront:` isn't thread-safe. Calling it from another thread
 // actually works, but with an odd delay.
-pub(crate) fn make_key_and_order_front_async(window: &NSWindow) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
+pub(crate) fn make_key_and_order_front_sync(window: &NSWindow) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
         window.makeKeyAndOrderFront(None);
     });
 }
