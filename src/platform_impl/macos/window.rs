@@ -459,10 +459,6 @@ impl WinitWindow {
         SharedStateMutexGuard::new(self.shared_state.lock().unwrap(), called_from_fn)
     }
 
-    fn set_style_mask_async(&self, mask: NSWindowStyleMask) {
-        util::set_style_mask_async(self, mask);
-    }
-
     fn set_style_mask_sync(&self, mask: NSWindowStyleMask) {
         util::set_style_mask_sync(self, mask);
     }
@@ -632,8 +628,9 @@ impl WinitWindow {
             } else {
                 mask &= !NSWindowStyleMask::NSResizableWindowMask;
             }
-            self.set_style_mask_async(mask);
-        } // Otherwise, we don't change the mask until we exit fullscreen.
+            self.set_style_mask_sync(mask);
+        }
+        // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
     #[inline]
@@ -774,7 +771,7 @@ impl WinitWindow {
 
         // Roll back temp styles
         if needs_temp_mask {
-            self.set_style_mask_async(curr_mask);
+            self.set_style_mask_sync(curr_mask);
         }
 
         is_zoomed
@@ -805,7 +802,7 @@ impl WinitWindow {
 
         drop(shared_state_lock);
 
-        self.set_style_mask_async(mask);
+        self.set_style_mask_sync(mask);
         self.set_maximized(maximized);
     }
 
@@ -1054,7 +1051,7 @@ impl WinitWindow {
                 }
                 new_mask
             };
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
         }
     }
 
@@ -1255,7 +1252,7 @@ impl WindowExtMacOS for WinitWindow {
             true
         } else {
             let new_mask = self.saved_style(&mut shared_state_lock);
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
             if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {

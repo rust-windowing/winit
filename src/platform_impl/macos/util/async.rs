@@ -48,13 +48,6 @@ fn set_style_mask(window: &NSWindow, mask: NSWindowStyleMask) {
 // `setStyleMask:` isn't thread-safe, so we have to use Grand Central Dispatch.
 // Otherwise, this would vomit out errors about not being on the main thread
 // and fail to do anything.
-pub(crate) fn set_style_mask_async(window: &NSWindow, mask: NSWindowStyleMask) {
-    // TODO(madsmtm): Remove this 'static hack!
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    Queue::main().exec_async(move || {
-        set_style_mask(&window, mask);
-    });
-}
 pub(crate) fn set_style_mask_sync(window: &NSWindow, mask: NSWindowStyleMask) {
     let window = MainThreadSafe(window);
     run_on_main(move || {
