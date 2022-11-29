@@ -88,14 +88,6 @@ pub trait WindowExtWayland {
     ///
     /// The pointer will become invalid when the [`Window`] is destroyed.
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
-
-    /// Updates [`Theme`] of window decorations.
-    ///
-    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light".
-    ///
-    /// When unspecified a theme is automatically selected.
-    fn wayland_set_csd_theme(&self, config: Theme);
 }
 
 impl WindowExtWayland for Window {
@@ -114,16 +106,6 @@ impl WindowExtWayland for Window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
-        }
-    }
-
-    #[inline]
-    fn wayland_set_csd_theme(&self, theme: Theme) {
-        #[allow(clippy::single_match)]
-        match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
-            #[cfg(feature = "x11")]
-            _ => (),
         }
     }
 }

@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, Theme, WindowLevel},
+    window::{self, CursorGrabMode, Theme, WindowButtons, WindowLevel},
 };
 
 fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
@@ -959,6 +959,12 @@ impl Window {
         false
     }
 
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {}
 
     pub fn set_maximized(&self, _maximized: bool) {}
@@ -1040,6 +1046,8 @@ impl Window {
     pub fn content_rect(&self) -> Rect {
         self.app.content_rect()
     }
+
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
 
     pub fn theme(&self) -> Option<Theme> {
         None
