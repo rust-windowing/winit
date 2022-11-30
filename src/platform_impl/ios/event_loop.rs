@@ -15,10 +15,12 @@ use core_foundation::runloop::{
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::foundation::MainThreadMarker;
+use objc2::rc::{Id, Shared};
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use super::uikit::{UIApplication, UIDevice, UIScreen};
+use super::view::WinitUIWindow;
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -30,20 +32,20 @@ use crate::{
 
 use crate::platform_impl::platform::{
     app_state,
-    ffi::{id, nil, NSStringRust, UIApplicationMain},
+    ffi::{nil, NSStringRust, UIApplicationMain},
     monitor, view, MonitorHandle,
 };
 
 #[derive(Debug)]
-pub enum EventWrapper {
+pub(crate) enum EventWrapper {
     StaticEvent(Event<'static, Never>),
     EventProxy(EventProxy),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum EventProxy {
+pub(crate) enum EventProxy {
     DpiChangedProxy {
-        window_id: id,
+        window: Id<WinitUIWindow, Shared>,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     },

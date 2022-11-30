@@ -1,7 +1,8 @@
 #![allow(clippy::unnecessary_cast)]
 
 use objc2::foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject};
-use objc2::{declare_class, msg_send, ClassType};
+use objc2::rc::{Id, Shared};
+use objc2::{declare_class, msg_send, msg_send_id, ClassType};
 
 use super::uikit::{UIApplication, UIDevice, UIResponder, UIView, UIViewController, UIWindow};
 use super::window::WindowId;
@@ -90,13 +91,14 @@ declare_class!(
             unsafe {
                 let _: () = msg_send![super(self), setContentScaleFactor: untrusted_scale_factor];
 
-                let window: id = msg_send![self, window];
+                let window: Option<Id<WinitUIWindow, Shared>> = msg_send_id![self, window];
                 // `window` is null when `setContentScaleFactor` is invoked prior to `[UIWindow
                 // makeKeyAndVisible]` at window creation time (either manually or internally by
                 // UIKit when the `UIView` is first created), in which case we send no events here
-                if window.is_null() {
-                    return;
-                }
+                let window = match window {
+                    Some(window) => window,
+                    None => return,
+                };
                 // `setContentScaleFactor` may be called with a value of 0, which means "reset the
                 // content scale factor to a device-specific default value", so we can't use the
                 // parameter here. We can query the actual factor using the getter
@@ -109,23 +111,24 @@ declare_class!(
                     "invalid scale_factor set on UIView",
                 );
                 let bounds: CGRect = msg_send![self, bounds];
-                let screen: id = msg_send![window, screen];
-                let screen_space: id = msg_send![screen, coordinateSpace];
+                let screen = window.screen();
+                let screen_space = screen.coordinateSpace();
                 let screen_frame: CGRect =
-                    msg_send![self, convertRect: bounds, toCoordinateSpace: screen_space];
+                    msg_send![self, convertRect: bounds, toCoordinateSpace: &*screen_space];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };
+                let window_id = RootWindowId(window.id());
                 app_state::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-                        window_id: window,
+                        window,
                         scale_factor,
                         suggested_size: size,
                     }))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
-                            window_id: RootWindowId(window.into()),
+                            window_id,
                             event: WindowEvent::Resized(size.to_physical(scale_factor)),
                         },
                     ))),
@@ -320,7 +323,8 @@ declare_class!(
 );
 
 declare_class!(
-    struct WinitUIWindow {}
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct WinitUIWindow {}
 
     unsafe impl ClassType for WinitUIWindow {
         #[inherits(UIResponder, NSObject)]
@@ -330,24 +334,20 @@ declare_class!(
     unsafe impl WinitUIWindow {
         #[sel(becomeKeyWindow)]
         fn become_key_window(&self) {
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId((&*****self).into()),
-                    event: WindowEvent::Focused(true),
-                }));
-                let _: () = msg_send![super(self), becomeKeyWindow];
-            }
+            app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(self.id()),
+                event: WindowEvent::Focused(true),
+            }));
+            let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
         #[sel(resignKeyWindow)]
         fn resign_key_window(&self) {
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId((&*****self).into()),
-                    event: WindowEvent::Focused(false),
-                }));
-                let _: () = msg_send![super(self), resignKeyWindow];
-            }
+            app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(self.id()),
+                event: WindowEvent::Focused(false),
+            }));
+            let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
     }
 );
@@ -417,41 +417,38 @@ pub(crate) unsafe fn create_view_controller(
     view_controller
 }
 
-// requires main thread
-pub(crate) unsafe fn create_window(
-    window_attributes: &WindowAttributes,
-    _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
-    frame: CGRect,
-    view_controller: id,
-) -> id {
-    let window: id = msg_send![WinitUIWindow::class(), alloc];
-    assert!(!window.is_null(), "Failed to create `UIWindow` instance");
-    let window: id = msg_send![window, initWithFrame: frame];
-    assert!(
-        !window.is_null(),
-        "Failed to initialize `UIWindow` instance"
-    );
-    let _: () = msg_send![window, setRootViewController: view_controller];
-    match window_attributes.fullscreen {
-        Some(Fullscreen::Exclusive(ref video_mode)) => {
-            let monitor = video_mode.monitor();
-            let screen = monitor.ui_screen();
-            screen.setCurrentMode(Some(&video_mode.screen_mode.0));
-            msg_send![window, setScreen: &**screen]
-        }
-        Some(Fullscreen::Borderless(ref monitor)) => {
-            if let Some(monitor) = &monitor {
+impl WinitUIWindow {
+    pub(crate) fn new(
+        _mtm: MainThreadMarker,
+        window_attributes: &WindowAttributes,
+        _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+        frame: CGRect,
+        view_controller: &UIViewController,
+    ) -> Id<Self, Shared> {
+        let this: Id<Self, Shared> =
+            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
+
+        this.setRootViewController(Some(view_controller));
+
+        match window_attributes.fullscreen {
+            Some(Fullscreen::Exclusive(ref video_mode)) => {
+                let monitor = video_mode.monitor();
                 let screen = monitor.ui_screen();
-                msg_send![window, setScreen: &**screen]
-            };
+                screen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                this.setScreen(&screen);
+            }
+            Some(Fullscreen::Borderless(ref monitor)) => {
+                if let Some(monitor) = &monitor {
+                    let screen = monitor.ui_screen();
+                    this.setScreen(&screen);
+                };
+            }
+            None => (),
         }
-        None => (),
+
+        this
     }
 
-    window
-}
-
-impl WinitUIWindow {
     pub(crate) fn id(&self) -> WindowId {
         (self as *const Self as usize as u64).into()
     }

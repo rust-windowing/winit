@@ -6,7 +6,7 @@ use std::ops::BitOr;
 use std::os::raw::{c_char, c_int};
 
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{CGFloat, NSInteger, NSUInteger};
+use objc2::foundation::{NSInteger, NSUInteger};
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
 
@@ -73,27 +73,6 @@ pub enum UITouchType {
 
 unsafe impl Encode for UITouchType {
     const ENCODING: Encoding = NSInteger::ENCODING;
-}
-
-#[repr(C)]
-#[derive(Debug, Clone)]
-pub struct UIEdgeInsets {
-    pub top: CGFloat,
-    pub left: CGFloat,
-    pub bottom: CGFloat,
-    pub right: CGFloat,
-}
-
-unsafe impl Encode for UIEdgeInsets {
-    const ENCODING: Encoding = Encoding::Struct(
-        "UIEdgeInsets",
-        &[
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-        ],
-    );
 }
 
 #[repr(transparent)]

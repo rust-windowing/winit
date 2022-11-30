@@ -1,9 +1,9 @@
+use objc2::encode::{Encode, Encoding};
 use objc2::foundation::{CGFloat, CGRect, MainThreadMarker, NSArray, NSInteger, NSObject};
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
-use objc2::encode::{Encode, Encoding};
 
-use super::UIScreenMode;
+use super::{UICoordinateSpace, UIScreenMode};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -55,10 +55,14 @@ extern_methods!(
         }
 
         #[sel(setOverscanCompensation:)]
-        pub unsafe fn setOverscanCompensation(
+        pub fn setOverscanCompensation(
             &self,
             overscanCompensation: UIScreenOverscanCompensation,
         );
+
+        pub fn coordinateSpace(&self) -> Id<UICoordinateSpace, Shared> {
+            unsafe { msg_send_id![self, coordinateSpace] }
+        }
     }
 );
 
