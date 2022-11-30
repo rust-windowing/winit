@@ -459,10 +459,6 @@ impl WinitWindow {
         SharedStateMutexGuard::new(self.shared_state.lock().unwrap(), called_from_fn)
     }
 
-    fn set_style_mask_async(&self, mask: NSWindowStyleMask) {
-        util::set_style_mask_async(self, mask);
-    }
-
     fn set_style_mask_sync(&self, mask: NSWindowStyleMask) {
         util::set_style_mask_sync(self, mask);
     }
@@ -472,13 +468,13 @@ impl WinitWindow {
     }
 
     pub fn set_title(&self, title: &str) {
-        util::set_title_async(self, title.to_string());
+        util::set_title_sync(self, title);
     }
 
     pub fn set_visible(&self, visible: bool) {
         match visible {
-            true => util::make_key_and_order_front_async(self),
-            false => util::order_out_async(self),
+            true => util::make_key_and_order_front_sync(self),
+            false => util::order_out_sync(self),
         }
     }
 
@@ -514,7 +510,7 @@ impl WinitWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        util::set_frame_top_left_point_async(self, util::window_position(position));
+        util::set_frame_top_left_point_sync(self, util::window_position(position));
     }
 
     #[inline]
@@ -536,7 +532,7 @@ impl WinitWindow {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        util::set_content_size_async(self, size.to_logical(scale_factor));
+        util::set_content_size_sync(self, size.to_logical(scale_factor));
     }
 
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
@@ -632,8 +628,9 @@ impl WinitWindow {
             } else {
                 mask &= !NSWindowStyleMask::NSResizableWindowMask;
             }
-            self.set_style_mask_async(mask);
-        } // Otherwise, we don't change the mask until we exit fullscreen.
+            self.set_style_mask_sync(mask);
+        }
+        // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
     #[inline]
@@ -754,7 +751,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        util::set_ignore_mouse_events(self, !hittest);
+        util::set_ignore_mouse_events_sync(self, !hittest);
         Ok(())
     }
 
@@ -774,7 +771,7 @@ impl WinitWindow {
 
         // Roll back temp styles
         if needs_temp_mask {
-            self.set_style_mask_async(curr_mask);
+            self.set_style_mask_sync(curr_mask);
         }
 
         is_zoomed
@@ -805,7 +802,7 @@ impl WinitWindow {
 
         drop(shared_state_lock);
 
-        self.set_style_mask_async(mask);
+        self.set_style_mask_sync(mask);
         self.set_maximized(maximized);
     }
 
@@ -885,7 +882,7 @@ impl WinitWindow {
                 // The coordinate system here has its origin at bottom-left
                 // and Y goes up
                 screen_frame.origin.y += screen_frame.size.height;
-                util::set_frame_top_left_point_async(self, screen_frame.origin);
+                util::set_frame_top_left_point_sync(self, screen_frame.origin);
             }
         }
 
@@ -1054,7 +1051,7 @@ impl WinitWindow {
                 }
                 new_mask
             };
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
         }
     }
 
@@ -1070,7 +1067,7 @@ impl WinitWindow {
             WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
             WindowLevel::Normal => NSWindowLevel::Normal,
         };
-        util::set_level_async(self, level);
+        util::set_level_sync(self, level);
     }
 
     #[inline]
@@ -1106,7 +1103,7 @@ impl WinitWindow {
 
         if !is_minimized && is_visible {
             NSApp().activateIgnoringOtherApps(true);
-            util::make_key_and_order_front_async(self);
+            util::make_key_and_order_front_sync(self);
         }
     }
 
@@ -1255,7 +1252,7 @@ impl WindowExtMacOS for WinitWindow {
             true
         } else {
             let new_mask = self.saved_style(&mut shared_state_lock);
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
             if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {
