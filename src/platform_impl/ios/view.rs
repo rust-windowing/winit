@@ -434,20 +434,16 @@ pub(crate) unsafe fn create_window(
     let _: () = msg_send![window, setRootViewController: view_controller];
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
-            let uiscreen = video_mode.monitor().ui_screen() as id;
-            let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
-            msg_send![window, setScreen:video_mode.monitor().ui_screen()]
+            let monitor = video_mode.monitor();
+            let screen = monitor.ui_screen();
+            screen.setCurrentMode(Some(&video_mode.screen_mode.0));
+            msg_send![window, setScreen: &**screen]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {
-            let uiscreen: id = match &monitor {
-                Some(monitor) => monitor.ui_screen() as id,
-                None => {
-                    let uiscreen: id = msg_send![window, screen];
-                    uiscreen
-                }
+            if let Some(monitor) = &monitor {
+                let screen = monitor.ui_screen();
+                msg_send![window, setScreen: &**screen]
             };
-
-            msg_send![window, setScreen: uiscreen]
         }
         None => (),
     }

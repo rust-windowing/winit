@@ -6,74 +6,43 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
-use objc2::{class, msg_send};
+use objc2::foundation::{MainThreadMarker, NSInteger};
+use objc2::rc::{Id, Shared};
 
+use super::uikit::{UIScreen, UIScreenMode};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::VideoMode as RootVideoMode,
-    platform_impl::platform::{
-        app_state,
-        ffi::{id, nil},
-    },
+    platform_impl::platform::app_state,
 };
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+// TODO(madsmtm): Remove or refactor this
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(crate) struct ScreenModeSendSync(pub(crate) Id<UIScreenMode, Shared>);
+
+unsafe impl Send for ScreenModeSendSync {}
+unsafe impl Sync for ScreenModeSendSync {}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
-    pub(crate) screen_mode: NativeDisplayMode,
+    pub(crate) screen_mode: ScreenModeSendSync,
     pub(crate) monitor: MonitorHandle,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct NativeDisplayMode(pub id);
-
-unsafe impl Send for NativeDisplayMode {}
-
-impl Drop for NativeDisplayMode {
-    fn drop(&mut self) {
-        unsafe {
-            let _: () = msg_send![self.0, release];
-        }
-    }
-}
-
-impl Clone for NativeDisplayMode {
-    fn clone(&self) -> Self {
-        unsafe {
-            let _: id = msg_send![self.0, retain];
-        }
-        NativeDisplayMode(self.0)
-    }
-}
-
-impl Clone for VideoMode {
-    fn clone(&self) -> VideoMode {
-        VideoMode {
-            size: self.size,
-            bit_depth: self.bit_depth,
-            refresh_rate_millihertz: self.refresh_rate_millihertz,
-            screen_mode: self.screen_mode.clone(),
-            monitor: self.monitor.clone(),
-        }
-    }
-}
-
 impl VideoMode {
-    unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
+    fn new(uiscreen: Id<UIScreen, Shared>, screen_mode: Id<UIScreenMode, Shared>) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
-        let refresh_rate_millihertz = refresh_rate_millihertz(uiscreen);
-        let size: CGSize = msg_send![screen_mode, size];
-        let screen_mode: id = msg_send![screen_mode, retain];
-        let screen_mode = NativeDisplayMode(screen_mode);
+        let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
+        let size = screen_mode.size();
         VideoMode {
             size: (size.width as u32, size.height as u32),
             bit_depth: 32,
             refresh_rate_millihertz,
-            screen_mode,
-            monitor: MonitorHandle::retained_new(uiscreen),
+            screen_mode: ScreenModeSendSync(screen_mode),
+            monitor: MonitorHandle::new(uiscreen),
         }
     }
 
@@ -94,22 +63,27 @@ impl VideoMode {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Inner {
-    uiscreen: id,
+    uiscreen: Id<UIScreen, Shared>,
 }
 
-impl Drop for Inner {
-    fn drop(&mut self) {
-        unsafe {
-            let _: () = msg_send![self.uiscreen, release];
-        }
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MonitorHandle {
+    inner: Inner,
+}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct MonitorHandle {
-    inner: Inner,
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // TODO: Make a better ordering
+        (&(self as *const Self)).cmp(&(other as *const Self))
+    }
 }
 
 impl Deref for MonitorHandle {
@@ -130,12 +104,6 @@ impl DerefMut for MonitorHandle {
 
 unsafe impl Send for MonitorHandle {}
 unsafe impl Sync for MonitorHandle {}
-
-impl Clone for MonitorHandle {
-    fn clone(&self) -> MonitorHandle {
-        MonitorHandle::retained_new(self.uiscreen)
-    }
-}
 
 impl Drop for MonitorHandle {
     fn drop(&mut self) {
@@ -167,12 +135,9 @@ impl fmt::Debug for MonitorHandle {
 }
 
 impl MonitorHandle {
-    pub fn retained_new(uiscreen: id) -> MonitorHandle {
-        assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
-        unsafe {
-            let _: id = msg_send![uiscreen, retain];
-        }
-        MonitorHandle {
+    pub(crate) fn new(uiscreen: Id<UIScreen, Shared>) -> Self {
+        assert_main_thread!("`MonitorHandle` can only be created on the main thread on iOS");
+        Self {
             inner: Inner { uiscreen },
         }
     }
@@ -180,70 +145,62 @@ impl MonitorHandle {
 
 impl Inner {
     pub fn name(&self) -> Option<String> {
-        unsafe {
-            let main = main_uiscreen();
-            if self.uiscreen == main.uiscreen {
-                Some("Primary".to_string())
-            } else if self.uiscreen == mirrored_uiscreen(&main).uiscreen {
-                Some("Mirrored".to_string())
-            } else {
-                uiscreens()
-                    .iter()
-                    .position(|rhs| rhs.uiscreen == self.uiscreen)
-                    .map(|idx| idx.to_string())
-            }
+        let main = UIScreen::main(MainThreadMarker::new().unwrap());
+        if self.uiscreen == main {
+            Some("Primary".to_string())
+        } else if self.uiscreen == main.mirroredScreen() {
+            Some("Mirrored".to_string())
+        } else {
+            UIScreen::screens(MainThreadMarker::new().unwrap())
+                .iter()
+                .position(|rhs| rhs == &*self.uiscreen)
+                .map(|idx| idx.to_string())
         }
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        unsafe {
-            let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
-        }
+        let bounds = self.uiscreen.nativeBounds();
+        PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
     }
 
     pub fn position(&self) -> PhysicalPosition<i32> {
-        unsafe {
-            let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            (bounds.origin.x as f64, bounds.origin.y as f64).into()
-        }
+        let bounds = self.uiscreen.nativeBounds();
+        (bounds.origin.x as f64, bounds.origin.y as f64).into()
     }
 
     pub fn scale_factor(&self) -> f64 {
-        unsafe {
-            let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
-            scale as f64
-        }
+        self.uiscreen.nativeScale() as f64
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(refresh_rate_millihertz(self.uiscreen))
+        Some(refresh_rate_millihertz(&self.uiscreen))
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        let mut modes = BTreeSet::new();
-        unsafe {
-            let available_modes: id = msg_send![self.uiscreen, availableModes];
-            let available_mode_count: NSUInteger = msg_send![available_modes, count];
+        // Use Ord impl of RootVideoMode
+        let modes: BTreeSet<_> = self
+            .uiscreen
+            .availableModes()
+            .into_iter()
+            .map(|mode| {
+                let mode: *const UIScreenMode = mode;
+                let mode = unsafe { Id::retain(mode as *mut UIScreenMode).unwrap() };
 
-            for i in 0..available_mode_count {
-                let mode: id = msg_send![available_modes, objectAtIndex: i];
-                // Use Ord impl of RootVideoMode
-                modes.insert(RootVideoMode {
-                    video_mode: VideoMode::retained_new(self.uiscreen, mode),
-                });
-            }
-        }
+                RootVideoMode {
+                    video_mode: VideoMode::new(self.uiscreen.clone(), mode),
+                }
+            })
+            .collect();
 
         modes.into_iter().map(|mode| mode.video_mode)
     }
 }
 
-fn refresh_rate_millihertz(uiscreen: id) -> u32 {
-    let refresh_rate_millihertz: NSInteger = unsafe {
+fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
+    let refresh_rate_millihertz: NSInteger = {
         let os_capabilities = app_state::os_capabilities();
         if os_capabilities.maximum_frames_per_second {
-            msg_send![uiscreen, maximumFramesPerSecond]
+            uiscreen.maximumFramesPerSecond()
         } else {
             // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
             // https://en.wikipedia.org/wiki/IPad_Pro#Model_comparison
@@ -265,41 +222,25 @@ fn refresh_rate_millihertz(uiscreen: id) -> u32 {
 
 // MonitorHandleExtIOS
 impl Inner {
-    pub fn ui_screen(&self) -> id {
-        self.uiscreen
+    pub(crate) fn ui_screen(&self) -> &Id<UIScreen, Shared> {
+        &self.uiscreen
     }
 
     pub fn preferred_video_mode(&self) -> VideoMode {
-        unsafe {
-            let mode: id = msg_send![self.uiscreen, preferredMode];
-            VideoMode::retained_new(self.uiscreen, mode)
-        }
+        VideoMode::new(
+            self.uiscreen.clone(),
+            self.uiscreen.preferredMode().unwrap(),
+        )
     }
 }
 
-// requires being run on main thread
-pub unsafe fn main_uiscreen() -> MonitorHandle {
-    let uiscreen: id = msg_send![class!(UIScreen), mainScreen];
-    MonitorHandle::retained_new(uiscreen)
-}
-
-// requires being run on main thread
-unsafe fn mirrored_uiscreen(monitor: &MonitorHandle) -> MonitorHandle {
-    let uiscreen: id = msg_send![monitor.uiscreen, mirroredScreen];
-    MonitorHandle::retained_new(uiscreen)
-}
-
-// requires being run on main thread
-pub unsafe fn uiscreens() -> VecDeque<MonitorHandle> {
-    let screens: id = msg_send![class!(UIScreen), screens];
-    let count: NSUInteger = msg_send![screens, count];
-    let mut result = VecDeque::with_capacity(count as _);
-    let screens_enum: id = msg_send![screens, objectEnumerator];
-    loop {
-        let screen: id = msg_send![screens_enum, nextObject];
-        if screen == nil {
-            break result;
-        }
-        result.push_back(MonitorHandle::retained_new(screen));
-    }
+pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
+    UIScreen::screens(mtm)
+        .into_iter()
+        .map(|screen| {
+            let screen: *const UIScreen = screen;
+            let screen = unsafe { Id::retain(screen as *mut UIScreen).unwrap() };
+            MonitorHandle::new(screen)
+        })
+        .collect()
 }

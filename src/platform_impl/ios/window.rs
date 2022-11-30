@@ -7,10 +7,11 @@ use std::{
 
 use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
 use objc2::runtime::{Class, Object};
-use objc2::{class, msg_send};
+use objc2::rc::Id;
+use objc2::{class, msg_send, msg_send_id};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
-use super::uikit::{UIApplication, UIDevice};
+use super::uikit::{UIApplication, UIDevice, UIScreen, UIScreenOverscanCompensation};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -21,7 +22,7 @@ use crate::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
         ffi::{
-            id, UIEdgeInsets, UIInterfaceOrientationMask, UIRectEdge, UIScreenOverscanCompensation,
+            id, UIEdgeInsets, UIInterfaceOrientationMask, UIRectEdge,
         },
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
@@ -232,15 +233,15 @@ impl Inner {
 
     pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
-            let uiscreen = match monitor {
+            let uiscreen = match &monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
-                    let uiscreen = video_mode.monitor.ui_screen() as id;
-                    let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
-                    uiscreen
+                    let uiscreen = video_mode.monitor.ui_screen();
+                    uiscreen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                    uiscreen.clone()
                 }
-                Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen().clone(),
                 Some(Fullscreen::Borderless(None)) => {
-                    self.current_monitor_inner().ui_screen() as id
+                    self.current_monitor_inner().ui_screen().clone()
                 }
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
@@ -250,20 +251,17 @@ impl Inner {
 
             // this is pretty slow on iOS, so avoid doing it if we can
             let current: id = msg_send![self.window, screen];
-            if uiscreen != current {
-                let _: () = msg_send![self.window, setScreen: uiscreen];
+            if Id::as_ptr(&uiscreen) as id != current {
+                let _: () = msg_send![self.window, setScreen: &**uiscreen];
             }
 
-            let bounds: CGRect = msg_send![uiscreen, bounds];
+            let bounds = uiscreen.bounds();
             let _: () = msg_send![self.window, setFrame: bounds];
 
             // For external displays, we must disable overscan compensation or
             // the displayed image will have giant black bars surrounding it on
             // each side
-            let _: () = msg_send![
-                uiscreen,
-                setOverscanCompensation: UIScreenOverscanCompensation::None
-            ];
+            uiscreen.setOverscanCompensation(UIScreenOverscanCompensation::None);
         }
     }
 
@@ -272,7 +270,7 @@ impl Inner {
             let monitor = self.current_monitor_inner();
             let uiscreen = monitor.ui_screen();
             let screen_space_bounds = self.screen_frame();
-            let screen_bounds: CGRect = msg_send![uiscreen, bounds];
+            let screen_bounds = uiscreen.bounds();
 
             // TODO: track fullscreen instead of relying on brittle float comparisons
             if screen_space_bounds.origin.x == screen_bounds.origin.x
@@ -322,10 +320,8 @@ impl Inner {
 
     // Allow directly accessing the current monitor internally without unwrapping.
     fn current_monitor_inner(&self) -> MonitorHandle {
-        unsafe {
-            let uiscreen: id = msg_send![self.window, screen];
-            MonitorHandle::retained_new(uiscreen)
-        }
+        let uiscreen = unsafe { msg_send_id![self.window, screen] };
+        MonitorHandle::new(uiscreen)
     }
 
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
@@ -333,12 +329,13 @@ impl Inner {
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        unsafe { monitor::uiscreens() }
+        monitor::uiscreens(MainThreadMarker::new().unwrap())
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        let monitor = unsafe { monitor::main_uiscreen() };
-        Some(monitor)
+        Some(MonitorHandle::new(UIScreen::main(
+            MainThreadMarker::new().unwrap(),
+        )))
     }
 
     pub fn id(&self) -> WindowId {
@@ -418,19 +415,18 @@ impl Window {
         // TODO: transparency, visible
 
         unsafe {
+            let main_screen = UIScreen::main(MainThreadMarker::new().unwrap());
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen() as id,
+                Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(),
                 Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
-                Some(Fullscreen::Borderless(None)) | None => {
-                    monitor::main_uiscreen().ui_screen() as id
-                }
+                Some(Fullscreen::Borderless(None)) | None => &main_screen,
             };
 
-            let screen_bounds: CGRect = msg_send![screen, bounds];
+            let screen_bounds = screen.bounds();
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
-                    let scale_factor: CGFloat = msg_send![screen, scale];
+                    let scale_factor = screen.scale();
                     let size = dim.to_logical::<f64>(scale_factor as f64);
                     CGRect {
                         origin: screen_bounds.origin,

@@ -18,7 +18,7 @@ use objc2::foundation::MainThreadMarker;
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
-use super::uikit::{UIApplication, UIDevice};
+use super::uikit::{UIApplication, UIDevice, UIScreen};
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -56,15 +56,13 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        // guaranteed to be on main thread
-        unsafe { monitor::uiscreens() }
+        monitor::uiscreens(MainThreadMarker::new().unwrap())
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        // guaranteed to be on main thread
-        let monitor = unsafe { monitor::main_uiscreen() };
-
-        Some(monitor)
+        Some(MonitorHandle::new(UIScreen::main(
+            MainThreadMarker::new().unwrap(),
+        )))
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
