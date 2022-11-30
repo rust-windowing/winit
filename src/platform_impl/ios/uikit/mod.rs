@@ -5,9 +5,12 @@
 mod application;
 mod coordinate_space;
 mod device;
+mod event;
 mod responder;
 mod screen;
 mod screen_mode;
+mod touch;
+mod trait_collection;
 mod view;
 mod view_controller;
 mod window;
@@ -15,9 +18,12 @@ mod window;
 pub(crate) use self::application::UIApplication;
 pub(crate) use self::coordinate_space::UICoordinateSpace;
 pub(crate) use self::device::UIDevice;
+pub(crate) use self::event::UIEvent;
 pub(crate) use self::responder::UIResponder;
 pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};
 pub(crate) use self::screen_mode::UIScreenMode;
+pub(crate) use self::touch::{UITouch, UITouchPhase, UITouchType};
+pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollection};
 #[allow(unused_imports)]
 pub(crate) use self::view::{UIEdgeInsets, UIView};
 pub(crate) use self::view_controller::{UIInterfaceOrientationMask, UIViewController};

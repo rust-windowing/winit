@@ -87,18 +87,19 @@ pub(crate) use self::{
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
+use self::uikit::UIScreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {
-    uiscreen: ffi::id,
+    uiscreen: *const UIScreen,
 }
 
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         DeviceId {
-            uiscreen: std::ptr::null_mut(),
+            uiscreen: std::ptr::null(),
         }
     }
 }

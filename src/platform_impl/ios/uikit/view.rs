@@ -3,7 +3,7 @@ use objc2::foundation::{CGFloat, CGRect, NSObject};
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{UIResponder, UIViewController, UICoordinateSpace};
+use super::{UICoordinateSpace, UIResponder, UIViewController};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -22,6 +22,21 @@ extern_methods!(
 
         #[sel(setBounds:)]
         pub fn setBounds(&self, value: CGRect);
+
+        #[sel(frame)]
+        pub fn frame(&self) -> CGRect;
+
+        #[sel(setFrame:)]
+        pub fn setFrame(&self, value: CGRect);
+
+        #[sel(contentScaleFactor)]
+        pub fn contentScaleFactor(&self) -> CGFloat;
+
+        #[sel(setContentScaleFactor:)]
+        pub fn setContentScaleFactor(&self, val: CGFloat);
+
+        #[sel(setMultipleTouchEnabled:)]
+        pub fn setMultipleTouchEnabled(&self, val: bool);
 
         pub fn rootViewController(&self) -> Option<Id<UIViewController, Shared>> {
             unsafe { msg_send_id![self, rootViewController] }
@@ -46,6 +61,9 @@ extern_methods!(
 
         #[sel(safeAreaInsets)]
         pub fn safeAreaInsets(&self) -> UIEdgeInsets;
+
+        #[sel(setNeedsDisplay)]
+        pub fn setNeedsDisplay(&self);
     }
 );
 

@@ -33,47 +33,6 @@ unsafe impl Encode for NSOperatingSystemVersion {
     );
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-#[repr(isize)]
-pub enum UITouchPhase {
-    Began = 0,
-    Moved,
-    Stationary,
-    Ended,
-    Cancelled,
-}
-
-unsafe impl Encode for UITouchPhase {
-    const ENCODING: Encoding = NSInteger::ENCODING;
-}
-
-#[derive(Debug, PartialEq, Eq)]
-#[allow(dead_code)]
-#[repr(isize)]
-pub enum UIForceTouchCapability {
-    Unknown = 0,
-    Unavailable,
-    Available,
-}
-
-unsafe impl Encode for UIForceTouchCapability {
-    const ENCODING: Encoding = NSInteger::ENCODING;
-}
-
-#[derive(Debug, PartialEq, Eq)]
-#[allow(dead_code)]
-#[repr(isize)]
-pub enum UITouchType {
-    Direct = 0,
-    Indirect,
-    Pencil,
-}
-
-unsafe impl Encode for UITouchType {
-    const ENCODING: Encoding = NSInteger::ENCODING;
-}
-
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIUserInterfaceIdiom(NSInteger);

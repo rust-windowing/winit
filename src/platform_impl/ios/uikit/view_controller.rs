@@ -2,7 +2,7 @@ use objc2::encode::{Encode, Encoding};
 use objc2::foundation::{NSObject, NSUInteger};
 use objc2::{extern_class, extern_methods, ClassType};
 
-use super::{UIView, UIResponder};
+use super::{UIResponder, UIView};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

@@ -55,10 +55,7 @@ extern_methods!(
         }
 
         #[sel(setOverscanCompensation:)]
-        pub fn setOverscanCompensation(
-            &self,
-            overscanCompensation: UIScreenOverscanCompensation,
-        );
+        pub fn setOverscanCompensation(&self, overscanCompensation: UIScreenOverscanCompensation);
 
         pub fn coordinateSpace(&self) -> Id<UICoordinateSpace, Shared> {
             unsafe { msg_send_id![self, coordinateSpace] }

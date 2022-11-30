@@ -1,4 +1,4 @@
-use objc2::foundation::{CGRect, NSObject};
+use objc2::foundation::NSObject;
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
@@ -25,9 +25,6 @@ extern_methods!(
 
         #[sel(setHidden:)]
         pub fn setHidden(&self, flag: bool);
-
-        #[sel(setFrame:)]
-        pub fn setFrame(&self, value: CGRect);
 
         #[sel(makeKeyAndVisible)]
         pub fn makeKeyAndVisible(&self);
