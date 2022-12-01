@@ -124,6 +124,7 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let root = match window_attrs.parent_window {
             Some(RawWindowHandle::Xlib(handle)) => handle.window,
+            Some(RawWindowHandle::Xcb(handle)) => handle.window as u64,
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
             None => event_loop.root,
         };
