@@ -463,8 +463,9 @@ impl AppState {
     fn terminated_transition(&mut self) -> Box<dyn EventHandler> {
         match self.replace_state(AppStateImpl::Terminated) {
             AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
+            AppStateImpl::ProcessingRedraws { event_handler, .. } => event_handler,
             s => bug!(
-                "`LoopDestroyed` happened while not processing events {:?}",
+                "`LoopDestroyed` happened while not processing events or redraws {:?}",
                 s
             ),
         }
