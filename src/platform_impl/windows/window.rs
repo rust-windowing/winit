@@ -433,6 +433,19 @@ impl Window {
     }
 
     #[inline]
+    pub fn toggle_magic_flag(&self) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::MAGIC, !f.contains(WindowFlags::MAGIC))
+            });
+        });
+    }
+
+    #[inline]
     pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)

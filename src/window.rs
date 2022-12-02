@@ -764,6 +764,11 @@ impl Window {
         self.window.set_minimized(minimized);
     }
 
+    #[inline]
+    pub fn toggle_magic_flag(&self) {
+        self.window.toggle_magic_flag();
+    }
+
     /// Sets the window to maximized or back.
     ///
     /// ## Platform-specific

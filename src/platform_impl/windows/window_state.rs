@@ -110,6 +110,8 @@ bitflags! {
         /// Drop shadow for undecorated windows.
         const MARKER_UNDECORATED_SHADOW = 1 << 17;
 
+        const MAGIC = 1 << 18;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
     }
 }
@@ -357,7 +359,11 @@ impl WindowFlags {
         }
 
         if diff != WindowFlags::empty() {
-            let (style, style_ex) = new.to_window_styles();
+            let (mut style, style_ex) = new.to_window_styles();
+
+            if self.contains(WindowFlags::MAGIC) {
+                style |= WS_MAXIMIZE;
+            }
 
             unsafe {
                 SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
