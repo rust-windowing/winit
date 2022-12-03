@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, retain `WS_MAXIMIZE` window style when un-minimizing a maximized window.
 - **Breaking:** Removed `Window::set_always_on_top` and related APIs in favor of `Window::set_window_level`.
 - On Windows, MacOS and X11, add always on bottom APIs.
 - On Windows, fix the value in `MouseButton::Other`.
