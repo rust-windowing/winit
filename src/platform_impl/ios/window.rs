@@ -23,7 +23,7 @@ use crate::{
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
         WindowId as RootWindowId, WindowLevel,
     },
 };
@@ -170,6 +170,17 @@ impl Inner {
     pub fn is_resizable(&self) -> bool {
         warn!("`Window::is_resizable` is ignored on iOS");
         false
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
+        warn!("`Window::set_enabled_buttons` is ignored on iOS");
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        warn!("`Window::enabled_buttons` is ignored on iOS");
+        WindowButtons::all()
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -346,6 +357,11 @@ impl Inner {
     pub fn theme(&self) -> Option<Theme> {
         warn!("`Window::theme` is ignored on iOS");
         None
+    }
+
+    #[inline]
+    pub fn set_theme(&self, _theme: Option<Theme>) {
+        warn!("`Window::set_theme` is ignored on iOS");
     }
 
     pub fn title(&self) -> String {

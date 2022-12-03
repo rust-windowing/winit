@@ -143,6 +143,9 @@ impl MonitorHandle {
 
     /// The monitor refresh rate used by the system.
     ///
+    /// Return `Some` if succeed, or `None` if failed, which usually happens when the monitor
+    /// the window is on is removed.
+    ///
     /// When using exclusive fullscreen, the refresh rate of the [`VideoMode`] that was used to
     /// enter fullscreen should be used instead.
     #[inline]
