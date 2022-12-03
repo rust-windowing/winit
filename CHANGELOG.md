@@ -9,7 +9,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - **Breaking:** Removed platform specific `WindowBuilder::with_parent` API in favor of `WindowBuilder::with_parent_window`.
-- On Windows, revert window background to an empty brush to avoid white flashes when changing scaling
 - On macOS, run most actions on the main thread, which is strictly more correct, but might make multithreaded applications block slightly more.
 - On macOS, fix panic when getting current monitor without any monitor attached.
 - On Windows and MacOS, add API to enable/disable window buttons (close, minimize, ...etc).
