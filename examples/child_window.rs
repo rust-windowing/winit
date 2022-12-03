@@ -6,7 +6,7 @@
 fn main() {
     use std::collections::HashMap;
 
-    use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+    use raw_window_handle::HasRawWindowHandle;
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyboardInput, WindowEvent},
@@ -15,10 +15,11 @@ fn main() {
     };
 
     fn spawn_child_window(
-        parent: RawWindowHandle,
+        parent: &Window,
         event_loop: &EventLoopWindowTarget<()>,
         windows: &mut HashMap<WindowId, Window>,
     ) {
+        let parent = parent.raw_window_handle();
         let mut builder = WindowBuilder::new()
             .with_title("child window")
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
@@ -43,7 +44,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let root = parent_window.raw_window_handle();
+    let root = parent_window;
     println!("parent window: {:?})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
@@ -70,7 +71,7 @@ fn main() {
                         },
                     ..
                 } => {
-                    spawn_child_window(root, event_loop, &mut windows);
+                    spawn_child_window(&root, event_loop, &mut windows);
                 }
                 _ => (),
             }
