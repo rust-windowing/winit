@@ -126,16 +126,18 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub enabled_buttons: WindowButtons,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
     pub decorations: bool,
-    pub always_on_top: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
+    pub content_protected: bool,
+    pub window_level: WindowLevel,
 }
 
 impl Default for WindowAttributes {
@@ -147,16 +149,18 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
             visible: true,
             transparent: false,
             decorations: true,
-            always_on_top: false,
+            window_level: Default::default(),
             window_icon: None,
             preferred_theme: None,
             resize_increments: None,
+            content_protected: false,
         }
     }
 }
@@ -242,6 +246,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets the enabled window buttons.
+    ///
+    /// The default is [`WindowButtons::all`]
+    ///
+    /// See [`Window::set_enabled_buttons`] for details.
+    #[inline]
+    pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
+        self.window.enabled_buttons = buttons;
+        self
+    }
+
     /// Sets the initial title of the window in the title bar.
     ///
     /// The default is `"winit window"`.
@@ -315,14 +330,16 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets whether or not the window will always be on top of other windows.
+    /// Sets the window level.
     ///
-    /// The default is `false`.
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// See [`Window::set_always_on_top`] for details.
+    /// The default is [`WindowLevel::Normal`].
+    ///
+    /// See [`WindowLevel`] for details.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
-        self.window.always_on_top = always_on_top;
+    pub fn with_window_level(mut self, level: WindowLevel) -> Self {
+        self.window.window_level = level;
         self
     }
 
@@ -345,8 +362,10 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
+    /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
@@ -362,6 +381,23 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// The default is `false`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / Web / x11:** Ignored.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    #[inline]
+    pub fn with_content_protected(mut self, protected: bool) -> Self {
+        self.window.content_protected = protected;
         self
     }
 
@@ -732,6 +768,26 @@ impl Window {
         self.window.is_resizable()
     }
 
+    /// Sets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.window.set_enabled_buttons(buttons)
+    }
+
+    /// Gets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        self.window.enabled_buttons()
+    }
+
     /// Sets the window to minimized or back
     ///
     /// ## Platform-specific
@@ -821,14 +877,13 @@ impl Window {
         self.window.is_decorated()
     }
 
-    /// Change whether or not the window will always be on top of other windows.
+    /// Change the window level.
     ///
-    /// ## Platform-specific
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
-    #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.window.set_always_on_top(always_on_top)
+    /// See [`WindowLevel`] for details.
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.window.set_window_level(level)
     }
 
     /// Sets the window icon.
@@ -943,14 +998,43 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
+    /// Sets the current window theme. Use `None` to fallback to system default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This is an app-wide setting.
+    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.window.set_theme(theme)
+    }
+
     /// Returns the current window theme.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / x11:** Unsupported.
+    /// - **macOS:** This is an app-wide setting.
+    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    pub fn set_content_protected(&self, _protected: bool) {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        self.window.set_content_protected(_protected);
     }
 
     /// Gets the current title of the window.
@@ -1387,5 +1471,39 @@ pub enum UserAttentionType {
 impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
+    }
+}
+
+bitflags! {
+    pub struct WindowButtons: u32 {
+        const CLOSE  = 1 << 0;
+        const MINIMIZE  = 1 << 1;
+        const MAXIMIZE  = 1 << 2;
+    }
+}
+
+/// A window level groups windows with respect to their z-position.
+///
+/// The relative ordering between windows in different window levels is fixed.
+/// The z-order of a window within the same window level may change dynamically on user interaction.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Wayland:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WindowLevel {
+    /// The window will always be below normal windows.
+    ///
+    /// This is useful for a widget-based app.
+    AlwaysOnBottom,
+    /// The default.
+    Normal,
+    /// The window will always be on top of normal windows.
+    AlwaysOnTop,
+}
+
+impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
     }
 }

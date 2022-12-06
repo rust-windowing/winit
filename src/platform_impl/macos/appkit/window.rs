@@ -84,6 +84,9 @@ extern_methods!(
         #[sel(setMovable:)]
         pub fn setMovable(&self, movable: bool);
 
+        #[sel(setSharingType:)]
+        pub fn setSharingType(&self, sharingType: NSWindowSharingType);
+
         #[sel(setOpaque:)]
         pub fn setOpaque(&self, opaque: bool);
 
@@ -165,6 +168,9 @@ extern_methods!(
         #[sel(setLevel:)]
         pub fn setLevel(&self, level: NSWindowLevel);
 
+        #[sel(setDocumentEdited:)]
+        pub fn setDocumentEdited(&self, val: bool);
+
         #[sel(occlusionState)]
         pub fn occlusionState(&self) -> NSWindowOcclusionState;
 
@@ -174,6 +180,12 @@ extern_methods!(
         #[sel(isResizable)]
         pub fn isResizable(&self) -> bool;
 
+        #[sel(isMiniaturizable)]
+        pub fn isMiniaturizable(&self) -> bool;
+
+        #[sel(hasCloseBox)]
+        pub fn hasCloseBox(&self) -> bool;
+
         #[sel(isMiniaturized)]
         pub fn isMiniaturized(&self) -> bool;
 
@@ -182,6 +194,9 @@ extern_methods!(
 
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
+
+        #[sel(isDocumentEdited)]
+        pub fn isDocumentEdited(&self) -> bool;
 
         #[sel(close)]
         pub fn close(&self);
@@ -287,6 +302,8 @@ pub struct NSWindowLevel(pub NSInteger);
 
 #[allow(dead_code)]
 impl NSWindowLevel {
+    #[doc(alias = "BelowNormalWindowLevel")]
+    pub const BELOW_NORMAL: Self = Self((kCGNormalWindowLevel - 1) as _);
     #[doc(alias = "NSNormalWindowLevel")]
     pub const Normal: Self = Self(kCGNormalWindowLevel as _);
     #[doc(alias = "NSFloatingWindowLevel")]
@@ -347,5 +364,18 @@ pub enum NSBackingStoreType {
 }
 
 unsafe impl Encode for NSBackingStoreType {
+    const ENCODING: Encoding = NSUInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(usize)] // NSUInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowSharingType {
+    NSWindowSharingNone = 0,
+    NSWindowSharingReadOnly = 1,
+    NSWindowSharingReadWrite = 2,
+}
+
+unsafe impl Encode for NSWindowSharingType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }

@@ -42,11 +42,12 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
-            SetCursorPos, SetForegroundWindow, SetWindowPlacement, SetWindowPos, SetWindowTextW,
-            CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP,
-            FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY,
-            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-            SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
+            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+            WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -70,7 +71,10 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
+    },
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -262,6 +266,44 @@ impl Window {
         window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
+    #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(
+                    WindowFlags::MINIMIZABLE,
+                    buttons.contains(WindowButtons::MINIMIZE),
+                );
+                f.set(
+                    WindowFlags::MAXIMIZABLE,
+                    buttons.contains(WindowButtons::MAXIMIZE),
+                );
+                f.set(
+                    WindowFlags::CLOSABLE,
+                    buttons.contains(WindowButtons::CLOSE),
+                )
+            });
+        });
+    }
+
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        let window_state = self.window_state_lock();
+        if window_state.window_flags.contains(WindowFlags::MINIMIZABLE) {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::MAXIMIZABLE) {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if window_state.window_flags.contains(WindowFlags::CLOSABLE) {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
+    }
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
@@ -607,14 +649,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
+    pub fn set_window_level(&self, level: WindowLevel) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
+                f.set(
+                    WindowFlags::ALWAYS_ON_TOP,
+                    level == WindowLevel::AlwaysOnTop,
+                );
+                f.set(
+                    WindowFlags::ALWAYS_ON_BOTTOM,
+                    level == WindowLevel::AlwaysOnBottom,
+                );
             });
         });
     }
@@ -697,6 +746,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        try_theme(self.window.0, theme);
+    }
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         Some(self.window_state_lock().current_theme)
     }
@@ -740,6 +794,20 @@ impl Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(window.0) };
         }
+    }
+
+    #[inline]
+    pub fn set_content_protected(&self, protected: bool) {
+        unsafe {
+            SetWindowDisplayAffinity(
+                self.hwnd(),
+                if protected {
+                    WDA_EXCLUDEFROMCAPTURE
+                } else {
+                    WDA_NONE
+                },
+            )
+        };
     }
 }
 
@@ -911,9 +979,15 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         let attributes = self.attributes.clone();
 
+        if attributes.content_protected {
+            win.set_content_protected(true);
+        }
+
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
+
+        win.set_enabled_buttons(attributes.enabled_buttons);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
@@ -969,7 +1043,14 @@ where
         WindowFlags::MARKER_UNDECORATED_SHADOW,
         pl_attribs.decoration_shadow,
     );
-    window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_TOP,
+        attributes.window_level == WindowLevel::AlwaysOnTop,
+    );
+    window_flags.set(
+        WindowFlags::ALWAYS_ON_BOTTOM,
+        attributes.window_level == WindowLevel::AlwaysOnBottom,
+    );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,
@@ -977,6 +1058,9 @@ where
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
+    // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
+    // so the diffing later can work.
+    window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match pl_attribs.parent {
         Parent::ChildOf(parent) => {
@@ -1037,7 +1121,6 @@ where
 unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
 
-    use windows_sys::Win32::Graphics::Gdi::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1047,7 +1130,7 @@ unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
         hInstance: util::get_instance_handle(),
         hIcon: 0,
         hCursor: 0, // must be null in order for cursor state to work properly
-        hbrBackground: COLOR_WINDOWFRAME as _,
+        hbrBackground: 0,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
         hIconSm: 0,
@@ -1119,7 +1202,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
 
         task_bar_list2 = task_bar_list2_ptr.get();
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
+        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
     })
 }
 
