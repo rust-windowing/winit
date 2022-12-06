@@ -4,7 +4,7 @@ use std::{
     os::raw::c_void,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        Mutex, MutexGuard,
     },
 };
 
@@ -29,7 +29,7 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
         WindowId as RootWindowId, WindowLevel,
     },
 };
@@ -105,7 +105,7 @@ declare_class!(
     pub(crate) struct WinitWindow {
         // TODO: Fix unnecessary boxing here
         // SAFETY: These are initialized in WinitWindow::new, right after it is created.
-        shared_state: IvarDrop<Box<Arc<Mutex<SharedState>>>>,
+        shared_state: IvarDrop<Box<Mutex<SharedState>>>,
         decorations: IvarDrop<Box<AtomicBool>>,
     }
 
@@ -169,7 +169,7 @@ pub(crate) struct SharedStateMutexGuard<'a> {
 
 impl<'a> SharedStateMutexGuard<'a> {
     #[inline]
-    pub(crate) fn new(guard: MutexGuard<'a, SharedState>, called_from_fn: &'static str) -> Self {
+    fn new(guard: MutexGuard<'a, SharedState>, called_from_fn: &'static str) -> Self {
         trace!("Locked shared state in `{}`", called_from_fn);
         Self {
             guard,
@@ -269,6 +269,14 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMask::NSResizableWindowMask;
             }
 
+            if !attrs.enabled_buttons.contains(WindowButtons::MINIMIZE) {
+                masks &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+            }
+
+            if !attrs.enabled_buttons.contains(WindowButtons::CLOSE) {
+                masks &= !NSWindowStyleMask::NSClosableWindowMask;
+            }
+
             if pl_attrs.fullsize_content_view {
                 masks |= NSWindowStyleMask::NSFullSizeContentViewWindowMask;
             }
@@ -293,10 +301,7 @@ impl WinitWindow {
                     maximized: attrs.maximized,
                     ..Default::default()
                 };
-                Ivar::write(
-                    &mut this.shared_state,
-                    Box::new(Arc::new(Mutex::new(state))),
-                );
+                Ivar::write(&mut this.shared_state, Box::new(Mutex::new(state)));
                 Ivar::write(
                     &mut this.decorations,
                     Box::new(AtomicBool::new(attrs.decorations)),
@@ -331,6 +336,12 @@ impl WinitWindow {
                 }
                 if pl_attrs.movable_by_window_background {
                     this.setMovableByWindowBackground(true);
+                }
+
+                if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
+                    if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
+                        button.setEnabled(false);
+                    }
                 }
 
                 if let Some(increments) = attrs.resize_increments {
@@ -399,12 +410,12 @@ impl WinitWindow {
 
         match attrs.preferred_theme {
             Some(theme) => {
-                set_ns_theme(theme);
-                let mut state = this.shared_state.lock().unwrap();
+                set_ns_theme(Some(theme));
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(theme);
             }
             None => {
-                let mut state = this.shared_state.lock().unwrap();
+                let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(get_ns_theme());
             }
         }
@@ -429,6 +440,12 @@ impl WinitWindow {
         Ok((this, delegate))
     }
 
+    pub(super) fn retain(&self) -> Id<WinitWindow, Shared> {
+        // SAFETY: The pointer is valid, and the window is always `Shared`
+        // TODO(madsmtm): Remove the need for unsafety here
+        unsafe { Id::retain(self as *const Self as *mut Self).unwrap() }
+    }
+
     pub(super) fn view(&self) -> Id<WinitView, Shared> {
         // SAFETY: The view inside WinitWindow is always `WinitView`
         unsafe { Id::cast(self.contentView()) }
@@ -442,10 +459,6 @@ impl WinitWindow {
         SharedStateMutexGuard::new(self.shared_state.lock().unwrap(), called_from_fn)
     }
 
-    fn set_style_mask_async(&self, mask: NSWindowStyleMask) {
-        util::set_style_mask_async(self, mask);
-    }
-
     fn set_style_mask_sync(&self, mask: NSWindowStyleMask) {
         util::set_style_mask_sync(self, mask);
     }
@@ -455,13 +468,13 @@ impl WinitWindow {
     }
 
     pub fn set_title(&self, title: &str) {
-        util::set_title_async(self, title.to_string());
+        util::set_title_sync(self, title);
     }
 
     pub fn set_visible(&self, visible: bool) {
         match visible {
-            true => util::make_key_and_order_front_async(self),
-            false => util::order_out_async(self),
+            true => util::make_key_and_order_front_sync(self),
+            false => util::order_out_sync(self),
         }
     }
 
@@ -497,7 +510,7 @@ impl WinitWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        util::set_frame_top_left_point_async(self, util::window_position(position));
+        util::set_frame_top_left_point_sync(self, util::window_position(position));
     }
 
     #[inline]
@@ -519,7 +532,7 @@ impl WinitWindow {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        util::set_content_size_async(self, size.to_logical(scale_factor));
+        util::set_content_size_sync(self, size.to_logical(scale_factor));
     }
 
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
@@ -615,13 +628,61 @@ impl WinitWindow {
             } else {
                 mask &= !NSWindowStyleMask::NSResizableWindowMask;
             }
-            self.set_style_mask_async(mask);
-        } // Otherwise, we don't change the mask until we exit fullscreen.
+            self.set_style_mask_sync(mask);
+        }
+        // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.isResizable()
+    }
+
+    #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        let mut mask = self.styleMask();
+
+        if buttons.contains(WindowButtons::CLOSE) {
+            mask |= NSWindowStyleMask::NSClosableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSClosableWindowMask;
+        }
+
+        if buttons.contains(WindowButtons::MINIMIZE) {
+            mask |= NSWindowStyleMask::NSMiniaturizableWindowMask;
+        } else {
+            mask &= !NSWindowStyleMask::NSMiniaturizableWindowMask;
+        }
+
+        // This must happen before the button's "enabled" status has been set,
+        // hence we do it synchronously.
+        self.set_style_mask_sync(mask);
+
+        // We edit the button directly instead of using `NSResizableWindowMask`,
+        // since that mask also affect the resizability of the window (which is
+        // controllable by other means in `winit`).
+        if let Some(button) = self.standardWindowButton(NSWindowButton::Zoom) {
+            button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));
+        }
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        let mut buttons = WindowButtons::empty();
+        if self.isMiniaturizable() {
+            buttons |= WindowButtons::MINIMIZE;
+        }
+        if self
+            .standardWindowButton(NSWindowButton::Zoom)
+            .map(|b| b.isEnabled())
+            .unwrap_or(true)
+        {
+            buttons |= WindowButtons::MAXIMIZE;
+        }
+        if self.hasCloseBox() {
+            buttons |= WindowButtons::CLOSE;
+        }
+        buttons
     }
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
@@ -690,7 +751,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        util::set_ignore_mouse_events(self, !hittest);
+        util::set_ignore_mouse_events_sync(self, !hittest);
         Ok(())
     }
 
@@ -710,7 +771,7 @@ impl WinitWindow {
 
         // Roll back temp styles
         if needs_temp_mask {
-            self.set_style_mask_async(curr_mask);
+            self.set_style_mask_sync(curr_mask);
         }
 
         is_zoomed
@@ -741,7 +802,7 @@ impl WinitWindow {
 
         drop(shared_state_lock);
 
-        self.set_style_mask_async(mask);
+        self.set_style_mask_sync(mask);
         self.set_maximized(maximized);
     }
 
@@ -765,12 +826,7 @@ impl WinitWindow {
         if is_zoomed == maximized {
             return;
         };
-        util::set_maximized_async(
-            self,
-            is_zoomed,
-            maximized,
-            Arc::downgrade(&*self.shared_state),
-        );
+        util::set_maximized_sync(self, is_zoomed, maximized);
     }
 
     #[inline]
@@ -826,7 +882,7 @@ impl WinitWindow {
                 // The coordinate system here has its origin at bottom-left
                 // and Y goes up
                 screen_frame.origin.y += screen_frame.size.height;
-                util::set_frame_top_left_point_async(self, screen_frame.origin);
+                util::set_frame_top_left_point_sync(self, screen_frame.origin);
             }
         }
 
@@ -900,35 +956,22 @@ impl WinitWindow {
             }
         }
 
-        let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
-        shared_state_lock.fullscreen = fullscreen.clone();
+        self.lock_shared_state("set_fullscreen").fullscreen = fullscreen.clone();
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => {
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &None) => {
                 // State is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
+                    util::restore_display_mode_sync(video_mode.monitor().native_identifier())
                 };
                 // Rest of the state is restored by `window_did_exit_fullscreen`
-                util::toggle_full_screen_async(
-                    self,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&*self.shared_state),
-                );
+                util::toggle_full_screen_sync(self, old_fullscreen.is_none());
             }
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => {
                 // If we're already in fullscreen mode, calling
@@ -940,7 +983,8 @@ impl WinitWindow {
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 let app = NSApp();
-                shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
+                self.lock_shared_state("set_fullscreen")
+                    .save_presentation_opts = Some(app.presentationOptions());
 
                 let presentation_options =
                     NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -953,8 +997,10 @@ impl WinitWindow {
                 self.setLevel(window_level);
             }
             (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
-                let presentation_options =
-                    shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
+                let presentation_options = self
+                    .lock_shared_state("set_fullscreen")
+                    .save_presentation_opts
+                    .unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
@@ -962,7 +1008,7 @@ impl WinitWindow {
                 NSApp().setPresentationOptions(presentation_options);
 
                 unsafe {
-                    util::restore_display_mode_async(video_mode.monitor().native_identifier())
+                    util::restore_display_mode_sync(video_mode.monitor().native_identifier())
                 };
 
                 // Restore the normal window level following the Borderless fullscreen
@@ -1007,7 +1053,7 @@ impl WinitWindow {
                 }
                 new_mask
             };
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
         }
     }
 
@@ -1023,7 +1069,7 @@ impl WinitWindow {
             WindowLevel::AlwaysOnBottom => NSWindowLevel::BELOW_NORMAL,
             WindowLevel::Normal => NSWindowLevel::Normal,
         };
-        util::set_level_async(self, level);
+        util::set_level_sync(self, level);
     }
 
     #[inline]
@@ -1059,7 +1105,7 @@ impl WinitWindow {
 
         if !is_minimized && is_visible {
             NSApp().activateIgnoringOtherApps(true);
-            util::make_key_and_order_front_async(self);
+            util::make_key_and_order_front_sync(self);
         }
     }
 
@@ -1121,8 +1167,13 @@ impl WinitWindow {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        let state = self.shared_state.lock().unwrap();
-        state.current_theme
+        self.lock_shared_state("theme").current_theme
+    }
+
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        set_ns_theme(theme);
+        self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));
     }
 
     #[inline]
@@ -1152,13 +1203,13 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn simple_fullscreen(&self) -> bool {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.is_simple_fullscreen
+        self.lock_shared_state("simple_fullscreen")
+            .is_simple_fullscreen
     }
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let mut shared_state_lock = self.lock_shared_state("set_simple_fullscreen");
 
         let app = NSApp();
         let is_native_fullscreen = shared_state_lock.fullscreen.is_some();
@@ -1203,7 +1254,7 @@ impl WindowExtMacOS for WinitWindow {
             true
         } else {
             let new_mask = self.saved_style(&mut shared_state_lock);
-            self.set_style_mask_async(new_mask);
+            self.set_style_mask_sync(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
             if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {
@@ -1254,15 +1305,17 @@ pub(super) fn get_ns_theme() -> Theme {
     }
 }
 
-fn set_ns_theme(theme: Theme) {
+fn set_ns_theme(theme: Option<Theme>) {
     let app = NSApp();
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
-        let name = match theme {
-            Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
-            Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
-        };
-        let appearance = NSAppearance::appearanceNamed(&name);
-        app.setAppearance(&appearance);
+        let appearance = theme.map(|t| {
+            let name = match t {
+                Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
+                Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
+            };
+            NSAppearance::appearanceNamed(&name)
+        });
+        app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }
 }
