@@ -139,6 +139,7 @@ pub(crate) struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub parent_window: Option<RawWindowHandle>,
+    pub active: bool,
 }
 
 impl Default for WindowAttributes {
@@ -163,6 +164,7 @@ impl Default for WindowAttributes {
             resize_increments: None,
             content_protected: false,
             parent_window: None,
+            active: true,
         }
     }
 }
@@ -402,6 +404,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
+        self
+    }
+
+    /// Whether the window will be initially focused or not.
+    ///
+    /// ## Platform-specific:
+    ///
+    /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    #[inline]
+    pub fn with_active(mut self, active: bool) -> WindowBuilder {
+        self.window.active = active;
         self
     }
 

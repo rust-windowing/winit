@@ -19,6 +19,7 @@ use crate::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::WindowEvent,
     icon::Icon,
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
@@ -464,13 +465,19 @@ impl WinitWindow {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
-            // Tightly linked with `app_state::window_activation_hack`
-            this.makeKeyAndOrderFront(None);
+            if attrs.active {
+                // Tightly linked with `app_state::window_activation_hack`
+                this.makeKeyAndOrderFront(None);
+            } else {
+                this.orderFront(None);
+            }
         }
 
         if attrs.maximized {
             this.set_maximized(attrs.maximized);
         }
+
+        delegate.emit_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }
