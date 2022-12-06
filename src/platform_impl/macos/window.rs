@@ -358,29 +358,6 @@ impl WinitWindow {
                     }
                 }
 
-                match attrs.parent_window {
-                    Some(RawWindowHandle::AppKit(handle)) => {
-                        // SAFETY: Caller ensures the pointer is valid or NULL
-                        let parent: Id<NSWindow, Shared> =
-                            unsafe { Id::retain(handle.ns_window.cast()) }.unwrap_or_else(|| {
-                                // SAFETY: Caller ensures the pointer is valid or NULL
-                                let parent_view: Id<NSView, Shared> =
-                                    unsafe { Id::retain(handle.ns_view.cast()) }
-                                        .expect("raw window handle should be non-empty");
-                                parent_view
-                                    .window()
-                                    .expect("parent view should be installed in a window")
-                            });
-                        // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
-                        // where we allow making a window a child window is right here, just after it's been created.
-                        unsafe {
-                            parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove)
-                        };
-                    }
-                    Some(raw) => unreachable!("Invalid raw window handle {raw:?} on macOS"),
-                    None => {}
-                }
-
                 if !pl_attrs.has_shadow {
                     this.setHasShadow(false);
                 }
@@ -392,6 +369,38 @@ impl WinitWindow {
             })
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
+
+        match attrs.parent_window {
+            Some(RawWindowHandle::AppKit(handle)) => {
+                // SAFETY: Caller ensures the pointer is valid or NULL
+                let parent: Id<NSWindow, Shared> =
+                    match unsafe { Id::retain(handle.ns_window.cast()) } {
+                        Some(window) => window,
+                        None => {
+                            // SAFETY: Caller ensures the pointer is valid or NULL
+                            let parent_view: Id<NSView, Shared> =
+                                match unsafe { Id::retain(handle.ns_view.cast()) } {
+                                    Some(view) => view,
+                                    None => {
+                                        return Err(os_error!(OsError::CreationError(
+                                            "raw window handle should be non-empty"
+                                        )))
+                                    }
+                                };
+                            parent_view.window().ok_or_else(|| {
+                                os_error!(OsError::CreationError(
+                                    "parent view should be installed in a window"
+                                ))
+                            })?
+                        }
+                    };
+                // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
+                // where we allow making a window a child window is right here, just after it's been created.
+                unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
+            }
+            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on macOS"),
+            None => {}
+        }
 
         let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
