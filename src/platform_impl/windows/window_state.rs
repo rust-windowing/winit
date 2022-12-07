@@ -118,7 +118,7 @@ bitflags! {
         /// is fired with `wparam` set to `SIZE_MINIMIZED` and thus the `MAXIMIZED` bit will be unset
         /// and when un-minimizing the window, the `MAXIMIZED` bit will still be unset and later on
         /// in `apply_diff` when `new.to_window_styles()` is called, it will not add `WS_MAXIMIZE` window style.
-        const MARKER_WAS_MAXIMIZED = 1 << 18;
+        const MARKER_WAS_MAXIMIZED = 1 << 21;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
     }
