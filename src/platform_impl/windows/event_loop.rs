@@ -2272,10 +2272,6 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     }
     let userdata = Box::from_raw(userdata_ptr);
 
-    if msg != WM_PAINT {
-        RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
-    }
-
     let mut userdata_removed = false;
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
@@ -2283,6 +2279,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     // the git blame and history would be preserved.
     let callback = || match msg {
         WM_NCDESTROY => {
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             super::set_window_long(window, GWL_USERDATA, 0);
             userdata_removed = true;
             0
@@ -2313,6 +2310,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         }
 
         WM_INPUT_DEVICE_CHANGE => {
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             let event = match wparam as u32 {
                 GIDC_ARRIVAL => DeviceEvent::Added,
                 GIDC_REMOVAL => DeviceEvent::Removed,
@@ -2333,6 +2331,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
             };
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
 
             if let Some(data) = raw_input::get_raw_input_data(lparam) {
                 let device_id = wrap_device_id(data.header.hDevice as u32);
@@ -2432,17 +2431,20 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         }
 
         _ if msg == *USER_EVENT_MSG_ID => {
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             if let Ok(event) = userdata.user_event_receiver.recv() {
                 userdata.send_event(Event::UserEvent(event));
             }
             0
         }
         _ if msg == *EXEC_MSG_ID => {
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             let mut function: ThreadExecFn = Box::from_raw(wparam as usize as *mut _);
             function();
             0
         }
         _ if msg == *PROCESS_NEW_EVENTS_MSG_ID => {
+            RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             PostThreadMessageW(
                 userdata.event_loop_runner.wait_thread_id(),
                 *CANCEL_WAIT_UNTIL_MSG_ID,
