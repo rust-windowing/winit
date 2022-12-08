@@ -1,7 +1,6 @@
 use std::{slice, str};
 
 use super::*;
-use crate::event::ModifiersState;
 
 pub const VIRTUAL_CORE_POINTER: c_int = 2;
 pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
@@ -10,21 +9,6 @@ pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
 // re-allocate (and make another round-trip) in the *vast* majority of cases.
 // To test if `lookup_utf8` works correctly, set this to 1.
 const TEXT_BUFFER_SIZE: usize = 1024;
-
-impl ModifiersState {
-    pub(crate) fn from_x11(state: &ffi::XIModifierState) -> Self {
-        ModifiersState::from_x11_mask(state.effective as c_uint)
-    }
-
-    pub(crate) fn from_x11_mask(mask: c_uint) -> Self {
-        let mut m = ModifiersState::empty();
-        m.set(ModifiersState::ALT, mask & ffi::Mod1Mask != 0);
-        m.set(ModifiersState::SHIFT, mask & ffi::ShiftMask != 0);
-        m.set(ModifiersState::CTRL, mask & ffi::ControlMask != 0);
-        m.set(ModifiersState::LOGO, mask & ffi::Mod4Mask != 0);
-        m
-    }
-}
 
 // NOTE: Some of these fields are not used, but may be of use in the future.
 pub struct PointerState<'a> {
@@ -36,15 +20,8 @@ pub struct PointerState<'a> {
     pub win_x: c_double,
     pub win_y: c_double,
     buttons: ffi::XIButtonState,
-    modifiers: ffi::XIModifierState,
     pub group: ffi::XIGroupState,
     pub relative_to_window: bool,
-}
-
-impl<'a> PointerState<'a> {
-    pub fn get_modifier_state(&self) -> ModifiersState {
-        ModifiersState::from_x11(&self.modifiers)
-    }
 }
 
 impl<'a> Drop for PointerState<'a> {
@@ -81,12 +58,12 @@ impl XConnection {
         Flusher::new(self)
     }
 
-    #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
         let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
+            error!("Could not select XKB events: The XKB extension is not initialized!");
             None
         }
     }
@@ -133,7 +110,6 @@ impl XConnection {
                 win_x,
                 win_y,
                 buttons,
-                modifiers,
                 group,
                 relative_to_window,
             })

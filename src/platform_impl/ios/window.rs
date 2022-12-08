@@ -368,6 +368,10 @@ impl Inner {
         warn!("`Window::title` is ignored on iOS");
         String::new()
     }
+
+    pub fn reset_dead_keys(&self) {
+        // Noop
+    }
 }
 
 pub struct Window {

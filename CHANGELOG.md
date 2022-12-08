@@ -8,6 +8,34 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Remove all deprecated `modifiers` fields.
+- **Breaking:** Overhaul keyboard input handling.
+  - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
+    - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
+    - Change `Event::Key` to contain a `RawKeyEvent`.
+  - Remove `Event::ReceivedCharacter`. In its place, you should use
+    `KeyEvent.text` in combination with `WindowEvent::Ime`.
+  - Replace `VirtualKeyCode` with the `Key` enum.
+  - Replace `ScanCode` with the `KeyCode` enum.
+  - Rename `ModifiersState::LOGO` to `SUPER` and `ModifiersState::CTRL` to `CONTROL`.
+  - Add `KeyCode` to refer to keys (roughly) by their physical location.
+  - Add `NativeKeyCode` to represent raw `KeyCode`s which Winit doesn't
+    understand.
+  - Add `Key` to represent the keys after they've been interpreted by the
+    active (software) keyboard layout.
+  - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
+  - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
+    but can appear simultanesouly in different spots on the same keyboard
+    layout.
+  - Add `Window::reset_dead_keys` to enable application-controlled cancellation
+    of dead key sequences.
+  - Add `KeyEventExtModifierSupplement` to expose additional (and less
+    portable) interpretations of a given key-press.
+  - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
+    `KeyCode`.
+  - Remove `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
+  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
+- On Orbital, fix `ModifiersChanged` not being sent.
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
 - **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
 - **Breaking:** `CursorIcon::Arrow` was removed.

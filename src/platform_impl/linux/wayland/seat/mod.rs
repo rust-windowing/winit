@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use fnv::FnvHashMap;
 
-use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
@@ -14,7 +13,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 
-use crate::event::{ElementState, ModifiersState};
+use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
 mod keyboard;
@@ -26,7 +25,7 @@ pub use pointer::relative_pointer::RelativePointerState;
 pub use pointer::{PointerConstraintsState, WinitPointerData, WinitPointerDataExt};
 pub use text_input::{TextInputState, ZwpTextInputV3Ext};
 
-use keyboard::WinitKeyboardData;
+use keyboard::{KeyboardData, KeyboardState};
 use text_input::TextInputData;
 use touch::TouchPoint;
 
@@ -91,20 +90,9 @@ impl SeatHandler for WinitState {
                 seat_state.touch = self.seat_state.get_touch(queue_handle, &seat).ok();
             }
             SeatCapability::Keyboard if seat_state.keyboard_state.is_none() => {
-                let keyboard = self
-                    .seat_state
-                    .get_keyboard_with_repeat_with_data(
-                        queue_handle,
-                        &seat,
-                        WinitKeyboardData::new(seat.clone()),
-                        self.loop_handle.clone(),
-                        Box::new(|state, keyboard, event| {
-                            state.handle_key_input(keyboard, event, ElementState::Pressed);
-                        }),
-                    )
-                    .expect("failed to create keyboard with present capability.");
-
-                seat_state.keyboard_state = Some(KeyboardState { keyboard });
+                let keyboard = seat.get_keyboard(queue_handle, KeyboardData::new(seat.clone()));
+                seat_state.keyboard_state =
+                    Some(KeyboardState::new(keyboard, self.loop_handle.clone()));
             }
             SeatCapability::Pointer if seat_state.pointer.is_none() => {
                 let surface = self.compositor_state.create_surface(queue_handle);
@@ -192,11 +180,7 @@ impl SeatHandler for WinitState {
                 }
             }
             SeatCapability::Keyboard => {
-                if let Some(keyboard_state) = seat_state.keyboard_state.take() {
-                    if keyboard_state.keyboard.version() >= 3 {
-                        keyboard_state.keyboard.release();
-                    }
-                }
+                seat_state.keyboard_state = None;
             }
             _ => (),
         }
@@ -223,12 +207,6 @@ impl SeatHandler for WinitState {
     ) {
         let _ = self.seats.remove(&seat.id());
     }
-}
-
-#[derive(Debug)]
-pub struct KeyboardState {
-    /// The underlying WlKeyboard.
-    pub keyboard: WlKeyboard,
 }
 
 sctk::delegate_seat!(WinitState);

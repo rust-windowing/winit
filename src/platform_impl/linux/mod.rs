@@ -18,6 +18,7 @@ use std::{
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
+use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
@@ -28,11 +29,13 @@ use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::Event,
+    event::{Event, KeyEvent},
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
+    keyboard::{Key, KeyCode},
+    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
         WindowAttributes, WindowButtons, WindowLevel,
@@ -42,6 +45,7 @@ use crate::{
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
+pub mod common;
 #[cfg(wayland_platform)]
 pub mod wayland;
 #[cfg(x11_platform)]
@@ -515,6 +519,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn reset_dead_keys(&self) {
+        common::xkb_state::reset_dead_keys()
+    }
+
+    #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
     }
@@ -621,6 +630,37 @@ impl Window {
 
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub key_without_modifiers: Key,
+    pub text_with_all_modifiers: Option<SmolStr>,
+}
+
+impl KeyEventExtModifierSupplement for KeyEvent {
+    #[inline]
+    fn text_with_all_modifiers(&self) -> Option<&str> {
+        self.platform_specific
+            .text_with_all_modifiers
+            .as_ref()
+            .map(|s| s.as_str())
+    }
+
+    #[inline]
+    fn key_without_modifiers(&self) -> Key {
+        self.platform_specific.key_without_modifiers.clone()
+    }
+}
+
+impl KeyCodeExtScancode for KeyCode {
+    fn from_scancode(scancode: u32) -> KeyCode {
+        common::keymap::raw_keycode_to_keycode(scancode)
+    }
+
+    fn to_scancode(self) -> Option<u32> {
+        common::keymap::keycode_to_raw(self)
     }
 }
 
