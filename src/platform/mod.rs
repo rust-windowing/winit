@@ -32,6 +32,7 @@ pub mod windows;
 #[cfg(x11_platform)]
 pub mod x11;
 
+pub mod modifier_supplement;
 #[cfg(any(
     windows_platform,
     macos_platform,
@@ -41,3 +42,4 @@ pub mod x11;
     orbital_platform
 ))]
 pub mod run_return;
+pub mod scancode;
