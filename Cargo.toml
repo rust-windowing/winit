@@ -44,7 +44,7 @@ wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 android-native-activity = ["android-activity/native-activity"]
 android-game-activity = ["android-activity/game-activity"]
-serde = ["dep:serde", "cursor-icon/serde"]
+serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde"]
 
 [build-dependencies]
 cfg_aliases = "0.1.1"
@@ -58,6 +58,7 @@ mint = { version = "0.5.6", optional = true }
 once_cell = "1.12"
 raw_window_handle = { package = "raw-window-handle", version = "0.5" }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+smol_str = "0.2.0"
 
 [dev-dependencies]
 image = { version = "0.24.0", default-features = false, features = ["png"] }
