@@ -1,4 +1,5 @@
 //! The [`Window`] struct and associated types.
+
 use std::fmt;
 
 use raw_window_handle::{
@@ -1033,7 +1034,7 @@ impl Window {
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(any(target_os = "macos", windows))]
         self.window.set_content_protected(_protected);
     }
 
@@ -1340,7 +1341,7 @@ unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {
     /// No grabbing of the cursor is performed.
     None,
@@ -1370,7 +1371,7 @@ pub enum CursorGrabMode {
 
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
     Default,

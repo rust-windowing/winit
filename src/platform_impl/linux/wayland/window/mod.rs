@@ -31,12 +31,12 @@ pub mod shim;
 
 use shim::{WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest};
 
-#[cfg(feature = "sctk-adwaita")]
+#[cfg(sctk_adwaita)]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
-#[cfg(not(feature = "sctk-adwaita"))]
+#[cfg(not(sctk_adwaita))]
 pub type WinitFrame = sctk::window::FallbackFrame;
 
-#[cfg(feature = "sctk-adwaita")]
+#[cfg(sctk_adwaita)]
 const WAYLAND_CSD_THEME_ENV_VAR: &str = "WINIT_WAYLAND_CSD_THEME";
 
 pub struct Window {
@@ -171,7 +171,7 @@ impl Window {
 
         // Set CSD frame config from theme if specified,
         // otherwise use upstream automatic selection.
-        #[cfg(feature = "sctk-adwaita")]
+        #[cfg(sctk_adwaita)]
         if let Some(theme) = attributes.preferred_theme.or_else(|| {
             std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
                 .ok()
@@ -219,7 +219,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -490,7 +490,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -647,7 +647,7 @@ impl Drop for Window {
     }
 }
 
-#[cfg(feature = "sctk-adwaita")]
+#[cfg(sctk_adwaita)]
 impl From<Theme> for sctk_adwaita::FrameConfig {
     fn from(theme: Theme) -> Self {
         match theme {

@@ -14,13 +14,13 @@ pub fn main() {
         .build(&event_loop)
         .unwrap();
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(wasm)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
 
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(wasm)]
         wasm::log_event(&log_list, &event);
 
         match event {
@@ -36,7 +36,7 @@ pub fn main() {
     });
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm)]
 mod wasm {
     use wasm_bindgen::prelude::*;
     use winit::{event::Event, window::Window};

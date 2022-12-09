@@ -168,7 +168,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
     pub x: P,
     pub y: P,
@@ -231,14 +231,14 @@ impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<mint::Point2<P>> for LogicalPosition<P> {
     fn from(p: mint::Point2<P>) -> Self {
         Self::new(p.x, p.y)
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
     fn from(p: LogicalPosition<P>) -> Self {
         mint::Point2 { x: p.x, y: p.y }
@@ -247,7 +247,7 @@ impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
 
 /// A position represented in physical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,
     pub y: P,
@@ -310,14 +310,14 @@ impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<mint::Point2<P>> for PhysicalPosition<P> {
     fn from(p: mint::Point2<P>) -> Self {
         Self::new(p.x, p.y)
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
     fn from(p: PhysicalPosition<P>) -> Self {
         mint::Point2 { x: p.x, y: p.y }
@@ -326,7 +326,7 @@ impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
 
 /// A size represented in logical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
     pub width: P,
     pub height: P,
@@ -389,14 +389,14 @@ impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
     fn from(v: mint::Vector2<P>) -> Self {
         Self::new(v.x, v.y)
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
     fn from(s: LogicalSize<P>) -> Self {
         mint::Vector2 {
@@ -408,7 +408,7 @@ impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
 
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub struct PhysicalSize<P> {
     pub width: P,
     pub height: P,
@@ -468,14 +468,14 @@ impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
     fn from(v: mint::Vector2<P>) -> Self {
         Self::new(v.x, v.y)
     }
 }
 
-#[cfg(feature = "mint")]
+#[cfg(mint)]
 impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
     fn from(s: PhysicalSize<P>) -> Self {
         mint::Vector2 {
@@ -487,7 +487,7 @@ impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
 
 /// A size that's either physical or logical.
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub enum Size {
     Physical(PhysicalSize<u32>),
     Logical(LogicalSize<f64>),
@@ -552,7 +552,7 @@ impl<P: Pixel> From<LogicalSize<P>> for Size {
 
 /// A position that's either physical or logical.
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(serde, derive(Serialize, Deserialize))]
 pub enum Position {
     Physical(PhysicalPosition<i32>),
     Logical(LogicalPosition<f64>),

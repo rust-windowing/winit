@@ -1,7 +1,7 @@
-#[cfg(all(target_os = "linux", feature = "x11"))]
+#[cfg(x11)]
 use std::collections::HashMap;
 
-#[cfg(all(target_os = "linux", feature = "x11"))]
+#[cfg(x11)]
 use winit::{
     dpi::{LogicalPosition, LogicalSize, Position},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
@@ -10,7 +10,7 @@ use winit::{
     window::{Window, WindowBuilder, WindowId},
 };
 
-#[cfg(all(target_os = "linux", feature = "x11"))]
+#[cfg(x11)]
 fn spawn_child_window(
     parent: u32,
     event_loop: &EventLoopWindowTarget<()>,
@@ -30,7 +30,7 @@ fn spawn_child_window(
     println!("child window created with id: {}", id);
 }
 
-#[cfg(all(target_os = "linux", feature = "x11"))]
+#[cfg(x11)]
 fn main() {
     let mut windows = HashMap::new();
 
@@ -77,7 +77,7 @@ fn main() {
     })
 }
 
-#[cfg(not(all(target_os = "linux", feature = "x11")))]
+#[cfg(not(x11))]
 fn main() {
     panic!("This example is supported only on x11.");
 }

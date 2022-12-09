@@ -1,4 +1,4 @@
-#![cfg(target_os = "windows")]
+#![cfg(windows)]
 
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,

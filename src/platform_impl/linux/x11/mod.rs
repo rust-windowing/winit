@@ -1,10 +1,4 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(linux)]
 
 mod dnd;
 mod event_processor;
@@ -536,7 +530,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland)]
         _ => unreachable!(),
     }
 }

@@ -21,41 +21,14 @@ pub mod android;
 pub mod ios;
 #[cfg(target_os = "macos")]
 pub mod macos;
-#[cfg(all(
-    feature = "wayland",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-    )
-))]
+#[cfg(wayland)]
 pub mod wayland;
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm)]
 pub mod web;
-#[cfg(target_os = "windows")]
+#[cfg(windows)]
 pub mod windows;
-#[cfg(all(
-    feature = "x11",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-    )
-))]
+#[cfg(x11)]
 pub mod x11;
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "android",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#[cfg(any(windows, x11, wayland, target_os = "macos", target_os = "android"))]
 pub mod run_return;
