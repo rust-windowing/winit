@@ -19,6 +19,21 @@ pub(self) use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
+use crate::keyboard::Key;
+
+// ---------------------------------------------
+// WINDOWS MACROS and constants
+#[inline]
+#[allow(non_snake_case)]
+pub fn PRIMARYLANGID(lgid: u16) -> u16 {
+    lgid & 0x3ff
+}
+#[inline]
+#[allow(non_snake_case)]
+pub fn LOWORD(dword: u32) -> u16 {
+    (dword & 0xffff) as u16
+}
+// ---------------------------------------------
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -81,6 +96,12 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
 }
 
 pub type OsError = std::io::Error;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub text_with_all_modifers: Option<&'static str>,
+    pub key_without_modifiers: Key<'static>,
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
@@ -162,10 +183,11 @@ mod dark_mode;
 mod definitions;
 mod dpi;
 mod drop_handler;
-mod event;
 mod event_loop;
 mod icon;
 mod ime;
+mod keyboard;
+mod keyboard_layout;
 mod monitor;
 mod raw_input;
 mod window;

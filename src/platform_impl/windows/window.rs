@@ -6,7 +6,9 @@ use raw_window_handle::{
 use std::{
     cell::Cell,
     ffi::c_void,
-    io, mem, panic, ptr,
+    io,
+    mem::{self, MaybeUninit},
+    panic, ptr,
     sync::{mpsc::channel, Arc, Mutex, MutexGuard},
 };
 
@@ -32,9 +34,9 @@ use windows_sys::Win32::{
     UI::{
         Input::{
             KeyboardAndMouse::{
-                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
-                INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                MAPVK_VK_TO_VSC, VK_LMENU, VK_MENU,
+                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput,
+                ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
+                KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VIRTUAL_KEY, VK_LMENU, VK_MENU, VK_SPACE,
             },
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
@@ -65,6 +67,7 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
+        keyboard::KeyEventBuilder,
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -833,6 +836,26 @@ impl Window {
             )
         };
     }
+
+    #[inline]
+    pub fn reset_dead_keys(&self) {
+        // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
+        // key input which we can call `ToUnicode` with.
+        unsafe {
+            let vk = VK_SPACE as VIRTUAL_KEY;
+            let scancode = MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC);
+            let kbd_state = [0; 256];
+            let mut char_buff = [MaybeUninit::uninit(); 8];
+            ToUnicode(
+                vk as u32,
+                scancode,
+                kbd_state.as_ptr(),
+                char_buff[0].as_mut_ptr(),
+                char_buff.len() as i32,
+                0,
+            );
+        }
+    }
 }
 
 impl Drop for Window {
@@ -950,6 +973,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         event_loop::WindowData {
             window_state: win.window_state.clone(),
             event_loop_runner: self.event_loop.runner_shared.clone(),
+            key_event_builder: KeyEventBuilder::default(),
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),
