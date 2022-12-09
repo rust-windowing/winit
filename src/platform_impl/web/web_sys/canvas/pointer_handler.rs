@@ -1,8 +1,8 @@
 use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::Force;
-use crate::event::{ModifiersState, MouseButton};
+use crate::event::{Force, MouseButton};
+use crate::keyboard::ModifiersState;
 
 use web_sys::PointerEvent;
 

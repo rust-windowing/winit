@@ -1,6 +1,8 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 
+use smol_str::SmolStr;
 use std::convert::TryInto;
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
@@ -16,9 +18,9 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
 pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
     let mut m = ModifiersState::empty();
     m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
+    m.set(ModifiersState::CONTROL, event.ctrl_key());
     m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
+    m.set(ModifiersState::SUPER, event.meta_key());
     m
 }
 
@@ -61,190 +63,49 @@ pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
     }
 }
 
-pub fn scan_code(event: &KeyboardEvent) -> ScanCode {
-    match event.key_code() {
-        0 => event.char_code(),
-        i => i,
+pub fn key_code(event: &KeyboardEvent) -> KeyCode {
+    let code = event.code();
+    KeyCode::from_key_code_attribute_value(&code)
+}
+
+pub fn key(event: &KeyboardEvent) -> Key {
+    Key::from_key_attribute_value(&event.key())
+}
+
+pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
+    let key = event.key();
+    let key = Key::from_key_attribute_value(&key);
+    match &key {
+        Key::Character(text) => Some(text.clone()),
+        Key::Tab => Some(SmolStr::new("\t")),
+        Key::Enter => Some(SmolStr::new("\r")),
+        Key::Space => Some(SmolStr::new(" ")),
+        _ => None,
+    }
+    .map(SmolStr::new)
+}
+
+pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
+    match event.location() {
+        KeyboardEvent::DOM_KEY_LOCATION_LEFT => KeyLocation::Left,
+        KeyboardEvent::DOM_KEY_LOCATION_RIGHT => KeyLocation::Right,
+        KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
+        KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
+        location => {
+            warn!("Unexpected key location: {location}");
+            KeyLocation::Standard
+        }
     }
 }
 
-pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
-    Some(match &event.code()[..] {
-        "Digit1" => VirtualKeyCode::Key1,
-        "Digit2" => VirtualKeyCode::Key2,
-        "Digit3" => VirtualKeyCode::Key3,
-        "Digit4" => VirtualKeyCode::Key4,
-        "Digit5" => VirtualKeyCode::Key5,
-        "Digit6" => VirtualKeyCode::Key6,
-        "Digit7" => VirtualKeyCode::Key7,
-        "Digit8" => VirtualKeyCode::Key8,
-        "Digit9" => VirtualKeyCode::Key9,
-        "Digit0" => VirtualKeyCode::Key0,
-        "KeyA" => VirtualKeyCode::A,
-        "KeyB" => VirtualKeyCode::B,
-        "KeyC" => VirtualKeyCode::C,
-        "KeyD" => VirtualKeyCode::D,
-        "KeyE" => VirtualKeyCode::E,
-        "KeyF" => VirtualKeyCode::F,
-        "KeyG" => VirtualKeyCode::G,
-        "KeyH" => VirtualKeyCode::H,
-        "KeyI" => VirtualKeyCode::I,
-        "KeyJ" => VirtualKeyCode::J,
-        "KeyK" => VirtualKeyCode::K,
-        "KeyL" => VirtualKeyCode::L,
-        "KeyM" => VirtualKeyCode::M,
-        "KeyN" => VirtualKeyCode::N,
-        "KeyO" => VirtualKeyCode::O,
-        "KeyP" => VirtualKeyCode::P,
-        "KeyQ" => VirtualKeyCode::Q,
-        "KeyR" => VirtualKeyCode::R,
-        "KeyS" => VirtualKeyCode::S,
-        "KeyT" => VirtualKeyCode::T,
-        "KeyU" => VirtualKeyCode::U,
-        "KeyV" => VirtualKeyCode::V,
-        "KeyW" => VirtualKeyCode::W,
-        "KeyX" => VirtualKeyCode::X,
-        "KeyY" => VirtualKeyCode::Y,
-        "KeyZ" => VirtualKeyCode::Z,
-        "Escape" => VirtualKeyCode::Escape,
-        "F1" => VirtualKeyCode::F1,
-        "F2" => VirtualKeyCode::F2,
-        "F3" => VirtualKeyCode::F3,
-        "F4" => VirtualKeyCode::F4,
-        "F5" => VirtualKeyCode::F5,
-        "F6" => VirtualKeyCode::F6,
-        "F7" => VirtualKeyCode::F7,
-        "F8" => VirtualKeyCode::F8,
-        "F9" => VirtualKeyCode::F9,
-        "F10" => VirtualKeyCode::F10,
-        "F11" => VirtualKeyCode::F11,
-        "F12" => VirtualKeyCode::F12,
-        "F13" => VirtualKeyCode::F13,
-        "F14" => VirtualKeyCode::F14,
-        "F15" => VirtualKeyCode::F15,
-        "F16" => VirtualKeyCode::F16,
-        "F17" => VirtualKeyCode::F17,
-        "F18" => VirtualKeyCode::F18,
-        "F19" => VirtualKeyCode::F19,
-        "F20" => VirtualKeyCode::F20,
-        "F21" => VirtualKeyCode::F21,
-        "F22" => VirtualKeyCode::F22,
-        "F23" => VirtualKeyCode::F23,
-        "F24" => VirtualKeyCode::F24,
-        "PrintScreen" => VirtualKeyCode::Snapshot,
-        "ScrollLock" => VirtualKeyCode::Scroll,
-        "Pause" => VirtualKeyCode::Pause,
-        "Insert" => VirtualKeyCode::Insert,
-        "Home" => VirtualKeyCode::Home,
-        "Delete" => VirtualKeyCode::Delete,
-        "End" => VirtualKeyCode::End,
-        "PageDown" => VirtualKeyCode::PageDown,
-        "PageUp" => VirtualKeyCode::PageUp,
-        "ArrowLeft" => VirtualKeyCode::Left,
-        "ArrowUp" => VirtualKeyCode::Up,
-        "ArrowRight" => VirtualKeyCode::Right,
-        "ArrowDown" => VirtualKeyCode::Down,
-        "Backspace" => VirtualKeyCode::Back,
-        "Enter" => VirtualKeyCode::Return,
-        "Space" => VirtualKeyCode::Space,
-        "Compose" => VirtualKeyCode::Compose,
-        "Caret" => VirtualKeyCode::Caret,
-        "NumLock" => VirtualKeyCode::Numlock,
-        "Numpad0" => VirtualKeyCode::Numpad0,
-        "Numpad1" => VirtualKeyCode::Numpad1,
-        "Numpad2" => VirtualKeyCode::Numpad2,
-        "Numpad3" => VirtualKeyCode::Numpad3,
-        "Numpad4" => VirtualKeyCode::Numpad4,
-        "Numpad5" => VirtualKeyCode::Numpad5,
-        "Numpad6" => VirtualKeyCode::Numpad6,
-        "Numpad7" => VirtualKeyCode::Numpad7,
-        "Numpad8" => VirtualKeyCode::Numpad8,
-        "Numpad9" => VirtualKeyCode::Numpad9,
-        "AbntC1" => VirtualKeyCode::AbntC1,
-        "AbntC2" => VirtualKeyCode::AbntC2,
-        "NumpadAdd" => VirtualKeyCode::NumpadAdd,
-        "Quote" => VirtualKeyCode::Apostrophe,
-        "Apps" => VirtualKeyCode::Apps,
-        "At" => VirtualKeyCode::At,
-        "Ax" => VirtualKeyCode::Ax,
-        "Backslash" => VirtualKeyCode::Backslash,
-        "Calculator" => VirtualKeyCode::Calculator,
-        "Capital" => VirtualKeyCode::Capital,
-        "Semicolon" => VirtualKeyCode::Semicolon,
-        "Comma" => VirtualKeyCode::Comma,
-        "Convert" => VirtualKeyCode::Convert,
-        "NumpadDecimal" => VirtualKeyCode::NumpadDecimal,
-        "NumpadDivide" => VirtualKeyCode::NumpadDivide,
-        "Equal" => VirtualKeyCode::Equals,
-        "Backquote" => VirtualKeyCode::Grave,
-        "Kana" => VirtualKeyCode::Kana,
-        "Kanji" => VirtualKeyCode::Kanji,
-        "AltLeft" => VirtualKeyCode::LAlt,
-        "BracketLeft" => VirtualKeyCode::LBracket,
-        "ControlLeft" => VirtualKeyCode::LControl,
-        "ShiftLeft" => VirtualKeyCode::LShift,
-        "MetaLeft" => VirtualKeyCode::LWin,
-        "Mail" => VirtualKeyCode::Mail,
-        "MediaSelect" => VirtualKeyCode::MediaSelect,
-        "MediaStop" => VirtualKeyCode::MediaStop,
-        "Minus" => VirtualKeyCode::Minus,
-        "NumpadMultiply" => VirtualKeyCode::NumpadMultiply,
-        "Mute" => VirtualKeyCode::Mute,
-        "LaunchMyComputer" => VirtualKeyCode::MyComputer,
-        "NavigateForward" => VirtualKeyCode::NavigateForward,
-        "NavigateBackward" => VirtualKeyCode::NavigateBackward,
-        "NextTrack" => VirtualKeyCode::NextTrack,
-        "NoConvert" => VirtualKeyCode::NoConvert,
-        "NumpadComma" => VirtualKeyCode::NumpadComma,
-        "NumpadEnter" => VirtualKeyCode::NumpadEnter,
-        "NumpadEquals" => VirtualKeyCode::NumpadEquals,
-        "OEM102" => VirtualKeyCode::OEM102,
-        "Period" => VirtualKeyCode::Period,
-        "PlayPause" => VirtualKeyCode::PlayPause,
-        "Power" => VirtualKeyCode::Power,
-        "PrevTrack" => VirtualKeyCode::PrevTrack,
-        "AltRight" => VirtualKeyCode::RAlt,
-        "BracketRight" => VirtualKeyCode::RBracket,
-        "ControlRight" => VirtualKeyCode::RControl,
-        "ShiftRight" => VirtualKeyCode::RShift,
-        "MetaRight" => VirtualKeyCode::RWin,
-        "Slash" => VirtualKeyCode::Slash,
-        "Sleep" => VirtualKeyCode::Sleep,
-        "Stop" => VirtualKeyCode::Stop,
-        "NumpadSubtract" => VirtualKeyCode::NumpadSubtract,
-        "Sysrq" => VirtualKeyCode::Sysrq,
-        "Tab" => VirtualKeyCode::Tab,
-        "Underline" => VirtualKeyCode::Underline,
-        "Unlabeled" => VirtualKeyCode::Unlabeled,
-        "AudioVolumeDown" => VirtualKeyCode::VolumeDown,
-        "AudioVolumeUp" => VirtualKeyCode::VolumeUp,
-        "Wake" => VirtualKeyCode::Wake,
-        "WebBack" => VirtualKeyCode::WebBack,
-        "WebFavorites" => VirtualKeyCode::WebFavorites,
-        "WebForward" => VirtualKeyCode::WebForward,
-        "WebHome" => VirtualKeyCode::WebHome,
-        "WebRefresh" => VirtualKeyCode::WebRefresh,
-        "WebSearch" => VirtualKeyCode::WebSearch,
-        "WebStop" => VirtualKeyCode::WebStop,
-        "Yen" => VirtualKeyCode::Yen,
-        _ => return None,
-    })
-}
-
-pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
-    m
-}
-
-pub fn codepoint(event: &KeyboardEvent) -> char {
-    // `event.key()` always returns a non-empty `String`. Therefore, this should
-    // never panic.
-    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
-    event.key().chars().next().unwrap()
+pub fn keyboard_modifiers(key: &Key) -> ModifiersState {
+    match key {
+        Key::Shift => ModifiersState::SHIFT,
+        Key::Control => ModifiersState::CONTROL,
+        Key::Alt => ModifiersState::ALT,
+        Key::Super => ModifiersState::SUPER,
+        _ => ModifiersState::empty(),
+    }
 }
 
 pub fn touch_position(event: &PointerEvent, _canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {

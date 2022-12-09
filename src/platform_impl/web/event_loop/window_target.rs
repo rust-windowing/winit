@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
@@ -6,24 +6,50 @@ use std::rc::Rc;
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
 
 use super::{
-    super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
+    super::{monitor::MonitorHandle, KeyEventExtra},
+    backend,
+    device::DeviceId,
+    proxy::EventLoopProxy,
+    runner,
     window::WindowId,
 };
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, Touch, TouchPhase,
+    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase,
     WindowEvent,
 };
+use crate::keyboard::ModifiersState;
 use crate::window::{Theme, WindowId as RootWindowId};
+
+#[derive(Default)]
+struct ModifiersShared(Rc<Cell<ModifiersState>>);
+
+impl ModifiersShared {
+    fn set(&self, new: ModifiersState) {
+        self.0.set(new)
+    }
+
+    fn get(&self) -> ModifiersState {
+        self.0.get()
+    }
+}
+
+impl Clone for ModifiersShared {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
 
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
+    modifiers: ModifiersShared,
 }
 
 impl<T> Clone for EventLoopWindowTarget<T> {
     fn clone(&self) -> Self {
         Self {
             runner: self.runner.clone(),
+            modifiers: self.modifiers.clone(),
         }
     }
 }
@@ -32,6 +58,7 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn new() -> Self {
         Self {
             runner: runner::Shared::new(),
+            modifiers: ModifiersShared::default(),
         }
     }
 
@@ -86,54 +113,77 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
+        let modifiers = self.modifiers.clone();
         canvas.on_keyboard_press(
-            move |scancode, virtual_keycode, modifiers| {
-                #[allow(deprecated)]
-                runner.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                        input: KeyboardInput {
-                            scancode,
-                            state: ElementState::Pressed,
-                            virtual_keycode,
-                            modifiers,
+            move |physical_key, logical_key, text, location, repeat, new_modifiers| {
+                let active_modifiers = modifiers.get() | new_modifiers;
+                let modifiers_changed = if modifiers.get() != active_modifiers {
+                    modifiers.set(active_modifiers);
+                    Some(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                    })
+                } else {
+                    None
+                };
+
+                runner.send_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Pressed,
+                                repeat,
+                                platform_specific: KeyEventExtra,
+                            },
+                            is_synthetic: false,
                         },
-                        is_synthetic: false,
-                    },
-                });
+                    })
+                    .chain(modifiers_changed),
+                );
             },
             prevent_default,
         );
 
         let runner = self.runner.clone();
+        let modifiers = self.modifiers.clone();
         canvas.on_keyboard_release(
-            move |scancode, virtual_keycode, modifiers| {
-                #[allow(deprecated)]
-                runner.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                        input: KeyboardInput {
-                            scancode,
-                            state: ElementState::Released,
-                            virtual_keycode,
-                            modifiers,
-                        },
-                        is_synthetic: false,
-                    },
-                });
-            },
-            prevent_default,
-        );
+            move |physical_key, logical_key, text, location, repeat, new_modifiers| {
+                let active_modifiers = modifiers.get() & !new_modifiers;
+                let modifiers_changed = if modifiers.get() != active_modifiers {
+                    modifiers.set(active_modifiers);
+                    Some(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                    })
+                } else {
+                    None
+                };
 
-        let runner = self.runner.clone();
-        canvas.on_received_character(
-            move |char_code| {
-                runner.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::ReceivedCharacter(char_code),
-                });
+                runner.send_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Released,
+                                repeat,
+                                platform_specific: KeyEventExtra,
+                            },
+                            is_synthetic: false,
+                        },
+                    })
+                    .chain(modifiers_changed),
+                )
             },
             prevent_default,
         );
