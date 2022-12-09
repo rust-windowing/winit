@@ -1,7 +1,7 @@
 use std::{slice, str};
 
 use super::*;
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 
 pub const VIRTUAL_CORE_POINTER: c_int = 2;
 pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
@@ -20,8 +20,8 @@ impl ModifiersState {
         let mut m = ModifiersState::empty();
         m.set(ModifiersState::ALT, mask & ffi::Mod1Mask != 0);
         m.set(ModifiersState::SHIFT, mask & ffi::ShiftMask != 0);
-        m.set(ModifiersState::CTRL, mask & ffi::ControlMask != 0);
-        m.set(ModifiersState::LOGO, mask & ffi::Mod4Mask != 0);
+        m.set(ModifiersState::CONTROL, mask & ffi::ControlMask != 0);
+        m.set(ModifiersState::SUPER, mask & ffi::Mod4Mask != 0);
         m
     }
 }
@@ -81,12 +81,12 @@ impl XConnection {
         Flusher::new(self)
     }
 
-    #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
         let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
+            error!("Could not select XKB events: The XKB extension is not initialized!");
             None
         }
     }

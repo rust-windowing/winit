@@ -11,7 +11,6 @@ mod icon;
 mod input;
 pub mod keys;
 mod memory;
-pub mod modifiers;
 mod randr;
 mod window_property;
 mod wm;
