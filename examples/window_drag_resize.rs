@@ -2,10 +2,9 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{
-        ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
-    },
+    event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::{CursorIcon, ResizeDirection, WindowBuilder},
 };
 
@@ -53,14 +52,14 @@ fn main() {
                 }
             }
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
+                event:
+                    KeyEvent {
                         state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::B),
+                        logical_key: Key::Character(c),
                         ..
                     },
                 ..
-            } => {
+            } if matches!(c.as_ref(), "B" | "b") => {
                 border = !border;
                 window.set_decorations(border);
             }

@@ -1,8 +1,9 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
+use winit::keyboard::Key;
 use winit::window::{Fullscreen, WindowBuilder};
 
 #[cfg(target_os = "macos")]
@@ -50,68 +51,74 @@ fn main() {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
+                    event:
+                        KeyEvent {
+                            logical_key: key,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
-                } => match virtual_code {
-                    VirtualKeyCode::Escape => control_flow.set_exit(),
-                    VirtualKeyCode::F | VirtualKeyCode::B if window.fullscreen().is_some() => {
-                        window.set_fullscreen(None);
-                    }
-                    VirtualKeyCode::F => {
-                        let fullscreen = Some(Fullscreen::Exclusive(mode.clone()));
-                        println!("Setting mode: {fullscreen:?}");
-                        window.set_fullscreen(fullscreen);
-                    }
-                    VirtualKeyCode::B => {
-                        let fullscreen = Some(Fullscreen::Borderless(Some(monitor.clone())));
-                        println!("Setting mode: {fullscreen:?}");
-                        window.set_fullscreen(fullscreen);
-                    }
-                    #[cfg(target_os = "macos")]
-                    VirtualKeyCode::C => {
-                        window.set_simple_fullscreen(!window.simple_fullscreen());
-                    }
-                    VirtualKeyCode::S => {
-                        monitor_index += 1;
-                        if let Some(mon) = elwt.available_monitors().nth(monitor_index) {
-                            monitor = mon;
-                        } else {
-                            monitor_index = 0;
-                            monitor = elwt.available_monitors().next().expect("no monitor found!");
+                } => match key {
+                    Key::Escape => control_flow.set_exit(),
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    Key::Character(ch) => match ch.to_lowercase().as_str() {
+                        "f" | "b" if window.fullscreen().is_some() => {
+                            window.set_fullscreen(None);
                         }
-                        println!("Monitor: {:?}", monitor.name());
+                        "f" => {
+                            let fullscreen = Some(Fullscreen::Exclusive(mode.clone()));
+                            println!("Setting mode: {fullscreen:?}");
+                            window.set_fullscreen(fullscreen);
+                        }
+                        "b" => {
+                            let fullscreen = Some(Fullscreen::Borderless(Some(monitor.clone())));
+                            println!("Setting mode: {fullscreen:?}");
+                            window.set_fullscreen(fullscreen);
+                        }
+                        #[cfg(target_os = "macos")]
+                        "c" => {
+                            window.set_simple_fullscreen(!window.simple_fullscreen());
+                        }
+                        "s" => {
+                            monitor_index += 1;
+                            if let Some(mon) = elwt.available_monitors().nth(monitor_index) {
+                                monitor = mon;
+                            } else {
+                                monitor_index = 0;
+                                monitor =
+                                    elwt.available_monitors().next().expect("no monitor found!");
+                            }
+                            println!("Monitor: {:?}", monitor.name());
 
-                        mode_index = 0;
-                        mode = monitor.video_modes().next().expect("no mode found");
-                        println!("Mode: {mode}");
-                    }
-                    VirtualKeyCode::M => {
-                        mode_index += 1;
-                        if let Some(m) = monitor.video_modes().nth(mode_index) {
-                            mode = m;
-                        } else {
                             mode_index = 0;
                             mode = monitor.video_modes().next().expect("no mode found");
+                            println!("Mode: {mode}");
                         }
-                        println!("Mode: {mode}");
-                    }
-                    VirtualKeyCode::D => {
-                        decorations = !decorations;
-                        window.set_decorations(decorations);
-                    }
-                    VirtualKeyCode::X => {
-                        let is_maximized = window.is_maximized();
-                        window.set_maximized(!is_maximized);
-                    }
-                    VirtualKeyCode::Z => {
-                        minimized = !minimized;
-                        window.set_minimized(minimized);
-                    }
+                        "m" => {
+                            mode_index += 1;
+                            if let Some(m) = monitor.video_modes().nth(mode_index) {
+                                mode = m;
+                            } else {
+                                mode_index = 0;
+                                mode = monitor.video_modes().next().expect("no mode found");
+                            }
+                            println!("Mode: {mode}");
+                        }
+                        "d" => {
+                            decorations = !decorations;
+                            window.set_decorations(decorations);
+                        }
+                        "x" => {
+                            let is_maximized = window.is_maximized();
+                            window.set_maximized(!is_maximized);
+                        }
+                        "z" => {
+                            minimized = !minimized;
+                            window.set_minimized(minimized);
+                        }
+                        _ => (),
+                    },
                     _ => (),
                 },
                 _ => (),

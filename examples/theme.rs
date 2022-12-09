@@ -2,8 +2,9 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::{Theme, WindowBuilder},
 };
 
@@ -41,25 +42,25 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(key),
+                        event:
+                            KeyEvent {
+                                logical_key: key,
                                 state: ElementState::Pressed,
                                 ..
                             },
                         ..
                     },
                 ..
-            } => match key {
-                VirtualKeyCode::A => {
+            } => match key.as_ref() {
+                Key::Character("A" | "a") => {
                     println!("Theme was: {:?}", window.theme());
                     window.set_theme(None);
                 }
-                VirtualKeyCode::L => {
+                Key::Character("L" | "l") => {
                     println!("Theme was: {:?}", window.theme());
                     window.set_theme(Some(Theme::Light));
                 }
-                VirtualKeyCode::D => {
+                Key::Character("D" | "d") => {
                     println!("Theme was: {:?}", window.theme());
                     window.set_theme(Some(Theme::Dark));
                 }
