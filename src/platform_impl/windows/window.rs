@@ -418,6 +418,9 @@ impl Window {
                 y: points.y as i16,
             };
             ReleaseCapture();
+
+            self.window_state_lock().dragging = true;
+
             PostMessageW(
                 self.hwnd(),
                 WM_NCLBUTTONDOWN,

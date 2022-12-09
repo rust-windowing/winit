@@ -1006,9 +1006,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_EXITSIZEMOVE => {
-            userdata
-                .window_state_lock()
-                .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
+            let mut state = userdata.window_state_lock();
+            if state.dragging {
+                state.dragging = false;
+                PostMessageW(window, WM_LBUTTONUP, 0, lparam);
+            }
+
+            state.set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
 

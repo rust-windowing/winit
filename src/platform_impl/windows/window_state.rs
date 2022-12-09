@@ -52,6 +52,8 @@ pub(crate) struct WindowState {
     pub is_active: bool,
     pub is_focused: bool,
 
+    pub dragging: bool,
+
     pub skip_taskbar: bool,
 }
 
@@ -161,6 +163,8 @@ impl WindowState {
 
             is_active: false,
             is_focused: false,
+
+            dragging: false,
 
             skip_taskbar: false,
         }
