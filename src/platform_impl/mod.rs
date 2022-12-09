@@ -19,7 +19,7 @@ mod platform;
 #[cfg(target_os = "android")]
 #[path = "android/mod.rs"]
 mod platform;
-#[cfg(target_os = "windows")]
+#[cfg(target_os = "ios")]
 #[path = "ios/mod.rs"]
 mod platform;
 #[cfg(wasm)]
