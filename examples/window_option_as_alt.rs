@@ -49,7 +49,6 @@ fn main() {
                     println!("Received Mouse click, toggling option_as_alt to: {option_as_alt:?}");
                     window.set_option_as_alt(option_as_alt);
                 }
-                WindowEvent::ReceivedCharacter(c) => println!("ReceivedCharacter: {c:?}"),
                 WindowEvent::KeyboardInput { .. } => println!("KeyboardInput: {event:?}"),
                 _ => (),
             },
