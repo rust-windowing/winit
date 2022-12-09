@@ -3,9 +3,8 @@ use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{
-    Force, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode,
-};
+use crate::event::{Force, MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
@@ -13,7 +12,7 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    AddEventListenerOptions, CompositionEvent, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
 };
 
@@ -29,7 +28,7 @@ pub struct Canvas {
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
-    on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
@@ -89,7 +88,7 @@ impl Canvas {
             on_focus: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
-            on_received_character: None,
+            on_composition_end: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
@@ -174,7 +173,8 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
+        F: 'static
+            + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_release = Some(self.common.add_user_event(
             "keyup",
@@ -182,11 +182,15 @@ impl Canvas {
                 if prevent_default {
                     event.prevent_default();
                 }
-
+                let key = event::key(&event);
+                let modifiers = event::keyboard_modifiers(&key);
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    event::key_code(&event),
+                    key,
+                    event::key_text(&event),
+                    event::key_location(&event),
+                    event.repeat(),
+                    modifiers,
                 );
             },
         ));
@@ -194,52 +198,25 @@ impl Canvas {
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
+        F: 'static
+            + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
             move |event: KeyboardEvent| {
-                // event.prevent_default() would suppress subsequent on_received_character() calls. That
-                // suppression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
-                // scroll, etc. We should not do it for key sequences that result in meaningful character
-                // input though.
-                if prevent_default {
-                    let event_key = &event.key();
-                    let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
-                    let is_shortcut_modifiers =
-                        (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
-                    if !is_key_string || is_shortcut_modifiers {
-                        event.prevent_default();
-                    }
-                }
-
-                handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
-                );
-            },
-        ));
-    }
-
-    pub fn on_received_character<F>(&mut self, mut handler: F, prevent_default: bool)
-    where
-        F: 'static + FnMut(char),
-    {
-        // TODO: Use `beforeinput`.
-        //
-        // The `keypress` event is deprecated, but there does not seem to be a
-        // viable/compatible alternative as of now. `beforeinput` is still widely
-        // unsupported.
-        self.on_received_character = Some(self.common.add_user_event(
-            "keypress",
-            move |event: KeyboardEvent| {
-                // Suppress further handling to stop keys like the space key from scrolling the page.
                 if prevent_default {
                     event.prevent_default();
                 }
-
-                handler(event::codepoint(&event));
+                let key = event::key(&event);
+                let modifiers = event::keyboard_modifiers(&key);
+                handler(
+                    event::key_code(&event),
+                    key,
+                    event::key_text(&event),
+                    event::key_location(&event),
+                    event.repeat(),
+                    modifiers,
+                );
             },
         ));
     }
@@ -366,7 +343,6 @@ impl Canvas {
         self.on_blur = None;
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
-        self.on_received_character = None;
         self.on_mouse_wheel = None;
         self.on_fullscreen_change = None;
         self.on_dark_mode = None;
