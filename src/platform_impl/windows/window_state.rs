@@ -1,7 +1,7 @@
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Size},
-    event::ModifiersState,
     icon::Icon,
+    keyboard::ModifiersState,
     platform_impl::platform::{event_loop, util, Fullscreen},
     window::{CursorIcon, Theme, WindowAttributes},
 };
@@ -42,7 +42,7 @@ pub(crate) struct WindowState {
     pub fullscreen: Option<Fullscreen>,
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
-    pub high_surrogate: Option<u16>,
+
     pub window_flags: WindowFlags,
 
     pub ime_state: ImeState,
@@ -157,7 +157,6 @@ impl WindowState {
             fullscreen: None,
             current_theme,
             preferred_theme,
-            high_surrogate: None,
             window_flags: WindowFlags::empty(),
 
             ime_state: ImeState::Disabled,
