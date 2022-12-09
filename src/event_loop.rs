@@ -339,7 +339,14 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
-        #[cfg(any(windows, linux))]
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            windows
+        ))]
         self.p.set_device_event_filter(_filter);
     }
 }
