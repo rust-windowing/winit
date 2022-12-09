@@ -394,6 +394,10 @@ impl Window {
     pub fn title(&self) -> String {
         String::new()
     }
+
+    pub fn reset_dead_keys(&self) {
+        // Not supported
+    }
 }
 
 impl Drop for Window {
