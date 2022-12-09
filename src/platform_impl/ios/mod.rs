@@ -107,6 +107,9 @@ impl DeviceId {
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyEventExtra {}
+
 #[derive(Debug)]
 pub enum OsError {}
 
