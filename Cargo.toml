@@ -66,6 +66,7 @@ simple_logger = { version = "2.1.0", default_features = false }
 # Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
 android-activity = "0.4.0"
 ndk = "0.7.0"
+ndk-sys = "0.4.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
