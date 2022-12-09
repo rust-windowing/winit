@@ -2,8 +2,9 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::WindowBuilder,
 };
 
@@ -19,10 +20,6 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{
-            ElementState::Released,
-            VirtualKeyCode::{N, Y},
-        };
         control_flow.set_wait();
 
         match event {
@@ -46,16 +43,18 @@ fn main() {
                         // the Y key.
                     }
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(virtual_code),
-                                state: Released,
+                        event:
+                            KeyEvent {
+                                logical_key: key,
+                                state: ElementState::Released,
                                 ..
                             },
                         ..
                     } => {
-                        match virtual_code {
-                            Y => {
+                        // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                        // See the `key_binding` example
+                        match key {
+                            Key::Character("y") => {
                                 if close_requested {
                                     // This is where you'll want to do any cleanup you need.
                                     println!("Buh-bye!");
@@ -68,7 +67,7 @@ fn main() {
                                     control_flow.set_exit();
                                 }
                             }
-                            N => {
+                            Key::Character("n") => {
                                 if close_requested {
                                     println!("Your window will continue to stay by your side.");
                                     close_requested = false;

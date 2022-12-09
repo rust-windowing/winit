@@ -2,7 +2,7 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     window::{CursorIcon, WindowBuilder},
 };
@@ -23,8 +23,8 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Pressed,
                                 ..
                             },

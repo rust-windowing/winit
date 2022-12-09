@@ -4,8 +4,9 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::Window,
 };
 
@@ -39,10 +40,10 @@ fn main() {
                         }
                     }
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::N),
+                                logical_key: Key::Character("n" | "N"),
                                 ..
                             },
                         is_synthetic: false,

@@ -5,8 +5,9 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{DeviceEventFilter, EventLoop},
+    keyboard::Key,
     window::{WindowBuilder, WindowButtons},
 };
 
@@ -34,9 +35,9 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(key),
+                        event:
+                            KeyEvent {
+                                logical_key: key,
                                 state: ElementState::Pressed,
                                 ..
                             },
@@ -44,15 +45,15 @@ fn main() {
                     },
                 ..
             } => match key {
-                VirtualKeyCode::F => {
+                Key::Character("F" | "f") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::CLOSE);
                 }
-                VirtualKeyCode::G => {
+                Key::Character("G" | "g") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::MAXIMIZE);
                 }
-                VirtualKeyCode::H => {
+                Key::Character("H" | "h") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::MINIMIZE);
                 }
