@@ -22,6 +22,7 @@ use std::{fmt, ops::Deref};
 use self::window::WinitWindow;
 use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
+    event::KeyEventExtra,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
