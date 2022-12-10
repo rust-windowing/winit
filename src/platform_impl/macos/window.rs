@@ -1271,6 +1271,10 @@ impl WinitWindow {
     pub fn title(&self) -> String {
         self.title_().to_string()
     }
+
+    pub fn reset_dead_keys(&self) {
+        // (Artur) I couldn't find a way to implement this.
+    }
 }
 
 impl WindowExtMacOS for WinitWindow {
