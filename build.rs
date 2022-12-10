@@ -17,6 +17,7 @@ fn main() {
         os_macos: { target_os = "macos" },
         os_android: { target_os = "android" },
         os_ios: { target_os = "ios" },
+        arch_wasm: { target_arch = "wasm32" },
         x11: { feature = "x11" },
         wayland: { feature = "wayland" },
 

@@ -16,7 +16,7 @@ mod platform;
 #[cfg(os_ios)]
 #[path = "ios/mod.rs"]
 mod platform;
-#[cfg(wasm)]
+#[cfg(arch_wasm)]
 #[path = "web/mod.rs"]
 mod platform;
 
@@ -57,6 +57,6 @@ impl From<Fullscreen> for RootFullscreen {
     not(os_macos),
     not(os_android),
     not(os_linux),
-    not(wasm),
+    not(arch_wasm),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

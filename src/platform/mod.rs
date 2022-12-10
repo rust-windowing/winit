@@ -23,7 +23,7 @@ pub mod ios;
 pub mod macos;
 #[cfg(all(wayland, os_linux))]
 pub mod wayland;
-#[cfg(wasm)]
+#[cfg(arch_wasm)]
 pub mod web;
 #[cfg(windows)]
 pub mod windows;
