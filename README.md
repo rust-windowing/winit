@@ -107,7 +107,7 @@ various life-cycle events and synchronizing with the main JVM thread.
 
 Winit uses the [android-activity](https://github.com/rib/android-activity) as a
 glue crate (prior to `0.28` it used
-[ndk-glue](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue).
+[ndk-glue](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue)).
 
 The version of the glue crate that your application depends on _must_ match the
 version that Winit depends on because the glue crate is responsible for your
