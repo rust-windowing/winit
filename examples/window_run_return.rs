@@ -1,8 +1,7 @@
 #![allow(clippy::single_match)]
-#![allow(clippy::mismatched_target_os)]
 
 // Limit this example to only compatible platforms.
-#[cfg(any(windows, x11, wayland, macos, android))]
+#[cfg(any(os_windows, os_macos, os_linux, os_android))]
 fn main() {
     use std::{thread::sleep, time::Duration};
 
@@ -52,7 +51,7 @@ fn main() {
     }
 }
 
-#[cfg(any(ios, wasm))]
+#[cfg(any(os_ios, wasm))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

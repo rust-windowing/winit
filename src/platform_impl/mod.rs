@@ -1,25 +1,19 @@
 use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 use crate::window::Fullscreen as RootFullscreen;
 
-#[cfg(windows)]
+#[cfg(os_windows)]
 #[path = "windows/mod.rs"]
 mod platform;
-#[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#[cfg(os_linux)]
 #[path = "linux/mod.rs"]
 mod platform;
-#[cfg(target_os = "macos")]
+#[cfg(os_macos)]
 #[path = "macos/mod.rs"]
 mod platform;
-#[cfg(target_os = "android")]
+#[cfg(os_android)]
 #[path = "android/mod.rs"]
 mod platform;
-#[cfg(target_os = "ios")]
+#[cfg(os_ios)]
 #[path = "ios/mod.rs"]
 mod platform;
 #[cfg(wasm)]
@@ -58,12 +52,11 @@ impl From<Fullscreen> for RootFullscreen {
 }
 
 #[cfg(all(
-    not(x11),
-    not(wayland),
-    not(windows),
-    not(target_os = "macos"),
-    not(target_os = "android"),
-    not(target_os = "ios"),
+    not(os_ios),
+    not(os_windows),
+    not(os_macos),
+    not(os_android),
+    not(os_linux),
     not(wasm),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

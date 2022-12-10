@@ -102,11 +102,11 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
-        android,
+        os_android,
         doc = "[`.with_android_app(app)`]: crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
     )]
     #[cfg_attr(
-        not(android),
+        not(os_android),
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
     #[inline]
@@ -339,14 +339,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
-        #[cfg(any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            windows
-        ))]
+        #[cfg(any(os_linux, os_windows))]
         self.p.set_device_event_filter(_filter);
     }
 }

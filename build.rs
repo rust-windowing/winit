@@ -4,7 +4,7 @@ fn main() {
     // Setup cfg aliases
     cfg_aliases! {
         // Platforms
-        linux: {
+        os_linux: {
             any(
                 target_os = "linux",
                 target_os = "dragonfly",
@@ -13,12 +13,13 @@ fn main() {
                 target_os = "openbsd"
             )
         },
-        macos: { target_os = "macos" },
-        android: { target_os = "android" },
-        ios: { target_os = "ios" },
+        os_windows: { target_os = "windows" },
+        os_macos: { target_os = "macos" },
+        os_android: { target_os = "android" },
+        os_ios: { target_os = "ios" },
         wasm: { target_arch = "wasm32" },
-        x11: { all(linux, feature = "x11") },
-        wayland: { all(linux, feature = "wayland") },
+        x11: { feature = "x11" },
+        wayland: { feature = "wayland" },
 
         // dependencies
         mint : { feature = "mint" },
