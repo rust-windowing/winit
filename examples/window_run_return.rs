@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 // Limit this example to only compatible platforms.
-#[cfg(any(os_windows, os_macos, os_linux, os_android))]
+#[cfg(any(os_windows, os_macos, os_linuxy, os_android))]
 fn main() {
     use std::{thread::sleep, time::Duration};
 

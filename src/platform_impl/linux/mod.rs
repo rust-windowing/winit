@@ -1,4 +1,4 @@
-#![cfg(os_linux)]
+#![cfg(os_linuxy)]
 
 #[cfg(all(not(x11), not(wayland)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");

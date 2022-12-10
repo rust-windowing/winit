@@ -1,4 +1,4 @@
-#![cfg(os_linux)]
+#![cfg(os_linuxy)]
 
 mod dnd;
 mod event_processor;

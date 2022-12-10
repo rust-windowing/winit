@@ -1,4 +1,4 @@
-#![cfg(os_linux)]
+#![cfg(os_linuxy)]
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 

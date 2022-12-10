@@ -21,14 +21,14 @@ pub mod android;
 pub mod ios;
 #[cfg(os_macos)]
 pub mod macos;
-#[cfg(all(wayland, os_linux))]
+#[cfg(all(wayland, os_linuxy))]
 pub mod wayland;
 #[cfg(arch_wasm)]
 pub mod web;
 #[cfg(windows)]
 pub mod windows;
-#[cfg(all(x11, os_linux))]
+#[cfg(all(x11, os_linuxy))]
 pub mod x11;
 
-#[cfg(any(os_windows, os_macos, os_android, os_linux))]
+#[cfg(any(os_windows, os_macos, os_android, os_linuxy))]
 pub mod run_return;

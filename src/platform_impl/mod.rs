@@ -4,7 +4,7 @@ use crate::window::Fullscreen as RootFullscreen;
 #[cfg(os_windows)]
 #[path = "windows/mod.rs"]
 mod platform;
-#[cfg(os_linux)]
+#[cfg(os_linuxy)]
 #[path = "linux/mod.rs"]
 mod platform;
 #[cfg(os_macos)]
@@ -56,7 +56,7 @@ impl From<Fullscreen> for RootFullscreen {
     not(os_windows),
     not(os_macos),
     not(os_android),
-    not(os_linux),
+    not(os_linuxy),
     not(arch_wasm),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

@@ -4,7 +4,7 @@ fn main() {
     // Setup cfg aliases
     cfg_aliases! {
         // Platforms
-        os_linux: {
+        os_linuxy: {
             any(
                 target_os = "linux",
                 target_os = "dragonfly",
