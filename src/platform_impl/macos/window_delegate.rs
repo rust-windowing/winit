@@ -13,7 +13,8 @@ use super::appkit::{
 };
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{Event, ModifiersState, WindowEvent},
+    event::{Event, WindowEvent},
+    keyboard::ModifiersState,
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
