@@ -1,4 +1,4 @@
-#![cfg(target_os = "android")]
+#![cfg(os_android)]
 
 use std::{
     collections::VecDeque,
