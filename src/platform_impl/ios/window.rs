@@ -23,8 +23,8 @@ use crate::{
         monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -172,6 +172,17 @@ impl Inner {
         false
     }
 
+    #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {
+        warn!("`Window::set_enabled_buttons` is ignored on iOS");
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        warn!("`Window::enabled_buttons` is ignored on iOS");
+        WindowButtons::all()
+    }
+
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
@@ -282,8 +293,8 @@ impl Inner {
         true
     }
 
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
+    pub fn set_window_level(&self, _level: WindowLevel) {
+        warn!("`Window::set_window_level` is ignored on iOS")
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
@@ -348,6 +359,11 @@ impl Inner {
         None
     }
 
+    #[inline]
+    pub fn set_theme(&self, _theme: Option<Theme>) {
+        warn!("`Window::set_theme` is ignored on iOS");
+    }
+
     pub fn title(&self) -> String {
         warn!("`Window::title` is ignored on iOS");
         String::new()
@@ -395,9 +411,7 @@ impl Window {
         if window_attributes.max_inner_size.is_some() {
             warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
         }
-        if window_attributes.always_on_top {
-            warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
-        }
+
         // TODO: transparency, visible
 
         unsafe {
@@ -688,25 +702,11 @@ impl From<id> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub root_view_class: &'static Class,
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
-}
-
-impl Default for PlatformSpecificWindowBuilderAttributes {
-    fn default() -> PlatformSpecificWindowBuilderAttributes {
-        PlatformSpecificWindowBuilderAttributes {
-            root_view_class: class!(UIView),
-            scale_factor: None,
-            valid_orientations: Default::default(),
-            prefers_home_indicator_hidden: false,
-            prefers_status_bar_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: Default::default(),
-        }
-    }
 }

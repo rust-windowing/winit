@@ -1,11 +1,7 @@
-use std::collections::HashMap;
-
-use objc2::declare::ClassBuilder;
 use objc2::foundation::NSObject;
-use objc2::runtime::{Bool, Class, Object, Sel};
-use objc2::{class, declare_class, msg_send, sel, ClassType};
+use objc2::{class, declare_class, msg_send, ClassType};
 
-use super::uikit::{UIResponder, UIViewController, UIWindow};
+use super::uikit::{UIResponder, UIView, UIViewController, UIWindow};
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
@@ -22,25 +18,20 @@ use crate::{
     window::{WindowAttributes, WindowId as RootWindowId},
 };
 
-// requires main thread
-unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
-    static mut CLASSES: Option<HashMap<*const Class, &'static Class>> = None;
-    static mut ID: usize = 0;
+declare_class!(
+    struct WinitView {}
 
-    if CLASSES.is_none() {
-        CLASSES = Some(HashMap::default());
+    unsafe impl ClassType for WinitView {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIView;
+        const NAME: &'static str = "WinitUIView";
     }
 
-    let classes = CLASSES.as_mut().unwrap();
-
-    classes.entry(root_view_class).or_insert_with(move || {
-        let uiview_class = class!(UIView);
-        let is_uiview: bool = msg_send![root_view_class, isSubclassOfClass: uiview_class];
-        assert!(is_uiview, "`root_view_class` must inherit from `UIView`");
-
-        extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
+    unsafe impl WinitView {
+        #[sel(drawRect:)]
+        fn draw_rect(&self, rect: CGRect) {
             unsafe {
-                let window: id = msg_send![object, window];
+                let window: id = msg_send![self, window];
                 assert!(!window.is_null());
                 app_state::handle_nonuser_events(
                     std::iter::once(EventWrapper::StaticEvent(Event::RedrawRequested(
@@ -50,23 +41,22 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         Event::RedrawEventsCleared,
                     ))),
                 );
-                let superclass: &'static Class = msg_send![object, superclass];
-                let _: () = msg_send![super(object, superclass), drawRect: rect];
+                let _: () = msg_send![super(self), drawRect: rect];
             }
         }
 
-        extern "C" fn layout_subviews(object: &Object, _: Sel) {
+        #[sel(layoutSubviews)]
+        fn layout_subviews(&self) {
             unsafe {
-                let superclass: &'static Class = msg_send![object, superclass];
-                let _: () = msg_send![super(object, superclass), layoutSubviews];
+                let _: () = msg_send![super(self), layoutSubviews];
 
-                let window: id = msg_send![object, window];
+                let window: id = msg_send![self, window];
                 assert!(!window.is_null());
                 let window_bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect = msg_send![
-                    object,
+                    self,
                     convertRect: window_bounds,
                     toCoordinateSpace: screen_space,
                 ];
@@ -80,9 +70,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 // If the app is started in landscape, the view frame and window bounds can be mismatched.
                 // The view frame will be in portrait and the window bounds in landscape. So apply the
                 // window bounds to the view frame to make it consistent.
-                let view_frame: CGRect = msg_send![object, frame];
+                let view_frame: CGRect = msg_send![self, frame];
                 if view_frame != window_bounds {
-                    let _: () = msg_send![object, setFrame: window_bounds];
+                    let _: () = msg_send![self, setFrame: window_bounds];
                 }
 
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -92,20 +82,12 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
-        extern "C" fn set_content_scale_factor(
-            object: &mut Object,
-            _: Sel,
-            untrusted_scale_factor: CGFloat,
-        ) {
+        #[sel(setContentScaleFactor:)]
+        fn set_content_scale_factor(&self, untrusted_scale_factor: CGFloat) {
             unsafe {
-                let superclass: &'static Class = msg_send![&*object, superclass];
-                let _: () = msg_send![
-                    super(&mut *object, superclass),
-                    setContentScaleFactor: untrusted_scale_factor
-                ];
-                let object = &*object; // Immutable for rest of method
+                let _: () = msg_send![super(self), setContentScaleFactor: untrusted_scale_factor];
 
-                let window: id = msg_send![object, window];
+                let window: id = msg_send![self, window];
                 // `window` is null when `setContentScaleFactor` is invoked prior to `[UIWindow
                 // makeKeyAndVisible]` at window creation time (either manually or internally by
                 // UIKit when the `UIView` is first created), in which case we send no events here
@@ -115,7 +97,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 // `setContentScaleFactor` may be called with a value of 0, which means "reset the
                 // content scale factor to a device-specific default value", so we can't use the
                 // parameter here. We can query the actual factor using the getter
-                let scale_factor: CGFloat = msg_send![object, contentScaleFactor];
+                let scale_factor: CGFloat = msg_send![self, contentScaleFactor];
                 assert!(
                     !scale_factor.is_nan()
                         && scale_factor.is_finite()
@@ -124,11 +106,11 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     "invalid scale_factor set on UIView",
                 );
                 let scale_factor = scale_factor as f64;
-                let bounds: CGRect = msg_send![object, bounds];
+                let bounds: CGRect = msg_send![self, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
-                    msg_send![object, convertRect: bounds, toCoordinateSpace: screen_space];
+                    msg_send![self, convertRect: bounds, toCoordinateSpace: screen_space];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
@@ -149,109 +131,101 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
-        extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
-            unsafe {
-                let window: id = msg_send![object, window];
-                assert!(!window.is_null());
-                let uiscreen: id = msg_send![window, screen];
-                let touches_enum: id = msg_send![touches, objectEnumerator];
-                let mut touch_events = Vec::new();
-                let os_supports_force = app_state::os_capabilities().force_touch;
-                loop {
-                    let touch: id = msg_send![touches_enum, nextObject];
-                    if touch == nil {
-                        break;
-                    }
-                    let logical_location: CGPoint = msg_send![touch, locationInView: nil];
-                    let touch_type: UITouchType = msg_send![touch, type];
-                    let force = if os_supports_force {
-                        let trait_collection: id = msg_send![object, traitCollection];
-                        let touch_capability: UIForceTouchCapability =
-                            msg_send![trait_collection, forceTouchCapability];
-                        // Both the OS _and_ the device need to be checked for force touch support.
-                        if touch_capability == UIForceTouchCapability::Available {
-                            let force: CGFloat = msg_send![touch, force];
-                            let max_possible_force: CGFloat =
-                                msg_send![touch, maximumPossibleForce];
-                            let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
-                                let angle: CGFloat = msg_send![touch, altitudeAngle];
-                                Some(angle as _)
-                            } else {
-                                None
-                            };
-                            Some(Force::Calibrated {
-                                force: force as _,
-                                max_possible_force: max_possible_force as _,
-                                altitude_angle,
-                            })
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-                    let touch_id = touch as u64;
-                    let phase: UITouchPhase = msg_send![touch, phase];
-                    let phase = match phase {
-                        UITouchPhase::Began => TouchPhase::Started,
-                        UITouchPhase::Moved => TouchPhase::Moved,
-                        // 2 is UITouchPhase::Stationary and is not expected here
-                        UITouchPhase::Ended => TouchPhase::Ended,
-                        UITouchPhase::Cancelled => TouchPhase::Cancelled,
-                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
-                    };
-
-                    let physical_location = {
-                        let scale_factor: CGFloat = msg_send![object, contentScaleFactor];
-                        PhysicalPosition::from_logical::<(f64, f64), f64>(
-                            (logical_location.x as _, logical_location.y as _),
-                            scale_factor as f64,
-                        )
-                    };
-                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Touch(Touch {
-                            device_id: RootDeviceId(DeviceId { uiscreen }),
-                            id: touch_id,
-                            location: physical_location,
-                            force,
-                            phase,
-                        }),
-                    }));
-                }
-                app_state::handle_nonuser_events(touch_events);
-            }
+        #[sel(touchesBegan:withEvent:)]
+        fn touches_began(&self, touches: id, _: id) {
+            self.handle_touches(touches)
         }
 
-        let mut decl = ClassBuilder::new(&format!("WinitUIView{}", ID), root_view_class)
-            .expect("Failed to declare class `WinitUIView`");
-        ID += 1;
-        decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(_, _, _));
-        decl.add_method(sel!(layoutSubviews), layout_subviews as extern "C" fn(_, _));
-        decl.add_method(
-            sel!(setContentScaleFactor:),
-            set_content_scale_factor as extern "C" fn(_, _, _),
-        );
+        #[sel(touchesMoved:withEvent:)]
+        fn touches_moved(&self, touches: id, _: id) {
+            self.handle_touches(touches)
+        }
 
-        decl.add_method(
-            sel!(touchesBegan:withEvent:),
-            handle_touches as extern "C" fn(_, _, _, _),
-        );
-        decl.add_method(
-            sel!(touchesMoved:withEvent:),
-            handle_touches as extern "C" fn(_, _, _, _),
-        );
-        decl.add_method(
-            sel!(touchesEnded:withEvent:),
-            handle_touches as extern "C" fn(_, _, _, _),
-        );
-        decl.add_method(
-            sel!(touchesCancelled:withEvent:),
-            handle_touches as extern "C" fn(_, _, _, _),
-        );
+        #[sel(touchesEnded:withEvent:)]
+        fn touches_ended(&self, touches: id, _: id) {
+            self.handle_touches(touches)
+        }
 
-        decl.register()
-    })
+        #[sel(touchesCancelled:withEvent:)]
+        fn touches_cancelled(&self, touches: id, _: id) {
+            self.handle_touches(touches)
+        }
+    }
+);
+
+impl WinitView {
+    fn handle_touches(&self, touches: id) {
+        unsafe {
+            let window: id = msg_send![self, window];
+            assert!(!window.is_null());
+            let uiscreen: id = msg_send![window, screen];
+            let touches_enum: id = msg_send![touches, objectEnumerator];
+            let mut touch_events = Vec::new();
+            let os_supports_force = app_state::os_capabilities().force_touch;
+            loop {
+                let touch: id = msg_send![touches_enum, nextObject];
+                if touch == nil {
+                    break;
+                }
+                let logical_location: CGPoint = msg_send![touch, locationInView: nil];
+                let touch_type: UITouchType = msg_send![touch, type];
+                let force = if os_supports_force {
+                    let trait_collection: id = msg_send![self, traitCollection];
+                    let touch_capability: UIForceTouchCapability =
+                        msg_send![trait_collection, forceTouchCapability];
+                    // Both the OS _and_ the device need to be checked for force touch support.
+                    if touch_capability == UIForceTouchCapability::Available {
+                        let force: CGFloat = msg_send![touch, force];
+                        let max_possible_force: CGFloat = msg_send![touch, maximumPossibleForce];
+                        let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
+                            let angle: CGFloat = msg_send![touch, altitudeAngle];
+                            Some(angle as _)
+                        } else {
+                            None
+                        };
+                        Some(Force::Calibrated {
+                            force: force as _,
+                            max_possible_force: max_possible_force as _,
+                            altitude_angle,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let touch_id = touch as u64;
+                let phase: UITouchPhase = msg_send![touch, phase];
+                let phase = match phase {
+                    UITouchPhase::Began => TouchPhase::Started,
+                    UITouchPhase::Moved => TouchPhase::Moved,
+                    // 2 is UITouchPhase::Stationary and is not expected here
+                    UITouchPhase::Ended => TouchPhase::Ended,
+                    UITouchPhase::Cancelled => TouchPhase::Cancelled,
+                    _ => panic!("unexpected touch phase: {:?}", phase as i32),
+                };
+
+                let physical_location = {
+                    let scale_factor: CGFloat = msg_send![self, contentScaleFactor];
+                    PhysicalPosition::from_logical::<(f64, f64), f64>(
+                        (logical_location.x as _, logical_location.y as _),
+                        scale_factor as f64,
+                    )
+                };
+                touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.into()),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: RootDeviceId(DeviceId { uiscreen }),
+                        id: touch_id,
+                        location: physical_location,
+                        force,
+                        phase,
+                    }),
+                }));
+            }
+            app_state::handle_nonuser_events(touch_events);
+        }
+    }
 }
 
 declare_class!(
@@ -382,13 +356,11 @@ pub(crate) unsafe fn create_view(
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
 ) -> id {
-    let class = get_view_class(platform_attributes.root_view_class);
-
-    let view: id = msg_send![class, alloc];
+    let view: id = msg_send![WinitView::class(), alloc];
     assert!(!view.is_null(), "Failed to create `UIView` instance");
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
-    let _: () = msg_send![view, setMultipleTouchEnabled: Bool::YES];
+    let _: () = msg_send![view, setMultipleTouchEnabled: true];
     if let Some(scale_factor) = platform_attributes.scale_factor {
         let _: () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }
@@ -414,14 +386,13 @@ pub(crate) unsafe fn create_view_controller(
         !view_controller.is_null(),
         "Failed to initialize `UIViewController` instance"
     );
-    let status_bar_hidden = Bool::new(platform_attributes.prefers_status_bar_hidden);
+    let status_bar_hidden = platform_attributes.prefers_status_bar_hidden;
     let idiom = event_loop::get_idiom();
     let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
         platform_attributes.valid_orientations,
         idiom,
     );
-    let prefers_home_indicator_hidden =
-        Bool::new(platform_attributes.prefers_home_indicator_hidden);
+    let prefers_home_indicator_hidden = platform_attributes.prefers_home_indicator_hidden;
     let edges: UIRectEdge = platform_attributes
         .preferred_screen_edges_deferring_system_gestures
         .into();

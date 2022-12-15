@@ -192,7 +192,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
+        let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {
             let mut mode: DEVMODEW = mem::zeroed();

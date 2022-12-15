@@ -57,7 +57,7 @@ pub(crate) struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Ensure the window is closed
-        util::close_async(Id::into_super(self.window.clone()));
+        util::close_sync(&self.window);
     }
 }
 
@@ -74,7 +74,7 @@ impl Deref for Window {
     type Target = WinitWindow;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.window
+        &self.window
     }
 }
 
