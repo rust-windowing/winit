@@ -506,7 +506,8 @@ impl<T: 'static> EventLoop<T> {
                             | event::TouchPhase::Ended => {
                                 Box::new(
                                     std::iter::once(motion_event.pointer_at_index(
-                                        motion_event.pointer_index(),
+                                        // Handle pointer index of multi-touch gesture
+                                        motion_event.pointer_count() - 1_usize,
                                     ))
                                 )
                             },
