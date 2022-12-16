@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Android, fix pointer index for multi-touch gesture in Android
 - On Windows, retain `WS_MAXIMIZE` window style when un-minimizing a maximized window.
 - On Windows, fix left mouse button release event not being sent after `Window::drag_window`.
 - On macOS, run most actions on the main thread, which is strictly more correct, but might make multithreaded applications block slightly more.
