@@ -482,20 +482,39 @@ impl<T: 'static> EventLoop<T> {
                 InputEvent::MotionEvent(motion_event) => {
                     let window_id = window::WindowId(WindowId);
                     let device_id = event::DeviceId(DeviceId);
+                    let motion_event_action = motion_event.action();
 
-                    let phase = match motion_event.action() {
-                        MotionAction::Down | MotionAction::PointerDown => {
-                            Some(event::TouchPhase::Started)
+                    let phase = if motion_event.pointer_count() > 1_usize {
+                        match motion_event_action {
+                            MotionAction::PointerDown => {
+                                Some(event::TouchPhase::Started)
+                            }
+                            MotionAction::PointerUp => {
+                                Some(event::TouchPhase::Ended)
+                            }
+                            MotionAction::Move => Some(event::TouchPhase::Moved),
+                            MotionAction::Cancel => {
+                                Some(event::TouchPhase::Cancelled)
+                            }
+                            _ => {
+                                None
+                            }
                         }
-                        MotionAction::Up | MotionAction::PointerUp => {
-                            Some(event::TouchPhase::Ended)
-                        }
-                        MotionAction::Move => Some(event::TouchPhase::Moved),
-                        MotionAction::Cancel => {
-                            Some(event::TouchPhase::Cancelled)
-                        }
-                        _ => {
-                            None // TODO mouse events
+                    } else {
+                        match motion_event_action {
+                            MotionAction::Down   => {
+                                Some(event::TouchPhase::Started)
+                            }
+                            MotionAction::Up   => {
+                                Some(event::TouchPhase::Ended)
+                            }
+                            MotionAction::Move => Some(event::TouchPhase::Moved),
+                            MotionAction::Cancel => {
+                                Some(event::TouchPhase::Cancelled)
+                            }
+                            _ => {
+                                None // TODO mouse events
+                            } 
                         }
                     };
                     if let Some(phase) = phase {
@@ -506,7 +525,7 @@ impl<T: 'static> EventLoop<T> {
                             | event::TouchPhase::Ended => {
                                 Box::new(
                                     std::iter::once(motion_event.pointer_at_index(
-                                        // Handle pointer index of multi-touch gesture
+                                        // function point_index not use here, in case it could be multi-touch gestures 
                                         motion_event.pointer_count() - 1_usize,
                                     ))
                                 )
