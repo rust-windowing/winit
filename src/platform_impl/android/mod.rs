@@ -510,10 +510,8 @@ impl<T: 'static> EventLoop<T> {
                                     ))
                                 )
                             },
-                            event::TouchPhase::Ended => {
-                                Box::new(motion_event.pointers())
-                            },
-                            event::TouchPhase::Moved
+                            event::TouchPhase::Ended
+                            | event::TouchPhase::Moved
                             | event::TouchPhase::Cancelled => {
                                 Box::new(motion_event.pointers())
                             }
