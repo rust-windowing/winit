@@ -482,7 +482,7 @@ impl<T: 'static> EventLoop<T> {
                 InputEvent::MotionEvent(motion_event) => {
                     let window_id = window::WindowId(WindowId);
                     let device_id = event::DeviceId(DeviceId);
-                    
+
                     let phase = match motion_event.action() {
                         MotionAction::Down | MotionAction::PointerDown => {
                             Some(event::TouchPhase::Started)
@@ -493,12 +493,11 @@ impl<T: 'static> EventLoop<T> {
                         MotionAction::Move => Some(event::TouchPhase::Moved),
                         MotionAction::Cancel => {
                             Some(event::TouchPhase::Cancelled)
-                            }
+                        }
                         _ => {
                             None // TODO mouse events
                         }
                     };
-
                     if let Some(phase) = phase {
                         let pointers: Box<
                             dyn Iterator<Item = android_activity::input::Pointer<'_>>,
