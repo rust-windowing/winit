@@ -514,7 +514,7 @@ impl<T: 'static> EventLoop<T> {
                             }
                             _ => {
                                 None // TODO mouse events
-                            } 
+                            }
                         }
                     };
                     if let Some(phase) = phase {
