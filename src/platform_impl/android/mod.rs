@@ -494,11 +494,11 @@ impl<T: 'static> EventLoop<T> {
                         MotionAction::Cancel => {
                             Some(event::TouchPhase::Cancelled)
                             }
-                            _ => {
-                                None // TODO mouse events
-                            }
-                        };
-                  
+                        _ => {
+                            None // TODO mouse events
+                        }
+                    };
+
                     if let Some(phase) = phase {
                         let pointers: Box<
                             dyn Iterator<Item = android_activity::input::Pointer<'_>>,
