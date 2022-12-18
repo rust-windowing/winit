@@ -9,6 +9,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use super::strict;
 use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
@@ -147,7 +148,8 @@ pub fn get_instance_handle() -> HINSTANCE {
         static __ImageBase: IMAGE_DOS_HEADER;
     }
 
-    unsafe { &__ImageBase as *const _ as _ }
+    strict::addr(unsafe { &__ImageBase as *const IMAGE_DOS_HEADER as *mut IMAGE_DOS_HEADER })
+        as HINSTANCE
 }
 
 impl CursorIcon {
