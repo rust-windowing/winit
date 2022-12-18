@@ -52,6 +52,8 @@ pub(crate) struct WindowState {
     pub is_active: bool,
     pub is_focused: bool,
 
+    pub dragging: bool,
+
     pub skip_taskbar: bool,
 }
 
@@ -161,6 +163,8 @@ impl WindowState {
 
             is_active: false,
             is_focused: false,
+
+            dragging: false,
 
             skip_taskbar: false,
         }
@@ -295,7 +299,7 @@ impl WindowFlags {
         self = self.mask();
         new = new.mask();
 
-        let diff = self ^ new;
+        let mut diff = self ^ new;
 
         if diff == WindowFlags::empty() {
             return;
@@ -353,6 +357,8 @@ impl WindowFlags {
                     },
                 );
             }
+
+            diff.remove(WindowFlags::MINIMIZED);
         }
 
         if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {
