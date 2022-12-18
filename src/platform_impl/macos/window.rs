@@ -398,8 +398,8 @@ impl WinitWindow {
                 // where we allow making a window a child window is right here, just after it's been created.
                 unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
             }
-            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on macOS"),
-            None => {}
+            Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
+            None => (),
         }
 
         let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
