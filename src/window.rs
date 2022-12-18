@@ -416,6 +416,7 @@ impl WindowBuilder {
     /// - **Windows** : A child window has the WS_CHILD style and is confined
     /// to the client area of its parent window. For more information, see
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland:** Unsupported.
     #[inline]
     pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
