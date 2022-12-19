@@ -529,7 +529,7 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     event_sink.push_window_event(WindowEvent::Destroyed, *window_id);
                 }
                 WindowRequest::Theme(_theme) => {
-                    #[cfg(sctk_adwaita)]
+                    #[cfg(feature = "sctk-adwaita")]
                     {
                         window_handle.window.set_frame_config(match _theme {
                             Some(theme) => theme.into(),

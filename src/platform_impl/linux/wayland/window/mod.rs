@@ -31,12 +31,12 @@ pub mod shim;
 
 use shim::{WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest};
 
-#[cfg(sctk_adwaita)]
+#[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
-#[cfg(not(sctk_adwaita))]
+#[cfg(not(feature = "sctk-adwaita"))]
 pub type WinitFrame = sctk::window::FallbackFrame;
 
-#[cfg(sctk_adwaita)]
+#[cfg(feature = "sctk-adwaita")]
 const WAYLAND_CSD_THEME_ENV_VAR: &str = "WINIT_WAYLAND_CSD_THEME";
 
 pub struct Window {
@@ -171,7 +171,7 @@ impl Window {
 
         // Set CSD frame config from theme if specified,
         // otherwise use upstream automatic selection.
-        #[cfg(sctk_adwaita)]
+        #[cfg(feature = "sctk-adwaita")]
         if let Some(theme) = attributes.preferred_theme.or_else(|| {
             std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
                 .ok()
@@ -647,7 +647,7 @@ impl Drop for Window {
     }
 }
 
-#[cfg(sctk_adwaita)]
+#[cfg(feature = "sctk-adwaita")]
 impl From<Theme> for sctk_adwaita::FrameConfig {
     fn from(theme: Theme) -> Self {
         match theme {

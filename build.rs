@@ -22,10 +22,5 @@ fn main() {
         arch_wasm: { target_arch = "wasm32" },
         x11: { feature = "x11" },
         wayland: { feature = "wayland" },
-
-        // dependencies
-        mint : { feature = "mint" },
-        serde : { feature = "serde" },
-        sctk_adwaita : { feature = "sctk-adwaita" },
     }
 }

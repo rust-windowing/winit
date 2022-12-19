@@ -1340,7 +1340,7 @@ unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(serde, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {
     /// No grabbing of the cursor is performed.
     None,
@@ -1370,7 +1370,7 @@ pub enum CursorGrabMode {
 
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(serde, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
     Default,

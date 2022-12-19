@@ -142,7 +142,7 @@
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
-#[cfg(serde)]
+#[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
 #[macro_use]

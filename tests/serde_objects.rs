@@ -1,4 +1,4 @@
-#![cfg(serde)]
+#![cfg(feature = "serde")]
 
 use serde::{Deserialize, Serialize};
 use winit::{
