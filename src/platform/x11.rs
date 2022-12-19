@@ -61,7 +61,7 @@ impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -125,7 +125,7 @@ impl WindowExtX11 for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -134,7 +134,7 @@ impl WindowExtX11 for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -143,7 +143,7 @@ impl WindowExtX11 for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -152,7 +152,7 @@ impl WindowExtX11 for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -161,7 +161,7 @@ impl WindowExtX11 for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(wayland)]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }

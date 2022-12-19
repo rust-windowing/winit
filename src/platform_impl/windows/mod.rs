@@ -1,4 +1,4 @@
-#![cfg(os_windows)]
+#![cfg(windows)]
 
 use windows_sys::Win32::{
     Foundation::{HANDLE, HWND},

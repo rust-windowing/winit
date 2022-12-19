@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(arch_wasm))]
+#[cfg(not(wasm))]
 fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
@@ -49,7 +49,7 @@ fn main() {
     });
 }
 
-#[cfg(arch_wasm)]
+#[cfg(wasm)]
 fn main() {
     panic!("This example is not supported on web.");
 }

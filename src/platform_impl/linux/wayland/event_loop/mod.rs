@@ -268,7 +268,7 @@ impl<T: 'static> EventLoop<T> {
                     PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
                     }
-                    #[cfg(x11)]
+                    #[cfg(x11_platform)]
                     _ => unreachable!(),
                 };
 
@@ -561,7 +561,7 @@ impl<T: 'static> EventLoop<T> {
     fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(x11)]
+            #[cfg(x11_platform)]
             _ => unreachable!(),
         };
 
@@ -571,7 +571,7 @@ impl<T: 'static> EventLoop<T> {
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(x11)]
+            #[cfg(x11_platform)]
             _ => unreachable!(),
         };
 

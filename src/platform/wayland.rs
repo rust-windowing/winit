@@ -41,7 +41,7 @@ impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
             }
-            #[cfg(x11)]
+            #[cfg(x11_platform)]
             _ => None,
         }
     }
@@ -95,7 +95,7 @@ impl WindowExtWayland for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
-            #[cfg(x11)]
+            #[cfg(x11_platform)]
             _ => None,
         }
     }
@@ -104,7 +104,7 @@ impl WindowExtWayland for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
-            #[cfg(x11)]
+            #[cfg(x11_platform)]
             _ => None,
         }
     }

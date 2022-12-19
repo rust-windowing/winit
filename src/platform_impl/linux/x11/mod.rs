@@ -1,4 +1,4 @@
-#![cfg(os_linuxy)]
+#![cfg(free_unix)]
 
 mod dnd;
 mod event_processor;
@@ -530,7 +530,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(wayland)]
+        #[cfg(wayland_platform)]
         _ => unreachable!(),
     }
 }

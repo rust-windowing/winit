@@ -5,22 +5,16 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     // Setup cfg aliases
     cfg_aliases! {
-        // Platforms
-        os_linuxy: {
-            any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            )
-        },
-        os_windows: { target_os = "windows" },
-        os_macos: { target_os = "macos" },
-        os_android: { target_os = "android" },
-        os_ios: { target_os = "ios" },
-        arch_wasm: { target_arch = "wasm32" },
-        x11: { feature = "x11" },
-        wayland: { feature = "wayland" },
+        // Systems.
+        android: { target_os = "android" },
+        wasm: { target_arch = "wasm32" },
+        macos: { target_os = "macos" },
+        ios: { target_os = "ios" },
+        apple: { any(target_os = "ios", target_os = "macos") },
+        free_unix: { all(unix, not(apple), not(android)) },
+
+        // Native displays.
+        x11_platform: { all(feature = "x11", free_unix, not(wasm)) },
+        wayland_platform: { all(feature = "wayland", free_unix, not(wasm)) },
     }
 }
