@@ -21,7 +21,7 @@ pub mod android;
 pub mod ios;
 #[cfg(macos)]
 pub mod macos;
-#[cfg(all(wayland_platform, free_unix))]
+#[cfg(wayland_platform)]
 pub mod wayland;
 #[cfg(wasm)]
 pub mod web;
