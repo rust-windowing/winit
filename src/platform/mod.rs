@@ -17,7 +17,7 @@
 
 #[cfg(android)]
 pub mod android;
-#[cfg(os_ios)]
+#[cfg(ios)]
 pub mod ios;
 #[cfg(macos)]
 pub mod macos;

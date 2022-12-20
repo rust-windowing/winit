@@ -51,7 +51,7 @@ fn main() {
     }
 }
 
-#[cfg(any(os_ios, wasm))]
+#[cfg(any(ios, wasm))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

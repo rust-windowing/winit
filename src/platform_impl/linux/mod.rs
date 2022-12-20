@@ -732,7 +732,7 @@ impl<T: 'static> EventLoop<T> {
 
         #[cfg(not(wayland_platform))]
         let wayland_err = "backend disabled";
-        #[cfg(not(x11))]
+        #[cfg(not(x11_platform))]
         let x11_err = "backend disabled";
 
         panic!(

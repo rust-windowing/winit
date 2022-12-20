@@ -55,7 +55,7 @@
 //!
 //! Also note that app may not receive the LoopDestroyed event if suspended; it might be SIGKILL'ed.
 
-#![cfg(os_ios)]
+#![cfg(ios)]
 #![allow(clippy::let_unit_value)]
 
 // TODO: (mtak-) UIKit requires main thread for virtually all function/method calls. This could be

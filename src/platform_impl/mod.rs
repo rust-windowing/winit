@@ -13,7 +13,7 @@ mod platform;
 #[cfg(android)]
 #[path = "android/mod.rs"]
 mod platform;
-#[cfg(os_ios)]
+#[cfg(ios)]
 #[path = "ios/mod.rs"]
 mod platform;
 #[cfg(wasm)]
@@ -52,7 +52,7 @@ impl From<Fullscreen> for RootFullscreen {
 }
 
 #[cfg(all(
-    not(os_ios),
+    not(ios),
     not(windows),
     not(macos),
     not(android),
