@@ -140,7 +140,7 @@ impl Window {
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::WindowArea::Outer.get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
+            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
@@ -150,7 +150,7 @@ impl Window {
         if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
+        Ok(PhysicalPosition::new(position.x, position.y))
     }
 
     #[inline]
