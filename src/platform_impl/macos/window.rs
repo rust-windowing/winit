@@ -225,7 +225,7 @@ impl WinitWindow {
                 Some(screen) => screen.frame(),
                 None => {
                     let scale_factor = NSScreen::main()
-                        .map(|screen| screen.backingScaleFactor() as f64)
+                        .map(|screen| screen.backingScaleFactor())
                         .unwrap_or(1.0);
                     let (width, height) = match attrs.inner_size {
                         Some(size) => {
@@ -490,7 +490,7 @@ impl WinitWindow {
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let frame_rect = self.frame();
         let position = LogicalPosition::new(
-            frame_rect.origin.x as f64,
+            frame_rect.origin.x,
             util::bottom_left_to_top_left(frame_rect),
         );
         let scale_factor = self.scale_factor();
@@ -500,7 +500,7 @@ impl WinitWindow {
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let content_rect = self.contentRectForFrameRect(self.frame());
         let position = LogicalPosition::new(
-            content_rect.origin.x as f64,
+            content_rect.origin.x,
             util::bottom_left_to_top_left(content_rect),
         );
         let scale_factor = self.scale_factor();
@@ -516,7 +516,7 @@ impl WinitWindow {
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let frame = self.contentView().frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
+        let logical: LogicalSize<f64> = (frame.size.width, frame.size.height).into();
         let scale_factor = self.scale_factor();
         logical.to_physical(scale_factor)
     }
@@ -524,7 +524,7 @@ impl WinitWindow {
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let frame = self.frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
+        let logical: LogicalSize<f64> = (frame.size.width, frame.size.height).into();
         let scale_factor = self.scale_factor();
         logical.to_physical(scale_factor)
     }
@@ -721,7 +721,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.backingScaleFactor() as f64
+        self.backingScaleFactor()
     }
 
     #[inline]

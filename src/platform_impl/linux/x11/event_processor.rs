@@ -347,7 +347,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     // These are both in physical space.
                     let new_inner_size = (xev.width as u32, xev.height as u32);
-                    let new_inner_position = (xev.x as i32, xev.y as i32);
+                    let new_inner_position = (xev.x, xev.y);
 
                     let (mut resized, moved) = {
                         let mut shared_state_lock = window.shared_state_lock();
@@ -1021,8 +1021,7 @@ impl<T: 'static> EventProcessor<T> {
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
                             let modifiers = self.device_mod_state.modifiers();
-                            let location =
-                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                            let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // Mouse cursor position changes when touch events are received.
                             // Only the first concurrently active touch ID moves the mouse cursor.

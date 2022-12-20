@@ -203,14 +203,14 @@ impl Inner {
     pub fn position(&self) -> PhysicalPosition<i32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            (bounds.origin.x as f64, bounds.origin.y as f64).into()
+            (bounds.origin.x, bounds.origin.y).into()
         }
     }
 
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
-            scale as f64
+            scale
         }
     }
 

@@ -62,10 +62,10 @@ declare_class!(
                 ];
                 let scale_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width as f64,
-                    height: screen_frame.size.height as f64,
+                    width: screen_frame.size.width,
+                    height: screen_frame.size.height,
                 }
-                .to_physical(scale_factor as f64);
+                .to_physical(scale_factor);
 
                 // If the app is started in landscape, the view frame and window bounds can be mismatched.
                 // The view frame will be in portrait and the window bounds in landscape. So apply the
@@ -105,7 +105,6 @@ declare_class!(
                         && scale_factor > 0.0,
                     "invalid scale_factor set on UIView",
                 );
-                let scale_factor = scale_factor as f64;
                 let bounds: CGRect = msg_send![self, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -209,7 +208,7 @@ impl WinitView {
                     let scale_factor: CGFloat = msg_send![self, contentScaleFactor];
                     PhysicalPosition::from_logical::<(f64, f64), f64>(
                         (logical_location.x as _, logical_location.y as _),
-                        scale_factor as f64,
+                        scale_factor,
                     )
                 };
                 touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {

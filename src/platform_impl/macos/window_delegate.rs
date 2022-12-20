@@ -441,6 +441,6 @@ impl WinitWindowDelegate {
 
     fn view_size(&self) -> LogicalSize<f64> {
         let size = self.window.contentView().frame().size;
-        LogicalSize::new(size.width as f64, size.height as f64)
+        LogicalSize::new(size.width, size.height)
     }
 }

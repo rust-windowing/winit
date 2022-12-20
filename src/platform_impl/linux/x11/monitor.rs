@@ -123,8 +123,8 @@ impl MonitorHandle {
         primary: bool,
     ) -> Option<Self> {
         let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
+        let dimensions = unsafe { ((*crtc).width, (*crtc).height) };
+        let position = unsafe { ((*crtc).x, (*crtc).y) };
 
         // Get the refresh rate of the current video mode.
         let current_mode = unsafe { (*crtc).mode };
