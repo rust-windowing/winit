@@ -429,7 +429,7 @@ impl WinitWindowDelegate {
 
     fn emit_move_event(&mut self) {
         let rect = self.window.frame();
-        let x = rect.origin.x as f64;
+        let x = rect.origin.x;
         let y = util::bottom_left_to_top_left(rect);
         if self.previous_position.as_deref() != Some(&(x, y)) {
             *self.previous_position = Some(Box::new((x, y)));
