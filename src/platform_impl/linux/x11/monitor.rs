@@ -175,7 +175,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        self.id as u32
+        self.id
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {

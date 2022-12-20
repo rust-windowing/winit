@@ -129,13 +129,15 @@ impl FrameExtentsHeuristic {
             width.saturating_add(
                 self.frame_extents
                     .left
-                    .saturating_add(self.frame_extents.right),
-            ) as u32,
+                    .saturating_add(self.frame_extents.right)
+                    .into(),
+            ),
             height.saturating_add(
                 self.frame_extents
                     .top
-                    .saturating_add(self.frame_extents.bottom),
-            ) as u32,
+                    .saturating_add(self.frame_extents.bottom)
+                    .into(),
+            ),
         )
     }
 }
