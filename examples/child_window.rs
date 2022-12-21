@@ -25,7 +25,7 @@ fn spawn_child_window(
         .build(event_loop)
         .unwrap();
 
-    let id = child_window.xlib_window().unwrap() as u32;
+    let id = child_window.xlib_window().unwrap();
     windows.insert(id, child_window);
     println!("child window created with id: {}", id);
 }
@@ -42,7 +42,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let root = parent_window.xlib_window().unwrap() as u32;
+    let root = parent_window.xlib_window().unwrap();
     println!("parent window id: {})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
