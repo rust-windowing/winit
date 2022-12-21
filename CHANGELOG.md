@@ -59,7 +59,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, fixed focus event emission on minimize.
 - On X11, fixed IME crashing during reload.
 
-# 0.27.3
+# 0.27.3 (2022-9-10)
 
 - On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
 - On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
