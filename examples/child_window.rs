@@ -32,7 +32,7 @@ fn spawn_child_window(
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
 fn main() {
-    let mut windows = HashMap::new();
+    let mut windows: HashMap<u64, Window> = HashMap::new();
 
     let event_loop: EventLoop<()> = EventLoop::new();
     let parent_window = WindowBuilder::new()
@@ -69,7 +69,7 @@ fn main() {
                         },
                     ..
                 } => {
-                    spawn_child_window(root, event_loop, &mut windows);
+                    spawn_child_window(root as _, event_loop, &mut windows);
                 }
                 _ => (),
             }
