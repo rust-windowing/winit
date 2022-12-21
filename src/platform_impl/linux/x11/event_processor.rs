@@ -57,7 +57,7 @@ impl<T: 'static> EventProcessor<T> {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId(window_id as u64);
+        let window_id = WindowId(window_id as _);
         let wt = get_xtarget(&self.target);
         let result = wt
             .windows
@@ -520,7 +520,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window));
+                wt.windows.borrow_mut().remove(&WindowId(window as _));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
