@@ -26,7 +26,7 @@ fn spawn_child_window(
         .unwrap();
 
     let id = child_window.xlib_window().unwrap();
-    windows.insert(id, child_window);
+    windows.insert(id as _, child_window);
     println!("child window created with id: {}", id);
 }
 

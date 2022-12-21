@@ -1551,14 +1551,14 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow as u64)
+        WindowId(self.xwindow)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
             .sender
-            .send(WindowId(self.xwindow as u64))
+            .send(WindowId(self.xwindow))
             .unwrap();
         self.redraw_sender.waker.wake().unwrap();
     }

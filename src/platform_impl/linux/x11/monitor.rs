@@ -108,7 +108,7 @@ impl std::hash::Hash for MonitorHandle {
 #[inline]
 pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
     if mode.dotClock > 0 && mode.hTotal > 0 && mode.vTotal > 0 {
-        Some((mode.dotClock as u64 * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
+        Some((mode.dotClock * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
     } else {
         None
     }

@@ -520,7 +520,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window as u64));
+                wt.windows.borrow_mut().remove(&WindowId(window));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
