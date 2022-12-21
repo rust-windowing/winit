@@ -12,12 +12,12 @@ use winit::{
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
 fn spawn_child_window(
-    parent: u32,
+    parent: u64,
     event_loop: &EventLoopWindowTarget<()>,
-    windows: &mut HashMap<u32, Window>,
+    windows: &mut HashMap<u64, Window>,
 ) {
     let child_window = WindowBuilder::new()
-        .with_parent(WindowId::from(parent as u64))
+        .with_parent(WindowId::from(parent))
         .with_title("child window")
         .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
