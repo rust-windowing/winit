@@ -1,37 +1,35 @@
-#[cfg(x11_platform)]
-use std::collections::HashMap;
-
-#[cfg(x11_platform)]
-use winit::{
-    dpi::{LogicalPosition, LogicalSize, Position},
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-    platform::x11::{WindowBuilderExtX11, WindowExtX11},
-    window::{Window, WindowBuilder, WindowId},
-};
-
-#[cfg(x11_platform)]
-fn spawn_child_window(
-    parent: u32,
-    event_loop: &EventLoopWindowTarget<()>,
-    windows: &mut HashMap<u32, Window>,
-) {
-    let child_window = WindowBuilder::new()
-        .with_parent(WindowId::from(parent as u64))
-        .with_title("child window")
-        .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
-        .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-        .with_visible(true)
-        .build(event_loop)
-        .unwrap();
-
-    let id = child_window.xlib_window().unwrap() as u32;
-    windows.insert(id, child_window);
-    println!("child window created with id: {}", id);
-}
-
-#[cfg(x11_platform)]
+#[cfg(any(x11_platform, macos, windows))]
 fn main() {
+    use std::collections::HashMap;
+
+    use raw_window_handle::HasRawWindowHandle;
+    use winit::{
+        dpi::{LogicalPosition, LogicalSize, Position},
+        event::{ElementState, Event, KeyboardInput, WindowEvent},
+        event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+        window::{Window, WindowBuilder, WindowId},
+    };
+
+    fn spawn_child_window(
+        parent: &Window,
+        event_loop: &EventLoopWindowTarget<()>,
+        windows: &mut HashMap<WindowId, Window>,
+    ) {
+        let parent = parent.raw_window_handle();
+        let mut builder = WindowBuilder::new()
+            .with_title("child window")
+            .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
+            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_visible(true);
+        // `with_parent_window` is unsafe. Parent window must a valid window.
+        builder = unsafe { builder.with_parent_window(Some(parent)) };
+        let child_window = builder.build(event_loop).unwrap();
+
+        let id = child_window.id();
+        windows.insert(id, child_window);
+        println!("child window created with id: {:?}", id);
+    }
+
     let mut windows = HashMap::new();
 
     let event_loop: EventLoop<()> = EventLoop::new();
@@ -42,8 +40,8 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let root = parent_window.xlib_window().unwrap() as u32;
-    println!("parent window id: {})", root);
+    let root = parent_window;
+    println!("parent window: {:?})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -55,7 +53,7 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::CursorEntered { device_id: _ } => {
-                    // println when the cursor entered in a window even if the child window is created
+                    // On x11, println when the cursor entered in a window even if the child window is created
                     // by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
                     // so we also can see this log when we move the cursor arround (200, 200) in parent window.
@@ -69,7 +67,7 @@ fn main() {
                         },
                     ..
                 } => {
-                    spawn_child_window(root, event_loop, &mut windows);
+                    spawn_child_window(&root, event_loop, &mut windows);
                 }
                 _ => (),
             }
@@ -77,7 +75,7 @@ fn main() {
     })
 }
 
-#[cfg(not(x11_platform))]
+#[cfg(not(any(x11_platform, macos, windows,)))]
 fn main() {
-    panic!("This example is supported only on x11.");
+    panic!("This example is supported only on x11, macOS, and Windows.");
 }

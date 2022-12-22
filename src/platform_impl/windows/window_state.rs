@@ -299,7 +299,7 @@ impl WindowFlags {
         self = self.mask();
         new = new.mask();
 
-        let diff = self ^ new;
+        let mut diff = self ^ new;
 
         if diff == WindowFlags::empty() {
             return;
@@ -357,6 +357,8 @@ impl WindowFlags {
                     },
                 );
             }
+
+            diff.remove(WindowFlags::MINIMIZED);
         }
 
         if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {

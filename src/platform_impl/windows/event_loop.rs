@@ -1185,7 +1185,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
                 }
             }
-
             userdata.send_event(event);
             0
         }

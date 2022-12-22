@@ -10,7 +10,7 @@ use std::{
 
 use libc;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
-use x11_dl::xlib::TrueColor;
+use x11_dl::xlib::{TrueColor, XID};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -122,11 +122,11 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = if let Some(id) = pl_attribs.parent_id {
-            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
-            u64::from(id) as _
-        } else {
-            event_loop.root
+        let root = match window_attrs.parent_window {
+            Some(RawWindowHandle::Xlib(handle)) => handle.window,
+            Some(RawWindowHandle::Xcb(handle)) => handle.window as XID,
+            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
+            None => event_loop.root,
         };
 
         let mut monitors = xconn.available_monitors();
