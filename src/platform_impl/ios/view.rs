@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use objc2::foundation::NSObject;
 use objc2::{class, declare_class, msg_send, ClassType};
 
@@ -105,7 +107,6 @@ declare_class!(
                         && scale_factor > 0.0,
                     "invalid scale_factor set on UIView",
                 );
-                let scale_factor = scale_factor as f64;
                 let bounds: CGRect = msg_send![self, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];

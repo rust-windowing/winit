@@ -238,16 +238,16 @@ impl<T> EventLoopWindowTarget<T> {
 
         // The size to restore to after exiting fullscreen.
         let mut intended_size = PhysicalSize {
-            width: raw.width() as u32,
-            height: raw.height() as u32,
+            width: raw.width(),
+            height: raw.height(),
         };
         canvas.on_fullscreen_change(move || {
             // If the canvas is marked as fullscreen, it is moving *into* fullscreen
             // If it is not, it is moving *out of* fullscreen
             let new_size = if backend::is_fullscreen(&raw) {
                 intended_size = PhysicalSize {
-                    width: raw.width() as u32,
-                    height: raw.height() as u32,
+                    width: raw.width(),
+                    height: raw.height(),
                 };
 
                 backend::window_size().to_physical(backend::scale_factor())

@@ -705,7 +705,7 @@ struct XExtension {
 }
 
 fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))

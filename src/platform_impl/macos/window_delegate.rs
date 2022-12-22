@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::ptr;
 
 use objc2::declare::{Ivar, IvarDrop};
