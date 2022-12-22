@@ -138,6 +138,7 @@ pub(crate) struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
+    pub parent_window: Option<RawWindowHandle>,
 }
 
 impl Default for WindowAttributes {
@@ -161,6 +162,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            parent_window: None,
         }
     }
 }
@@ -398,6 +400,27 @@ impl WindowBuilder {
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
+        self
+    }
+
+    /// Build window with parent window.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows** : A child window has the WS_CHILD style and is confined
+    /// to the client area of its parent window. For more information, see
+    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **X11**: A child window is confined to the client area of its parent window.
+    /// - **Android / iOS / Wayland:** Unsupported.
+    #[inline]
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+        self.window.parent_window = parent_window;
         self
     }
 

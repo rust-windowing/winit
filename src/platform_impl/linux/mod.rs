@@ -96,8 +96,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub screen_id: Option<i32>,
     #[cfg(feature = "x11")]
-    pub parent_id: Option<WindowId>,
-    #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
     pub override_redirect: bool,
@@ -113,8 +111,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             visual_infos: None,
             #[cfg(feature = "x11")]
             screen_id: None,
-            #[cfg(feature = "x11")]
-            parent_id: None,
             #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]

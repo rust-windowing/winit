@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Removed platform specific `WindowBuilder::with_parent` API in favor of `WindowBuilder::with_parent_window`.
 - On Windows, retain `WS_MAXIMIZE` window style when un-minimizing a maximized window.
 - On Windows, fix left mouse button release event not being sent after `Window::drag_window`.
 - On macOS, run most actions on the main thread, which is strictly more correct, but might make multithreaded applications block slightly more.
