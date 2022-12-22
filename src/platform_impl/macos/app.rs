@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::collections::VecDeque;
 
 use objc2::foundation::NSObject;

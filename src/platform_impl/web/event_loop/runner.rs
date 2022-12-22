@@ -322,8 +322,8 @@ impl<T: 'static> Shared<T> {
             };
             // First, we send the `ScaleFactorChanged` event:
             let current_size = crate::dpi::PhysicalSize {
-                width: canvas.width() as u32,
-                height: canvas.height() as u32,
+                width: canvas.width(),
+                height: canvas.height(),
             };
             let logical_size = current_size.to_logical::<f64>(old_scale);
             let mut new_size = logical_size.to_physical(new_scale);

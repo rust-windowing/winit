@@ -25,7 +25,7 @@ fn main() {
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
             .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
             .with_visible(true);
-        // `with_parent_window` is unsafe. Parent window must a valid window.
+        // `with_parent_window` is unsafe. Parent window must be a valid window.
         builder = unsafe { builder.with_parent_window(Some(parent)) };
         let child_window = builder.build(event_loop).unwrap();
 
@@ -44,8 +44,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let root = parent_window;
-    println!("parent window: {:?})", root);
+    println!("parent window: {:?})", parent_window);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -71,7 +70,7 @@ fn main() {
                         },
                     ..
                 } => {
-                    spawn_child_window(&root, event_loop, &mut windows);
+                    spawn_child_window(&parent_window, event_loop, &mut windows);
                 }
                 _ => (),
             }

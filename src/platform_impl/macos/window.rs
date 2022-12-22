@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{
     collections::VecDeque,
     f64, ops,

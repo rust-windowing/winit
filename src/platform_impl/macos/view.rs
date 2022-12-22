@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{boxed::Box, collections::VecDeque, os::raw::*, ptr, str, sync::Mutex};
 
 use objc2::declare::{Ivar, IvarDrop};
