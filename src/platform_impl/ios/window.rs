@@ -430,7 +430,7 @@ impl Window {
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
                     let scale_factor: CGFloat = msg_send![screen, scale];
-                    let size = dim.to_logical::<f64>(scale_factor) as f64;
+                    let size = dim.to_logical::<f64>(scale_factor as f64);
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {
