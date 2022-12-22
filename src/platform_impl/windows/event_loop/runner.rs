@@ -12,7 +12,6 @@ use windows_sys::Win32::{
     Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
 };
 
-use super::strict;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
@@ -440,10 +439,9 @@ impl<T> BufferedEvent<T> {
                 });
 
                 let window_flags = unsafe {
-                    let userdata: *mut WindowData<T> =
-                        strict::from_exposed_addr(
-                            get_window_long(window_id.0.into(), GWL_USERDATA) as _,
-                        );
+                    let userdata: *mut WindowData<T> = sptr::from_exposed_addr_mut(
+                        get_window_long(window_id.0.into(), GWL_USERDATA) as _,
+                    );
                     (*userdata).window_state_lock().window_flags
                 };
                 window_flags.set_size((window_id.0).0, new_inner_size);

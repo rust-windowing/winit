@@ -170,38 +170,3 @@ mod monitor;
 mod raw_input;
 mod window;
 mod window_state;
-
-mod strict {
-    //! Strict provenance polyfill for Windows.
-    //!
-    //! Once the `strict_provenance` feature is stabilized, replace this module with functions
-    //! from the standard library.
-
-    use std::mem::transmute;
-
-    /// Get the address of a pointer.
-    pub(crate) fn addr<T>(ptr: *mut T) -> usize {
-        // SAFETY: To be replaced with the equivalent from the standard library.
-        unsafe { transmute(ptr) }
-    }
-
-    /// Expose the address of the pointer.
-    ///
-    /// The result semantically carries the provenance information of the pointer.
-    pub(crate) fn expose_addr<T>(ptr: *mut T) -> usize {
-        // SAFETY: To be replaced with the equivalent from the standard library.
-        unsafe { transmute(ptr) }
-    }
-
-    /// Create a new, invalid pointer from an address.
-    pub(crate) fn invalid<T>(addr: usize) -> *mut T {
-        // SAFETY: To be replaced with the equivalent from the standard library.
-        unsafe { transmute(addr) }
-    }
-
-    /// Create a new pointer from a previously exposed address.
-    pub(crate) fn from_exposed_addr<T>(addr: usize) -> *mut T {
-        // SAFETY: To be replaced with the equivalent from the standard library.
-        unsafe { transmute(addr) }
-    }
-}

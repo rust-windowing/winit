@@ -42,8 +42,8 @@ wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
-android-native-activity = [ "android-activity/native-activity" ]
-android-game-activity = [ "android-activity/game-activity" ]
+android-native-activity = ["android-activity/native-activity"]
+android-game-activity = ["android-activity/game-activity"]
 
 [build-dependencies]
 cfg_aliases = "0.1.1"
@@ -102,6 +102,9 @@ features = [
     "Win32_UI_TextServices",
     "Win32_UI_WindowsAndMessaging",
 ]
+
+[target.'cfg(target_os = "windows")'.dependencies]
+sptr = "0.3.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.29.4", default_features = false,  features = ["use_system_lib"], optional = true }

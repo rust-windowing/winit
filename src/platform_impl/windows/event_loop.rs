@@ -19,6 +19,7 @@ use std::{
 
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
+use sptr::Strict;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -95,7 +96,6 @@ use crate::{
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
-use super::strict;
 use super::window::set_skip_taskbar;
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -440,7 +440,7 @@ fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
 
             if msg.message == *WAIT_UNTIL_MSG_ID {
                 wait_until_opt = Some(*WaitUntilInstantBox::from_raw({
-                    strict::from_exposed_addr(msg.lParam as _)
+                    sptr::from_exposed_addr_mut(msg.lParam as _)
                 }));
             } else if msg.message == *CANCEL_WAIT_UNTIL_MSG_ID {
                 wait_until_opt = None;
@@ -563,7 +563,7 @@ impl EventLoopThreadExecutor {
                 let res = PostMessageW(
                     self.target_window,
                     *EXEC_MSG_ID,
-                    strict::expose_addr(raw),
+                    Strict::expose_addr(raw),
                     0,
                 );
                 assert!(
@@ -718,7 +718,7 @@ fn insert_event_target_window_data<T>(
         super::set_window_long(
             thread_msg_target,
             GWL_USERDATA,
-            strict::expose_addr(input_ptr) as isize,
+            Strict::expose_addr(input_ptr) as isize,
         )
     };
 
@@ -806,7 +806,7 @@ unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
                 runner.wait_thread_id(),
                 *WAIT_UNTIL_MSG_ID,
                 0,
-                strict::expose_addr(Box::into_raw(WaitUntilInstantBox::new(until))) as isize,
+                Strict::expose_addr(Box::into_raw(WaitUntilInstantBox::new(until))) as isize,
             );
         }
         ControlFlow::ExitWithCode(_) => (),
@@ -919,7 +919,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
 
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
-            let createstruct = &mut *(strict::invalid::<CREATESTRUCTW>(lparam as usize));
+            let createstruct = &mut *(sptr::invalid_mut::<CREATESTRUCTW>(lparam as usize));
             let initdata = &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>);
 
             let result = match initdata.on_nccreate(window) {
@@ -936,7 +936,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
         // but we'll make window creation fail here just in case.
         (0, WM_CREATE) => return -1,
         (_, WM_CREATE) => {
-            let createstruct = &mut *(strict::invalid::<CREATESTRUCTW>(lparam as usize));
+            let createstruct = &mut *(sptr::invalid_mut::<CREATESTRUCTW>(lparam as usize));
             let initdata = createstruct.lpCreateParams;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
@@ -944,7 +944,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             return DefWindowProcW(window, msg, wparam, lparam);
         }
         (0, _) => return DefWindowProcW(window, msg, wparam, lparam),
-        _ => strict::from_exposed_addr::<WindowData<T>>(userdata as _),
+        _ => sptr::from_exposed_addr_mut::<WindowData<T>>(userdata as _),
     };
 
     let (result, userdata_removed, recurse_depth) = {
@@ -1004,7 +1004,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             // ahead of the window surface. Currently, there seems no option to achieve this
             // with the Windows API.
             if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
-                let params = &mut *(strict::invalid::<NCCALCSIZE_PARAMS>(lparam as usize));
+                let params = &mut *(sptr::invalid_mut::<NCCALCSIZE_PARAMS>(lparam as usize));
                 params.rgrc[0].top += 1;
                 params.rgrc[0].bottom += 1;
             }
@@ -1084,7 +1084,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_WINDOWPOSCHANGING => {
             let mut window_state = userdata.window_state_lock();
             if let Some(ref mut fullscreen) = window_state.fullscreen {
-                let window_pos = &mut *(strict::invalid::<WINDOWPOS>(lparam as usize));
+                let window_pos = &mut *(sptr::invalid_mut::<WINDOWPOS>(lparam as usize));
                 let new_rect = RECT {
                     left: window_pos.x,
                     top: window_pos.y,
@@ -1987,7 +1987,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_GETMINMAXINFO => {
-            let mmi = strict::invalid::<MINMAXINFO>(lparam as usize);
+            let mmi = sptr::invalid_mut::<MINMAXINFO>(lparam as usize);
 
             let window_state = userdata.window_state_lock();
             let window_flags = window_state.window_flags;
@@ -2045,7 +2045,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
 
             // New size as suggested by Windows.
-            let suggested_rect = *(strict::invalid::<RECT>(lparam as usize));
+            let suggested_rect = *(sptr::invalid::<RECT>(lparam as usize));
 
             // The window rect provided is the window's outer size, not it's inner size. However,
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
@@ -2276,10 +2276,9 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let userdata_ptr = strict::from_exposed_addr::<ThreadMsgTargetData<T>>(super::get_window_long(
-        window,
-        GWL_USERDATA,
-    ) as usize);
+    let userdata_ptr = sptr::from_exposed_addr_mut::<ThreadMsgTargetData<T>>(
+        super::get_window_long(window, GWL_USERDATA) as usize,
+    );
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.
@@ -2453,7 +2452,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             0
         }
         _ if msg == *EXEC_MSG_ID => {
-            let mut function: ThreadExecFn = Box::from_raw(strict::from_exposed_addr(wparam as _));
+            let mut function: ThreadExecFn =
+                Box::from_raw(sptr::from_exposed_addr_mut(wparam as _));
             function();
             0
         }

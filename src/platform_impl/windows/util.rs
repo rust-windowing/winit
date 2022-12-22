@@ -9,7 +9,6 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use super::strict;
 use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
@@ -137,6 +136,8 @@ pub fn is_focused(window: HWND) -> bool {
 }
 
 pub fn get_instance_handle() -> HINSTANCE {
+    use sptr::Strict;
+
     // Gets the instance handle by taking the address of the
     // pseudo-variable created by the microsoft linker:
     // https://devblogs.microsoft.com/oldnewthing/20041025-00/?p=37483
@@ -148,7 +149,7 @@ pub fn get_instance_handle() -> HINSTANCE {
         static __ImageBase: IMAGE_DOS_HEADER;
     }
 
-    strict::addr(unsafe { &__ImageBase as *const IMAGE_DOS_HEADER as *mut IMAGE_DOS_HEADER })
+    Strict::addr(unsafe { &__ImageBase as *const IMAGE_DOS_HEADER as *mut IMAGE_DOS_HEADER })
         as HINSTANCE
 }
 
