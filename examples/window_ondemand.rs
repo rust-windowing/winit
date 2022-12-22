@@ -36,6 +36,9 @@ fn main() -> Result<(), impl std::error::Error> {
 
             if let Some(window) = &app.window {
                 match event {
+                    Event::NewEvents(winit::event::StartCause::Init) => println!("---init"),
+                    Event::Resumed => println!("---resumed"),
+                    Event::Suspended => println!("---suspended"),
                     Event::WindowEvent {
                         event: WindowEvent::CloseRequested,
                         window_id,
@@ -43,7 +46,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         println!("--------------------------------------------------------- Window {idx} CloseRequested");
                         app.window = None;
                     }
-                    Event::AboutToWait => window.request_redraw(),
+                    // Event::AboutToWait => window.request_redraw(),
                     Event::WindowEvent {
                         event: WindowEvent::RedrawRequested,
                         ..

@@ -151,6 +151,7 @@ extern crate bitflags;
 pub mod dpi;
 #[macro_use]
 pub mod error;
+mod application;
 pub mod event;
 pub mod event_loop;
 mod icon;
@@ -160,3 +161,5 @@ mod platform_impl;
 pub mod window;
 
 pub mod platform;
+
+pub use self::application::ApplicationHandler;

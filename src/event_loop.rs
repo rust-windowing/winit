@@ -46,7 +46,7 @@ pub struct EventLoop<T: 'static> {
 /// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget<T: 'static = ()> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }

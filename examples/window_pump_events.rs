@@ -41,6 +41,9 @@ fn main() -> std::process::ExitCode {
             }
 
             match event {
+                Event::NewEvents(winit::event::StartCause::Init) => println!("---init"),
+                Event::Resumed => println!("---resumed"),
+                Event::Suspended => println!("---suspended"),
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
