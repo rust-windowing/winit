@@ -182,7 +182,7 @@ impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(wayland_platform)]
         return DeviceId::Wayland(wayland::DeviceId::dummy());
-        #[cfg(all(not(wayland_platform), x11))]
+        #[cfg(all(not(wayland_platform), x11_platform))]
         return DeviceId::X(x11::DeviceId::dummy());
     }
 }
@@ -697,7 +697,7 @@ impl<T: 'static> EventLoop<T> {
                     #[cfg(x11_platform)]
                     return EventLoop::new_x11_any_thread()
                         .expect("Failed to initialize X11 backend");
-                    #[cfg(not(x11))]
+                    #[cfg(not(x11_platform))]
                     panic!("x11 feature is not enabled")
                 }
                 "wayland" => {
