@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::ptr;
 
 use objc2::declare::{Ivar, IvarDrop};
@@ -429,7 +431,7 @@ impl WinitWindowDelegate {
 
     fn emit_move_event(&mut self) {
         let rect = self.window.frame();
-        let x = rect.origin.x;
+        let x = rect.origin.x as f64;
         let y = util::bottom_left_to_top_left(rect);
         if self.previous_position.as_deref() != Some(&(x, y)) {
             *self.previous_position = Some(Box::new((x, y)));
@@ -441,6 +443,6 @@ impl WinitWindowDelegate {
 
     fn view_size(&self) -> LogicalSize<f64> {
         let size = self.window.contentView().frame().size;
-        LogicalSize::new(size.width, size.height)
+        LogicalSize::new(size.width as f64, size.height as f64)
     }
 }

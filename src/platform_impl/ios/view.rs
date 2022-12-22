@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use objc2::foundation::NSObject;
 use objc2::{class, declare_class, msg_send, ClassType};
 
@@ -62,10 +64,10 @@ declare_class!(
                 ];
                 let scale_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
+                    width: screen_frame.size.width as f64,
+                    height: screen_frame.size.height as f64,
                 }
-                .to_physical(scale_factor);
+                .to_physical(scale_factor as f64);
 
                 // If the app is started in landscape, the view frame and window bounds can be mismatched.
                 // The view frame will be in portrait and the window bounds in landscape. So apply the
@@ -208,7 +210,7 @@ impl WinitView {
                     let scale_factor: CGFloat = msg_send![self, contentScaleFactor];
                     PhysicalPosition::from_logical::<(f64, f64), f64>(
                         (logical_location.x as _, logical_location.y as _),
-                        scale_factor,
+                        scale_factor as f64,
                     )
                 };
                 touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {

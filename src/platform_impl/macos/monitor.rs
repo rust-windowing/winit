@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{collections::VecDeque, fmt};
 
 use core_foundation::{
@@ -200,14 +202,14 @@ impl MonitorHandle {
     pub fn position(&self) -> PhysicalPosition<i32> {
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
         PhysicalPosition::from_logical::<_, f64>(
-            (bounds.origin.x, bounds.origin.y),
+            (bounds.origin.x as f64, bounds.origin.y as f64),
             self.scale_factor(),
         )
     }
 
     pub fn scale_factor(&self) -> f64 {
         match self.ns_screen() {
-            Some(screen) => screen.backingScaleFactor(),
+            Some(screen) => screen.backingScaleFactor() as f64,
             None => 1.0, // default to 1.0 when we can't find the screen
         }
     }

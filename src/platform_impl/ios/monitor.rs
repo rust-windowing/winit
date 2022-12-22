@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{
     collections::{BTreeSet, VecDeque},
     fmt,
@@ -203,14 +205,16 @@ impl Inner {
     pub fn position(&self) -> PhysicalPosition<i32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            (bounds.origin.x, bounds.origin.y).into()
+            #[allow(clippy::unnecessary_cast)]
+            (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
     }
 
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
-            scale
+            #[allow(clippy::unnecessary_cast)]
+            scale as f64
         }
     }
 

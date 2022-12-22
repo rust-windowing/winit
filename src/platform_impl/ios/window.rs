@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
@@ -81,8 +83,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             let position = LogicalPosition {
-                x: safe_area.origin.x,
-                y: safe_area.origin.y,
+                x: safe_area.origin.x as f64,
+                y: safe_area.origin.y as f64,
             };
             let scale_factor = self.scale_factor();
             Ok(position.to_physical(scale_factor))
@@ -93,8 +95,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             let position = LogicalPosition {
-                x: screen_frame.origin.x,
-                y: screen_frame.origin.y,
+                x: screen_frame.origin.x as f64,
+                y: screen_frame.origin.y as f64,
             };
             let scale_factor = self.scale_factor();
             Ok(position.to_physical(scale_factor))
@@ -123,8 +125,8 @@ impl Inner {
             let scale_factor = self.scale_factor();
             let safe_area = self.safe_area_screen_space();
             let size = LogicalSize {
-                width: safe_area.size.width,
-                height: safe_area.size.height,
+                width: safe_area.size.width as f64,
+                height: safe_area.size.height as f64,
             };
             size.to_physical(scale_factor)
         }
@@ -135,8 +137,8 @@ impl Inner {
             let scale_factor = self.scale_factor();
             let screen_frame = self.screen_frame();
             let size = LogicalSize {
-                width: screen_frame.size.width,
-                height: screen_frame.size.height,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             size.to_physical(scale_factor)
         }
@@ -428,7 +430,7 @@ impl Window {
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
                     let scale_factor: CGFloat = msg_send![screen, scale];
-                    let size = dim.to_logical::<f64>(scale_factor);
+                    let size = dim.to_logical::<f64>(scale_factor) as f64;
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {
@@ -472,6 +474,7 @@ impl Window {
             // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
             let scale_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let scale_factor = scale_factor as f64;
             if scale_factor != 1.0 {
                 let bounds: CGRect = msg_send![view, bounds];
                 let screen: id = msg_send![window, screen];

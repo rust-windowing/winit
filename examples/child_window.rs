@@ -2,6 +2,9 @@
 use std::collections::HashMap;
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
+use std::os::raw::c_ulong;
+
+#[cfg(all(target_os = "linux", feature = "x11"))]
 use winit::{
     dpi::{LogicalPosition, LogicalSize, Position},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
@@ -12,9 +15,9 @@ use winit::{
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
 fn spawn_child_window(
-    parent: u64,
+    parent: c_ulong,
     event_loop: &EventLoopWindowTarget<()>,
-    windows: &mut HashMap<u64, Window>,
+    windows: &mut HashMap<c_ulong, Window>,
 ) {
     let child_window = WindowBuilder::new()
         .with_parent(WindowId::from(parent))
@@ -26,7 +29,7 @@ fn spawn_child_window(
         .unwrap();
 
     let id = child_window.xlib_window().unwrap();
-    windows.insert(id as _, child_window);
+    windows.insert(id, child_window);
     println!("child window created with id: {}", id);
 }
 

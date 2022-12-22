@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::collections::VecDeque;
 
 use objc2::foundation::NSObject;
@@ -50,8 +52,8 @@ fn maybe_dispatch_device_event(event: &NSEvent) {
         | NSEventType::NSRightMouseDragged => {
             let mut events = VecDeque::with_capacity(3);
 
-            let delta_x = event.deltaX();
-            let delta_y = event.deltaY();
+            let delta_x = event.deltaX() as f64;
+            let delta_y = event.deltaY() as f64;
 
             if delta_x != 0.0 {
                 events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {

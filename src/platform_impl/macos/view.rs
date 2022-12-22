@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{boxed::Box, collections::VecDeque, os::raw::*, ptr, str, sync::Mutex};
 
 use objc2::declare::{Ivar, IvarDrop};
@@ -220,7 +222,7 @@ declare_class!(
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
-            let logical_size = LogicalSize::new(rect.size.width, rect.size.height);
+            let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: self.window_id(),
@@ -405,8 +407,8 @@ declare_class!(
             trace_scope!("firstRectForCharacterRange:actualRange:");
             let window = self.window();
             let content_rect = window.contentRectForFrameRect(window.frame());
-            let base_x = content_rect.origin.x;
-            let base_y = content_rect.origin.y + content_rect.size.height;
+            let base_x = content_rect.origin.x as f64;
+            let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
             let x = base_x + self.state.ime_position.x;
             let y = base_y - self.state.ime_position.y;
             // This is not ideal: We _should_ return a different position based on
@@ -944,7 +946,7 @@ impl WinitView {
     }
 
     fn scale_factor(&self) -> f64 {
-        self.window().backingScaleFactor()
+        self.window().backingScaleFactor() as f64
     }
 
     fn is_ime_enabled(&self) -> bool {
@@ -1032,8 +1034,8 @@ impl WinitView {
             }
         }
 
-        let x = view_point.x;
-        let y = view_rect.size.height - view_point.y;
+        let x = view_point.x as f64;
+        let y = view_rect.size.height as f64 - view_point.y as f64;
         let logical_position = LogicalPosition::new(x, y);
 
         self.update_potentially_stale_modifiers(event);
