@@ -205,7 +205,6 @@ impl Inner {
     pub fn position(&self) -> PhysicalPosition<i32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            #[allow(clippy::unnecessary_cast)]
             (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
     }
@@ -213,7 +212,6 @@ impl Inner {
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
-            #[allow(clippy::unnecessary_cast)]
             scale as f64
         }
     }

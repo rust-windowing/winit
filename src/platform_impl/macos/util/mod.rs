@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 mod r#async;
 
 pub(crate) use self::r#async::*;
@@ -49,9 +51,7 @@ impl Drop for TraceGuard {
 // 1. translate the bottom-left window corner into the top-left window corner
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
-    #[allow(clippy::unnecessary_cast)]
-    CGDisplay::main().pixels_high() as f64
-        - (rect.origin.y + rect.size.height) as f64
+    CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height) as f64
 }
 
 /// Converts from winit screen-coordinates to macOS screen-coordinates.
