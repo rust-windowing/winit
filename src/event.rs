@@ -478,7 +478,9 @@ pub enum WindowEvent<'a> {
 
     /// Touch event has been received
     ///
-    /// At the moment, not supported on MacOS.
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Unsupported.
     Touch(Touch),
 
     /// The window's scale factor has changed.
