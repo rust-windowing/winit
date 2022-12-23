@@ -39,7 +39,10 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowLevel},
+    window::{
+        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+        WindowLevel,
+    },
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -93,15 +96,11 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub screen_id: Option<i32>,
     #[cfg(feature = "x11")]
-    pub parent_id: Option<WindowId>,
-    #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
-    #[cfg(feature = "x11")]
-    pub gtk_theme_variant: Option<String>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -113,15 +112,11 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             #[cfg(feature = "x11")]
             screen_id: None,
             #[cfg(feature = "x11")]
-            parent_id: None,
-            #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
-            #[cfg(feature = "x11")]
-            gtk_theme_variant: None,
         }
     }
 }
@@ -406,6 +401,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
+    }
+
+    #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
     }
@@ -583,6 +588,11 @@ impl Window {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
+    }
+
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        x11_or_wayland!(match self; Window(window) => window.set_theme(theme))
     }
 
     #[inline]

@@ -1,7 +1,6 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
-use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -172,8 +171,6 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
-    /// Build window with parent window.
-    fn with_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -189,9 +186,6 @@ pub trait WindowBuilderExtX11 {
 
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
-
-    /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
-    fn with_gtk_theme_variant(self, variant: String) -> Self;
 
     /// Build window with base size hint. Only implemented on X11.
     ///
@@ -231,12 +225,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     }
 
     #[inline]
-    fn with_parent(mut self, parent_id: WindowId) -> Self {
-        self.platform_specific.parent_id = Some(parent_id.0);
-        self
-    }
-
-    #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
         self.platform_specific.override_redirect = override_redirect;
         self
@@ -245,12 +233,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
         self.platform_specific.x11_window_types = x11_window_types;
-        self
-    }
-
-    #[inline]
-    fn with_gtk_theme_variant(mut self, variant: String) -> Self {
-        self.platform_specific.gtk_theme_variant = Some(variant);
         self
     }
 

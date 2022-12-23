@@ -126,6 +126,7 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub enabled_buttons: WindowButtons,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
@@ -137,6 +138,7 @@ pub(crate) struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
+    pub parent_window: Option<RawWindowHandle>,
 }
 
 impl Default for WindowAttributes {
@@ -148,6 +150,7 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
@@ -159,6 +162,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            parent_window: None,
         }
     }
 }
@@ -241,6 +245,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
+        self
+    }
+
+    /// Sets the enabled window buttons.
+    ///
+    /// The default is [`WindowButtons::all`]
+    ///
+    /// See [`Window::set_enabled_buttons`] for details.
+    #[inline]
+    pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
+        self.window.enabled_buttons = buttons;
         self
     }
 
@@ -349,8 +364,10 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
+    /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
@@ -383,6 +400,27 @@ impl WindowBuilder {
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
+        self
+    }
+
+    /// Build window with parent window.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows** : A child window has the WS_CHILD style and is confined
+    /// to the client area of its parent window. For more information, see
+    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **X11**: A child window is confined to the client area of its parent window.
+    /// - **Android / iOS / Wayland:** Unsupported.
+    #[inline]
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+        self.window.parent_window = parent_window;
         self
     }
 
@@ -753,6 +791,26 @@ impl Window {
         self.window.is_resizable()
     }
 
+    /// Sets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.window.set_enabled_buttons(buttons)
+    }
+
+    /// Gets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        self.window.enabled_buttons()
+    }
+
     /// Sets the window to minimized or back
     ///
     /// ## Platform-specific
@@ -963,11 +1021,26 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
+    /// Sets the current window theme. Use `None` to fallback to system default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This is an app-wide setting.
+    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.window.set_theme(theme)
+    }
+
     /// Returns the current window theme.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / x11:** Unsupported.
+    /// - **macOS:** This is an app-wide setting.
+    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
@@ -1421,6 +1494,14 @@ pub enum UserAttentionType {
 impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
+    }
+}
+
+bitflags! {
+    pub struct WindowButtons: u32 {
+        const CLOSE  = 1 << 0;
+        const MINIMIZE  = 1 << 1;
+        const MAXIMIZE  = 1 << 2;
     }
 }
 

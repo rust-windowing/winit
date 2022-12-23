@@ -180,6 +180,12 @@ extern_methods!(
         #[sel(isResizable)]
         pub fn isResizable(&self) -> bool;
 
+        #[sel(isMiniaturizable)]
+        pub fn isMiniaturizable(&self) -> bool;
+
+        #[sel(hasCloseBox)]
+        pub fn hasCloseBox(&self) -> bool;
+
         #[sel(isMiniaturized)]
         pub fn isMiniaturized(&self) -> bool;
 
@@ -207,6 +213,9 @@ extern_methods!(
 
         #[sel(sendEvent:)]
         pub unsafe fn sendEvent(&self, event: &NSEvent);
+
+        #[sel(addChildWindow:ordered:)]
+        pub unsafe fn addChildWindow(&self, child: &NSWindow, ordered: NSWindowOrderingMode);
     }
 );
 
@@ -372,4 +381,17 @@ pub enum NSWindowSharingType {
 
 unsafe impl Encode for NSWindowSharingType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(isize)] // NSInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowOrderingMode {
+    NSWindowAbove = 1,
+    NSWindowBelow = -1,
+    NSWindowOut = 0,
+}
+
+unsafe impl Encode for NSWindowOrderingMode {
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
