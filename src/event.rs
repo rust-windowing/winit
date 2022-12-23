@@ -914,8 +914,6 @@ pub enum TouchPhase {
 
 /// Represents a touch event
 ///
-/// At the moment, not supported on MacOS.
-///
 /// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
 /// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
 /// event is generated with the same finger id.
@@ -930,6 +928,10 @@ pub enum TouchPhase {
 /// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
+///
+/// ## Platform-specific
+///
+/// - **macOS:** Unsupported.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,
