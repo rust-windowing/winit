@@ -70,8 +70,7 @@ impl ScaleChangeDetectorInternal {
         mql
     }
 
-    fn handler(&mut self, event: MediaQueryListEvent) {
-        debug_assert!(!event.matches());
+    fn handler(&mut self, _event: MediaQueryListEvent) {
         let mql = self
             .mql
             .take()
