@@ -82,7 +82,7 @@ impl PartialOrd for MonitorHandle {
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // TODO: Make a better ordering
-        (&(self as *const Self)).cmp(&(other as *const Self))
+        (self as *const Self).cmp(&(other as *const Self))
     }
 }
 

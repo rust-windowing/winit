@@ -460,15 +460,13 @@ impl WinitUIWindow {
                 let monitor = video_mode.monitor();
                 let screen = monitor.ui_screen();
                 screen.setCurrentMode(Some(&video_mode.screen_mode.0));
-                this.setScreen(&screen);
+                this.setScreen(screen);
             }
-            Some(Fullscreen::Borderless(ref monitor)) => {
-                if let Some(monitor) = &monitor {
-                    let screen = monitor.ui_screen();
-                    this.setScreen(&screen);
-                };
+            Some(Fullscreen::Borderless(Some(ref monitor))) => {
+                let screen = monitor.ui_screen();
+                this.setScreen(screen);
             }
-            None => (),
+            _ => (),
         }
 
         this
