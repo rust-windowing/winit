@@ -1,4 +1,4 @@
-#![cfg(free_unix)]
+#![cfg(x11_platform)]
 
 mod dnd;
 mod event_processor;

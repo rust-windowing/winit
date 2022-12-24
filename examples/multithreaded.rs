@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(wasm))]
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
@@ -193,7 +193,7 @@ fn main() {
     })
 }
 
-#[cfg(wasm)]
+#[cfg(wasm_platform)]
 fn main() {
     panic!("Example not supported on Wasm");
 }

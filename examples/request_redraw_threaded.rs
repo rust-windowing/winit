@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(wasm))]
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{thread, time};
 
@@ -42,7 +42,7 @@ fn main() {
     });
 }
 
-#[cfg(wasm)]
+#[cfg(wasm_platform)]
 fn main() {
     unimplemented!() // `Window` can't be sent between threads
 }

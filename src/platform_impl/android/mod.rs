@@ -1,4 +1,4 @@
-#![cfg(android)]
+#![cfg(android_platform)]
 
 use std::{
     collections::VecDeque,

@@ -1,4 +1,4 @@
-#![cfg(free_unix)]
+#![cfg(wayland_platform)]
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 

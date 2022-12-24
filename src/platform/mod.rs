@@ -15,20 +15,26 @@
 //!
 //! However only the module corresponding to the platform you're compiling to will be available.
 
-#[cfg(android)]
+#[cfg(android_platform)]
 pub mod android;
-#[cfg(ios)]
+#[cfg(ios_platform)]
 pub mod ios;
-#[cfg(macos)]
+#[cfg(macos_platform)]
 pub mod macos;
 #[cfg(wayland_platform)]
 pub mod wayland;
-#[cfg(wasm)]
+#[cfg(wasm_platform)]
 pub mod web;
-#[cfg(windows)]
+#[cfg(windows_platform)]
 pub mod windows;
-#[cfg(all(x11_platform, free_unix))]
+#[cfg(x11_platform)]
 pub mod x11;
 
-#[cfg(any(windows, macos, android, free_unix))]
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    android_platform,
+    x11_platform,
+    wayland_platform
+))]
 pub mod run_return;

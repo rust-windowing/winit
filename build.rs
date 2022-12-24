@@ -6,10 +6,11 @@ fn main() {
     // Setup cfg aliases
     cfg_aliases! {
         // Systems.
-        android: { target_os = "android" },
-        wasm: { target_arch = "wasm32" },
-        macos: { target_os = "macos" },
-        ios: { target_os = "ios" },
+        android_platform: { target_os = "android" },
+        wasm_platform: { target_arch = "wasm32" },
+        macos_platform: { target_os = "macos" },
+        ios_platform: { target_os = "ios" },
+        windows_platform: { target_os = "windows" },
         apple: { any(target_os = "ios", target_os = "macos") },
         free_unix: { all(unix, not(apple), not(android)) },
 

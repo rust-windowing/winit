@@ -1,4 +1,4 @@
-#[cfg(any(x11_platform, macos, windows))]
+#[cfg(any(x11_platform, macos_platform, windows_platform))]
 fn main() {
     use std::collections::HashMap;
 
@@ -74,7 +74,7 @@ fn main() {
     })
 }
 
-#[cfg(not(any(x11_platform, macos, windows,)))]
+#[cfg(not(any(x11_platform, macos_platform, windows_platform)))]
 fn main() {
     panic!("This example is supported only on x11, macOS, and Windows.");
 }
