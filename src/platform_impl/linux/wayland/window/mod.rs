@@ -219,7 +219,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -490,7 +490,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 

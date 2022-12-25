@@ -2,14 +2,11 @@
 
 // Limit this example to only compatible platforms.
 #[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd",
-    target_os = "android",
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
@@ -60,7 +57,7 @@ fn main() {
     }
 }
 
-#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+#[cfg(any(ios_platform, wasm_platform))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

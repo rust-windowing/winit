@@ -45,6 +45,9 @@ wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 android-native-activity = [ "android-activity/native-activity" ]
 android-game-activity = [ "android-activity/game-activity" ]
 
+[build-dependencies]
+cfg_aliases = "0.1.1"
+
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 once_cell = "1.12"

@@ -1056,7 +1056,7 @@ impl Window {
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(any(macos_platform, windows_platform))]
         self.window.set_content_protected(_protected);
     }
 
