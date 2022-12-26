@@ -58,6 +58,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added Orbital support for Redox OS
 - On X11, added `drag_resize_window` method.
 - Added `Window::set_transparent` to provide a hint about transparency of the window on Wayland and macOS.
+- On macOS, fix the mouse buttons other than left/right/middle being reported as middle.
 
 # 0.27.5
 
