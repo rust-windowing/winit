@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
 
-use instant::Instant;
+use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
@@ -163,8 +163,10 @@ pub enum ControlFlow {
     ///   example when the scaling of the page has changed. This should be treated as an implementation
     ///   detail which should not be relied on.
     Poll,
+
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
+
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     ///
@@ -174,6 +176,7 @@ pub enum ControlFlow {
     ///
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
+
     /// Send a [`LoopDestroyed`] event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
@@ -219,6 +222,20 @@ impl ControlFlow {
     /// [`WaitUntil`]: Self::WaitUntil
     pub fn set_wait_until(&mut self, instant: Instant) {
         *self = Self::WaitUntil(instant);
+    }
+
+    /// Sets this to wait until a timeout has expired.
+    ///
+    /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
+    /// instead set to [`Wait`].
+    ///
+    /// [`WaitUntil`]: Self::WaitUntil
+    /// [`Wait`]: Self::Wait
+    pub fn set_wait_timeout(&mut self, timeout: Duration) {
+        match Instant::now().checked_add(timeout) {
+            Some(instant) => self.set_wait_until(instant),
+            None => self.set_wait(),
+        }
     }
 
     /// Sets this to [`ExitWithCode`]`(code)`.
