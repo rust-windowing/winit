@@ -15,11 +15,12 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use objc2::foundation::{CGRect, CGSize, NSInteger};
+use objc2::foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
 use objc2::rc::{Id, Shared};
-use objc2::{class, msg_send, sel};
+use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
+use super::uikit::UIView;
 use super::view::WinitUIWindow;
 use crate::{
     dpi::LogicalSize,
@@ -830,14 +831,12 @@ fn handle_hidpi_proxy(
     let logical_size = physical_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-    unsafe {
-        let _: () = msg_send![view, setFrame: new_frame];
-    }
+    view.setFrame(new_frame);
 }
 
-fn get_view_and_screen_frame(window: &WinitUIWindow) -> (id, CGRect) {
+fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Id<UIView, Shared>, CGRect) {
     let view_controller = window.rootViewController().unwrap();
-    let view: id = unsafe { msg_send![&view_controller, view] };
+    let view = view_controller.view().unwrap();
     let bounds = window.bounds();
     let screen = window.screen();
     let screen_space = screen.coordinateSpace();
@@ -971,9 +970,9 @@ impl NSOperatingSystemVersion {
 pub fn os_capabilities() -> OSCapabilities {
     static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
         let version: NSOperatingSystemVersion = unsafe {
-            let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
+            let process_info = NSProcessInfo::process_info();
             let atleast_ios_8: bool = msg_send![
-                process_info,
+                &process_info,
                 respondsToSelector: sel!(operatingSystemVersion)
             ];
             // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
@@ -984,7 +983,7 @@ pub fn os_capabilities() -> OSCapabilities {
             //
             // The minimum required iOS version is likely to grow in the future.
             assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
-            msg_send![process_info, operatingSystemVersion]
+            msg_send![&process_info, operatingSystemVersion]
         };
         version.into()
     });
