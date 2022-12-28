@@ -1,9 +1,11 @@
 use crate::window::CursorIcon;
 
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+
 use super::*;
 
 impl XConnection {
-    pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
+    pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
         let cursor = *self
             .cursor_cache
             .lock()
@@ -14,12 +16,11 @@ impl XConnection {
         self.update_cursor(window, cursor);
     }
 
-    fn create_empty_cursor(&self) -> ffi::Cursor {
+    fn create_empty_cursor(&self) -> xproto::Cursor {
         let data = 0;
         let pixmap = unsafe {
-            let screen = (self.xlib.XDefaultScreen)(self.display);
-            let window = (self.xlib.XRootWindow)(self.display, screen);
-            (self.xlib.XCreateBitmapFromData)(self.display, window, &data, 1, 1)
+            let window = self.default_screen().root;
+            (self.xlib.XCreateBitmapFromData)(self.display.as_ptr(), window as _, &data, 1, 1)
         };
 
         if pixmap == 0 {
@@ -31,7 +32,7 @@ impl XConnection {
             // in the pixmap which are not 0 in the mask.
             let mut dummy_color = MaybeUninit::uninit();
             let cursor = (self.xlib.XCreatePixmapCursor)(
-                self.display,
+                self.display.as_ptr(),
                 pixmap,
                 pixmap,
                 dummy_color.as_mut_ptr(),
@@ -39,19 +40,22 @@ impl XConnection {
                 0,
                 0,
             );
-            (self.xlib.XFreePixmap)(self.display, pixmap);
+            (self.xlib.XFreePixmap)(self.display.as_ptr(), pixmap);
 
-            cursor
+            cursor as _
         }
     }
 
-    fn load_cursor(&self, name: &[u8]) -> ffi::Cursor {
+    fn load_cursor(&self, name: &[u8]) -> xproto::Cursor {
         unsafe {
-            (self.xcursor.XcursorLibraryLoadCursor)(self.display, name.as_ptr() as *const c_char)
+            (self.xcursor.XcursorLibraryLoadCursor)(
+                self.display.as_ptr(),
+                name.as_ptr() as *const c_char,
+            ) as xproto::Cursor
         }
     }
 
-    fn load_first_existing_cursor(&self, names: &[&[u8]]) -> ffi::Cursor {
+    fn load_first_existing_cursor(&self, names: &[&[u8]]) -> xproto::Cursor {
         for name in names.iter() {
             let xcursor = self.load_cursor(name);
             if xcursor != 0 {
@@ -61,7 +65,7 @@ impl XConnection {
         0
     }
 
-    fn get_cursor(&self, cursor: Option<CursorIcon>) -> ffi::Cursor {
+    fn get_cursor(&self, cursor: Option<CursorIcon>) -> xproto::Cursor {
         let cursor = match cursor {
             Some(cursor) => cursor,
             None => return self.create_empty_cursor(),
@@ -120,11 +124,13 @@ impl XConnection {
         }
     }
 
-    fn update_cursor(&self, window: ffi::Window, cursor: ffi::Cursor) {
-        unsafe {
-            (self.xlib.XDefineCursor)(self.display, window, cursor);
-
-            self.flush_requests().expect("Failed to set the cursor");
-        }
+    fn update_cursor(&self, window: xproto::Window, cursor: xproto::Cursor) {
+        self.connection
+            .change_window_attributes(
+                window,
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
+            )
+            .check()
+            .expect("Failed to set the cursor");
     }
 }

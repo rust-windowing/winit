@@ -1,10 +1,10 @@
 #![cfg(x11_platform)]
 
+mod atoms;
 mod dnd;
 mod event_processor;
 mod events;
 pub mod ffi;
-mod ime;
 mod monitor;
 pub mod util;
 mod window;
@@ -20,20 +20,22 @@ pub use self::xdisplay::{XError, XNotSupported};
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
-    ffi::CStr,
-    mem::{self, MaybeUninit},
+    collections::{HashMap, HashSet, VecDeque},
+    fmt,
     ops::Deref,
-    os::raw::*,
-    ptr,
     rc::Rc,
-    slice,
     sync::mpsc::{Receiver, Sender, TryRecvError},
-    sync::{mpsc, Arc, Weak},
+    sync::{Arc, Weak},
     time::{Duration, Instant},
 };
-
-use libc::{self, setlocale, LC_CTYPE};
+use x11rb::{
+    errors::{ConnectionError, ReplyError, ReplyOrIdError},
+    protocol::{
+        xinput::{self, ConnectionExt as _},
+        xproto::{self, ConnectionExt as _},
+    },
+    x11_utils::X11Error,
+};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
@@ -41,7 +43,6 @@ use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
     util::modifiers::ModifierKeymap,
 };
 use crate::{
@@ -56,6 +57,77 @@ use crate::{
     },
     window::WindowAttributes,
 };
+
+/// Sum error for X11 errors.
+pub(crate) enum PlatformError {
+    /// An error that can occur during connection operation.
+    Connection(ConnectionError),
+
+    /// An error that can occur as a result of a protocol.
+    Protocol(X11Error),
+
+    /// An error that can occur during Xlib operation.
+    Xlib(XError),
+}
+
+impl fmt::Debug for PlatformError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PlatformError::Connection(e) => fmt::Debug::fmt(e, f),
+            PlatformError::Protocol(e) => fmt::Debug::fmt(e, f),
+            PlatformError::Xlib(e) => fmt::Debug::fmt(e, f),
+        }
+    }
+}
+
+impl fmt::Display for PlatformError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PlatformError::Connection(e) => fmt::Display::fmt(e, f),
+            PlatformError::Protocol(_) => f.write_str("Encountered a libX11 error"),
+            PlatformError::Xlib(e) => fmt::Display::fmt(e, f),
+        }
+    }
+}
+
+impl std::error::Error for PlatformError {}
+
+impl From<ConnectionError> for PlatformError {
+    fn from(value: ConnectionError) -> Self {
+        PlatformError::Connection(value)
+    }
+}
+
+impl From<X11Error> for PlatformError {
+    fn from(value: X11Error) -> Self {
+        PlatformError::Protocol(value)
+    }
+}
+
+impl From<XError> for PlatformError {
+    fn from(value: XError) -> Self {
+        PlatformError::Xlib(value)
+    }
+}
+
+impl From<ReplyError> for PlatformError {
+    fn from(value: ReplyError) -> Self {
+        match value {
+            ReplyError::ConnectionError(e) => PlatformError::Connection(e),
+            ReplyError::X11Error(e) => PlatformError::Protocol(e),
+        }
+    }
+}
+
+impl From<ReplyOrIdError> for PlatformError {
+    fn from(value: ReplyOrIdError) -> Self {
+        match value {
+            ReplyOrIdError::ConnectionError(e) => PlatformError::Connection(e),
+            ReplyOrIdError::X11Error(e) => PlatformError::Protocol(e),
+            ReplyOrIdError::IdsExhausted => panic!("XID space exhausted"),
+        }
+    }
+}
 
 const X_TOKEN: Token = Token(0);
 const USER_REDRAW_TOKEN: Token = Token(1);
@@ -101,11 +173,9 @@ impl<T> PeekableReceiver<T> {
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
-    wm_delete_window: ffi::Atom,
-    net_wm_ping: ffi::Atom,
-    ime_sender: ImeSender,
-    root: ffi::Window,
-    ime: RefCell<Ime>,
+    //ime_sender: ImeSender,
+    root: xproto::Window,
+    //ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     device_event_filter: Cell<DeviceEventFilter>,
@@ -138,15 +208,11 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
-        let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
+        let root = xconn.default_screen().root;
 
-        let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
+        let dnd = Dnd::new(Arc::clone(&xconn));
 
-        let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
-
-        let dnd = Dnd::new(Arc::clone(&xconn))
-            .expect("Failed to call XInternAtoms when initializing drag and drop");
-
+        /*
         let (ime_sender, ime_receiver) = mpsc::channel();
         let (ime_event_sender, ime_event_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
@@ -179,48 +245,27 @@ impl<T: 'static> EventLoop<T> {
             }
             result.expect("Failed to set input method destruction callback")
         });
+        */
 
-        let randr_event_offset = xconn
-            .select_xrandr_input(root)
-            .expect("Failed to query XRandR extension");
-
-        let xi2ext = unsafe {
-            let mut ext = XExtension::default();
-
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
-                b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut ext.opcode,
-                &mut ext.first_event_id,
-                &mut ext.first_error_id,
-            );
-
-            if res == ffi::False {
-                panic!("X server missing XInput extension");
-            }
-
-            ext
-        };
-
-        unsafe {
-            let mut xinput_major_ver = ffi::XI_2_Major;
-            let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
-                &mut xinput_major_ver,
-                &mut xinput_minor_ver,
-            ) != ffi::Success as libc::c_int
-            {
-                panic!(
-                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
-                );
-            }
+        // Check if XInput2 is available.
+        if xconn
+            .connection
+            .xinput_xi_query_version(2, 3)
+            .unwrap()
+            .reply()
+            .is_err()
+        {
+            panic!("X server missing XInput2 extension");
         }
 
-        xconn.update_cached_wm_info(root);
+        xconn
+            .update_cached_wm_info(root)
+            .expect("Failed to update cached WM info");
 
         let mut mod_keymap = ModifierKeymap::new();
-        mod_keymap.reset_from_x_connection(&xconn);
+        mod_keymap
+            .reset_from_x_connection(&xconn)
+            .expect("Failed to reset modifier keymap");
 
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
@@ -233,14 +278,10 @@ impl<T: 'static> EventLoop<T> {
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
         let window_target = EventLoopWindowTarget {
-            ime,
             root,
             windows: Default::default(),
             _marker: ::std::marker::PhantomData,
-            ime_sender,
             xconn,
-            wm_delete_window,
-            net_wm_ping,
             redraw_sender: WakeSender {
                 sender: redraw_sender, // not used again so no clone
                 waker: waker.clone(),
@@ -249,7 +290,9 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // Set initial device event filter.
-        window_target.update_device_event_filter(true);
+        window_target
+            .update_device_event_filter(true)
+            .expect("Failed to update device event filter");
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(window_target),
@@ -260,26 +303,32 @@ impl<T: 'static> EventLoop<T> {
             target: target.clone(),
             dnd,
             devices: Default::default(),
-            randr_event_offset,
-            ime_receiver,
-            ime_event_receiver,
-            xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
             num_touch: 0,
             first_touch: None,
             active_window: None,
             is_composing: false,
+            event_queue: VecDeque::new(),
         };
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
+        let all_devices = 0;
         get_xtarget(&target)
             .xconn
-            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
+            .connection
+            .xinput_xi_select_events(
+                root,
+                &[xinput::EventMask {
+                    deviceid: all_devices,
+                    mask: vec![xinput::XIEventMask::HIERARCHY],
+                }],
+            )
+            .expect("Failed to select XI_HIERARCHY events")
+            .ignore_error();
 
-        event_processor.init_device(ffi::XIAllDevices);
+        event_processor.init_device(all_devices);
 
         EventLoop {
             poll,
@@ -504,11 +553,13 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let target = &self.target;
-        let mut xev = MaybeUninit::uninit();
         let wt = get_xtarget(&self.target);
 
-        while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
-            let mut xev = unsafe { xev.assume_init() };
+        while let Some(mut xev) = self
+            .event_processor
+            .poll_one_event()
+            .expect("Failed to pump X11 events")
+        {
             self.event_processor.process_event(&mut xev, |event| {
                 sticky_exit_callback(
                     event,
@@ -548,29 +599,36 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     /// Update the device event filter based on window focus.
-    pub fn update_device_event_filter(&self, focus: bool) {
+    pub(crate) fn update_device_event_filter(&self, focus: bool) -> Result<(), PlatformError> {
         let filter_events = self.device_event_filter.get() == DeviceEventFilter::Never
             || (self.device_event_filter.get() == DeviceEventFilter::Unfocused && !focus);
 
-        let mut mask = 0;
+        let mut mask = xinput::XIEventMask::from(0u16);
         if !filter_events {
-            mask = ffi::XI_RawMotionMask
-                | ffi::XI_RawButtonPressMask
-                | ffi::XI_RawButtonReleaseMask
-                | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
+            mask = xinput::XIEventMask::RAW_MOTION
+                | xinput::XIEventMask::RAW_BUTTON_PRESS
+                | xinput::XIEventMask::RAW_BUTTON_RELEASE
+                | xinput::XIEventMask::RAW_KEY_PRESS
+                | xinput::XIEventMask::RAW_KEY_RELEASE;
         }
 
+        let all_master_devices = 1;
+        let events = [xinput::EventMask {
+            deviceid: all_master_devices,
+            mask: vec![mask],
+        }];
+
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllMasterDevices, mask)
-            .queue();
+            .connection
+            .xinput_xi_select_events(self.root, &events)?
+            .ignore_error();
+        Ok(())
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         let mut display_handle = XlibDisplayHandle::empty();
-        display_handle.display = self.xconn.display as *mut _;
-        display_handle.screen =
-            unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
+        display_handle.display = self.xconn.display.as_ptr() as *mut _;
+        display_handle.screen = self.xconn.default_screen as _;
         RawDisplayHandle::Xlib(display_handle)
     }
 }
@@ -584,48 +642,36 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-struct DeviceInfo<'a> {
-    xconn: &'a XConnection,
-    info: *const ffi::XIDeviceInfo,
-    count: usize,
+struct DeviceInfo {
+    info: Vec<xinput::XIDeviceInfo>,
 }
 
-impl<'a> DeviceInfo<'a> {
-    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
-        unsafe {
-            let mut count = 0;
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok()?;
+impl DeviceInfo {
+    fn get(xconn: &XConnection, device: xinput::DeviceId) -> Option<Self> {
+        let info = xconn
+            .connection
+            .xinput_xi_query_device(device)
+            .ok()?
+            .reply()
+            .ok()?;
 
-            if info.is_null() || count == 0 {
-                None
-            } else {
-                Some(DeviceInfo {
-                    xconn,
-                    info,
-                    count: count as usize,
-                })
-            }
+        if info.infos.is_empty() {
+            None
+        } else {
+            Some(DeviceInfo { info: info.infos })
         }
     }
 }
 
-impl<'a> Drop for DeviceInfo<'a> {
-    fn drop(&mut self) {
-        assert!(!self.info.is_null());
-        unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
-    }
-}
-
-impl<'a> Deref for DeviceInfo<'a> {
-    type Target = [ffi::XIDeviceInfo];
+impl Deref for DeviceInfo {
+    type Target = [xinput::XIDeviceInfo];
     fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.info, self.count) }
+        &self.info
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
@@ -663,63 +709,28 @@ impl Drop for Window {
     fn drop(&mut self) {
         let window = self.deref();
         let xconn = &window.xconn;
-        unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0 as ffi::Window);
-            // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
-        }
+        xconn
+            .connection
+            .destroy_window(window.id().0 as _)
+            .map(|r| r.ignore_error())
+            .ok();
     }
 }
 
-/// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure. This is a wrapper to
-/// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
-struct GenericEventCookie<'a> {
-    xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie,
+fn mkwid(w: xproto::Window) -> crate::window::WindowId {
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
 }
-
-impl<'a> GenericEventCookie<'a> {
-    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
-        unsafe {
-            let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
-                Some(GenericEventCookie { xconn, cookie })
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl<'a> Drop for GenericEventCookie<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
-        }
-    }
-}
-
-#[derive(Debug, Default, Copy, Clone)]
-struct XExtension {
-    opcode: c_int,
-    first_event_id: c_int,
-    first_error_id: c_int,
-}
-
-fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
-}
-fn mkdid(w: c_int) -> crate::event::DeviceId {
+fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
 }
 
 #[derive(Debug)]
 struct Device {
     _name: String,
-    scroll_axes: Vec<(i32, ScrollAxis)>,
+    scroll_axes: Vec<(u16, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
-    attachment: c_int,
+    attachment: u16,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -736,25 +747,21 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new(info: &ffi::XIDeviceInfo) -> Self {
-        let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
+    fn new(info: &xinput::XIDeviceInfo) -> Self {
+        let name = String::from_utf8_lossy(&info.name).into_owned();
         let mut scroll_axes = Vec::new();
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIScrollClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
-                    };
+            for class in info.classes.iter() {
+                if let xinput::DeviceClassData::Scroll(ref info) = class.data {
                     scroll_axes.push((
                         info.number,
                         ScrollAxis {
-                            increment: info.increment,
+                            increment: fp3232(info.increment),
                             orientation: match info.scroll_type {
-                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                xinput::ScrollType::HORIZONTAL => ScrollOrientation::Horizontal,
+                                xinput::ScrollType::VERTICAL => ScrollOrientation::Vertical,
                                 _ => unreachable!(),
                             },
                             position: 0.0,
@@ -765,7 +772,7 @@ impl Device {
         }
 
         let mut device = Device {
-            _name: name.into_owned(),
+            _name: name,
             scroll_axes,
             attachment: info.attachment,
         };
@@ -773,20 +780,16 @@ impl Device {
         device
     }
 
-    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
+    fn reset_scroll_position(&mut self, info: &xinput::XIDeviceInfo) {
         if Device::physical_device(info) {
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIValuatorClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
-                    };
+            for class in info.classes.iter() {
+                if let xinput::DeviceClassData::Valuator(ref info) = class.data {
                     if let Some(&mut (_, ref mut axis)) = self
                         .scroll_axes
                         .iter_mut()
-                        .find(|&&mut (axis, _)| axis == info.number)
+                        .find(|&&mut (axis, _)| axis == info.number as _)
                     {
-                        axis.position = info.value;
+                        axis.position = fp3232(info.value);
                     }
                 }
             }
@@ -794,19 +797,25 @@ impl Device {
     }
 
     #[inline]
-    fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard
-            || info._use == ffi::XISlavePointer
-            || info._use == ffi::XIFloatingSlave
-    }
+    fn physical_device(info: &xinput::XIDeviceInfo) -> bool {
+        use xinput::DeviceType;
 
-    #[inline]
-    fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe {
-            slice::from_raw_parts(
-                info.classes as *const *const ffi::XIAnyClassInfo,
-                info.num_classes as usize,
-            )
-        }
+        matches!(
+            info.type_,
+            DeviceType::SLAVE_KEYBOARD | DeviceType::SLAVE_POINTER | DeviceType::FLOATING_SLAVE
+        )
     }
+}
+
+#[inline]
+fn fp3232(fp: xinput::Fp3232) -> f64 {
+    // Fixed point fractional representation.
+    let int = fp.integral as f64;
+    let frac = fp.frac as f64 / (1u64 << 32) as f64;
+    int + frac
+}
+
+#[inline]
+fn fp1616(fp: xinput::Fp1616) -> f64 {
+    (fp as f64) / (0x10000 as f64)
 }

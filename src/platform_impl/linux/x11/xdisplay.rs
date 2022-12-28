@@ -1,21 +1,62 @@
-use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr, sync::Mutex};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt,
+    mem::ManuallyDrop,
+    os::raw::c_int,
+    ptr::{self, NonNull},
+    sync::Mutex,
+};
+
+use x11rb::resource_manager;
+use x11rb::xcb_ffi::XCBConnection;
+use x11rb::{connection::Connection, protocol::xproto};
 
 use crate::window::CursorIcon;
 
+use super::atoms::*;
 use super::ffi;
 
 /// A connection to an X server.
 pub(crate) struct XConnection {
+    /// Core Xlib shared library.
     pub xlib: ffi::Xlib,
-    /// Exposes XRandR functions from version < 1.5
-    pub xrandr: ffi::Xrandr_2_2_0,
+
+    /// X11 cursor shared library.
     pub xcursor: ffi::Xcursor,
-    pub xinput2: ffi::XInput2,
-    pub xlib_xcb: ffi::Xlib_xcb,
-    pub display: *mut ffi::Display,
+
+    /// Pointer to the Xlib display.
+    pub display: NonNull<ffi::Display>,
+
+    /// A wrapper around the XCB connection.
+    ///
+    /// We have to wrap the connection in a `ManuallyDrop` because the `XCBConnection` type
+    /// needs to be dropped before the Xlib `Display` is dropped.
+    pub connection: ManuallyDrop<XCBConnection>,
+
+    /// The X11 XRM database.
+    pub database: resource_manager::Database,
+
+    /// The default screen number.
+    pub default_screen: usize,
+
+    /// The file descriptor associated with the X11 connection.
     pub x11_fd: c_int,
+
+    /// The atoms used by the program.
+    pub(crate) atoms: Atoms,
+
+    /// The latest X11 error used for error handling.
     pub latest_error: Mutex<Option<XError>>,
-    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
+
+    /// Cache of X11 cursors.
+    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, xproto::Cursor>>,
+
+    /// The window manager hints that we support.
+    pub supported_hints: Mutex<Vec<xproto::Atom>>,
+
+    /// The name of the window manager.
+    pub wm_name: Mutex<Option<String>>,
 }
 
 unsafe impl Send for XConnection {}
@@ -29,8 +70,6 @@ impl XConnection {
         // opening the libraries
         let xlib = ffi::Xlib::open()?;
         let xcursor = ffi::Xcursor::open()?;
-        let xrandr = ffi::Xrandr_2_2_0::open()?;
-        let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
 
         unsafe { (xlib.XInitThreads)() };
@@ -39,25 +78,59 @@ impl XConnection {
         // calling XOpenDisplay
         let display = unsafe {
             let display = (xlib.XOpenDisplay)(ptr::null());
-            if display.is_null() {
-                return Err(XNotSupported::XOpenDisplayFailed);
+            match NonNull::new(display) {
+                Some(display) => display,
+                None => return Err(XNotSupported::XOpenDisplayFailed),
             }
-            display
         };
 
         // Get X11 socket file descriptor
-        let fd = unsafe { (xlib.XConnectionNumber)(display) };
+        let fd = unsafe { (xlib.XConnectionNumber)(display.as_ptr()) };
+
+        // Default screen number.
+        let default_screen = unsafe { (xlib.XDefaultScreen)(display.as_ptr()) } as usize;
+
+        // Create a new wrapper around the XCB connection.
+        let connection = {
+            let raw_conn = unsafe { (xlib_xcb.XGetXCBConnection)(display.as_ptr()) };
+            debug_assert!(!raw_conn.is_null());
+
+            // Switch the event queue owner so XCB can be used to process events.
+            unsafe {
+                (xlib_xcb.XSetEventQueueOwner)(
+                    display.as_ptr(),
+                    ffi::XEventQueueOwner::XCBOwnsEventQueue,
+                );
+            }
+
+            // Create the x11rb wrapper.
+            unsafe { XCBConnection::from_raw_xcb_connection(raw_conn, false) }
+                .expect("Failed to create x11rb connection")
+        };
+
+        // Begin loading the atoms.
+        let atom_cookie = Atoms::request(&connection).expect("Failed to load atoms");
+
+        // Load the resource manager database.
+        let database = resource_manager::new_from_default(&connection)
+            .expect("Failed to load resource manager database");
+
+        // Finish loading the atoms.
+        let atoms = atom_cookie.reply().expect("Failed to load atoms");
 
         Ok(XConnection {
             xlib,
-            xrandr,
             xcursor,
-            xinput2,
-            xlib_xcb,
             display,
+            connection: ManuallyDrop::new(connection),
+            database,
+            default_screen,
             x11_fd: fd,
+            atoms,
             latest_error: Mutex::new(None),
             cursor_cache: Default::default(),
+            supported_hints: Mutex::new(Vec::new()),
+            wm_name: Mutex::new(None),
         })
     }
 
@@ -71,6 +144,16 @@ impl XConnection {
             Ok(())
         }
     }
+
+    /// Get the default screen for this connection.
+    #[inline]
+    pub fn default_screen(&self) -> &x11rb::protocol::xproto::Screen {
+        self.connection
+            .setup()
+            .roots
+            .get(self.default_screen)
+            .unwrap()
+    }
 }
 
 impl fmt::Debug for XConnection {
@@ -82,7 +165,11 @@ impl fmt::Debug for XConnection {
 impl Drop for XConnection {
     #[inline]
     fn drop(&mut self) {
-        unsafe { (self.xlib.XCloseDisplay)(self.display) };
+        // Make sure that the XCB connection is dropped before the Xlib connection.
+        unsafe {
+            ManuallyDrop::drop(&mut self.connection);
+            (self.xlib.XCloseDisplay)(self.display.as_ptr());
+        }
     }
 }
 
@@ -112,6 +199,7 @@ impl fmt::Display for XError {
 pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
     LibraryOpenError(ffi::OpenError),
+
     /// Connecting to the X server with `XOpenDisplay` failed.
     XOpenDisplayFailed, // TODO: add better message
 }

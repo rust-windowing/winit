@@ -1,18 +1,39 @@
 use super::*;
 
+use std::sync::Arc;
+use x11rb::errors::{ConnectionError, ReplyError};
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+
 pub type Cardinal = c_long;
 pub const CARDINAL_SIZE: usize = mem::size_of::<c_long>();
 
 #[derive(Debug, Clone)]
-pub enum GetPropertyError {
-    XError(XError),
-    TypeMismatch(ffi::Atom),
-    FormatMismatch(c_int),
-    NothingAllocated,
+pub(crate) enum GetPropertyError {
+    XError(Arc<PlatformError>),
+    TypeMismatch(xproto::Atom),
+    FormatMismatch(u8),
+}
+
+impl From<PlatformError> for GetPropertyError {
+    fn from(value: PlatformError) -> Self {
+        GetPropertyError::XError(Arc::new(value))
+    }
+}
+
+impl From<ConnectionError> for GetPropertyError {
+    fn from(value: ConnectionError) -> Self {
+        PlatformError::from(value).into()
+    }
+}
+
+impl From<ReplyError> for GetPropertyError {
+    fn from(value: ReplyError) -> Self {
+        PlatformError::from(value).into()
+    }
 }
 
 impl GetPropertyError {
-    pub fn is_actual_property_type(&self, t: ffi::Atom) -> bool {
+    pub fn is_actual_property_type(&self, t: xproto::Atom) -> bool {
         if let GetPropertyError::TypeMismatch(actual_type) = *self {
             actual_type == t
         } else {
@@ -23,120 +44,102 @@ impl GetPropertyError {
 
 // Number of 32-bit chunks to retrieve per iteration of get_property's inner loop.
 // To test if `get_property` works correctly, set this to 1.
-const PROPERTY_BUFFER_SIZE: c_long = 1024; // 4k of RAM ought to be enough for anyone!
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum PropMode {
-    Replace = ffi::PropModeReplace as isize,
-    Prepend = ffi::PropModePrepend as isize,
-    Append = ffi::PropModeAppend as isize,
-}
+const PROPERTY_BUFFER_SIZE: u32 = 1024; // 4k of RAM ought to be enough for anyone!
 
 impl XConnection {
-    pub fn get_property<T: Formattable>(
+    pub fn get_property<T: bytemuck::Pod>(
         &self,
-        window: c_ulong,
-        property: ffi::Atom,
-        property_type: ffi::Atom,
+        window: xproto::Window,
+        property: xproto::Atom,
+        property_type: xproto::Atom,
     ) -> Result<Vec<T>, GetPropertyError> {
         let mut data = Vec::new();
         let mut offset = 0;
 
-        let mut done = false;
-        let mut actual_type = 0;
-        let mut actual_format = 0;
-        let mut quantity_returned = 0;
-        let mut bytes_after = 0;
-        let mut buf: *mut c_uchar = ptr::null_mut();
-
-        while !done {
-            unsafe {
-                (self.xlib.XGetWindowProperty)(
-                    self.display,
+        loop {
+            // Fetch the next chunk of data.
+            let property_reply = self
+                .connection
+                .get_property(
+                    false,
                     window,
                     property,
-                    // This offset is in terms of 32-bit chunks.
-                    offset,
-                    // This is the quantity of 32-bit chunks to receive at once.
-                    PROPERTY_BUFFER_SIZE,
-                    ffi::False,
                     property_type,
-                    &mut actual_type,
-                    &mut actual_format,
-                    // This is the quantity of items we retrieved in our format, NOT of 32-bit chunks!
-                    &mut quantity_returned,
-                    // ...and this is a quantity of bytes. So, this function deals in 3 different units.
-                    &mut bytes_after,
-                    &mut buf,
-                );
+                    offset,
+                    PROPERTY_BUFFER_SIZE,
+                )?
+                .reply()?;
 
-                if let Err(e) = self.check_errors() {
-                    return Err(GetPropertyError::XError(e));
-                }
-
-                if actual_type != property_type {
-                    return Err(GetPropertyError::TypeMismatch(actual_type));
-                }
-
-                let format_mismatch = Format::from_format(actual_format as _) != Some(T::FORMAT);
-                if format_mismatch {
-                    return Err(GetPropertyError::FormatMismatch(actual_format));
-                }
-
-                if !buf.is_null() {
-                    offset += PROPERTY_BUFFER_SIZE;
-                    let new_data =
-                        std::slice::from_raw_parts(buf as *mut T, quantity_returned as usize);
-                    /*println!(
-                        "XGetWindowProperty prop:{:?} fmt:{:02} len:{:02} off:{:02} out:{:02}, buf:{:?}",
-                        property,
-                        mem::size_of::<T>() * 8,
-                        data.len(),
-                        offset,
-                        quantity_returned,
-                        new_data,
-                    );*/
-                    data.extend_from_slice(new_data);
-                    // Fun fact: XGetWindowProperty allocates one extra byte at the end.
-                    (self.xlib.XFree)(buf as _); // Don't try to access new_data after this.
-                } else {
-                    return Err(GetPropertyError::NothingAllocated);
-                }
-
-                done = bytes_after == 0;
+            // Ensure that the property type matches.
+            if property_reply.type_ != property_type {
+                return Err(GetPropertyError::TypeMismatch(property_reply.type_));
             }
-        }
 
-        Ok(data)
+            // Ensure that the format is right.
+            if property_reply.format as usize != mem::size_of::<T>() * 8 {
+                return Err(GetPropertyError::FormatMismatch(property_reply.format));
+            }
+
+            // Append the data to the output.
+            let bytes_after = property_reply.bytes_after;
+            append_byte_vector(&mut data, property_reply.value);
+
+            // If there is no more data, we're done.
+            if bytes_after == 0 {
+                return Ok(data);
+            }
+
+            // Add to the offset and go again.
+            offset += PROPERTY_BUFFER_SIZE;
+        }
     }
 
-    pub fn change_property<'a, T: Formattable>(
+    pub fn change_property<'a, T: bytemuck::NoUninit>(
         &'a self,
-        window: c_ulong,
-        property: ffi::Atom,
-        property_type: ffi::Atom,
-        mode: PropMode,
+        window: xproto::Window,
+        property: xproto::Atom,
+        property_type: xproto::Atom,
+        mode: xproto::PropMode,
         new_value: &[T],
-    ) -> Flusher<'a> {
-        debug_assert_eq!(mem::size_of::<T>(), T::FORMAT.get_actual_size());
-        unsafe {
-            (self.xlib.XChangeProperty)(
-                self.display,
-                window,
-                property,
-                property_type,
-                T::FORMAT as c_int,
-                mode as c_int,
-                new_value.as_ptr() as *const c_uchar,
-                new_value.len() as c_int,
-            );
-        }
-        /*println!(
-            "XChangeProperty prop:{:?} val:{:?}",
+    ) -> Result<XcbVoidCookie<'a>, PlatformError> {
+        // Preform the property change.
+        let cookie = self.connection.change_property(
+            mode,
+            window,
             property,
-            new_value,
-        );*/
-        Flusher::new(self)
+            property_type,
+            (mem::size_of::<T>() * 8) as u8,
+            new_value.len() as _,
+            bytemuck::cast_slice::<T, u8>(new_value),
+        )?;
+
+        Ok(cookie)
     }
+}
+
+/// Append a byte vector to a vector of real elements.
+fn append_byte_vector<T: bytemuck::Pod>(real: &mut Vec<T>, bytes: Vec<u8>) {
+    // If the type is equivalent to a byte, this cast will succeed no matter what.
+    if mem::size_of::<T>() == 1 && mem::align_of::<T>() == 1 {
+        let mut bytes_casted = bytemuck::allocation::cast_vec::<u8, T>(bytes);
+        real.append(&mut bytes_casted);
+        return;
+    }
+
+    // Add enough buffer space to hold the new data.
+    debug_assert!(
+        bytes.len() % mem::size_of::<T>() == 0,
+        "Byte vector is not a multiple of the element size"
+    );
+    let additional_space = bytes.len() / mem::size_of::<T>();
+    let new_len = real.len() + additional_space;
+    let former_len = real.len();
+    real.resize(new_len, T::zeroed());
+
+    // Get a handle to the new space in the vector.
+    let new_space = &mut real[former_len..];
+
+    // Copy the data into the new space.
+    let new_bytes = bytemuck::cast_slice_mut::<T, u8>(new_space);
+    new_bytes.copy_from_slice(&bytes);
 }

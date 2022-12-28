@@ -1,8 +1,9 @@
-use std::sync::Mutex;
+use std::sync::Arc;
 
-use once_cell::sync::Lazy;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
 use super::*;
+use crate::platform_impl::x11::atoms::*;
 
 // https://specifications.freedesktop.org/wm-spec/latest/ar01s04.html#idm46075117309248
 pub const MOVERESIZE_TOPLEFT: isize = 0;
@@ -15,38 +16,46 @@ pub const MOVERESIZE_BOTTOMLEFT: isize = 6;
 pub const MOVERESIZE_LEFT: isize = 7;
 pub const MOVERESIZE_MOVE: isize = 8;
 
-// This info is global to the window manager.
-static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
-    Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
-static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
-
-pub fn hint_is_supported(hint: ffi::Atom) -> bool {
-    (*SUPPORTED_HINTS.lock().unwrap()).contains(&hint)
-}
-
-pub fn wm_name_is_one_of(names: &[&str]) -> bool {
-    if let Some(ref name) = *WM_NAME.lock().unwrap() {
-        names.contains(&name.as_str())
-    } else {
-        false
-    }
-}
-
 impl XConnection {
-    pub fn update_cached_wm_info(&self, root: ffi::Window) {
-        *SUPPORTED_HINTS.lock().unwrap() = self.get_supported_hints(root);
-        *WM_NAME.lock().unwrap() = self.get_wm_name(root);
+    pub fn hint_is_supported(&self, hint: xproto::Atom) -> bool {
+        self.supported_hints.lock().unwrap().contains(&hint)
     }
 
-    fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {
-        let supported_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTED\0") };
-        self.get_property(root, supported_atom, ffi::XA_ATOM)
-            .unwrap_or_else(|_| Vec::with_capacity(0))
+    pub fn wm_name_is_one_of(&self, names: &[&str]) -> bool {
+        if let Some(ref name) = *self.wm_name.lock().unwrap() {
+            names.contains(&name.as_str())
+        } else {
+            false
+        }
     }
 
-    fn get_wm_name(&self, root: ffi::Window) -> Option<String> {
-        let check_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTING_WM_CHECK\0") };
-        let wm_name_atom = unsafe { self.get_atom_unchecked(b"_NET_WM_NAME\0") };
+    pub fn update_cached_wm_info(&self, root: xproto::Window) -> Result<(), PlatformError> {
+        *self.supported_hints.lock().unwrap() = self.get_supported_hints(root)?;
+        *self.wm_name.lock().unwrap() = self.get_wm_name(root)?;
+
+        Ok(())
+    }
+
+    fn get_supported_hints(
+        &self,
+        root: xproto::Window,
+    ) -> Result<Vec<xproto::Atom>, PlatformError> {
+        match self.get_property(
+            root,
+            self.atoms[_NET_SUPPORTED],
+            xproto::AtomEnum::ATOM.into(),
+        ) {
+            Ok(prop) => Ok(prop),
+            Err(GetPropertyError::XError(e)) => Err(Arc::try_unwrap(e).unwrap()),
+            _ => Ok(Vec::new()),
+        }
+    }
+
+    fn get_wm_name(&self, root: xproto::Window) -> Result<Option<String>, PlatformError> {
+        let (check_atom, wm_name_atom) = (
+            self.atoms[_NET_SUPPORTING_WM_CHECK],
+            self.atoms[_NET_WM_NAME],
+        );
 
         // Mutter/Muffin/Budgie doesn't have _NET_SUPPORTING_WM_CHECK in its _NET_SUPPORTED, despite
         // it working and being supported. This has been reported upstream, but due to the
@@ -70,31 +79,45 @@ impl XConnection {
         // Querying this property on the root window will give us the ID of a child window created by
         // the WM.
         let root_window_wm_check = {
-            let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property(root, check_atom, xproto::AtomEnum::WINDOW.into());
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
-            wm_check?
+            match wm_check {
+                Some(wm_check) => wm_check,
+                None => return Ok(None),
+            }
         };
 
         // Querying the same property on the child window we were given, we should get this child
         // window's ID again.
         let child_window_wm_check = {
-            let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property(
+                root_window_wm_check,
+                check_atom,
+                xproto::AtomEnum::WINDOW.into(),
+            );
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
-            wm_check?
+            match wm_check {
+                Some(wm_check) => wm_check,
+                None => return Ok(None),
+            }
         };
 
         // These values should be the same.
         if root_window_wm_check != child_window_wm_check {
-            return None;
+            return Ok(None);
         }
 
         // All of that work gives us a window ID that we can get the WM name from.
         let wm_name = {
-            let utf8_string_atom = unsafe { self.get_atom_unchecked(b"UTF8_STRING\0") };
+            let utf8_string_atom = self
+                .connection
+                .intern_atom(false, b"UTF8_STRING")?
+                .reply()?
+                .atom;
 
             let result = self.get_property(root_window_wm_check, wm_name_atom, utf8_string_atom);
 
@@ -105,19 +128,23 @@ impl XConnection {
             // The unofficial 1.4 fork of IceWM still includes the extra details, but properly
             // returns a UTF8 string that isn't null-terminated.
             let no_utf8 = if let Err(ref err) = result {
-                err.is_actual_property_type(ffi::XA_STRING)
+                err.is_actual_property_type(xproto::AtomEnum::STRING.into())
             } else {
                 false
             };
 
             if no_utf8 {
-                self.get_property(root_window_wm_check, wm_name_atom, ffi::XA_STRING)
+                self.get_property(
+                    root_window_wm_check,
+                    wm_name_atom,
+                    xproto::AtomEnum::STRING.into(),
+                )
             } else {
                 result
             }
         }
         .ok();
 
-        wm_name.and_then(|wm_name| String::from_utf8(wm_name).ok())
+        Ok(wm_name.and_then(|wm_name| String::from_utf8(wm_name).ok()))
     }
 }

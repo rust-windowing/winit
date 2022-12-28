@@ -1,10 +1,8 @@
 // Welcome to the util module, where we try to keep you from shooting yourself in the foot.
 // *results may vary
 
-mod atom;
 mod client_msg;
 mod cursor;
-mod format;
 mod geometry;
 mod hint;
 mod icon;
@@ -17,20 +15,54 @@ mod window_property;
 mod wm;
 
 pub use self::{
-    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, randr::*,
-    window_property::*, wm::*,
+    client_msg::*, geometry::*, hint::*, icon::*, input::*, randr::*, window_property::*, wm::*,
 };
-
-pub(crate) use self::memory::*;
 
 use std::{
     mem::{self, MaybeUninit},
     ops::BitAnd,
     os::raw::*,
-    ptr,
 };
 
-use super::{ffi, XConnection, XError};
+use super::{ffi, PlatformError, XConnection};
+use x11rb::{
+    connection::Connection, cookie::VoidCookie, protocol::xproto::ConnectionExt,
+    xcb_ffi::XCBConnection,
+};
+
+pub(crate) type XcbVoidCookie<'a> = VoidCookie<'a, XCBConnection>;
+
+// Extension traits that make handling errors a little easier.
+
+pub(crate) trait PlErrorExt<T, E> {
+    fn platform(self) -> Result<T, PlatformError>;
+}
+
+impl<T, E: Into<PlatformError>> PlErrorExt<T, E> for Result<T, E> {
+    fn platform(self) -> Result<T, PlatformError> {
+        self.map_err(Into::into)
+    }
+}
+
+pub(crate) trait XcbVoidCookieExt {
+    fn check_platform(self) -> Result<(), PlatformError>;
+}
+
+impl XcbVoidCookieExt for XcbVoidCookie<'_> {
+    fn check_platform(self) -> Result<(), PlatformError> {
+        self.check().platform()
+    }
+}
+
+pub(crate) trait VoidResultExt {
+    fn check(self) -> Result<(), PlatformError>;
+}
+
+impl<E: Into<PlatformError>> VoidResultExt for Result<XcbVoidCookie<'_>, E> {
+    fn check(self) -> Result<(), PlatformError> {
+        self.platform().and_then(|cookie| cookie.check_platform())
+    }
+}
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);
@@ -60,13 +92,8 @@ impl<'a> Flusher<'a> {
     }
 
     // "I want this request sent now!"
-    pub fn flush(self) -> Result<(), XError> {
+    pub fn flush(self) -> Result<(), PlatformError> {
         self.xconn.flush_requests()
-    }
-
-    // "I want the response now too!"
-    pub fn sync(self) -> Result<(), XError> {
-        self.xconn.sync_with_server()
     }
 
     // "I'm aware that this request hasn't been sent, and I'm okay with waiting."
@@ -83,17 +110,27 @@ impl XConnection {
     // 4. Calls that have a return dependent on a response (i.e. `XGetWindowProperty`) sync internally.
     //    When in doubt, check the X11 source; if a function calls `_XReply`, it flushes and waits.
     // All util functions that abstract an async function will return a `Flusher`.
-    pub fn flush_requests(&self) -> Result<(), XError> {
-        unsafe { (self.xlib.XFlush)(self.display) };
-        //println!("XFlush");
-        // This isn't necessarily a useful time to check for errors (since our request hasn't
-        // necessarily been processed yet)
-        self.check_errors()
+    pub fn flush_requests(&self) -> Result<(), PlatformError> {
+        // Flush the X11 connection.
+        self.connection.flush()?;
+
+        // Also flush Xlib's output buffer.
+        unsafe { (self.xlib.XFlush)(self.display.as_ptr()) };
+
+        self.check_errors()?;
+
+        Ok(())
     }
 
-    pub fn sync_with_server(&self) -> Result<(), XError> {
-        unsafe { (self.xlib.XSync)(self.display, ffi::False) };
-        //println!("XSync");
-        self.check_errors()
+    pub fn sync_with_server(&self) -> Result<(), PlatformError> {
+        // Flush the X11 connection.
+        self.flush_requests()?;
+
+        // Send and receive a request to sync with the server.
+        self.connection.get_input_focus()?.reply()?;
+
+        self.check_errors()?;
+
+        Ok(())
     }
 }

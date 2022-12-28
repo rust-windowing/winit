@@ -22,7 +22,9 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
 #[cfg(x11_platform)]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+use self::x11::{
+    ffi::XVisualInfo, util::WindowType as XWindowType, PlatformError, XConnection, XError,
+};
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
@@ -120,9 +122,9 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
-pub enum OsError {
+pub(crate) enum OsError {
     #[cfg(x11_platform)]
-    XError(XError),
+    XError(Arc<PlatformError>),
     #[cfg(x11_platform)]
     XMisc(&'static str),
     #[cfg(wayland_platform)]
@@ -130,15 +132,36 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             #[cfg(x11_platform)]
-            OsError::XError(ref e) => _f.pad(&e.description),
+            OsError::XError(ref e) => fmt::Display::fmt(e, f),
             #[cfg(x11_platform)]
-            OsError::XMisc(e) => _f.pad(e),
+            OsError::XMisc(e) => f.pad(e),
             #[cfg(wayland_platform)]
-            OsError::WaylandMisc(e) => _f.pad(e),
+            OsError::WaylandMisc(e) => f.pad(e),
         }
+    }
+}
+
+#[cfg(x11_platform)]
+impl From<XError> for OsError {
+    fn from(value: XError) -> Self {
+        OsError::XError(Arc::new(value.into()))
+    }
+}
+
+#[cfg(x11_platform)]
+impl From<PlatformError> for OsError {
+    fn from(value: PlatformError) -> Self {
+        OsError::XError(Arc::new(value))
+    }
+}
+
+#[cfg(x11_platform)]
+impl From<x11rb::errors::ConnectionError> for OsError {
+    fn from(value: x11rb::errors::ConnectionError) -> Self {
+        OsError::XError(Arc::new(value.into()))
     }
 }
 

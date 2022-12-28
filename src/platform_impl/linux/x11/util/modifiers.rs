@@ -1,8 +1,11 @@
-use std::{collections::HashMap, slice};
+use std::collections::HashMap;
 
 use super::*;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
 use crate::event::{ElementState, ModifiersState};
+
+type KeyCode = u8;
 
 // Offsets within XModifierKeymap to each set of keycodes.
 // We are only interested in Shift, Control, Alt, and Logo.
@@ -15,7 +18,6 @@ const SHIFT_OFFSET: usize = 0;
 const CONTROL_OFFSET: usize = 2;
 const ALT_OFFSET: usize = 3;
 const LOGO_OFFSET: usize = 6;
-const NUM_MODS: usize = 8;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Modifier {
@@ -28,13 +30,13 @@ pub enum Modifier {
 #[derive(Debug, Default)]
 pub(crate) struct ModifierKeymap {
     // Maps keycodes to modifiers
-    keys: HashMap<ffi::KeyCode, Modifier>,
+    keys: HashMap<KeyCode, Modifier>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ModifierKeyState {
     // Contains currently pressed modifier keys and their corresponding modifiers
-    keys: HashMap<ffi::KeyCode, Modifier>,
+    keys: HashMap<KeyCode, Modifier>,
     state: ModifiersState,
 }
 
@@ -43,30 +45,20 @@ impl ModifierKeymap {
         ModifierKeymap::default()
     }
 
-    pub fn get_modifier(&self, keycode: ffi::KeyCode) -> Option<Modifier> {
+    pub fn get_modifier(&self, keycode: KeyCode) -> Option<Modifier> {
         self.keys.get(&keycode).cloned()
     }
 
-    pub fn reset_from_x_connection(&mut self, xconn: &XConnection) {
-        unsafe {
-            let keymap = (xconn.xlib.XGetModifierMapping)(xconn.display);
-
-            if keymap.is_null() {
-                panic!("failed to allocate XModifierKeymap");
-            }
-
-            self.reset_from_x_keymap(&*keymap);
-
-            (xconn.xlib.XFreeModifiermap)(keymap);
-        }
+    pub fn reset_from_x_connection(&mut self, xconn: &XConnection) -> Result<(), PlatformError> {
+        let keymap = xconn.connection.get_modifier_mapping()?.reply()?;
+        self.reset_from_x_keymap(&keymap);
+        Ok(())
     }
 
-    pub fn reset_from_x_keymap(&mut self, keymap: &ffi::XModifierKeymap) {
-        let keys_per_mod = keymap.max_keypermod as usize;
+    pub fn reset_from_x_keymap(&mut self, keymap: &xproto::GetModifierMappingReply) {
+        let keys_per_mod = keymap.keycodes_per_modifier() as usize;
 
-        let keys = unsafe {
-            slice::from_raw_parts(keymap.modifiermap as *const _, keys_per_mod * NUM_MODS)
-        };
+        let keys = &keymap.keycodes;
 
         self.keys.clear();
 

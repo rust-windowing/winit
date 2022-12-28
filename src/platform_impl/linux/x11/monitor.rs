@@ -1,20 +1,14 @@
-use std::os::raw::*;
-use std::slice;
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 
-use super::{
-    ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRModeInfo, XRRScreenResources,
-    },
-    util, XConnection, XError,
-};
+use super::{util, PlatformError, XConnection};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
+
+use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -31,7 +25,7 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
-    pub(crate) native_mode: RRMode,
+    pub(crate) native_mode: u32,
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
@@ -60,7 +54,7 @@ impl VideoMode {
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
     /// The actual id
-    pub(crate) id: RRCrtc,
+    pub(crate) id: u32,
     /// The name of the monitor
     pub(crate) name: String,
     /// The size of the monitor
@@ -106,10 +100,10 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[inline]
-pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
-    if mode.dotClock > 0 && mode.hTotal > 0 && mode.vTotal > 0 {
+pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
+    if mode.dot_clock > 0 && mode.htotal > 0 && mode.vtotal > 0 {
         #[allow(clippy::unnecessary_cast)]
-        Some((mode.dotClock as u64 * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
+        Some((mode.dot_clock as u64 * 1000 / (mode.htotal as u64 * mode.vtotal as u64)) as u32)
     } else {
         None
     }
@@ -118,28 +112,68 @@ pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
 impl MonitorHandle {
     fn new(
         xconn: &XConnection,
-        resources: *mut XRRScreenResources,
-        id: RRCrtc,
-        crtc: *mut XRRCrtcInfo,
+        resource_modes: &[randr::ModeInfo],
+        crtc_id: u32,
+        crtc_info: &randr::GetCrtcInfoReply,
         primary: bool,
-    ) -> Option<Self> {
-        let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width, (*crtc).height) };
-        let position = unsafe { ((*crtc).x, (*crtc).y) };
+    ) -> Result<Self, PlatformError> {
+        let (name, scale_factor, video_modes) = {
+            let output_info = xconn
+                .connection
+                .randr_get_output_info(crtc_info.outputs[0], crtc_info.timestamp)?
+                .reply()?;
+
+            // Get the scale factor for the monitor.
+            let scale_factor = xconn.dpi_for_monitor(crtc_info, &output_info);
+
+            let randr::GetOutputInfoReply { name, modes, .. } = output_info;
+
+            // Parse the modes of the monitor.
+            let modes = {
+                let depth = xconn.default_screen().root_depth;
+
+                resource_modes
+                    .iter()
+                    .filter(|mode| modes.contains(&mode.id))
+                    .map(|mode| {
+                        VideoMode {
+                            size: (mode.width as _, mode.height as _),
+                            refresh_rate_millihertz: mode_refresh_rate_millihertz(mode)
+                                .unwrap_or(0),
+                            bit_depth: depth.into(),
+                            // This is populated in `MonitorHandle::video_modes` as the
+                            // video mode is returned to the user
+                            native_mode: mode.id as _,
+                            monitor: None,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            };
+
+            (
+                String::from_utf8_lossy(&name).into_owned(),
+                scale_factor,
+                modes,
+            )
+        };
+
+        let dimensions = ((crtc_info).width as u32, (crtc_info).height as u32);
+        let position = ((crtc_info).x as i32, (crtc_info).y as i32);
 
         // Get the refresh rate of the current video mode.
-        let current_mode = unsafe { (*crtc).mode };
-        let screen_modes =
-            unsafe { slice::from_raw_parts((*resources).modes, (*resources).nmode as usize) };
-        let refresh_rate_millihertz = screen_modes
-            .iter()
-            .find(|mode| mode.id == current_mode)
-            .and_then(mode_refresh_rate_millihertz);
+        let refresh_rate_millihertz = {
+            let current_mode = (crtc_info).mode;
+
+            resource_modes
+                .iter()
+                .find(|mode| mode.id == current_mode)
+                .and_then(mode_refresh_rate_millihertz)
+        };
 
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle {
-            id,
+        Ok(MonitorHandle {
+            id: crtc_id,
             name,
             refresh_rate_millihertz,
             scale_factor,
@@ -235,57 +269,89 @@ impl XConnection {
         matched_monitor.to_owned()
     }
 
-    fn query_monitor_list(&self) -> Vec<MonitorHandle> {
-        unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+    fn query_monitor_list(&self) -> Result<Vec<MonitorHandle>, PlatformError> {
+        let (major, minor) = {
+            let extension_info = self.connection.randr_query_version(0, 0)?.reply()?;
+            (extension_info.major_version, extension_info.minor_version)
+        };
+        let root = self.default_screen().root;
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+        // Start fetching the primary monitor as we fetch the monitor list.
+        let primary_token = self.connection.randr_get_output_primary(root)?;
+
+        let (crtc_ids, resource_modes) = {
+            if (major == 1 && minor >= 3) || major > 1 {
+                let reply = self
+                    .connection
+                    .randr_get_screen_resources_current(root)?
+                    .reply()?;
+
+                let randr::GetScreenResourcesCurrentReply { crtcs, modes, .. } = reply;
+                (crtcs, modes)
             } else {
                 // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
                 // Upon failure, `resources` will be null.
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
-            };
+                let reply = self.connection.randr_get_screen_resources(root)?.reply()?;
 
-            if resources.is_null() {
-                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+                let randr::GetScreenResourcesReply { crtcs, modes, .. } = reply;
+                (crtcs, modes)
             }
+        };
 
-            let mut has_primary = false;
+        // Get the CRTC information for each CRTC.
+        let crtc_info_tokens = crtc_ids
+            .into_iter()
+            .map(|crtc| {
+                self.connection
+                    .randr_get_crtc_info(crtc, 0)
+                    .map(move |token| (crtc, token))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            let mut available = Vec::with_capacity((*resources).ncrtc as usize);
+        let mut has_primary = false;
 
-            for crtc_index in 0..(*resources).ncrtc {
-                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
-                if is_active {
-                    let is_primary = *(*crtc).outputs.offset(0) == primary;
-                    has_primary |= is_primary;
-                    if let Some(monitor_id) =
-                        MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
-                    {
-                        available.push(monitor_id)
-                    }
-                }
-                (self.xrandr.XRRFreeCrtcInfo)(crtc);
+        let primary = primary_token.reply()?.output;
+
+        // Get the monitor information for each CRTC.
+        let mut available = crtc_info_tokens
+            .into_iter()
+            .filter_map(|(crtc_id, cookie)| {
+                let result = cookie.reply();
+
+                result
+                    .map(|crtc_info| {
+                        let is_active = crtc_info.width > 0
+                            && crtc_info.height > 0
+                            && !crtc_info.outputs.is_empty();
+                        if is_active {
+                            let is_primary = crtc_info.outputs[0] == primary;
+                            has_primary |= is_primary;
+                            if let Ok(monitor_id) = MonitorHandle::new(
+                                self,
+                                &resource_modes,
+                                crtc_id,
+                                &crtc_info,
+                                is_primary,
+                            ) {
+                                return Some(monitor_id);
+                            }
+                        }
+
+                        None
+                    })
+                    .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // If no monitors were detected as being primary, we just pick one ourselves!
+        if !has_primary {
+            if let Some(ref mut fallback) = available.first_mut() {
+                // Setting this here will come in handy if we ever add an `is_primary` method.
+                fallback.primary = true;
             }
-
-            // If no monitors were detected as being primary, we just pick one ourselves!
-            if !has_primary {
-                if let Some(ref mut fallback) = available.first_mut() {
-                    // Setting this here will come in handy if we ever add an `is_primary` method.
-                    fallback.primary = true;
-                }
-            }
-
-            (self.xrandr.XRRFreeScreenResources)(resources);
-            available
         }
+
+        Ok(available)
     }
 
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
@@ -294,7 +360,10 @@ impl XConnection {
             .as_ref()
             .cloned()
             .or_else(|| {
-                let monitors = Some(self.query_monitor_list());
+                let monitors = Some(
+                    self.query_monitor_list()
+                        .expect("Failed to load monitors list"),
+                );
                 if !DISABLE_MONITOR_LIST_CACHING {
                     (*monitors_lock) = monitors.clone();
                 }
@@ -311,31 +380,91 @@ impl XConnection {
             .unwrap_or_else(MonitorHandle::dummy)
     }
 
-    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
-        let has_xrandr = unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
-        };
-        assert!(
-            has_xrandr == True,
-            "[winit] XRandR extension not available."
-        );
-
-        let mut event_offset = 0;
-        let mut error_offset = 0;
-        let status = unsafe {
-            (self.xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
-        };
-
-        if status != True {
-            self.check_errors()?;
-            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+    /// Get the DPI factor for a monitor, considering the environment.
+    fn dpi_for_monitor(
+        &self,
+        crtc: &randr::GetCrtcInfoReply,
+        monitor: &randr::GetOutputInfoReply,
+    ) -> f64 {
+        /// Represents values of `WINIT_HIDPI_FACTOR`.
+        enum EnvVarDPI {
+            Randr,
+            Scale(f64),
+            NotSet,
         }
 
-        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
-        unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
+        // Check the environment variable first.
+        let dpi_env = std::env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
+            || EnvVarDPI::NotSet,
+            |var| {
+                if var.to_lowercase() == "randr" {
+                    EnvVarDPI::Randr
+                } else if let Ok(dpi) = var.parse::<f64>() {
+                    EnvVarDPI::Scale(dpi)
+                } else if var.is_empty() {
+                    EnvVarDPI::NotSet
+                } else {
+                    panic!(
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        var
+                    );
+                }
+            },
+        );
 
-        Ok(event_offset)
+        // Determine the scale factor.
+        match dpi_env {
+            EnvVarDPI::Randr => raw_dpi_for_monitor(crtc, monitor),
+            EnvVarDPI::Scale(dpi_override) => {
+                if !crate::dpi::validate_scale_factor(dpi_override) {
+                    panic!(
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        dpi_override,
+                    );
+                }
+                dpi_override
+            }
+            EnvVarDPI::NotSet => {
+                if let Some(dpi) = self.xft_dpi() {
+                    dpi / 96.
+                } else {
+                    raw_dpi_for_monitor(crtc, monitor)
+                }
+            }
+        }
+    }
+
+    /// Get the DPI property from `Xft.dpi`.
+    pub fn xft_dpi(&self) -> Option<f64> {
+        self.database.get_value("Xft.dpi", "").ok().flatten()
+    }
+}
+
+/// Get the raw DPI factor for a monitor.
+fn raw_dpi_for_monitor(crtc: &randr::GetCrtcInfoReply, monitor: &randr::GetOutputInfoReply) -> f64 {
+    calc_dpi_factor(
+        (crtc.width as _, crtc.height as _),
+        (monitor.mm_width as _, monitor.mm_height as _),
+    )
+}
+
+pub fn calc_dpi_factor(
+    (width_px, height_px): (u32, u32),
+    (width_mm, height_mm): (u64, u64),
+) -> f64 {
+    // See http://xpra.org/trac/ticket/728 for more information.
+    if width_mm == 0 || height_mm == 0 {
+        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
+        return 1.0;
+    }
+
+    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
+    // Quantize 1/12 step size
+    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(crate::dpi::validate_scale_factor(dpi_factor));
+    if dpi_factor <= 20. {
+        dpi_factor
+    } else {
+        1.
     }
 }

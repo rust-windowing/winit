@@ -1,6 +1,8 @@
 use std::cmp;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
 use super::*;
+use crate::platform_impl::x11::atoms::*;
 
 // Friendly neighborhood axis-aligned rectangle
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,57 +143,10 @@ impl FrameExtentsHeuristic {
 }
 
 impl XConnection {
-    // This is adequate for inner_position
-    pub fn translate_coords(
-        &self,
-        window: ffi::Window,
-        root: ffi::Window,
-    ) -> Result<TranslatedCoords, XError> {
-        let mut coords = TranslatedCoords::default();
+    fn get_frame_extents(&self, window: xproto::Window) -> Option<FrameExtents> {
+        let extents_atom = self.atoms[_NET_FRAME_EXTENTS];
 
-        unsafe {
-            (self.xlib.XTranslateCoordinates)(
-                self.display,
-                window,
-                root,
-                0,
-                0,
-                &mut coords.x_rel_root,
-                &mut coords.y_rel_root,
-                &mut coords.child,
-            );
-        }
-
-        self.check_errors()?;
-        Ok(coords)
-    }
-
-    // This is adequate for inner_size
-    pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry = Geometry::default();
-
-        let _status = unsafe {
-            (self.xlib.XGetGeometry)(
-                self.display,
-                window,
-                &mut geometry.root,
-                &mut geometry.x_rel_parent,
-                &mut geometry.y_rel_parent,
-                &mut geometry.width,
-                &mut geometry.height,
-                &mut geometry.border,
-                &mut geometry.depth,
-            )
-        };
-
-        self.check_errors()?;
-        Ok(geometry)
-    }
-
-    fn get_frame_extents(&self, window: ffi::Window) -> Option<FrameExtents> {
-        let extents_atom = unsafe { self.get_atom_unchecked(b"_NET_FRAME_EXTENTS\0") };
-
-        if !hint_is_supported(extents_atom) {
+        if !self.hint_is_supported(extents_atom) {
             return None;
         }
 
@@ -199,7 +154,7 @@ impl XConnection {
         // support this. As this is part of EWMH (Extended Window Manager Hints), it's likely to
         // be unsupported by many smaller WMs.
         let extents: Option<Vec<c_ulong>> = self
-            .get_property(window, extents_atom, ffi::XA_CARDINAL)
+            .get_property(window, extents_atom, xproto::AtomEnum::CARDINAL.into())
             .ok();
 
         extents.and_then(|extents| {
@@ -216,52 +171,29 @@ impl XConnection {
         })
     }
 
-    pub fn is_top_level(&self, window: ffi::Window, root: ffi::Window) -> Option<bool> {
-        let client_list_atom = unsafe { self.get_atom_unchecked(b"_NET_CLIENT_LIST\0") };
+    pub fn is_top_level(&self, window: xproto::Window, root: xproto::Window) -> Option<bool> {
+        let client_list_atom = self.atoms[_NET_CLIENT_LIST];
 
-        if !hint_is_supported(client_list_atom) {
+        if !self.hint_is_supported(client_list_atom) {
             return None;
         }
 
-        let client_list: Option<Vec<ffi::Window>> = self
-            .get_property(root, client_list_atom, ffi::XA_WINDOW)
+        let client_list: Option<Vec<xproto::Window>> = self
+            .get_property(root, client_list_atom, xproto::AtomEnum::WINDOW.into())
             .ok();
 
         client_list.map(|client_list| client_list.contains(&window))
     }
 
-    fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
-        let parent = unsafe {
-            let mut root = 0;
-            let mut parent = 0;
-            let mut children: *mut ffi::Window = ptr::null_mut();
-            let mut nchildren = 0;
-
-            // What's filled into `parent` if `window` is the root window?
-            let _status = (self.xlib.XQueryTree)(
-                self.display,
-                window,
-                &mut root,
-                &mut parent,
-                &mut children,
-                &mut nchildren,
-            );
-
-            // The list of children isn't used
-            if !children.is_null() {
-                (self.xlib.XFree)(children as *mut _);
-            }
-
-            parent
-        };
-        self.check_errors().map(|_| parent)
+    fn get_parent_window(&self, window: xproto::Window) -> Result<xproto::Window, PlatformError> {
+        Ok(self.connection.query_tree(window)?.reply()?.parent)
     }
 
     fn climb_hierarchy(
         &self,
-        window: ffi::Window,
-        root: ffi::Window,
-    ) -> Result<ffi::Window, XError> {
+        window: xproto::Window,
+        root: xproto::Window,
+    ) -> Result<xproto::Window, PlatformError> {
         let mut outer_window = window;
         loop {
             let candidate = self.get_parent_window(outer_window)?;
@@ -275,8 +207,8 @@ impl XConnection {
 
     pub fn get_frame_extents_heuristic(
         &self,
-        window: ffi::Window,
-        root: ffi::Window,
+        window: xproto::Window,
+        root: xproto::Window,
     ) -> FrameExtentsHeuristic {
         use self::FrameExtentsHeuristicPath::*;
 
@@ -286,19 +218,25 @@ impl XConnection {
         // that, fullscreen windows often aren't nested.
         let (inner_y_rel_root, child) = {
             let coords = self
-                .translate_coords(window, root)
+                .connection
+                .translate_coordinates(window, root, 0, 0)
+                .unwrap()
+                .reply()
                 .expect("Failed to translate window coordinates");
-            (coords.y_rel_root, coords.child)
+            (coords.dst_y, coords.child)
         };
 
         let (width, height, border) = {
             let inner_geometry = self
+                .connection
                 .get_geometry(window)
+                .unwrap()
+                .reply()
                 .expect("Failed to get inner window geometry");
             (
                 inner_geometry.width,
                 inner_geometry.height,
-                inner_geometry.border,
+                inner_geometry.border_width,
             )
         };
 
@@ -350,10 +288,13 @@ impl XConnection {
                 .expect("Failed to climb window hierarchy");
             let (outer_y, outer_width, outer_height) = {
                 let outer_geometry = self
+                    .connection
                     .get_geometry(outer_window)
+                    .unwrap()
+                    .reply()
                     .expect("Failed to get outer window geometry");
                 (
-                    outer_geometry.y_rel_parent,
+                    outer_geometry.y,
                     outer_geometry.width,
                     outer_geometry.height,
                 )
@@ -363,7 +304,7 @@ impl XConnection {
             // area, we can figure out what's in between.
             let diff_x = outer_width.saturating_sub(width);
             let diff_y = outer_height.saturating_sub(height);
-            let offset_y = inner_y_rel_root.saturating_sub(outer_y) as c_uint;
+            let offset_y = inner_y_rel_root.saturating_sub(outer_y) as _;
 
             let left = diff_x / 2;
             let right = left;

@@ -138,6 +138,7 @@
 // Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
+#![allow(clippy::uninlined_format_args)]
 
 #[allow(unused_imports)]
 #[macro_use]
