@@ -438,6 +438,13 @@ impl<T: 'static> EventLoop<T> {
                             .unwrap()
                             .refresh_frame = false;
 
+                        // Queue redraw requested.
+                        state
+                            .window_user_requests
+                            .get_mut(window_id)
+                            .unwrap()
+                            .redraw_requested = true;
+
                         physical_size
                     });
 
