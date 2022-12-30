@@ -115,32 +115,47 @@ fn element_state(pressed: bool) -> event::ElementState {
     }
 }
 
+bitflags! {
+    #[derive(Default)]
+    struct KeyboardModifierState: u8 {
+        const LSHIFT = 1 << 0;
+        const RSHIFT = 1 << 1;
+        const LCTRL = 1 << 2;
+        const RCTRL = 1 << 3;
+        const LALT = 1 << 4;
+        const RALT = 1 << 5;
+        const LSUPER = 1 << 6;
+        const RSUPER = 1 << 7;
+    }
+}
+
+bitflags! {
+    #[derive(Default)]
+    struct MouseButtonState: u8 {
+        const LEFT = 1 << 0;
+        const MIDDLE = 1 << 1;
+        const RIGHT = 1 << 2;
+    }
+}
+
 #[derive(Default)]
 struct EventState {
-    lshift: bool,
-    rshift: bool,
-    lctrl: bool,
-    rctrl: bool,
-    lalt: bool,
-    ralt: bool,
-    llogo: bool,
-    rlogo: bool,
-    left: bool,
-    middle: bool,
-    right: bool,
+    keyboard: KeyboardModifierState,
+    mouse: MouseButtonState,
+    resize_opt: Option<(u32, u32)>,
 }
 
 impl EventState {
     fn key(&mut self, vk: VirtualKeyCode, pressed: bool) {
         match vk {
-            VirtualKeyCode::LShift => self.lshift = pressed,
-            VirtualKeyCode::RShift => self.rshift = pressed,
-            VirtualKeyCode::LControl => self.lctrl = pressed,
-            VirtualKeyCode::RControl => self.rctrl = pressed,
-            VirtualKeyCode::LAlt => self.lalt = pressed,
-            VirtualKeyCode::RAlt => self.ralt = pressed,
-            VirtualKeyCode::LWin => self.llogo = pressed,
-            VirtualKeyCode::RWin => self.rlogo = pressed,
+            VirtualKeyCode::LShift => self.keyboard.set(KeyboardModifierState::LSHIFT, pressed),
+            VirtualKeyCode::RShift => self.keyboard.set(KeyboardModifierState::RSHIFT, pressed),
+            VirtualKeyCode::LControl => self.keyboard.set(KeyboardModifierState::LCTRL, pressed),
+            VirtualKeyCode::RControl => self.keyboard.set(KeyboardModifierState::RCTRL, pressed),
+            VirtualKeyCode::LAlt => self.keyboard.set(KeyboardModifierState::LALT, pressed),
+            VirtualKeyCode::RAlt => self.keyboard.set(KeyboardModifierState::RALT, pressed),
+            VirtualKeyCode::LWin => self.keyboard.set(KeyboardModifierState::LSUPER, pressed),
+            VirtualKeyCode::RWin => self.keyboard.set(KeyboardModifierState::RSUPER, pressed),
             _ => (),
         }
     }
@@ -151,19 +166,19 @@ impl EventState {
         middle: bool,
         right: bool,
     ) -> Option<(event::MouseButton, event::ElementState)> {
-        if self.left != left {
-            self.left = left;
-            return Some((event::MouseButton::Left, element_state(self.left)));
+        if self.mouse.contains(MouseButtonState::LEFT) != left {
+            self.mouse.set(MouseButtonState::LEFT, left);
+            return Some((event::MouseButton::Left, element_state(left)));
         }
 
-        if self.middle != middle {
-            self.middle = middle;
-            return Some((event::MouseButton::Middle, element_state(self.middle)));
+        if self.mouse.contains(MouseButtonState::MIDDLE) != middle {
+            self.mouse.set(MouseButtonState::MIDDLE, middle);
+            return Some((event::MouseButton::Middle, element_state(middle)));
         }
 
-        if self.right != right {
-            self.right = right;
-            return Some((event::MouseButton::Right, element_state(self.right)));
+        if self.mouse.contains(MouseButtonState::RIGHT) != right {
+            self.mouse.set(MouseButtonState::RIGHT, right);
+            return Some((event::MouseButton::Right, element_state(right)));
         }
 
         None
@@ -171,16 +186,28 @@ impl EventState {
 
     fn modifiers(&self) -> event::ModifiersState {
         let mut modifiers = event::ModifiersState::empty();
-        if self.lshift || self.rshift {
+        if self
+            .keyboard
+            .intersects(KeyboardModifierState::LSHIFT | KeyboardModifierState::RSHIFT)
+        {
             modifiers |= event::ModifiersState::SHIFT;
         }
-        if self.lctrl || self.rctrl {
+        if self
+            .keyboard
+            .intersects(KeyboardModifierState::LCTRL | KeyboardModifierState::RCTRL)
+        {
             modifiers |= event::ModifiersState::CTRL;
         }
-        if self.lalt || self.ralt {
+        if self
+            .keyboard
+            .intersects(KeyboardModifierState::LALT | KeyboardModifierState::RALT)
+        {
             modifiers |= event::ModifiersState::ALT;
         }
-        if self.llogo || self.rlogo {
+        if self
+            .keyboard
+            .intersects(KeyboardModifierState::LSUPER | KeyboardModifierState::RSUPER)
+        {
             modifiers |= event::ModifiersState::LOGO
         }
         modifiers
@@ -188,9 +215,8 @@ impl EventState {
 }
 
 pub struct EventLoop<T: 'static> {
-    windows: Vec<Arc<RedoxSocket>>,
+    windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: event_loop::EventLoopWindowTarget<T>,
-    state: EventState,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -223,7 +249,6 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
-            state: EventState::default(),
         }
     }
 
@@ -234,6 +259,138 @@ impl<T: 'static> EventLoop<T> {
     {
         let exit_code = self.run_return(event_handler);
         ::std::process::exit(exit_code);
+    }
+
+    fn process_event<F>(
+        window_id: WindowId,
+        event_option: EventOption,
+        event_state: &mut EventState,
+        mut event_handler: F,
+    ) where
+        F: FnMut(event::Event<'_, T>),
+    {
+        match event_option {
+            EventOption::Key(KeyEvent {
+                character: _,
+                scancode,
+                pressed,
+            }) => {
+                if scancode != 0 {
+                    let vk_opt = convert_scancode(scancode);
+                    if let Some(vk) = vk_opt {
+                        event_state.key(vk, pressed);
+                    }
+                    event_handler(
+                        #[allow(deprecated)]
+                        event::Event::WindowEvent {
+                            window_id: RootWindowId(window_id),
+                            event: event::WindowEvent::KeyboardInput {
+                                device_id: event::DeviceId(DeviceId),
+                                input: event::KeyboardInput {
+                                    scancode: scancode as u32,
+                                    state: element_state(pressed),
+                                    virtual_keycode: vk_opt,
+                                    modifiers: event_state.modifiers(),
+                                },
+                                is_synthetic: false,
+                            },
+                        },
+                    );
+                }
+            }
+            EventOption::TextInput(TextInputEvent { character }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::ReceivedCharacter(character),
+                });
+            }
+            EventOption::Mouse(MouseEvent { x, y }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::CursorMoved {
+                        device_id: event::DeviceId(DeviceId),
+                        position: (x, y).into(),
+                        modifiers: event_state.modifiers(),
+                    },
+                });
+            }
+            EventOption::Button(ButtonEvent {
+                left,
+                middle,
+                right,
+            }) => {
+                while let Some((button, state)) = event_state.mouse(left, middle, right) {
+                    event_handler(event::Event::WindowEvent {
+                        window_id: RootWindowId(window_id),
+                        event: event::WindowEvent::MouseInput {
+                            device_id: event::DeviceId(DeviceId),
+                            state,
+                            button,
+                            modifiers: event_state.modifiers(),
+                        },
+                    });
+                }
+            }
+            EventOption::Scroll(ScrollEvent { x, y }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::MouseWheel {
+                        device_id: event::DeviceId(DeviceId),
+                        delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
+                        phase: event::TouchPhase::Moved,
+                        modifiers: event_state.modifiers(),
+                    },
+                });
+            }
+            EventOption::Quit(QuitEvent {}) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::CloseRequested,
+                });
+            }
+            EventOption::Focus(FocusEvent { focused }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::Focused(focused),
+                });
+            }
+            EventOption::Move(MoveEvent { x, y }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::Moved((x, y).into()),
+                });
+            }
+            EventOption::Resize(ResizeEvent { width, height }) => {
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::Resized((width, height).into()),
+                });
+
+                // Acknowledge resize after event loop.
+                event_state.resize_opt = Some((width, height));
+            }
+            //TODO: Clipboard
+            EventOption::Hover(HoverEvent { entered }) => {
+                if entered {
+                    event_handler(event::Event::WindowEvent {
+                        window_id: RootWindowId(window_id),
+                        event: event::WindowEvent::CursorEntered {
+                            device_id: event::DeviceId(DeviceId),
+                        },
+                    });
+                } else {
+                    event_handler(event::Event::WindowEvent {
+                        window_id: RootWindowId(window_id),
+                        event: event::WindowEvent::CursorLeft {
+                            device_id: event::DeviceId(DeviceId),
+                        },
+                    });
+                }
+            }
+            other => {
+                warn!("unhandled event: {:?}", other);
+            }
+        }
     }
 
     pub fn run_return<F>(&mut self, mut event_handler_inner: F) -> i32
@@ -287,7 +444,7 @@ impl<T: 'static> EventLoop<T> {
                 let path = window.fpath(&mut buf).expect("failed to read properties");
                 let properties = WindowProperties::new(path);
 
-                self.windows.push(window);
+                self.windows.push((window, EventState::default()));
 
                 // Send resize event on create to indicate first size.
                 event_handler(
@@ -325,14 +482,13 @@ impl<T: 'static> EventLoop<T> {
                 );
 
                 self.windows
-                    .retain(|window| window.fd as u64 != destroy_id.fd);
+                    .retain(|(window, _event_state)| window.fd as u64 != destroy_id.fd);
             }
 
             // Handle window events.
             let mut i = 0;
-            let mut resize_opt = None;
             // While loop is used here because the same window may be processed more than once.
-            while let Some(window) = self.windows.get(i) {
+            while let Some((window, event_state)) = self.windows.get_mut(i) {
                 let window_id = WindowId {
                     fd: window.fd as u64,
                 };
@@ -348,174 +504,13 @@ impl<T: 'static> EventLoop<T> {
                     )
                 };
 
-                for event in events {
-                    match event.to_option() {
-                        EventOption::Key(KeyEvent {
-                            character: _,
-                            scancode,
-                            pressed,
-                        }) => {
-                            if scancode != 0 {
-                                let vk_opt = convert_scancode(scancode);
-                                if let Some(vk) = vk_opt {
-                                    self.state.key(vk, pressed);
-                                }
-                                event_handler(
-                                    #[allow(deprecated)]
-                                    event::Event::WindowEvent {
-                                        window_id: RootWindowId(window_id),
-                                        event: event::WindowEvent::KeyboardInput {
-                                            device_id: event::DeviceId(DeviceId),
-                                            input: event::KeyboardInput {
-                                                scancode: scancode as u32,
-                                                state: element_state(pressed),
-                                                virtual_keycode: vk_opt,
-                                                modifiers: self.state.modifiers(),
-                                            },
-                                            is_synthetic: false,
-                                        },
-                                    },
-                                    &self.window_target,
-                                    &mut control_flow,
-                                );
-                            }
-                        }
-                        EventOption::TextInput(TextInputEvent { character }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::ReceivedCharacter(character),
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Mouse(MouseEvent { x, y }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::CursorMoved {
-                                        device_id: event::DeviceId(DeviceId),
-                                        position: (x, y).into(),
-                                        modifiers: self.state.modifiers(),
-                                    },
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Button(ButtonEvent {
-                            left,
-                            middle,
-                            right,
-                        }) => {
-                            while let Some((button, state)) = self.state.mouse(left, middle, right)
-                            {
-                                event_handler(
-                                    event::Event::WindowEvent {
-                                        window_id: RootWindowId(window_id),
-                                        event: event::WindowEvent::MouseInput {
-                                            device_id: event::DeviceId(DeviceId),
-                                            state,
-                                            button,
-                                            modifiers: self.state.modifiers(),
-                                        },
-                                    },
-                                    &self.window_target,
-                                    &mut control_flow,
-                                );
-                            }
-                        }
-                        EventOption::Scroll(ScrollEvent { x, y }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::MouseWheel {
-                                        device_id: event::DeviceId(DeviceId),
-                                        delta: event::MouseScrollDelta::LineDelta(
-                                            x as f32, y as f32,
-                                        ),
-                                        phase: event::TouchPhase::Moved,
-                                        modifiers: self.state.modifiers(),
-                                    },
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Quit(QuitEvent {}) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::CloseRequested,
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Focus(FocusEvent { focused }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::Focused(focused),
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Move(MoveEvent { x, y }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::Moved((x, y).into()),
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-                        }
-                        EventOption::Resize(ResizeEvent { width, height }) => {
-                            event_handler(
-                                event::Event::WindowEvent {
-                                    window_id: RootWindowId(window_id),
-                                    event: event::WindowEvent::Resized((width, height).into()),
-                                },
-                                &self.window_target,
-                                &mut control_flow,
-                            );
-
-                            // Acknowledge resize after event loop.
-                            resize_opt = Some((width, height));
-                        }
-                        //TODO: Clipboard
-                        EventOption::Hover(HoverEvent { entered }) => {
-                            if entered {
-                                event_handler(
-                                    event::Event::WindowEvent {
-                                        window_id: RootWindowId(window_id),
-                                        event: event::WindowEvent::CursorEntered {
-                                            device_id: event::DeviceId(DeviceId),
-                                        },
-                                    },
-                                    &self.window_target,
-                                    &mut control_flow,
-                                );
-                            } else {
-                                event_handler(
-                                    event::Event::WindowEvent {
-                                        window_id: RootWindowId(window_id),
-                                        event: event::WindowEvent::CursorLeft {
-                                            device_id: event::DeviceId(DeviceId),
-                                        },
-                                    },
-                                    &self.window_target,
-                                    &mut control_flow,
-                                );
-                            }
-                        }
-                        other => {
-                            warn!("unhandled event: {:?}", other);
-                        }
-                    }
+                for orbital_event in events {
+                    Self::process_event(
+                        window_id,
+                        orbital_event.to_option(),
+                        event_state,
+                        |event| event_handler(event, &self.window_target, &mut control_flow),
+                    );
                 }
 
                 if count == event_buf.len() {
@@ -524,7 +519,7 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 // Acknowledge the latest resize event.
-                if let Some((w, h)) = resize_opt.take() {
+                if let Some((w, h)) = event_state.resize_opt.take() {
                     window
                         .write(format!("S,{},{}", w, h).as_bytes())
                         .expect("failed to acknowledge resize");
