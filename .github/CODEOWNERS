@@ -35,3 +35,7 @@
 # Windows
 /src/platform/windows.rs            @msiglreith
 /src/platform_impl/windows          @msiglreith
+
+# Redox OS
+/src/platform/orbital.rs            @jackpot51
+/src/platform_impl/orbital          @jackpot51

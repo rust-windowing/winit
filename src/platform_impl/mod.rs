@@ -19,6 +19,9 @@ mod platform;
 #[cfg(wasm_platform)]
 #[path = "web/mod.rs"]
 mod platform;
+#[cfg(orbital_platform)]
+#[path = "orbital/mod.rs"]
+mod platform;
 
 pub use self::platform::*;
 
@@ -59,5 +62,6 @@ impl From<Fullscreen> for RootFullscreen {
     not(x11_platform),
     not(wayland_platform),
     not(wasm_platform),
+    not(orbital_platform),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

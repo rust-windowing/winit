@@ -21,6 +21,8 @@ pub mod android;
 pub mod ios;
 #[cfg(macos_platform)]
 pub mod macos;
+#[cfg(orbital_platform)]
+pub mod orbital;
 #[cfg(wayland_platform)]
 pub mod wayland;
 #[cfg(wasm_platform)]
@@ -35,6 +37,7 @@ pub mod x11;
     macos_platform,
     android_platform,
     x11_platform,
-    wayland_platform
+    wayland_platform,
+    orbital_platform
 ))]
 pub mod run_return;

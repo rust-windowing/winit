@@ -391,7 +391,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Redox OS:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
@@ -508,7 +508,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / X11 / Wayland:** Unsupported.
+    /// - **iOS / Android / X11 / Wayland / Redox OS:** Unsupported.
     ThemeChanged(Theme),
 
     /// The window has been occluded (completely hidden from view).
@@ -517,7 +517,7 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / Windows / Redox OS:** Unsupported.
     Occluded(bool),
 }
 
