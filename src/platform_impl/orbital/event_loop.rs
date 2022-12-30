@@ -572,73 +572,68 @@ impl<T: 'static> EventLoop<T> {
                 &mut control_flow,
             );
 
-            let mut requested_resume = None;
-            let wait = match control_flow {
-                ControlFlow::Poll => false,
-                ControlFlow::Wait => true,
-                ControlFlow::WaitUntil(instant) => {
-                    requested_resume = Some(instant);
-                    true
+            let requested_resume = match control_flow {
+                ControlFlow::Poll => {
+                    start_cause = StartCause::Poll;
+                    continue;
                 }
+                ControlFlow::Wait => None,
+                ControlFlow::WaitUntil(instant) => Some(instant),
                 ControlFlow::ExitWithCode(code) => break code,
             };
 
-            if wait {
-                // Re-using wake socket caused extra wake events before because there were leftover
-                // timeouts, and then new timeouts were added each time a spurious timeout expired.
-                let timeout_socket = TimeSocket::open().unwrap();
+            // Re-using wake socket caused extra wake events before because there were leftover
+            // timeouts, and then new timeouts were added each time a spurious timeout expired.
+            let timeout_socket = TimeSocket::open().unwrap();
 
-                self.window_target
-                    .p
-                    .event_socket
-                    .write(&syscall::Event {
-                        id: timeout_socket.0.fd,
-                        flags: syscall::EventFlags::EVENT_READ,
-                        data: 0,
-                    })
-                    .unwrap();
+            self.window_target
+                .p
+                .event_socket
+                .write(&syscall::Event {
+                    id: timeout_socket.0.fd,
+                    flags: syscall::EventFlags::EVENT_READ,
+                    data: 0,
+                })
+                .unwrap();
 
-                let start = Instant::now();
-                if let Some(instant) = requested_resume {
-                    let mut time = timeout_socket.current_time().unwrap();
+            let start = Instant::now();
+            if let Some(instant) = requested_resume {
+                let mut time = timeout_socket.current_time().unwrap();
 
-                    if let Some(duration) = instant.checked_duration_since(start) {
-                        time.tv_sec += duration.as_secs() as i64;
-                        time.tv_nsec += duration.subsec_nanos() as i32;
-                        // Normalize timespec so tv_nsec is not greater than one second.
-                        while time.tv_nsec >= 1_000_000_000 {
-                            time.tv_sec += 1;
-                            time.tv_nsec -= 1_000_000_000;
-                        }
-                    }
-
-                    timeout_socket.timeout(&time).unwrap();
-                }
-
-                // Wait for event if needed.
-                let mut event = syscall::Event::default();
-                self.window_target.p.event_socket.read(&mut event).unwrap();
-
-                // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
-                match requested_resume {
-                    Some(requested_resume) if event.id == timeout_socket.0.fd => {
-                        // If the event is from the special timeout socket, report that resume
-                        // time was reached.
-                        start_cause = StartCause::ResumeTimeReached {
-                            start,
-                            requested_resume,
-                        };
-                    }
-                    _ => {
-                        // Normal window event or spurious timeout.
-                        start_cause = StartCause::WaitCancelled {
-                            start,
-                            requested_resume,
-                        };
+                if let Some(duration) = instant.checked_duration_since(start) {
+                    time.tv_sec += duration.as_secs() as i64;
+                    time.tv_nsec += duration.subsec_nanos() as i32;
+                    // Normalize timespec so tv_nsec is not greater than one second.
+                    while time.tv_nsec >= 1_000_000_000 {
+                        time.tv_sec += 1;
+                        time.tv_nsec -= 1_000_000_000;
                     }
                 }
-            } else {
-                start_cause = StartCause::Poll;
+
+                timeout_socket.timeout(&time).unwrap();
+            }
+
+            // Wait for event if needed.
+            let mut event = syscall::Event::default();
+            self.window_target.p.event_socket.read(&mut event).unwrap();
+
+            // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
+            match requested_resume {
+                Some(requested_resume) if event.id == timeout_socket.0.fd => {
+                    // If the event is from the special timeout socket, report that resume
+                    // time was reached.
+                    start_cause = StartCause::ResumeTimeReached {
+                        start,
+                        requested_resume,
+                    };
+                }
+                _ => {
+                    // Normal window event or spurious timeout.
+                    start_cause = StartCause::WaitCancelled {
+                        start,
+                        requested_resume,
+                    };
+                }
             }
         };
 
