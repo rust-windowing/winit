@@ -506,6 +506,10 @@ impl WinitWindow {
         util::set_title_sync(self, title);
     }
 
+    pub fn set_transparent(&self, transparent: bool) {
+        self.setOpaque(!transparent)
+    }
+
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => util::make_key_and_order_front_sync(self),

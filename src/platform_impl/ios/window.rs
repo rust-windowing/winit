@@ -43,6 +43,10 @@ impl Inner {
         debug!("`Window::set_title` is ignored on iOS")
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {
+        debug!("`Window::set_transparent` is ignored on iOS")
+    }
+
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
     }

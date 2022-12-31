@@ -261,6 +261,9 @@ impl Window {
             window_requests.clone(),
         );
 
+        // Set opaque region.
+        window_handle.set_transparent(attributes.transparent);
+
         // Set resizable state, so we can determine how to handle `Window::set_inner_size`.
         window_handle.is_resizable.set(attributes.resizable);
 
@@ -330,6 +333,11 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.send_request(WindowRequest::Title(title.to_owned()));
+    }
+
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.send_request(WindowRequest::Transparent(transparent));
     }
 
     #[inline]

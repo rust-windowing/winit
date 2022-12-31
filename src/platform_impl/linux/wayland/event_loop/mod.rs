@@ -431,6 +431,9 @@ impl<T: 'static> EventLoop<T> {
                         window_handle.window.resize(size.width, size.height);
                         window_handle.window.refresh();
 
+                        // Update the opaque region.
+                        window_handle.set_transparent(window_handle.transparent.get());
+
                         // Mark that refresh isn't required, since we've done it right now.
                         state
                             .window_user_requests

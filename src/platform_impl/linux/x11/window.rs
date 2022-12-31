@@ -903,6 +903,9 @@ impl UnownedWindow {
             .expect("Failed to set window title");
     }
 
+    #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
         self.shared_state_lock().is_decorated = decorations;
         let mut hints = self.xconn.get_motif_hints(self.xwindow);

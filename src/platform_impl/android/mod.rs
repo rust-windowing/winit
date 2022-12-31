@@ -947,6 +947,8 @@ impl Window {
 
     pub fn set_title(&self, _title: &str) {}
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     pub fn set_visible(&self, _visibility: bool) {}
 
     pub fn is_visible(&self) -> Option<bool> {
