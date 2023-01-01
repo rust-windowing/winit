@@ -1011,7 +1011,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         win.set_enabled_buttons(attributes.enabled_buttons);
 
         if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen);
+            win.set_fullscreen(attributes.fullscreen.map(Into::into));
             force_window_active(win.window.0);
         } else {
             let size = attributes

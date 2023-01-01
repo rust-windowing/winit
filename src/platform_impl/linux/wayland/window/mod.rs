@@ -240,7 +240,7 @@ impl Window {
         window.set_title(attributes.title);
 
         // Set fullscreen/maximized if so was requested.
-        match attributes.fullscreen {
+        match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
