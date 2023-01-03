@@ -101,11 +101,11 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
-pub struct UnownedWindow {
-    pub xconn: Arc<XConnection>, // never changes
-    xwindow: ffi::Window,        // never changes
-    root: ffi::Window,           // never changes
-    screen_id: i32,              // never changes
+pub(crate) struct UnownedWindow {
+    pub(crate) xconn: Arc<XConnection>, // never changes
+    xwindow: ffi::Window,               // never changes
+    root: ffi::Window,                  // never changes
+    screen_id: i32,                     // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -1297,11 +1297,6 @@ impl UnownedWindow {
     #[inline]
     pub fn xlib_screen_id(&self) -> c_int {
         self.screen_id
-    }
-
-    #[inline]
-    pub fn xlib_xconnection(&self) -> Arc<XConnection> {
-        Arc::clone(&self.xconn)
     }
 
     #[inline]

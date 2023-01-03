@@ -1,5 +1,5 @@
 use std::os::raw;
-use std::{ptr, sync::Arc};
+use std::ptr;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
@@ -9,13 +9,9 @@ use crate::{
 
 use crate::dpi::Size;
 use crate::platform_impl::{
-    x11::ffi::XVisualInfo, x11::XConnection, ApplicationName, Backend,
-    EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow, XLIB_ERROR_HOOKS,
+    x11::ffi::XVisualInfo, ApplicationName, Backend, Window as LinuxWindow, XLIB_ERROR_HOOKS,
 };
 
-// TODO: stupid hack so that glutin can do its work
-#[doc(hidden)]
-pub use crate::platform_impl::x11;
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 /// The first argument in the provided hook will be the pointer to `XDisplay`
@@ -45,24 +41,12 @@ pub fn register_xlib_error_hook(hook: XlibErrorHook) {
 pub trait EventLoopWindowTargetExtX11 {
     /// True if the [`EventLoopWindowTarget`] uses X11.
     fn is_x11(&self) -> bool;
-
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 }
 
 impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.p.is_wayland()
-    }
-
-    #[inline]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.p {
-            LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
     }
 }
 
@@ -108,9 +92,6 @@ pub trait WindowExtX11 {
 
     fn xlib_screen_id(&self) -> Option<raw::c_int>;
 
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
-
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -142,15 +123,6 @@ impl WindowExtX11 for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
             #[cfg(wayland_platform)]
             _ => None,
         }
