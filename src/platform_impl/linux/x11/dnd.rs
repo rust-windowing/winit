@@ -96,7 +96,7 @@ pub struct Dnd {
     // Populated by XdndPosition event handler
     pub source_window: Option<c_ulong>,
     // Populated by XdndPosition event handler
-    pub position: (i64, i64),
+    pub position: (c_long, c_long),
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
 }
