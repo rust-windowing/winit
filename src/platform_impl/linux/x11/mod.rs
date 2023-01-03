@@ -1,10 +1,4 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(x11_platform)]
 
 mod dnd;
 mod event_processor;
@@ -536,7 +530,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland_platform)]
         _ => unreachable!(),
     }
 }
@@ -644,7 +638,7 @@ impl Deref for Window {
     type Target = UnownedWindow;
     #[inline]
     fn deref(&self) -> &UnownedWindow {
-        &*self.0
+        &self.0
     }
 }
 
@@ -711,7 +705,7 @@ struct XExtension {
 }
 
 fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))

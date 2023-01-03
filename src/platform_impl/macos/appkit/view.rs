@@ -7,7 +7,7 @@ use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{NSCursor, NSResponder, NSTextInputContext};
+use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -52,6 +52,10 @@ extern_methods!(
 
         #[sel(convertPoint:fromView:)]
         pub fn convertPoint_fromView(&self, point: NSPoint, view: Option<&NSView>) -> NSPoint;
+
+        pub fn window(&self) -> Option<Id<NSWindow, Shared>> {
+            unsafe { msg_send_id![self, window] }
+        }
     }
 
     unsafe impl NSView {

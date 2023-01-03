@@ -522,6 +522,10 @@ pub enum WindowEvent<'a> {
     },
 
     /// Touch event has been received
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Unsupported.
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -969,6 +973,10 @@ pub enum TouchPhase {
 /// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
+///
+/// ## Platform-specific
+///
+/// - **macOS:** Unsupported.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,

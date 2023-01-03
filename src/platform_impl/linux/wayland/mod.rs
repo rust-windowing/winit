@@ -1,10 +1,4 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(wayland_platform)]
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 

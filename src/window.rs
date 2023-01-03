@@ -126,17 +126,20 @@ pub(crate) struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub enabled_buttons: WindowButtons,
     pub title: String,
     pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
     pub decorations: bool,
-    pub always_on_top: bool,
     pub window_icon: Option<Icon>,
     pub multitouch_enabled: bool,
     pub preferred_theme: Option<Theme>,
     pub resize_increments: Option<Size>,
+    pub content_protected: bool,
+    pub window_level: WindowLevel,
+    pub parent_window: Option<RawWindowHandle>,
 }
 
 impl Default for WindowAttributes {
@@ -148,17 +151,20 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
             visible: true,
             transparent: false,
             decorations: true,
-            always_on_top: false,
+            window_level: Default::default(),
             window_icon: None,
             multitouch_enabled: false,
             preferred_theme: None,
             resize_increments: None,
+            content_protected: false,
+            parent_window: None,
         }
     }
 }
@@ -244,6 +250,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets the enabled window buttons.
+    ///
+    /// The default is [`WindowButtons::all`]
+    ///
+    /// See [`Window::set_enabled_buttons`] for details.
+    #[inline]
+    pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
+        self.window.enabled_buttons = buttons;
+        self
+    }
+
     /// Sets the initial title of the window in the title bar.
     ///
     /// The default is `"winit window"`.
@@ -317,14 +334,16 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets whether or not the window will always be on top of other windows.
+    /// Sets the window level.
     ///
-    /// The default is `false`.
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// See [`Window::set_always_on_top`] for details.
+    /// The default is [`WindowLevel::Normal`].
+    ///
+    /// See [`WindowLevel`] for details.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
-        self.window.always_on_top = always_on_top;
+    pub fn with_window_level(mut self, level: WindowLevel) -> Self {
+        self.window.window_level = level;
         self
     }
 
@@ -357,8 +376,10 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
+    /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
@@ -374,6 +395,44 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// The default is `false`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / Web / x11:** Ignored.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    #[inline]
+    pub fn with_content_protected(mut self, protected: bool) -> Self {
+        self.window.content_protected = protected;
+        self
+    }
+
+    /// Build window with parent window.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows** : A child window has the WS_CHILD style and is confined
+    /// to the client area of its parent window. For more information, see
+    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **X11**: A child window is confined to the client area of its parent window.
+    /// - **Android / iOS / Wayland:** Unsupported.
+    #[inline]
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+        self.window.parent_window = parent_window;
         self
     }
 
@@ -744,6 +803,26 @@ impl Window {
         self.window.is_resizable()
     }
 
+    /// Sets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Web / iOS / Android:** Unsupported.
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        self.window.set_enabled_buttons(buttons)
+    }
+
+    /// Gets the enabled window buttons.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        self.window.enabled_buttons()
+    }
+
     /// Sets the window to minimized or back
     ///
     /// ## Platform-specific
@@ -833,14 +912,13 @@ impl Window {
         self.window.is_decorated()
     }
 
-    /// Change whether or not the window will always be on top of other windows.
+    /// Change the window level.
     ///
-    /// ## Platform-specific
+    /// This is just a hint to the OS, and the system could ignore it.
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
-    #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
-        self.window.set_always_on_top(always_on_top)
+    /// See [`WindowLevel`] for details.
+    pub fn set_window_level(&self, level: WindowLevel) {
+        self.window.set_window_level(level)
     }
 
     /// Sets the window icon.
@@ -955,14 +1033,43 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
+    /// Sets the current window theme. Use `None` to fallback to system default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This is an app-wide setting.
+    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
+    /// - **iOS / Android / Web / x11:** Unsupported.
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.window.set_theme(theme)
+    }
+
     /// Returns the current window theme.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / x11:** Unsupported.
+    /// - **macOS:** This is an app-wide setting.
+    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
+    /// prevent all apps from reading the window content, for instance, QuickTime.
+    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    ///
+    /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
+    pub fn set_content_protected(&self, _protected: bool) {
+        #[cfg(any(macos_platform, windows_platform))]
+        self.window.set_content_protected(_protected);
     }
 
     /// Gets the current title of the window.
@@ -1160,109 +1267,6 @@ unsafe impl HasRawDisplayHandle for Window {
         self.window.raw_display_handle()
     }
 }
-unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
-    /// Returns a [`raw_window_handle_04::RawWindowHandle`] for the Window
-    ///
-    /// This provides backwards compatibility for downstream crates that have not yet
-    /// upgraded to `raw_window_handle` version 0.5, such as Wgpu version 0.13.
-    ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
-    /// try to get the handle outside of that period, this function will panic*!
-    ///
-    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
-    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
-    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
-    ///
-    /// [`Event::Resumed`]: crate::event::Event::Resumed
-    /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> raw_window_handle_04::RawWindowHandle {
-        use raw_window_handle_04::{
-            AndroidNdkHandle, AppKitHandle, HaikuHandle, OrbitalHandle, UiKitHandle, WaylandHandle,
-            WebHandle, Win32Handle, WinRtHandle, XcbHandle, XlibHandle,
-        };
-
-        // XXX: Ideally this would be encapsulated either through a
-        // compatibility API from raw_window_handle_05 or else within the
-        // backends but since this is only to provide short-term backwards
-        // compatibility, we just handle the full mapping inline here.
-        //
-        // The intention is to remove this trait implementation before Winit
-        // 0.28, once crates have had time to upgrade to raw_window_handle 0.5
-
-        match (self.window.raw_window_handle(), self.window.raw_display_handle()) {
-            (RawWindowHandle::UiKit(window_handle), _) => {
-                let mut handle = UiKitHandle::empty();
-                handle.ui_view = window_handle.ui_view;
-                handle.ui_window = window_handle.ui_window;
-                handle.ui_view_controller = window_handle.ui_view_controller;
-                raw_window_handle_04::RawWindowHandle::UiKit(handle)
-            },
-            (RawWindowHandle::AppKit(window_handle), _) => {
-                let mut handle = AppKitHandle::empty();
-                handle.ns_window = window_handle.ns_window;
-                handle.ns_view = window_handle.ns_view;
-                raw_window_handle_04::RawWindowHandle::AppKit(handle)
-            },
-            (RawWindowHandle::Orbital(window_handle), _) => {
-                let mut handle = OrbitalHandle::empty();
-                handle.window = window_handle.window;
-                raw_window_handle_04::RawWindowHandle::Orbital(handle)
-            },
-            (RawWindowHandle::Xlib(window_handle), RawDisplayHandle::Xlib(display_handle)) => {
-                let mut handle = XlibHandle::empty();
-                handle.display = display_handle.display;
-                handle.window = window_handle.window;
-                handle.visual_id = window_handle.visual_id;
-                raw_window_handle_04::RawWindowHandle::Xlib(handle)
-            },
-            (RawWindowHandle::Xcb(window_handle), RawDisplayHandle::Xcb(display_handle)) => {
-                let mut handle = XcbHandle::empty();
-                handle.connection = display_handle.connection;
-                handle.window = window_handle.window;
-                handle.visual_id = window_handle.visual_id;
-                raw_window_handle_04::RawWindowHandle::Xcb(handle)
-            },
-            (RawWindowHandle::Wayland(window_handle), RawDisplayHandle::Wayland(display_handle)) => {
-                let mut handle = WaylandHandle::empty();
-                handle.display = display_handle.display;
-                handle.surface = window_handle.surface;
-                raw_window_handle_04::RawWindowHandle::Wayland(handle)
-            },
-            (RawWindowHandle::Win32(window_handle), _) => {
-                let mut handle = Win32Handle::empty();
-                handle.hwnd = window_handle.hwnd;
-                handle.hinstance = window_handle.hinstance;
-                raw_window_handle_04::RawWindowHandle::Win32(handle)
-            },
-            (RawWindowHandle::WinRt(window_handle), _) => {
-                let mut handle = WinRtHandle::empty();
-                handle.core_window = window_handle.core_window;
-                raw_window_handle_04::RawWindowHandle::WinRt(handle)
-            },
-            (RawWindowHandle::Web(window_handle), _) => {
-                let mut handle = WebHandle::empty();
-                handle.id = window_handle.id;
-                raw_window_handle_04::RawWindowHandle::Web(handle)
-            },
-            (RawWindowHandle::AndroidNdk(window_handle), _) => {
-                let mut handle = AndroidNdkHandle::empty();
-                handle.a_native_window = window_handle.a_native_window;
-                raw_window_handle_04::RawWindowHandle::AndroidNdk(handle)
-            },
-            (RawWindowHandle::Haiku(window_handle), _) => {
-                let mut handle = HaikuHandle::empty();
-                handle.b_window = window_handle.b_window;
-                handle.b_direct_window = window_handle.b_direct_window;
-                raw_window_handle_04::RawWindowHandle::Haiku(handle)
-            },
-            _ => panic!("No HasRawWindowHandle version 0.4 backwards compatibility for new Winit window type"),
-        }
-    }
-}
 
 /// The behavior of cursor grabbing.
 ///
@@ -1399,5 +1403,39 @@ pub enum UserAttentionType {
 impl Default for UserAttentionType {
     fn default() -> Self {
         UserAttentionType::Informational
+    }
+}
+
+bitflags! {
+    pub struct WindowButtons: u32 {
+        const CLOSE  = 1 << 0;
+        const MINIMIZE  = 1 << 1;
+        const MAXIMIZE  = 1 << 2;
+    }
+}
+
+/// A window level groups windows with respect to their z-position.
+///
+/// The relative ordering between windows in different window levels is fixed.
+/// The z-order of a window within the same window level may change dynamically on user interaction.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Wayland:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WindowLevel {
+    /// The window will always be below normal windows.
+    ///
+    /// This is useful for a widget-based app.
+    AlwaysOnBottom,
+    /// The default.
+    Normal,
+    /// The window will always be on top of normal windows.
+    AlwaysOnTop,
+}
+
+impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
     }
 }

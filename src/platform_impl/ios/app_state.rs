@@ -15,18 +15,19 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use objc2::foundation::{NSInteger, NSUInteger};
-use objc2::runtime::Object;
+use objc2::foundation::{CGRect, CGSize, NSInteger};
+use objc2::rc::{Id, Shared};
 use objc2::{class, msg_send, sel};
 use once_cell::sync::Lazy;
 
+use super::view::WinitUIWindow;
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{id, CGRect, CGSize, NSOperatingSystemVersion},
+        ffi::{id, NSOperatingSystemVersion},
     },
     window::WindowId as RootWindowId,
 };
@@ -65,25 +66,25 @@ impl Event<'static, Never> {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     NotLaunched {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     Launching {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
         queued_events: Vec<EventWrapper>,
         queued_event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     ProcessingEvents {
         event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
         active_control_flow: ControlFlow,
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     ProcessingRedraws {
         event_handler: Box<dyn EventHandler>,
@@ -104,28 +105,6 @@ struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
-}
-
-impl Drop for AppState {
-    fn drop(&mut self) {
-        match self.state_mut() {
-            &mut AppStateImpl::NotLaunched {
-                ref mut queued_windows,
-                ..
-            }
-            | &mut AppStateImpl::Launching {
-                ref mut queued_windows,
-                ..
-            } => {
-                for &mut window in queued_windows {
-                    unsafe {
-                        let _: () = msg_send![window, release];
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 impl AppState {
@@ -223,7 +202,9 @@ impl AppState {
         });
     }
 
-    fn did_finish_launching_transition(&mut self) -> (Vec<id>, Vec<EventWrapper>) {
+    fn did_finish_launching_transition(
+        &mut self,
+    ) -> (Vec<Id<WinitUIWindow, Shared>>, Vec<EventWrapper>) {
         let (windows, events, event_handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
@@ -380,7 +361,7 @@ impl AppState {
         }
     }
 
-    fn main_events_cleared_transition(&mut self) -> HashSet<id> {
+    fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow, Shared>> {
         let (event_handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
             AppStateImpl::ProcessingEvents {
                 event_handler,
@@ -474,17 +455,13 @@ impl AppState {
 
 // requires main thread and window is a UIWindow
 // retains window
-pub unsafe fn set_key_window(window: id) {
-    bug_assert!(
-        msg_send![window, isKindOfClass: class!(UIWindow)],
-        "set_key_window called with an incorrect type"
-    );
+pub(crate) unsafe fn set_key_window(window: &Id<WinitUIWindow, Shared>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
             ref mut queued_windows,
             ..
-        } => return queued_windows.push(msg_send![window, retain]),
+        } => return queued_windows.push(window.clone()),
         &mut AppStateImpl::ProcessingEvents { .. }
         | &mut AppStateImpl::InUserCallback { .. }
         | &mut AppStateImpl::ProcessingRedraws { .. } => {}
@@ -496,16 +473,12 @@ pub unsafe fn set_key_window(window: id) {
         }
     }
     drop(this);
-    msg_send![window, makeKeyAndVisible]
+    window.makeKeyAndVisible();
 }
 
 // requires main thread and window is a UIWindow
 // retains window
-pub unsafe fn queue_gl_or_metal_redraw(window: id) {
-    bug_assert!(
-        msg_send![window, isKindOfClass: class!(UIWindow)],
-        "set_key_window called with an incorrect type"
-    );
+pub(crate) unsafe fn queue_gl_or_metal_redraw(window: Id<WinitUIWindow, Shared>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
@@ -533,8 +506,6 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
             panic!("Attempt to create a `Window` after the app has terminated")
         }
     }
-
-    drop(this);
 }
 
 // requires main thread
@@ -561,30 +532,25 @@ pub unsafe fn did_finish_launching() {
     drop(this);
 
     for window in windows {
-        let count: NSUInteger = msg_send![window, retainCount];
-        // make sure the window is still referenced
-        if count > 1 {
-            // Do a little screen dance here to account for windows being created before
-            // `UIApplicationMain` is called. This fixes visual issues such as being
-            // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
-            // gotta reset the `rootViewController`.
-            //
-            // relevant iOS log:
-            // ```
-            // [ApplicationLifecycle] Windows were created before application initialzation
-            // completed. This may result in incorrect visual appearance.
-            // ```
-            let screen: id = msg_send![window, screen];
-            let _: id = msg_send![screen, retain];
-            let _: () = msg_send![window, setScreen:0 as id];
-            let _: () = msg_send![window, setScreen: screen];
-            let _: () = msg_send![screen, release];
-            let controller: id = msg_send![window, rootViewController];
-            let _: () = msg_send![window, setRootViewController:ptr::null::<Object>()];
-            let _: () = msg_send![window, setRootViewController: controller];
-            let _: () = msg_send![window, makeKeyAndVisible];
-        }
-        let _: () = msg_send![window, release];
+        // Do a little screen dance here to account for windows being created before
+        // `UIApplicationMain` is called. This fixes visual issues such as being
+        // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
+        // gotta reset the `rootViewController`.
+        //
+        // relevant iOS log:
+        // ```
+        // [ApplicationLifecycle] Windows were created before application initialzation
+        // completed. This may result in incorrect visual appearance.
+        // ```
+        let screen = window.screen();
+        let _: () = msg_send![&window, setScreen: 0 as id];
+        window.setScreen(&screen);
+
+        let controller = window.rootViewController();
+        window.setRootViewController(None);
+        window.setRootViewController(controller.as_deref());
+
+        window.makeKeyAndVisible();
     }
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
@@ -598,12 +564,7 @@ pub unsafe fn did_finish_launching() {
     // the above window dance hack, could possibly trigger new windows to be created.
     // we can just set those windows up normally, as they were created after didFinishLaunching
     for window in windows {
-        let count: NSUInteger = msg_send![window, retainCount];
-        // make sure the window is still referenced
-        if count > 1 {
-            let _: () = msg_send![window, makeKeyAndVisible];
-        }
-        let _: () = msg_send![window, release];
+        window.makeKeyAndVisible();
     }
 }
 
@@ -621,12 +582,12 @@ pub unsafe fn handle_wakeup_transition() {
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_event(event: EventWrapper) {
+pub(crate) unsafe fn handle_nonuser_event(event: EventWrapper) {
     handle_nonuser_events(std::iter::once(event))
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events: I) {
+pub(crate) unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events: I) {
     let mut this = AppState::get_mut();
     let (mut event_handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
@@ -796,9 +757,7 @@ pub unsafe fn handle_main_events_cleared() {
     let mut redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| {
-            EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.into())))
-        })
+        .map(|window| EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.id()))))
         .collect();
 
     redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
@@ -831,13 +790,13 @@ fn handle_event_proxy(
         EventProxy::DpiChangedProxy {
             suggested_size,
             scale_factor,
-            window_id,
+            window,
         } => handle_hidpi_proxy(
             event_handler,
             control_flow,
             suggested_size,
             scale_factor,
-            window_id,
+            window,
         ),
     }
 }
@@ -847,42 +806,36 @@ fn handle_hidpi_proxy(
     mut control_flow: ControlFlow,
     suggested_size: LogicalSize<f64>,
     scale_factor: f64,
-    window_id: id,
+    window: Id<WinitUIWindow, Shared>,
 ) {
     let mut size = suggested_size.to_physical(scale_factor);
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
-        window_id: RootWindowId(window_id.into()),
+        window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             new_inner_size,
         },
     };
     event_handler.handle_nonuser_event(event, &mut control_flow);
-    let (view, screen_frame) = get_view_and_screen_frame(window_id);
+    let (view, screen_frame) = get_view_and_screen_frame(&window);
     let physical_size = *new_inner_size;
     let logical_size = physical_size.to_logical(scale_factor);
-    let size = CGSize::new(logical_size);
+    let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
     unsafe {
         let _: () = msg_send![view, setFrame: new_frame];
     }
 }
 
-fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
-    unsafe {
-        let view_controller: id = msg_send![window_id, rootViewController];
-        let view: id = msg_send![view_controller, view];
-        let bounds: CGRect = msg_send![window_id, bounds];
-        let screen: id = msg_send![window_id, screen];
-        let screen_space: id = msg_send![screen, coordinateSpace];
-        let screen_frame: CGRect = msg_send![
-            window_id,
-            convertRect: bounds,
-            toCoordinateSpace: screen_space,
-        ];
-        (view, screen_frame)
-    }
+fn get_view_and_screen_frame(window: &WinitUIWindow) -> (id, CGRect) {
+    let view_controller = window.rootViewController().unwrap();
+    let view: id = unsafe { msg_send![&view_controller, view] };
+    let bounds = window.bounds();
+    let screen = window.screen();
+    let screen_space = screen.coordinateSpace();
+    let screen_frame = window.convertRect_toCoordinateSpace(bounds, &screen_space);
+    (view, screen_frame)
 }
 
 struct EventLoopWaker {

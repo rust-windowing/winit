@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
@@ -9,7 +9,7 @@ fn main() {
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::EventLoop,
-        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder},
+        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -66,7 +66,9 @@ fn main() {
                         let state = !modifiers.shift();
                         use VirtualKeyCode::*;
                         match key {
-                            A => window.set_always_on_top(state),
+                            Key1 => window.set_window_level(WindowLevel::AlwaysOnTop),
+                            Key2 => window.set_window_level(WindowLevel::AlwaysOnBottom),
+                            Key3 => window.set_window_level(WindowLevel::Normal),
                             C => window.set_cursor_icon(match state {
                                 true => CursorIcon::Progress,
                                 false => CursorIcon::Default,
@@ -191,7 +193,7 @@ fn main() {
     })
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 fn main() {
     panic!("Example not supported on Wasm");
 }

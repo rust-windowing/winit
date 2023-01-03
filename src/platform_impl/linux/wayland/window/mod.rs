@@ -18,7 +18,9 @@ use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -217,7 +219,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -422,6 +424,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> u32 {
         // The scale factor from `get_surface_scale_factor` is always greater than zero, so
         // u32 conversion is safe.
@@ -437,11 +447,6 @@ impl Window {
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.decorated.load(Ordering::Relaxed)
-    }
-
-    #[inline]
-    pub fn set_csd_theme(&self, theme: Theme) {
-        self.send_request(WindowRequest::CsdThemeVariant(theme));
     }
 
     #[inline]
@@ -485,7 +490,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -618,6 +623,11 @@ impl Window {
     fn send_request(&self, request: WindowRequest) {
         self.window_requests.lock().unwrap().push(request);
         self.event_loop_awakener.ping();
+    }
+
+    #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        self.send_request(WindowRequest::Theme(theme));
     }
 
     #[inline]

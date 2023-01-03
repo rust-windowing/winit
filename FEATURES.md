@@ -151,7 +151,6 @@ If your PR makes notable changes to Winit's features, please update this section
 * Home indicator visibility
 * Status bar visibility
 * Deferrring system gestures
-* Support for custom `UIView` derived class
 * Getting the device idiom
 * Getting the preferred video mode
 
@@ -206,8 +205,8 @@ Legend:
 |Cursor confining        |✔️       |❌      |✔️       |✔️          |**N/A**|**N/A**|❌       |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |
 |Cursor hittest          |✔️       |✔️      |❌       |✔️          |**N/A**|**N/A**|❌        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |️✔️        |
+|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |️✔️        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |✔️    |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |

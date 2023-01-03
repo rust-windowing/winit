@@ -51,6 +51,7 @@ fn main() {
                     if minimized {
                         minimized = !minimized;
                         window.set_minimized(minimized);
+                        window.focus_window();
                     }
                 }
                 VirtualKeyCode::V => {

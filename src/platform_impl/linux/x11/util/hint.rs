@@ -198,7 +198,7 @@ impl<'a> NormalHints<'a> {
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
         has_flag(self.size_hints.flags, ffi::PPosition)
-            .then(|| (self.size_hints.x as i32, self.size_hints.y as i32))
+            .then(|| (self.size_hints.x, self.size_hints.y))
     }
 
     pub fn get_resize_increments(&self) -> Option<(u32, u32)> {

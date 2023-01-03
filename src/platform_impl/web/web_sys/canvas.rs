@@ -3,7 +3,9 @@ use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{
+    Force, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode,
+};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
@@ -262,35 +264,55 @@ impl Canvas {
         }
     }
 
-    pub fn on_mouse_release<F>(&mut self, handler: F)
+    pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
-    {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_mouse_release(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_mouse_release(&self.common, handler),
-        }
-    }
-
-    pub fn on_mouse_press<F>(&mut self, handler: F)
-    where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
-    {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_mouse_press(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_mouse_press(&self.common, handler),
-        }
-    }
-
-    pub fn on_cursor_move<F>(&mut self, handler: F, prevent_default: bool)
-    where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        M: 'static + FnMut(i32, MouseButton, ModifiersState),
+        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => {
-                h.on_cursor_move(&self.common, handler, prevent_default)
+                h.on_mouse_release(&self.common, mouse_handler, touch_handler)
             }
-            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_mouse_release(&self.common, mouse_handler),
+        }
+    }
+
+    pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
+    where
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+    {
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => {
+                h.on_mouse_press(&self.common, mouse_handler, touch_handler)
+            }
+            MouseState::NoPointerEvent(h) => h.on_mouse_press(&self.common, mouse_handler),
+        }
+    }
+
+    pub fn on_cursor_move<M, T>(
+        &mut self,
+        mouse_handler: M,
+        touch_handler: T,
+        prevent_default: bool,
+    ) where
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+    {
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => {
+                h.on_cursor_move(&self.common, mouse_handler, touch_handler, prevent_default)
+            }
+            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, mouse_handler),
+        }
+    }
+
+    pub fn on_touch_cancel<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+    {
+        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
+            h.on_touch_cancel(&self.common, handler)
         }
     }
 
@@ -451,6 +473,7 @@ impl Common {
     }
 }
 
+/// Pointer events are supported or not.
 enum MouseState {
     HasPointerEvent(pointer_handler::PointerHandler),
     NoPointerEvent(mouse_handler::MouseHandler),
