@@ -9,7 +9,8 @@ use std::{
 use windows_sys::{
     core::{IUnknown, GUID, HRESULT},
     Win32::{
-        Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK},
+        Foundation::{DV_E_FORMATETC, HWND, POINT, POINTL, S_OK},
+        Graphics::Gdi::ScreenToClient,
         System::{
             Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
             Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE},
@@ -19,9 +20,12 @@ use windows_sys::{
     },
 };
 
-use crate::platform_impl::platform::{
-    definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
-    WindowId,
+use crate::{
+    dpi::PhysicalPosition,
+    platform_impl::platform::{
+        definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
+        WindowId,
+    },
 };
 
 use crate::{event::Event, window::WindowId as RootWindowId};
@@ -89,15 +93,18 @@ impl FileDropHandler {
         this: *mut IDropTarget,
         pDataObj: *const IDataObject,
         _grfKeyState: u32,
-        _pt: *const POINTL,
+        pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
         use crate::event::WindowEvent::HoveredFile;
         let drop_handler = Self::from_interface(this);
-        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
+        let mut pt = POINT { x: pt.x, y: pt.y };
+        ScreenToClient(drop_handler.window, &mut pt);
+        let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
+        let hdrop = Self::iterate_filenames(pDataObj, |path| {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: HoveredFile(filename),
+                event: HoveredFile { path, position },
             });
         });
         drop_handler.hovered_is_valid = hdrop.is_some();
@@ -114,7 +121,7 @@ impl FileDropHandler {
     pub unsafe extern "system" fn DragOver(
         this: *mut IDropTarget,
         _grfKeyState: u32,
-        _pt: *const POINTL,
+        _pt: POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
         let drop_handler = Self::from_interface(this);
@@ -140,15 +147,18 @@ impl FileDropHandler {
         this: *mut IDropTarget,
         pDataObj: *const IDataObject,
         _grfKeyState: u32,
-        _pt: *const POINTL,
+        pt: POINTL,
         _pdwEffect: *mut u32,
     ) -> HRESULT {
         use crate::event::WindowEvent::DroppedFile;
         let drop_handler = Self::from_interface(this);
-        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
+        let mut pt = POINT { x: pt.x, y: pt.y };
+        ScreenToClient(drop_handler.window, &mut pt);
+        let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
+        let hdrop = Self::iterate_filenames(pDataObj, |path| {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: DroppedFile(filename),
+                event: DroppedFile { path, position },
             });
         });
         if let Some(hdrop) = hdrop {

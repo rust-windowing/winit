@@ -337,13 +337,21 @@ pub enum WindowEvent<'a> {
     ///
     /// When the user drops multiple files at once, this event will be emitted for each file
     /// separately.
-    DroppedFile(PathBuf),
+    DroppedFile {
+        path: PathBuf,
+        // (x,y) coords in pixels relative to the top-left corner of the window.
+        position: PhysicalPosition<f64>,
+    },
 
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
-    HoveredFile(PathBuf),
+    HoveredFile {
+        path: PathBuf,
+        // (x,y) coords in pixels relative to the top-left corner of the window.
+        position: PhysicalPosition<f64>,
+    },
 
     /// A file was hovered, but has exited the window.
     ///
@@ -529,8 +537,14 @@ impl Clone for WindowEvent<'static> {
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
+            DroppedFile { path, position } => DroppedFile {
+                path: path.clone(),
+                position: *position,
+            },
+            HoveredFile { path, position } => HoveredFile {
+                path: path.clone(),
+                position: *position,
+            },
             HoveredFileCancelled => HoveredFileCancelled,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
@@ -639,8 +653,8 @@ impl<'a> WindowEvent<'a> {
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
+            DroppedFile { path, position } => Some(DroppedFile { path, position }),
+            HoveredFile { path, position } => Some(HoveredFile { path, position }),
             HoveredFileCancelled => Some(HoveredFileCancelled),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),

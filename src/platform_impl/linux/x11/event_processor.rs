@@ -228,10 +228,11 @@ impl<T: 'static> EventProcessor<T> {
                     // where `shift = mem::size_of::<c_short>() * 8`
                     // Note that coordinates are in "desktop space", not "window space"
                     // (in X11 parlance, they're root window coordinates)
-                    //let packed_coordinates = client_msg.data.get_long(2);
-                    //let shift = mem::size_of::<libc::c_short>() * 8;
-                    //let x = packed_coordinates >> shift;
-                    //let y = packed_coordinates & !(x << shift);
+                    let packed_coordinates = client_msg.data.get_long(2);
+                    let shift = std::mem::size_of::<libc::c_short>() * 8;
+                    let x = packed_coordinates >> shift;
+                    let y = packed_coordinates & !(x << shift);
+                    self.dnd.position = (x, y);
 
                     // By our own state flow, `version` should never be `None` at this point.
                     let version = self.dnd.version.unwrap_or(5);
@@ -277,7 +278,13 @@ impl<T: 'static> EventProcessor<T> {
                             for path in path_list {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::DroppedFile(path.clone()),
+                                    event: WindowEvent::DroppedFile {
+                                        path: path.clone(),
+                                        position: PhysicalPosition::new(
+                                            self.dnd.position.0 as f64,
+                                            self.dnd.position.1 as f64,
+                                        ),
+                                    },
                                 });
                             }
                         }
@@ -319,7 +326,13 @@ impl<T: 'static> EventProcessor<T> {
                             for path in path_list {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::HoveredFile(path.clone()),
+                                    event: WindowEvent::HoveredFile {
+                                        path: path.clone(),
+                                        position: PhysicalPosition::new(
+                                            self.dnd.position.0 as f64,
+                                            self.dnd.position.1 as f64,
+                                        ),
+                                    },
                                 });
                             }
                         }
