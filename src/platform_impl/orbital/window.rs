@@ -1,9 +1,10 @@
-use raw_window_handle::{
-    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
+};
+
+use raw_window_handle::{
+    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{

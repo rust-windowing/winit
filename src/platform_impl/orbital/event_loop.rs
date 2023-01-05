@@ -1,14 +1,15 @@
-use orbclient::{
-    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
-    ResizeEvent, ScrollEvent, TextInputEvent,
-};
-use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 use std::{
     collections::VecDeque,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
     time::Instant,
 };
+
+use orbclient::{
+    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
+    ResizeEvent, ScrollEvent, TextInputEvent,
+};
+use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::{self, StartCause, VirtualKeyCode},
