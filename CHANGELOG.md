@@ -51,6 +51,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed support for `raw-window-handle` version `0.4`
 - On Wayland, `RedrawRequested` not emitted during resize.
 - **Breaking:** Remove the unstable `xlib_xconnection()` function from the private interface.
+- Added Orbital support for Redox OS
 
 # 0.27.5
 

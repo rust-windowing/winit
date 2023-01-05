@@ -209,3 +209,8 @@ inside `Event::NewEvents(StartCause::Init)`.
 [#2051]: https://github.com/rust-windowing/winit/issues/2051
 [#2087]: https://github.com/rust-windowing/winit/issues/2087
 [#1705]: https://github.com/rust-windowing/winit/issues/1705
+
+#### Redox OS
+
+Redox OS has some functionality not present yet, that will be implemented when
+its orbital display server provides it.
