@@ -6,7 +6,8 @@
     macos_platform,
     x11_platform,
     wayland_platform,
-    android_platform
+    android_platform,
+    orbital_platform,
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
