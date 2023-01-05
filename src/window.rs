@@ -368,7 +368,7 @@ impl WindowBuilder {
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
-    /// - **iOS / Android / Web / x11 / Redox OS:** Ignored.
+    /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
         self.window.preferred_theme = theme;
@@ -394,7 +394,7 @@ impl WindowBuilder {
     ///
     /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
     /// prevent all apps from reading the window content, for instance, QuickTime.
-    /// - **iOS / Android / Web / x11 / Redox OS:** Ignored.
+    /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     #[inline]
@@ -667,7 +667,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
         self.window.set_min_inner_size(min_size.map(|s| s.into()))
@@ -690,7 +690,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
@@ -700,7 +700,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Windows / Redox OS:** Always returns [`None`].
+    /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Always returns [`None`].
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         self.window.resize_increments()
@@ -715,7 +715,7 @@ impl Window {
     ///
     /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole numbers.
     /// - **Wayland / Windows:** Not implemented.
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_resize_increments<S: Into<Size>>(&self, increments: Option<S>) {
         self.window
@@ -795,7 +795,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11 / Redox OS:** Not implemented.
+    /// - **Wayland / X11 / Orbital:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         self.window.set_enabled_buttons(buttons)
@@ -805,7 +805,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11 / Redox OS:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Wayland / X11 / Orbital:** Not implemented. Always returns [`WindowButtons::all`].
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
     pub fn enabled_buttons(&self) -> WindowButtons {
         self.window.enabled_buttons()
@@ -815,7 +815,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **Wayland:** Un-minimize is unsupported.
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
@@ -826,7 +826,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -836,7 +836,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window.is_maximized()
@@ -861,7 +861,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
-    /// - **Android / Redox OS:** Unsupported.
+    /// - **Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen.map(|f| f.into()))
@@ -872,7 +872,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android / Redox OS:** Will always return `None`.
+    /// - **Android / Orbital:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
@@ -916,7 +916,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / macOS / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / macOS / Orbital:** Unsupported.
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -952,7 +952,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
@@ -978,7 +978,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -997,7 +997,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / Orbital:** Unsupported.
     #[inline]
     pub fn focus_window(&self) {
         self.window.focus_window()
@@ -1012,7 +1012,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
@@ -1029,7 +1029,7 @@ impl Window {
     /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
     /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
-    /// - **iOS / Android / Web / x11 / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {
         self.window.set_theme(theme)
@@ -1040,7 +1040,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **iOS / Android / Web / Wayland / x11 / Redox OS:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
@@ -1052,7 +1052,7 @@ impl Window {
     ///
     /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
     /// prevent all apps from reading the window content, for instance, QuickTime.
-    /// - **iOS / Android / x11 / Wayland / Web / Redox OS:** Unsupported.
+    /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
@@ -1077,7 +1077,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Redox OS:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window.set_cursor_icon(cursor);
@@ -1100,7 +1100,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Redox OS:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position.into())
@@ -1137,7 +1137,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS / Android / Redox OS:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)
@@ -1153,7 +1153,7 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web / Redox OS:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
@@ -1166,7 +1166,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11 / Redox OS:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_hittest(hittest)
@@ -1273,7 +1273,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web / Redox OS:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1284,7 +1284,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Redox OS:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 

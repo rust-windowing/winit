@@ -1,1 +1,1 @@
-// There are no Redox OS specific traits yet.
+// There are no Orbital specific traits yet.

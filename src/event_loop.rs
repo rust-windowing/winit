@@ -335,7 +335,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / macOS / iOS / Android / Web / Redox OS:** Unsupported.
+    /// - **Wayland / macOS / iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {

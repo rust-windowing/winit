@@ -50,7 +50,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** On Android, switched to using [`android-activity`](https://github.com/rib/android-activity) crate as a glue layer instead of [`ndk-glue`](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue). See [README.md#Android](https://github.com/rust-windowing/winit#Android) for more details. ([#2444](https://github.com/rust-windowing/winit/pull/2444))
 - **Breaking:** Removed support for `raw-window-handle` version `0.4`
 - On Wayland, `RedrawRequested` not emitted during resize.
-- Added Redox OS support
+- Added Orbital support for Redox OS
 
 # 0.27.5
 

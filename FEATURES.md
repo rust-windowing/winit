@@ -8,7 +8,7 @@ be used to create both games and applications. It supports the main graphical pl
   - Unix
     - via X11
     - via Wayland
-  - Redox OS
+  - Redox OS, via Orbital
 - Mobile
   - iOS
   - Android

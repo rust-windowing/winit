@@ -61,7 +61,7 @@ impl VideoMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Redox OS:** Always returns 32.
+    /// - **Wayland / Orbital:** Always returns 32.
     /// - **iOS:** Always returns 32.
     #[inline]
     pub fn bit_depth(&self) -> u16 {
