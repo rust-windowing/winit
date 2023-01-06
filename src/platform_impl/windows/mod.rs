@@ -29,6 +29,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub drag_and_drop: bool,
     pub skip_taskbar: bool,
     pub decoration_shadow: bool,
+    pub tool_window: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -41,6 +42,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             drag_and_drop: true,
             skip_taskbar: false,
             decoration_shadow: false,
+            tool_window: false,
         }
     }
 }
