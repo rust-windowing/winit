@@ -927,14 +927,12 @@ impl<'a, T: 'static> InitData<'a, T> {
             window_state: win.window_state.clone(),
             event_loop_runner: self.event_loop.runner_shared.clone(),
             _file_drop_handler: file_drop_handler,
-            userdata_removed: Cell::new(false),
-            recurse_depth: Cell::new(0),
         }
     }
 
     // Returns a pointer to window user data on success.
     // The user data will be registered for the window and can be accessed within the window event callback.
-    pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
+    pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<super::event_loop::WindowData<T>> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| {
             let window = self.create_window(window);
@@ -942,10 +940,9 @@ impl<'a, T: 'static> InitData<'a, T> {
             (window, window_data)
         });
 
-        result.map(|(win, userdata)| {
+        result.map(|(win, window_data)| {
             self.window = Some(win);
-            let userdata = Box::into_raw(Box::new(userdata));
-            userdata as _
+            window_data
         })
     }
 
@@ -1092,6 +1089,7 @@ where
     };
 
     let (style, ex_style) = window_flags.to_window_styles();
+    trace!("Calling CreateWindowExW");
     let handle = CreateWindowExW(
         ex_style,
         class_name.as_ptr(),
@@ -1106,6 +1104,7 @@ where
         util::get_instance_handle(),
         &mut initdata as *mut _ as *mut _,
     );
+    trace!("Returned from CreateWindowExW");
 
     // If the window creation in `InitData` panicked, then should resume panicking here
     if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
