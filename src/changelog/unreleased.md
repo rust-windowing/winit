@@ -72,6 +72,7 @@ changelog entry.
 - On X11, Wayland, Windows and macOS, improved scancode conversions for more obscure key codes.
 - Add ability to make non-activating window on macOS using `NSPanel` with `NSWindowStyleMask::NonactivatingPanel`.
 - On Windows, add `IconExtWindows::from_resource_name`.
+- On Windows, add `WindowAttributesExtWindows::with_tool_window` to create a window with the `WS_EX_TOOLWINDOW` ex\_style.
 - Implement `MonitorHandleProvider` for `MonitorHandle` to access common monitor API.
 
 ### Changed

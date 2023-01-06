@@ -502,6 +502,9 @@ pub trait WindowAttributesExtWindows {
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
 
+    /// whether to apply WS_EX_TOOLWINDOW to both hide window from taskbar and remove animations
+    fn with_tool_window(self, tool_window: bool) -> Self;
+
     /// Sets system-drawn backdrop type.
     ///
     /// Requires Windows 11 build 22523+.
@@ -577,6 +580,12 @@ impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_tool_window(mut self, tool_window: bool) -> Self {
+        self.platform_specific.tool_window = tool_window;
         self
     }
 
