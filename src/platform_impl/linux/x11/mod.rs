@@ -40,7 +40,7 @@ use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use self::{
     dnd::{Dnd, DndState},
-    event_processor::EventProcessor,
+    event_processor::{EventProcessor, PenStatus},
     ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
     util::modifiers::ModifierKeymap,
 };
@@ -271,6 +271,7 @@ impl<T: 'static> EventLoop<T> {
             first_touch: None,
             active_window: None,
             is_composing: false,
+            pen_status: PenStatus::default(),
         };
 
         // Register for device hotplug events
@@ -721,6 +722,7 @@ struct Device {
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
     attachment: c_int,
+    pen: Option<PenInfo>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -736,13 +738,55 @@ enum ScrollOrientation {
     Horizontal,
 }
 
+#[derive(Debug, Copy, Clone)]
+struct ValuatorInfo {
+    axis: i32,
+    min: f64,
+    max: f64,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct PenInfo {
+    pressure: ValuatorInfo,
+    tilt_x: Option<ValuatorInfo>,
+    tilt_y: Option<ValuatorInfo>,
+}
+
+#[derive(Debug)]
+pub(crate) struct PenAtoms {
+    pub pressure: ffi::Atom,
+    pub tilt_x: ffi::Atom,
+    pub tilt_y: ffi::Atom,
+}
+
+impl PenAtoms {
+    pub fn new(xconn: &Arc<XConnection>) -> Self {
+        PenAtoms {
+            pressure: unsafe { xconn.get_atom_unchecked(b"Abs Pressure\0") },
+            tilt_x: unsafe { xconn.get_atom_unchecked(b"Abs Tilt X\0") },
+            tilt_y: unsafe { xconn.get_atom_unchecked(b"Abs Tilt Y\0") },
+        }
+    }
+}
+
 impl Device {
-    fn new(info: &ffi::XIDeviceInfo) -> Self {
+    fn new(atoms: &PenAtoms, info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
+        let mut pen = PenInfo {
+            pressure: ValuatorInfo {
+                min: 0.,
+                max: 0.,
+                axis: 0,
+            },
+            tilt_x: None,
+            tilt_y: None,
+        };
+        let mut has_pressure = false;
+
         if Device::physical_device(info) {
-            // Identify scroll axes
+            // Identify scroll, pressure, and tilt axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
                 if class._type == ffi::XIScrollClass {
@@ -761,6 +805,23 @@ impl Device {
                             position: 0.0,
                         },
                     ));
+                } else if class._type == ffi::XIValuatorClass {
+                    let info = unsafe {
+                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                    };
+                    let valuator_info = ValuatorInfo {
+                        axis: info.number,
+                        min: info.min,
+                        max: info.max,
+                    };
+                    if info.label == atoms.pressure {
+                        pen.pressure = valuator_info;
+                        has_pressure = true;
+                    } else if info.label == atoms.tilt_x {
+                        pen.tilt_x = Some(valuator_info);
+                    } else if info.label == atoms.tilt_y {
+                        pen.tilt_y = Some(valuator_info);
+                    }
                 }
             }
         }
@@ -769,6 +830,7 @@ impl Device {
             _name: name.into_owned(),
             scroll_axes,
             attachment: info.attachment,
+            pen: has_pressure.then_some(pen),
         };
         device.reset_scroll_position(info);
         device

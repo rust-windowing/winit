@@ -976,8 +976,36 @@ pub struct Touch {
     ///
     /// - Only available on **iOS** 9.0+ and **Windows** 8+.
     pub force: Option<Force>,
+
+
+    /// Describes an press with a digital pen. Is `None` if the Touch event was not triggered
+    /// by a digital pen
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **Android** and **Windows** 8+.
+    pub pen_state: Option<PenState>,
+
     /// Unique identifier of a finger.
     pub id: u64,
+}
+
+/// Describes the physical state of a digital pen
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PenState {
+    /// The clockwise rotation of the pointer normalized in a range of 0 to 359.
+    /// Defaults to 0 if not available on platform.
+    pub rotation: f64,
+    /// The angle of tilt of the pointer in a range of -90 to +90 for each axis,
+    /// with a positive value indicating a tilt to the right or towards the user.
+    /// Defaults to (0, 0) if not available on platform.
+    pub tilt: (f64, f64),
+    /// The barrel button is pressed.
+    pub barrel: bool,
+    /// The pen is inverted.
+    pub inverted: bool,
+    /// The eraser button is pressed.
+    pub eraser: bool,
 }
 
 /// Describes the force of a touch event
