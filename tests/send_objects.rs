@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 fn needs_send<T: Send>() {}
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(wasm_platform))]
 #[test]
 fn event_loop_proxy_send() {
     #[allow(dead_code)]
@@ -11,7 +11,7 @@ fn event_loop_proxy_send() {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(wasm_platform))]
 #[test]
 fn window_send() {
     // ensures that `winit::Window` implements `Send`

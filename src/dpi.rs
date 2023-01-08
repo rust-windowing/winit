@@ -519,18 +519,8 @@ impl Size {
             max.into().to_physical::<f64>(scale_factor),
         );
 
-        let clamp = |input: f64, min: f64, max: f64| {
-            if input < min {
-                min
-            } else if input > max {
-                max
-            } else {
-                input
-            }
-        };
-
-        let width = clamp(input.width, min.width, max.width);
-        let height = clamp(input.height, min.height, max.height);
+        let width = input.width.clamp(min.width, max.width);
+        let height = input.height.clamp(min.height, max.height);
 
         PhysicalSize::new(width, height).into()
     }

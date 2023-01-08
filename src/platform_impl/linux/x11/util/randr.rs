@@ -126,11 +126,8 @@ impl XConnection {
 
         let scale_factor = match dpi_env {
             EnvVarDPI::Randr => calc_dpi_factor(
-                ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
+                ((*crtc).width, (*crtc).height),
+                ((*output_info).mm_width as _, (*output_info).mm_height as _),
             ),
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
@@ -146,11 +143,8 @@ impl XConnection {
                     dpi / 96.
                 } else {
                     calc_dpi_factor(
-                        ((*crtc).width as u32, (*crtc).height as u32),
-                        (
-                            (*output_info).mm_width as u64,
-                            (*output_info).mm_height as u64,
-                        ),
+                        ((*crtc).width, (*crtc).height),
+                        ((*output_info).mm_width as _, (*output_info).mm_height as _),
                     )
                 }
             }

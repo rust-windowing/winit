@@ -268,7 +268,7 @@ impl<T: 'static> EventLoop<T> {
                     PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
                     }
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     _ => unreachable!(),
                 };
 
@@ -438,6 +438,13 @@ impl<T: 'static> EventLoop<T> {
                             .unwrap()
                             .refresh_frame = false;
 
+                        // Queue redraw requested.
+                        state
+                            .window_user_requests
+                            .get_mut(window_id)
+                            .unwrap()
+                            .redraw_requested = true;
+
                         physical_size
                     });
 
@@ -561,7 +568,7 @@ impl<T: 'static> EventLoop<T> {
     fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => unreachable!(),
         };
 
@@ -571,7 +578,7 @@ impl<T: 'static> EventLoop<T> {
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => unreachable!(),
         };
 

@@ -1,4 +1,4 @@
-#![cfg(target_os = "windows")]
+#![cfg(windows_platform)]
 
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
@@ -69,7 +69,7 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
         CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
@@ -140,7 +140,7 @@ impl Window {
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::WindowArea::Outer.get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
+            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
@@ -150,7 +150,7 @@ impl Window {
         if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
+        Ok(PhysicalPosition::new(position.x, position.y))
     }
 
     #[inline]
@@ -1062,22 +1062,25 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
-    let parent = match pl_attribs.parent {
-        Parent::ChildOf(parent) => {
+    let parent = match attributes.parent_window {
+        Some(RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
-            Some(parent)
+            Some(handle.hwnd as HWND)
         }
-        Parent::OwnedBy(parent) => {
-            window_flags.set(WindowFlags::POPUP, true);
-            Some(parent)
-        }
-        Parent::None => {
-            window_flags.set(WindowFlags::ON_TASKBAR, true);
-            None
-        }
+        Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
+        None => match pl_attribs.owner {
+            Some(parent) => {
+                window_flags.set(WindowFlags::POPUP, true);
+                Some(parent)
+            }
+            None => {
+                window_flags.set(WindowFlags::ON_TASKBAR, true);
+                None
+            }
+        },
     };
 
     let mut initdata = InitData {

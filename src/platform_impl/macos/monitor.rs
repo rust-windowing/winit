@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{collections::VecDeque, fmt};
 
 use core_foundation::{

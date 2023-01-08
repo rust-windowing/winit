@@ -1,7 +1,6 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
-use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -61,7 +60,7 @@ impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -125,7 +124,7 @@ impl WindowExtX11 for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -134,7 +133,7 @@ impl WindowExtX11 for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -143,7 +142,7 @@ impl WindowExtX11 for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -152,7 +151,7 @@ impl WindowExtX11 for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -161,7 +160,7 @@ impl WindowExtX11 for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             _ => None,
         }
     }
@@ -172,8 +171,6 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
-    /// Build window with parent window.
-    fn with_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -224,12 +221,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
-        self
-    }
-
-    #[inline]
-    fn with_parent(mut self, parent_id: WindowId) -> Self {
-        self.platform_specific.parent_id = Some(parent_id.0);
         self
     }
 
