@@ -10,11 +10,13 @@ pub mod util;
 mod window;
 mod xdisplay;
 
-pub use self::{
+pub(crate) use self::{
     monitor::{MonitorHandle, VideoMode},
     window::UnownedWindow,
-    xdisplay::{XConnection, XError, XNotSupported},
+    xdisplay::XConnection,
 };
+
+pub use self::xdisplay::{XError, XNotSupported};
 
 use std::{
     cell::{Cell, RefCell},
@@ -135,7 +137,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
+    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
@@ -538,7 +540,7 @@ pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
 impl<T> EventLoopWindowTarget<T> {
     /// Returns the `XConnection` of this events loop.
     #[inline]
-    pub fn x_connection(&self) -> &Arc<XConnection> {
+    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
     }
 
@@ -627,12 +629,13 @@ impl<'a> Deref for DeviceInfo<'a> {
 pub struct DeviceId(c_int);
 
 impl DeviceId {
+    #[allow(unused)]
     pub const unsafe fn dummy() -> Self {
         DeviceId(0)
     }
 }
 
-pub struct Window(Arc<UnownedWindow>);
+pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
     type Target = UnownedWindow;

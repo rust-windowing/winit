@@ -263,7 +263,7 @@ impl PotentialInputMethod {
 // By logging this struct, you get a sequential listing of every locale modifier tried, where it
 // came from, and if it succeeded.
 #[derive(Debug, Clone)]
-pub struct PotentialInputMethods {
+pub(crate) struct PotentialInputMethods {
     // On correctly configured systems, the XMODIFIERS environment variable tells us everything we
     // need to know.
     xmodifiers: Option<PotentialInputMethod>,
