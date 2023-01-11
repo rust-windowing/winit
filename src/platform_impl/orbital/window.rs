@@ -274,6 +274,11 @@ impl Window {
     pub fn set_minimized(&self, _minimized: bool) {}
 
     #[inline]
+    pub fn is_minimized(&self) -> bool {
+        false
+    }
+
+    #[inline]
     pub fn set_maximized(&self, _maximized: bool) {}
 
     #[inline]

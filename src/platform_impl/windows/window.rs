@@ -40,7 +40,7 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, IsIconic,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
@@ -461,6 +461,11 @@ impl Window {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> bool {
+        unsafe { IsIconic(self.hwnd()) == 1 }
     }
 
     #[inline]

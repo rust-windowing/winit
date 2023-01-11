@@ -455,6 +455,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_minimized())
+    }
+
+    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         x11_or_wayland!(match self; Window(w) => w.fullscreen())
     }

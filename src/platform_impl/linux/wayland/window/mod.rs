@@ -450,6 +450,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> bool {
+        false
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {

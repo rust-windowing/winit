@@ -208,6 +208,11 @@ impl Inner {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
 
+    pub fn is_minimized(&self) -> bool {
+        warn!("`Window::is_minimized` is ignored on iOS");
+        false
+    }
+
     pub fn set_maximized(&self, _maximized: bool) {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
