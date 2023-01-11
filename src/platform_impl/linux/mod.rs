@@ -34,8 +34,8 @@ use crate::{
     },
     icon::Icon,
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -422,6 +422,11 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
     }
 
     #[inline]

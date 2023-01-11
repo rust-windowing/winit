@@ -19,7 +19,8 @@ use crate::platform_impl::{
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+    WindowButtons,
 };
 
 use super::env::WindowingFeatures;
@@ -558,6 +559,11 @@ impl Window {
         self.send_request(WindowRequest::DragWindow);
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]

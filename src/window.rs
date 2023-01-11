@@ -1159,6 +1159,19 @@ impl Window {
         self.window.drag_window()
     }
 
+    /// Resizes the window with the left mouse button until the button is released.
+    ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
+    /// ## Platform-specific
+    ///
+    /// Only X11 is supported at this time.
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.window.drag_resize_window(direction)
+    }
+
     /// Modifies whether the window catches cursor events.
     ///
     /// If `true`, the window will catch the cursor events. If `false`, events are passed through
@@ -1350,6 +1363,35 @@ pub enum CursorIcon {
 impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
+    }
+}
+
+/// Defines the orientation that a window resize will be performed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ResizeDirection {
+    East,
+    North,
+    NorthEast,
+    NorthWest,
+    South,
+    SouthEast,
+    SouthWest,
+    West,
+}
+
+impl From<ResizeDirection> for CursorIcon {
+    fn from(direction: ResizeDirection) -> Self {
+        use ResizeDirection::*;
+        match direction {
+            East => CursorIcon::EResize,
+            North => CursorIcon::NResize,
+            NorthEast => CursorIcon::NeResize,
+            NorthWest => CursorIcon::NwResize,
+            South => CursorIcon::SResize,
+            SouthEast => CursorIcon::SeResize,
+            SouthWest => CursorIcon::SwResize,
+            West => CursorIcon::WResize,
+        }
     }
 }
 

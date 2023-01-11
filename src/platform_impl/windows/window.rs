@@ -72,8 +72,8 @@ use crate::{
         Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -430,6 +430,11 @@ impl Window {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
