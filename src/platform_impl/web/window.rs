@@ -280,6 +280,7 @@ impl Window {
     #[inline]
     pub fn is_minimized(&self) -> bool {
         // Intentionally a no-op, as canvases cannot be 'minimized'
+        false
     }
 
     #[inline]
