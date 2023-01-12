@@ -114,7 +114,9 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let _application = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
+            let application = UIApplication::shared(MainThreadMarker::new().unwrap());
+            assert!(
+                application.is_none(),
                 "\
                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
