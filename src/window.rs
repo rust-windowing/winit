@@ -306,7 +306,9 @@ impl WindowBuilder {
     /// Sets whether the background of the window should be transparent.
     ///
     /// If this is `true`, writing colors with alpha values different than
-    /// `1.0` will produce a transparent window.
+    /// `1.0` will produce a transparent window. On some platforms this
+    /// is more of a hint for the system and you'd still have the alpha
+    /// buffer. To control it see [`Window::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -733,6 +735,23 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
+    }
+
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a missmatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowBuilder::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.window.set_transparent(transparent)
     }
 
     /// Modifies the window's visibility.

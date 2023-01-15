@@ -325,6 +325,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }

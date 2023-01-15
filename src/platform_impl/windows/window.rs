@@ -113,6 +113,8 @@ impl Window {
         }
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         let window = self.window.clone();

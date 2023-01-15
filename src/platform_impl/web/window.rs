@@ -87,6 +87,8 @@ impl Window {
         self.canvas.borrow().set_attribute("alt", title);
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
     }
