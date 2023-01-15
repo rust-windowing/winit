@@ -241,6 +241,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
+
+    #[inline]
     pub fn set_visible(&self, _visibility: bool) {}
 
     #[inline]

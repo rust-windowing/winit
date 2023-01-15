@@ -748,7 +748,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows / X11 / Web / iOS / Android:** Unsupported.
+    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window.set_transparent(transparent)
