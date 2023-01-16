@@ -824,6 +824,10 @@ impl Window {
 
     /// Gets the window's current minimized state.
     ///
+    /// ## Note
+    ///
+    /// You shouldn't stop rendering for minimized windows, however you could lower the fps.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland / Orbital:** Unsupported.
