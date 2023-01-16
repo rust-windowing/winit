@@ -502,15 +502,16 @@ impl<T: 'static> EventLoop<T> {
                         let pointers: Box<
                             dyn Iterator<Item = android_activity::input::Pointer<'_>>,
                         > = match phase {
-                            event::TouchPhase::Started
-                            | event::TouchPhase::Ended => {
+                            event::TouchPhase::Started => {
                                 Box::new(
                                     std::iter::once(motion_event.pointer_at_index(
-                                        motion_event.pointer_index(),
+                                        // In case it could be multi-touch gestures this requires the index of the last pointer.
+                                        motion_event.pointer_count() - 1_usize,
                                     ))
                                 )
                             },
-                            event::TouchPhase::Moved
+                            event::TouchPhase::Ended
+                            | event::TouchPhase::Moved
                             | event::TouchPhase::Cancelled => {
                                 Box::new(motion_event.pointers())
                             }
