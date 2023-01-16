@@ -856,8 +856,8 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn is_minimized(&self) -> bool {
-        self.isMiniaturized()
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(self.isMiniaturized())
     }
 
     #[inline]

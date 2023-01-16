@@ -450,8 +450,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn is_minimized(&self) -> bool {
-        false
+    pub fn is_minimized(&self) -> Option<bool> {
+        None
     }
 
     #[inline]

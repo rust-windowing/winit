@@ -832,7 +832,7 @@ impl Window {
     ///
     /// - **iOS / Android / Web / Wayland / Orbital:** Unsupported.
     #[inline]
-    pub fn is_minimized(&self) -> bool {
+    pub fn is_minimized(&self) -> Option<bool> {
         self.window.is_minimized()
     }
 

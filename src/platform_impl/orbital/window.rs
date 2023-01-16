@@ -274,8 +274,8 @@ impl Window {
     pub fn set_minimized(&self, _minimized: bool) {}
 
     #[inline]
-    pub fn is_minimized(&self) -> bool {
-        false
+    pub fn is_minimized(&self) -> Option<bool> {
+        None
     }
 
     #[inline]
