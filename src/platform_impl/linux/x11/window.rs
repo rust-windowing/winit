@@ -801,7 +801,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn is_minimized(&self) -> bool {
+    pub fn is_minimized(&self) -> Option<bool> {
         let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
         let state = self
             .xconn
