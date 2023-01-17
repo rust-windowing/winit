@@ -809,10 +809,7 @@ impl UnownedWindow {
         let hidden_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_HIDDEN\0") };
 
         Some(match state {
-            Ok(atoms) => {
-                let hidden = atoms.iter().any(|atom: &ffi::Atom| *atom == hidden_atom);
-                hidden
-            }
+            Ok(atoms) => atoms.iter().any(|atom: &ffi::Atom| *atom == hidden_atom),
             _ => false,
         })
     }
