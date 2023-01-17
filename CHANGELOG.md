@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.28.0
+
 - Add `Window::has_focus`.
 - On Windows, fix `Window::set_minimized(false)` not working for windows minimized by `Win + D` hotkey.
 - **Breaking:** On Web, touch input no longer fires `WindowEvent::Cursor*`, `WindowEvent::MouseInput`, or `DeviceEvent::MouseMotion` like other platforms, but instead it fires `WindowEvent::Touch`.
