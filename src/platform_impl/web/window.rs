@@ -3,8 +3,8 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-    WindowId as RootWI, WindowLevel,
+    CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+    WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -23,6 +23,7 @@ pub struct Window {
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
+    has_focus: Rc<RefCell<bool>>,
 }
 
 impl Window {
@@ -42,7 +43,8 @@ impl Window {
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&canvas, id, prevent_default);
+        let has_focus = Rc::new(RefCell::new(false));
+        target.register(&canvas, id, prevent_default, has_focus.clone());
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -62,6 +64,7 @@ impl Window {
             register_redraw_request,
             resize_notify_fn,
             destroy_fn: Some(destroy_fn),
+            has_focus,
         };
 
         backend::set_canvas_size(
@@ -86,6 +89,8 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         self.canvas.borrow().set_attribute("alt", title);
     }
+
+    pub fn set_transparent(&self, _transparent: bool) {}
 
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
@@ -268,6 +273,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
@@ -398,6 +408,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        *self.has_focus.borrow()
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

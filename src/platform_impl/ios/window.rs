@@ -26,8 +26,8 @@ use crate::{
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -41,6 +41,10 @@ pub struct Inner {
 impl Inner {
     pub fn set_title(&self, _title: &str) {
         debug!("`Window::set_title` is ignored on iOS")
+    }
+
+    pub fn set_transparent(&self, _transparent: bool) {
+        debug!("`Window::set_transparent` is ignored on iOS")
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -200,6 +204,10 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
@@ -343,6 +351,10 @@ impl Inner {
     pub fn theme(&self) -> Option<Theme> {
         warn!("`Window::theme` is ignored on iOS");
         None
+    }
+
+    pub fn has_focus(&self) -> bool {
+        self.window.isKeyWindow()
     }
 
     #[inline]

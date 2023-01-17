@@ -32,8 +32,8 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -506,6 +506,10 @@ impl WinitWindow {
         util::set_title_sync(self, title);
     }
 
+    pub fn set_transparent(&self, transparent: bool) {
+        self.setOpaque(!transparent)
+    }
+
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => util::make_key_and_order_front_sync(self),
@@ -782,6 +786,11 @@ impl WinitWindow {
         let event = NSApp().currentEvent();
         self.performWindowDragWithEvent(event.as_deref());
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
@@ -1211,6 +1220,10 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.isKeyWindow()
+    }
+
     pub fn set_theme(&self, theme: Option<Theme>) {
         set_ns_theme(theme);
         self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));

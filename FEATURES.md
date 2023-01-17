@@ -1,10 +1,10 @@
 # Winit Scope
 
 Winit aims to expose an interface that abstracts over window creation and input handling, and can
-be used to create both games and applications. It supports the main graphical platforms:
+be used to create both games and applications. It supports the following main graphical platforms:
 - Desktop
-  - Windows
-  - macOS
+  - Windows 7+ (10+ is tested regularly)
+  - macOS 10.7+ (10.14+ is tested regularly)
   - Unix
     - via X11
     - via Wayland
@@ -215,6 +215,7 @@ Legend:
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |**N/A** |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |**N/A** |
 |Drag window with cursor |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |**N/A** |
+|Resize with cursor      |❌         |❌       |✔️       |❌       |**N/A**|**N/A**|**N/A**   |**N/A** |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.

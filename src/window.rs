@@ -306,7 +306,9 @@ impl WindowBuilder {
     /// Sets whether the background of the window should be transparent.
     ///
     /// If this is `true`, writing colors with alpha values different than
-    /// `1.0` will produce a transparent window.
+    /// `1.0` will produce a transparent window. On some platforms this
+    /// is more of a hint for the system and you'd still have the alpha
+    /// buffer. To control it see [`Window::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -735,6 +737,23 @@ impl Window {
         self.window.set_title(title)
     }
 
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a missmatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowBuilder::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.window.set_transparent(transparent)
+    }
+
     /// Modifies the window's visibility.
     ///
     /// If `false`, this will hide the window. If `true`, this will show the window.
@@ -1018,6 +1037,16 @@ impl Window {
         self.window.focus_window()
     }
 
+    /// Gets whether the window has keyboard focus.
+    ///
+    /// This queries the same state information as [`WindowEvent::Focused`].
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.window.has_focus()
+    }
+
     /// Requests user attention to the window, this has no effect if the application
     /// is already focused. How requesting for user attention manifests is platform dependent,
     /// see [`UserAttentionType`] for details.
@@ -1172,6 +1201,19 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
+    }
+
+    /// Resizes the window with the left mouse button until the button is released.
+    ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
+    /// ## Platform-specific
+    ///
+    /// Only X11 is supported at this time.
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.window.drag_resize_window(direction)
     }
 
     /// Modifies whether the window catches cursor events.
@@ -1365,6 +1407,35 @@ pub enum CursorIcon {
 impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
+    }
+}
+
+/// Defines the orientation that a window resize will be performed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ResizeDirection {
+    East,
+    North,
+    NorthEast,
+    NorthWest,
+    South,
+    SouthEast,
+    SouthWest,
+    West,
+}
+
+impl From<ResizeDirection> for CursorIcon {
+    fn from(direction: ResizeDirection) -> Self {
+        use ResizeDirection::*;
+        match direction {
+            East => CursorIcon::EResize,
+            North => CursorIcon::NResize,
+            NorthEast => CursorIcon::NeResize,
+            NorthWest => CursorIcon::NwResize,
+            South => CursorIcon::SResize,
+            SouthEast => CursorIcon::SeResize,
+            SouthWest => CursorIcon::SwResize,
+            West => CursorIcon::WResize,
+        }
     }
 }
 

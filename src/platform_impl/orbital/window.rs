@@ -241,6 +241,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
+
+    #[inline]
     pub fn set_visible(&self, _visibility: bool) {}
 
     #[inline]
@@ -354,6 +357,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_resize_window(
+        &self,
+        _direction: window::ResizeDirection,
+    ) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
@@ -383,6 +396,11 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Option<window::Theme> {
         None
+    }
+
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        false
     }
 
     #[inline]
