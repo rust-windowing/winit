@@ -339,7 +339,7 @@ pub enum WindowEvent<'a> {
     /// separately.
     DroppedFile {
         path: PathBuf,
-        // (x,y) coords in pixels relative to the top-left corner of the window.
+        /// The position of the mouse cursor, similar to [`WindowEvent::CursorMoved`].
         position: PhysicalPosition<f64>,
     },
 
