@@ -773,6 +773,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        let window_state = self.window_state.lock().unwrap();
+        window_state.has_active_focus()
+    }
+
     pub fn title(&self) -> String {
         let len = unsafe { GetWindowTextLengthW(self.window.0) } + 1;
         let mut buf = vec![0; len as usize];

@@ -605,6 +605,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        x11_or_wayland!(match self; Window(window) => window.has_focus())
+    }
+
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
     }

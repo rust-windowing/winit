@@ -348,6 +348,10 @@ impl Inner {
         None
     }
 
+    pub fn has_focus(&self) -> bool {
+        self.window.isKeyWindow()
+    }
+
     #[inline]
     pub fn set_theme(&self, _theme: Option<Theme>) {
         warn!("`Window::set_theme` is ignored on iOS");

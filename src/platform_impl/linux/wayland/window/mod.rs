@@ -79,6 +79,9 @@ pub struct Window {
 
     /// Grabbing mode.
     cursor_grab_mode: Mutex<CursorGrabMode>,
+
+    /// Whether the window has keyboard focus.
+    has_focus: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -244,6 +247,7 @@ impl Window {
         window.surface().commit();
 
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
+        let has_focus = Arc::new(AtomicBool::new(true));
 
         // We should trigger redraw and commit the surface for the newly created window.
         let mut window_user_request = WindowUserRequest::new();
@@ -258,6 +262,7 @@ impl Window {
             &event_loop_window_target.env,
             window,
             size.clone(),
+            has_focus.clone(),
             window_requests.clone(),
         );
 
@@ -318,6 +323,7 @@ impl Window {
             resizeable: AtomicBool::new(attributes.resizable),
             decorated: AtomicBool::new(attributes.decorations),
             cursor_grab_mode: Mutex::new(CursorGrabMode::None),
+            has_focus,
         };
 
         Ok(window)
@@ -650,6 +656,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.has_focus.load(Ordering::Relaxed)
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

@@ -23,6 +23,7 @@ pub struct Window {
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
+    has_focus: Rc<RefCell<bool>>,
 }
 
 impl Window {
@@ -42,7 +43,8 @@ impl Window {
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&canvas, id, prevent_default);
+        let has_focus = Rc::new(RefCell::new(false));
+        target.register(&canvas, id, prevent_default, has_focus.clone());
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -62,6 +64,7 @@ impl Window {
             register_redraw_request,
             resize_notify_fn,
             destroy_fn: Some(destroy_fn),
+            has_focus,
         };
 
         backend::set_canvas_size(
@@ -399,6 +402,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        *self.has_focus.borrow()
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

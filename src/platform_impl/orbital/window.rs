@@ -394,6 +394,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        false
+    }
+
+    #[inline]
     pub fn set_theme(&self, _theme: Option<window::Theme>) {}
 }
 
