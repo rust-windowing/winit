@@ -37,7 +37,11 @@ fn main() {
             use winit::event::WindowEvent::*;
             match event {
                 CloseRequested => control_flow.set_exit(),
-                DroppedFile { path, .. } => {
+                HoveredFile { position, .. } => {
+                    dbg!("Hovered", position);
+                }
+                DroppedFile { path, position } => {
+                    dbg!("Dropped", position);
                     window.set_window_icon(Some(load_icon(&path)));
                 }
                 _ => (),

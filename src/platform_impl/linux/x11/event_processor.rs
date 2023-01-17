@@ -275,15 +275,25 @@ impl<T: 'static> EventProcessor<T> {
                     let (source_window, state) = if let Some(source_window) = self.dnd.source_window
                     {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
+                            let coords = wt
+                                .xconn
+                                .translate_coords(
+                                    source_window,
+                                    window,
+                                    self.dnd.position.0 as _,
+                                    self.dnd.position.1 as _,
+                                )
+                                .expect("Failed to translate window coordinates");
+
+                            let position =
+                                PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
+
                             for path in path_list {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::DroppedFile {
                                         path: path.clone(),
-                                        position: PhysicalPosition::new(
-                                            self.dnd.position.0 as f64,
-                                            self.dnd.position.1 as f64,
-                                        ),
+                                        position,
                                     },
                                 });
                             }
@@ -323,15 +333,27 @@ impl<T: 'static> EventProcessor<T> {
                     if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
                         let parse_result = self.dnd.parse_data(&mut data);
                         if let Ok(ref path_list) = parse_result {
+                            let source_window = self.dnd.source_window.unwrap_or(wt.root);
+
+                            let coords = wt
+                                .xconn
+                                .translate_coords(
+                                    source_window,
+                                    window,
+                                    self.dnd.position.0 as _,
+                                    self.dnd.position.1 as _,
+                                )
+                                .expect("Failed to translate window coordinates");
+
+                            let position =
+                                PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
+
                             for path in path_list {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::HoveredFile {
                                         path: path.clone(),
-                                        position: PhysicalPosition::new(
-                                            self.dnd.position.0 as f64,
-                                            self.dnd.position.1 as f64,
-                                        ),
+                                        position,
                                     },
                                 });
                             }

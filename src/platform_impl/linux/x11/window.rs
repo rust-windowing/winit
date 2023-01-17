@@ -1066,8 +1066,8 @@ impl UnownedWindow {
         // This should be okay to unwrap since the only error XTranslateCoordinates can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn
-            .translate_coords(self.xwindow, self.root)
-            .map(|coords| (coords.x_rel_root, coords.y_rel_root))
+            .translate_coords_root(self.xwindow, self.root)
+            .map(|coords| (coords.x_rel, coords.y_rel))
             .unwrap()
     }
 
