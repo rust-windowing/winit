@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use super::*;
 
-pub struct XSmartPointer<'a, T> {
+pub(crate) struct XSmartPointer<'a, T> {
     xconn: &'a XConnection,
     pub ptr: *mut T,
 }

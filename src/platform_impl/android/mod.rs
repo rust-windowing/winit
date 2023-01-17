@@ -5,7 +5,7 @@ use std::{
     hash::Hash,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, RwLock,
     },
     time::{Duration, Instant},
 };
@@ -14,6 +14,7 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use once_cell::sync::Lazy;
 use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
@@ -24,8 +25,10 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, Theme, WindowButtons, WindowLevel},
+    window::{self, CursorGrabMode, ResizeDirection, Theme, WindowButtons, WindowLevel},
 };
+
+static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
 
 fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
     match keycode {
@@ -394,6 +397,7 @@ impl<T: 'static> EventLoop<T> {
                     warn!("TODO: find a way to notify application of content rect change");
                 }
                 MainEvent::GainedFocus => {
+                    *HAS_FOCUS.write().unwrap() = true;
                     sticky_exit_callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
@@ -405,6 +409,7 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 MainEvent::LostFocus => {
+                    *HAS_FOCUS.write().unwrap() = false;
                     sticky_exit_callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
@@ -947,6 +952,8 @@ impl Window {
 
     pub fn set_title(&self, _title: &str) {}
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     pub fn set_visible(&self, _visibility: bool) {}
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -1021,6 +1028,15 @@ impl Window {
         ))
     }
 
+    pub fn drag_resize_window(
+        &self,
+        _direction: ResizeDirection,
+    ) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
@@ -1051,6 +1067,10 @@ impl Window {
 
     pub fn theme(&self) -> Option<Theme> {
         None
+    }
+
+    pub fn has_focus(&self) -> bool {
+        *HAS_FOCUS.read().unwrap()
     }
 
     pub fn title(&self) -> String {

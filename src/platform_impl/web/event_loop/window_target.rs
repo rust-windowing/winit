@@ -56,6 +56,7 @@ impl<T> EventLoopWindowTarget<T> {
         canvas: &Rc<RefCell<backend::Canvas>>,
         id: WindowId,
         prevent_default: bool,
+        has_focus: Rc<RefCell<bool>>,
     ) {
         self.runner.add_canvas(RootWindowId(id), canvas);
         let mut canvas = canvas.borrow_mut();
@@ -65,7 +66,9 @@ impl<T> EventLoopWindowTarget<T> {
         canvas.on_touch_end(prevent_default);
 
         let runner = self.runner.clone();
+        let has_focus_clone = has_focus.clone();
         canvas.on_blur(move || {
+            *has_focus_clone.borrow_mut() = false;
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Focused(false),
@@ -73,7 +76,9 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
+        let has_focus_clone = has_focus.clone();
         canvas.on_focus(move || {
+            *has_focus_clone.borrow_mut() = true;
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Focused(true),
@@ -191,6 +196,8 @@ impl<T> EventLoopWindowTarget<T> {
         let runner_touch = self.runner.clone();
         canvas.on_mouse_press(
             move |pointer_id, position, button, modifiers| {
+                *has_focus.borrow_mut() = true;
+
                 // A mouse down event may come in without any prior CursorMoved events,
                 // therefore we should send a CursorMoved event to make sure that the
                 // user code has the correct cursor position.

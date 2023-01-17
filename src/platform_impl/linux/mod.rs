@@ -34,8 +34,8 @@ use crate::{
     },
     icon::Icon,
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -116,7 +116,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 }
 
 #[cfg(x11_platform)]
-pub static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
@@ -142,7 +142,7 @@ impl fmt::Display for OsError {
     }
 }
 
-pub enum Window {
+pub(crate) enum Window {
     #[cfg(x11_platform)]
     X(x11::Window),
     #[cfg(wayland_platform)]
@@ -325,6 +325,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }
@@ -422,6 +427,11 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
     }
 
     #[inline]
@@ -595,6 +605,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        x11_or_wayland!(match self; Window(window) => window.has_focus())
+    }
+
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
     }

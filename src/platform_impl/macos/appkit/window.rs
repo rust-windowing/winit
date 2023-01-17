@@ -192,6 +192,9 @@ extern_methods!(
         #[sel(isVisible)]
         pub fn isVisible(&self) -> bool;
 
+        #[sel(isKeyWindow)]
+        pub fn isKeyWindow(&self) -> bool;
+
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
 

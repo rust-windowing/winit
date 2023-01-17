@@ -943,6 +943,10 @@ impl<T: 'static> EventProcessor<T> {
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = true;
+                            }
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: Focused(true),
@@ -1014,6 +1018,10 @@ impl<T: 'static> EventProcessor<T> {
                                 window_id,
                                 event: WindowEvent::ModifiersChanged(ModifiersState::empty()),
                             });
+
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = false;
+                            }
 
                             callback(Event::WindowEvent {
                                 window_id,

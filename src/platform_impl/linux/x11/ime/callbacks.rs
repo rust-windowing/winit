@@ -8,7 +8,7 @@ use super::{
     input_method::PotentialInputMethods,
 };
 
-pub unsafe fn xim_set_callback(
+pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
     xim: ffi::XIM,
     field: *const c_char,
@@ -26,7 +26,7 @@ pub unsafe fn xim_set_callback(
 // * This is called per locale modifier, not per input method opened with that locale modifier.
 // * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt
 //   input contexts would always silently fail to use the input method.
-pub unsafe fn set_instantiate_callback(
+pub(crate) unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
@@ -41,7 +41,7 @@ pub unsafe fn set_instantiate_callback(
     xconn.check_errors()
 }
 
-pub unsafe fn unset_instantiate_callback(
+pub(crate) unsafe fn unset_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
@@ -56,7 +56,7 @@ pub unsafe fn unset_instantiate_callback(
     xconn.check_errors()
 }
 
-pub unsafe fn set_destroy_callback(
+pub(crate) unsafe fn set_destroy_callback(
     xconn: &Arc<XConnection>,
     im: ffi::XIM,
     inner: &ImeInner,
