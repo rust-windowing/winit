@@ -40,7 +40,7 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, IsIconic,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
@@ -462,7 +462,7 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
-        let is_minimized = self.is_minimized().unwrap();
+        let is_minimized = util::is_minimized(self.hwnd());
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
@@ -477,7 +477,7 @@ impl Window {
 
     #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
-        Some(unsafe { IsIconic(self.hwnd()) != false.into() })
+        Some(util::is_minimized(self.hwnd()))
     }
 
     #[inline]
@@ -810,7 +810,7 @@ impl Window {
         let window_flags = self.window_state_lock().window_flags();
 
         let is_visible = window_flags.contains(WindowFlags::VISIBLE);
-        let is_minimized = self.is_minimized().unwrap();
+        let is_minimized = util::is_minimized(self.hwnd());
         let is_foreground = window.0 == unsafe { GetForegroundWindow() };
 
         if is_visible && !is_minimized && !is_foreground {
