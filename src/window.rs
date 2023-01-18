@@ -842,7 +842,9 @@ impl Window {
     }
 
     /// Gets the window's current minimized state.
+    ///
     /// `None` will be returned, if the minimized state couldn't be determined.
+    ///
     /// ## Note
     ///
     /// - You shouldn't stop rendering for minimized windows, however you could lower the fps.
