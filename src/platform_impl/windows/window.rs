@@ -477,7 +477,7 @@ impl Window {
 
     #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
-        Some(unsafe { IsIconic(self.hwnd()) == 1 })
+        Some(unsafe { IsIconic(self.hwnd()) != false.into() })
     }
 
     #[inline]
