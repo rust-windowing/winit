@@ -688,42 +688,42 @@ declare_class!(
         fn mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("mouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Left, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(mouseUp:)]
         fn mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("mouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Left, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(rightMouseDown:)]
         fn right_mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("rightMouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Right, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(rightMouseUp:)]
         fn right_mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("rightMouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Right, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(otherMouseDown:)]
         fn other_mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("otherMouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Middle, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(otherMouseUp:)]
         fn other_mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("otherMouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Middle, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         // No tracing on these because that would be overly verbose
@@ -1001,7 +1001,9 @@ impl WinitView {
         }
     }
 
-    fn mouse_click(&mut self, event: &NSEvent, button: MouseButton, button_state: ElementState) {
+    fn mouse_click(&mut self, event: &NSEvent, button_state: ElementState) {
+        let button = mouse_button(event);
+
         self.update_potentially_stale_modifiers(event);
 
         let window_event = Event::WindowEvent {
@@ -1050,5 +1052,18 @@ impl WinitView {
         };
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
+    }
+}
+
+/// Get the mouse button from the NSEvent.
+fn mouse_button(event: &NSEvent) -> MouseButton {
+    // The buttonNumber property only makes sense for the mouse events:
+    // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
+    // For the other events, it's always set to 0.
+    match event.buttonNumber() {
+        0 => MouseButton::Left,
+        1 => MouseButton::Right,
+        2 => MouseButton::Middle,
+        n => MouseButton::Other(n as u16),
     }
 }
