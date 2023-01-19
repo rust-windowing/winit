@@ -95,7 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
-            has_focus: true,
+            has_focus: false,
         })
     }
 }

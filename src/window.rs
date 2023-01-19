@@ -409,9 +409,14 @@ impl WindowBuilder {
 
     /// Whether the window will be initially focused or not.
     ///
+    /// The window should be assumed as not focused by default
+    /// following by the [`WindowEvent::Focused`].
+    ///
     /// ## Platform-specific:
     ///
     /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
     #[inline]
     pub fn with_active(mut self, active: bool) -> WindowBuilder {
         self.window.active = active;

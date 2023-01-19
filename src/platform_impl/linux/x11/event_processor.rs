@@ -511,7 +511,24 @@ impl<T: 'static> EventProcessor<T> {
                     window.invalidate_cached_frame_extents();
                 });
             }
+            ffi::MapNotify => {
+                let xev: &ffi::XMapEvent = xev.as_ref();
+                let window = xev.window;
+                let window_id = mkwid(window);
 
+                // XXX re-issue the focus state when mapping the window.
+                //
+                // The purpose of it is to deliver initial focused state of the newly created
+                // window, given that we can't rely on `CreateNotify`, due to it being not
+                // sent.
+                let focus = self
+                    .with_window(window, |window| window.has_focus())
+                    .unwrap_or_default();
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Focused(focus),
+                });
+            }
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
 
