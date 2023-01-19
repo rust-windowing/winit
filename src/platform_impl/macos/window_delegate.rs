@@ -3,7 +3,7 @@
 use std::ptr;
 
 use objc2::declare::{Ivar, IvarDrop};
-use objc2::foundation::{NSArray, NSObject, NSPoint, NSString};
+use objc2::foundation::{NSArray, NSObject, NSPoint, NSRect, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::runtime::Object;
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
@@ -173,8 +173,13 @@ declare_class!(
             let filenames: Id<NSArray<NSString>, Shared> = unsafe { Id::cast(filenames) };
 
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let rect = NSRect {
+                origin: dl,
+                ..Default::default()
+            };
+            let y = util::bottom_left_to_top_left(rect);
             let scale_factor = self.window.scale_factor();
-            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(scale_factor);
+            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
@@ -203,8 +208,13 @@ declare_class!(
             let filenames: Id<NSArray<NSString>, Shared> = unsafe { Id::cast(filenames) };
 
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
+            let rect = NSRect {
+                origin: dl,
+                ..Default::default()
+            };
+            let y = util::bottom_left_to_top_left(rect);
             let scale_factor = self.window.scale_factor();
-            let position = LogicalPosition::<f64>::from((dl.x, dl.y)).to_physical(scale_factor);
+            let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
