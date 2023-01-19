@@ -11,6 +11,7 @@ use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activat
 
 use sctk::environment::Environment;
 use sctk::window::{Decorations, Window};
+use wayland_protocols::viewporter::client::wp_viewport::WpViewport;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -18,6 +19,7 @@ use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::env::WinitEnv;
 use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
+use crate::platform_impl::wayland::protocols::wp_fractional_scale_v1::WpFractionalScaleV1;
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
@@ -109,7 +111,7 @@ pub struct WindowCompositorUpdate {
     pub size: Option<LogicalSize<u32>>,
 
     /// New scale factor.
-    pub scale_factor: Option<i32>,
+    pub scale_factor: Option<f64>,
 
     /// Close the window.
     pub close_window: bool,
@@ -142,6 +144,12 @@ impl WindowUserRequest {
 pub struct WindowHandle {
     /// An actual window.
     pub window: ManuallyDrop<Window<WinitFrame>>,
+
+    /// The state of the fractional scaling handlers for the window.
+    pub fractional_scaling_state: Option<FractionalScalingState>,
+
+    /// The scale factor of the window.
+    pub scale_factor: Arc<Mutex<f64>>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -192,6 +200,8 @@ impl WindowHandle {
         window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         has_focus: Arc<AtomicBool>,
+        fractional_scaling_state: Option<FractionalScalingState>,
+        scale_factor: f64,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
@@ -201,6 +211,8 @@ impl WindowHandle {
 
         Self {
             window: ManuallyDrop::new(window),
+            fractional_scaling_state,
+            scale_factor: Arc::new(Mutex::new(scale_factor)),
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
@@ -216,6 +228,10 @@ impl WindowHandle {
             ime_allowed: Cell::new(false),
             has_focus,
         }
+    }
+
+    pub fn scale_factor(&self) -> f64 {
+        *self.scale_factor.lock().unwrap()
     }
 
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) {
@@ -587,11 +603,39 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
 
 impl Drop for WindowHandle {
     fn drop(&mut self) {
+        // Drop the fractional scaling before the surface.
+        let _ = self.fractional_scaling_state.take();
+
         unsafe {
             let surface = self.window.surface().clone();
             // The window must be destroyed before wl_surface.
             ManuallyDrop::drop(&mut self.window);
             surface.destroy();
         }
+    }
+}
+
+/// Fractional scaling objects.
+pub struct FractionalScalingState {
+    /// The wp-viewport of the window.
+    pub viewport: WpViewport,
+
+    /// The wp-fractional-scale of the window surface.
+    pub fractional_scale: WpFractionalScaleV1,
+}
+
+impl FractionalScalingState {
+    pub fn new(viewport: WpViewport, fractional_scale: WpFractionalScaleV1) -> Self {
+        Self {
+            viewport,
+            fractional_scale,
+        }
+    }
+}
+
+impl Drop for FractionalScalingState {
+    fn drop(&mut self) {
+        self.viewport.destroy();
+        self.fractional_scale.destroy();
     }
 }
