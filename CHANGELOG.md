@@ -166,6 +166,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
 - All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
 - **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
+- On MacOS, fix deadlock when calling `set_maximized` from event loop.
 
 # 0.26.1 (2022-01-05)
 

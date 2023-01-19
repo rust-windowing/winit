@@ -352,7 +352,13 @@ impl AppState {
     }
 
     pub fn handle_redraw(window_id: WindowId) {
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+        // Redraw request might come out of order from the OS.
+        // -> Don't go back into the callback when our callstack originates from there
+        if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
+            HANDLER
+                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.set_in_callback(false);
+        }
     }
 
     pub fn queue_event(wrapper: EventWrapper) {
