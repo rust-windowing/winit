@@ -842,6 +842,23 @@ impl Window {
         self.window.set_minimized(minimized);
     }
 
+    /// Gets the window's current minimized state.
+    ///
+    /// `None` will be returned, if the minimized state couldn't be determined.
+    ///
+    /// ## Note
+    ///
+    /// - You shouldn't stop rendering for minimized windows, however you could lower the fps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: always `None`.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        self.window.is_minimized()
+    }
+
     /// Sets the window to maximized or back.
     ///
     /// ## Platform-specific

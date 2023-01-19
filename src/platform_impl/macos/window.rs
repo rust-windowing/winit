@@ -865,6 +865,11 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(self.isMiniaturized())
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
