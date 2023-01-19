@@ -7,7 +7,7 @@ use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow};
+use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow, NSTrackingArea};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -85,6 +85,12 @@ extern_methods!(
             unsafe { self.inner_addTrackingRect(rect, self, ptr::null_mut(), assume_inside) }
                 .expect("failed creating tracking rect")
         }
+
+       #[sel(addTrackingArea:)]
+        pub fn addTrackingArea(&self, area: NSTrackingArea);
+
+        #[sel(removeTrackingArea:)]
+        pub fn removeTrackingArea(&self, area: NSTrackingArea);
 
         #[sel(addCursorRect:cursor:)]
         // NSCursor safe to take by shared reference since it is already immutable

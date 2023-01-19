@@ -28,6 +28,7 @@ mod text_input_context;
 mod version;
 mod view;
 mod window;
+mod tracking_area;
 
 pub(crate) use self::appearance::NSAppearance;
 pub(crate) use self::application::{
@@ -56,6 +57,7 @@ pub(crate) use self::window::{
     NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
     NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTitleVisibility,
 };
+pub(crate) use self::tracking_area::NSTrackingArea;
 
 #[link(name = "AppKit", kind = "framework")]
 extern "C" {}
