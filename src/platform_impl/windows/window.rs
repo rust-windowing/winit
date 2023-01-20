@@ -1076,7 +1076,7 @@ where
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,
     );
-    window_flags.set(WindowFlags::MARKER_NO_ACTIVATE, !attributes.active);
+    window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);

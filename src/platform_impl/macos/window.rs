@@ -477,7 +477,7 @@ impl WinitWindow {
             this.set_maximized(attrs.maximized);
         }
 
-        delegate.emit_event(WindowEvent::Focused(false));
+        delegate.queue_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }

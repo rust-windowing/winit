@@ -116,7 +116,7 @@ bitflags! {
         /// Drop shadow for undecorated windows.
         const MARKER_UNDECORATED_SHADOW = 1 << 20;
 
-        const MARKER_NO_ACTIVATE = 1 << 18;
+        const MARKER_ACTIVATE = 1 << 18;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
     }
@@ -308,8 +308,8 @@ impl WindowFlags {
         }
 
         if new.contains(WindowFlags::VISIBLE) {
-            let flag = if self.contains(WindowFlags::MARKER_NO_ACTIVATE) {
-                self.set(WindowFlags::MARKER_NO_ACTIVATE, false);
+            let flag = !if self.contains(WindowFlags::MARKER_ACTIVATE) {
+                self.set(WindowFlags::MARKER_ACTIVATE, true);
                 SWP_NOACTIVATE
             } else {
                 SW_SHOW
