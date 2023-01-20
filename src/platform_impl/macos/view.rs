@@ -12,9 +12,9 @@ use objc2::runtime::{Object, Sel};
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
-    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,
-    NSView,
+    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSView,
 };
+use crate::platform_impl::platform::appkit::{NSTrackingArea, NSTrackingAreaOptions};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -33,7 +33,6 @@ use crate::{
     },
     window::WindowId,
 };
-use crate::platform_impl::platform::appkit::NSTrackingArea;
 
 #[derive(Debug)]
 pub struct CursorState {
@@ -206,7 +205,12 @@ declare_class!(
 
             let rect = self.visibleRect();
             //let tracking_area = self.add_tracking_rect(rect, false);
-            let tracking_area = self.init_and_add_tracking_area(0x1 | 0x2 | 0x40, rect);
+            let tracking_area = self.init_and_add_tracking_area(
+                NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
+                    | NSTrackingAreaOptions::NSTrackingMouseMoved
+                    | NSTrackingAreaOptions::NSTrackingActiveAlways,
+                rect,
+            );
             self.state.tracking_area = Some(tracking_area);
         }
 
@@ -217,7 +221,12 @@ declare_class!(
                 self.removeTrackingArea(&tracking_area);
             }
             let rect = self.visibleRect();
-            let tracking_area = self.init_and_add_tracking_area(0x1 | 0x2 | 0x40, rect);
+            let tracking_area = self.init_and_add_tracking_area(
+                NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
+                    | NSTrackingAreaOptions::NSTrackingMouseMoved
+                    | NSTrackingAreaOptions::NSTrackingActiveAlways,
+                rect,
+            );
             self.state.tracking_area = Some(tracking_area);
 
             // Emit resize event here rather than from windowDidResize because:

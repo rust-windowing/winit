@@ -1,13 +1,12 @@
 use std::ffi::c_void;
+use std::ops::BitAnd;
 use std::ptr;
 
-use objc2::foundation::{NSObject, NSRect};
 use objc2::ffi::NSUInteger;
-use objc2::runtime::Object;
-use objc2::{extern_class, ClassType, extern_methods, msg_send_id};
+use objc2::foundation::{NSObject, NSRect};
 use objc2::rc::{Id, Shared};
-
-use super::{NSView};
+use objc2::runtime::Object;
+use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -20,8 +19,7 @@ extern_class!(
 
 extern_methods!(
     unsafe impl NSTrackingArea {
-
-        pub fn inner_initWithRect(
+        unsafe fn inner_initWithRect(
             rect: NSRect,
             options: NSUInteger,
             owner: &Object,
@@ -29,38 +27,66 @@ extern_methods!(
         ) -> Option<Id<NSTrackingArea, Shared>> {
             unsafe {
                 let cls = msg_send_id![Self::class(), alloc];
-                msg_send_id![cls, initWithRect: rect, options: options, owner: owner, userInfo: user_info]
+                msg_send_id![
+                    cls,
+                    initWithRect: rect,
+                    options: options,
+                    owner: owner,
+                    userInfo: user_info
+                ]
             }
         }
 
         pub fn initWithRect(
             rect: NSRect,
-            options: NSUInteger,
-            owner: &Object
+            options: NSTrackingAreaOptions,
+            owner: &Object,
         ) -> Option<Id<NSTrackingArea, Shared>> {
-            //SAFETY: Return none if options are invalid. userInfo is NULL, so it is valid.
-            if options & 0xF0 == 0 || options & 0x7 == 0 {
-                return None
+            if !options.are_valid() {
+                return None;
             }
-            unsafe {
-                Self::inner_initWithRect(rect, options, owner, ptr::null_mut())
-            }
+            //SAFETY: Returns none if options are invalid. userInfo is NULL, so it is guaranteed to be valid.
+            unsafe { Self::inner_initWithRect(rect, options.bits, owner, ptr::null_mut()) }
         }
     }
 );
 
 // See https://developer.apple.com/documentation/appkit/nstrackingareaoptions?language=objc
 bitflags! {
-    pub struct NSTrackingAreaOptions: NSUInteger {
+    pub(crate) struct NSTrackingAreaOptions: NSUInteger {
         const NSTrackingMouseEnteredAndExited = 1 << 0;
-        const NSTrackingMouseMoved = 1 << 2;
-        const NSTrackingCursorUpdate = 1 << 3;
+        const NSTrackingMouseMoved = 1 << 1;
+        const NSTrackingCursorUpdate = 1 << 2;
+
         const NSTrackingActiveWhenFirstResponder = 1 << 4;
         const NSTrackingActiveInKeyWindow = 1 << 5;
         const NSTrackingActiveInActiveApp = 1 << 6;
         const NSTrackingActiveAlways = 1 << 7;
+
         const NSTrackingAssumeInside = 1 << 8;
         const NSTrackingInVisibleRect = 1 << 9;
         const NSTrackingEnabledDuringMouseDrag = 1 << 10;
+    }
+}
+
+impl NSTrackingAreaOptions {
+    pub fn are_valid(&self) -> bool {
+        //ensure that exactly one active constant and at least one tracking-type constant are selected
+        self.bitand(
+            NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
+                | NSTrackingAreaOptions::NSTrackingMouseMoved
+                | NSTrackingAreaOptions::NSTrackingCursorUpdate,
+        )
+        .bits
+            > 0
+            && self
+                .bitand(
+                    NSTrackingAreaOptions::NSTrackingActiveAlways
+                        | NSTrackingAreaOptions::NSTrackingActiveInActiveApp
+                        | NSTrackingAreaOptions::NSTrackingActiveInKeyWindow
+                        | NSTrackingAreaOptions::NSTrackingActiveWhenFirstResponder,
+                )
+                .bits
+                .is_power_of_two()
     }
 }

@@ -1,14 +1,10 @@
-use std::ffi::c_void;
-use std::num::NonZeroIsize;
-use std::ptr;
-
 use objc2::foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::{Id, Shared};
-use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
-use objc2::ffi::NSUInteger;
 
-use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow, NSTrackingArea};
+use super::{
+    NSCursor, NSResponder, NSTextInputContext, NSTrackingArea, NSTrackingAreaOptions, NSWindow,
+};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -69,32 +65,19 @@ extern_methods!(
         #[sel(setPostsFrameChangedNotifications:)]
         pub fn setPostsFrameChangedNotifications(&mut self, value: bool);
 
-        #[sel(removeTrackingRect:)]
-        pub fn removeTrackingRect(&self, tag: NSTrackingRectTag);
-
-        #[sel(addTrackingRect:owner:userData:assumeInside:)]
-        unsafe fn inner_addTrackingRect(
-            &self,
-            rect: NSRect,
-            owner: &Object,
-            user_data: *mut c_void,
-            assume_inside: bool,
-        ) -> Option<NSTrackingRectTag>;
-
-        pub fn add_tracking_rect(&self, rect: NSRect, assume_inside: bool) -> NSTrackingRectTag {
-            // SAFETY: The user data is NULL, so it is valid
-            unsafe { self.inner_addTrackingRect(rect, self, ptr::null_mut(), assume_inside) }
-                .expect("failed creating tracking rect")
-        }
-
-       #[sel(addTrackingArea:)]
+        #[sel(addTrackingArea:)]
         pub fn addTrackingArea(&self, area: &NSTrackingArea);
 
         #[sel(removeTrackingArea:)]
         pub fn removeTrackingArea(&self, area: &NSTrackingArea);
 
-        pub fn init_and_add_tracking_area(&self, options: NSUInteger, rect: NSRect) -> Id<NSTrackingArea, Shared> {
-            let tracking_area = NSTrackingArea::initWithRect(rect, options, self).expect("failed to create tracking area");
+        pub fn init_and_add_tracking_area(
+            &self,
+            options: NSTrackingAreaOptions,
+            rect: NSRect,
+        ) -> Id<NSTrackingArea, Shared> {
+            let tracking_area = NSTrackingArea::initWithRect(rect, options, self)
+                .expect("failed to create tracking area");
             self.addTrackingArea(&tracking_area);
             tracking_area
         }
@@ -107,6 +90,3 @@ extern_methods!(
         pub fn setHidden(&self, hidden: bool);
     }
 );
-
-/// <https://developer.apple.com/documentation/appkit/nstrackingrecttag?language=objc>
-pub type NSTrackingRectTag = NonZeroIsize; // NSInteger, but non-zero!
