@@ -12,9 +12,9 @@ use objc2::runtime::{Object, Sel};
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
-    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSView,
+    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingArea,
+    NSTrackingAreaOptions, NSView,
 };
-use crate::platform_impl::platform::appkit::{NSTrackingArea, NSTrackingAreaOptions};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
