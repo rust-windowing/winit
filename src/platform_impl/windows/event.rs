@@ -24,10 +24,9 @@ use windows_sys::Win32::{
             VK_OEM_PERIOD, VK_OEM_PLUS, VK_P, VK_PAUSE, VK_PRIOR, VK_Q, VK_R, VK_RCONTROL,
             VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_S, VK_SCROLL, VK_SHIFT, VK_SLEEP,
             VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_T, VK_TAB, VK_U, VK_UP, VK_V, VK_VOLUME_DOWN,
-            VK_VOLUME_MUTE, VK_VOLUME_UP, VK_W, VK_X, VK_Y, VK_Z,
+            VK_VOLUME_MUTE, VK_VOLUME_UP, VK_W, VK_X, VK_Y, VK_Z, MAPVK_VK_TO_CHAR, MAPVK_VSC_TO_VK_EX
         },
         TextServices::HKL,
-        WindowsAndMessaging::{MAPVK_VK_TO_CHAR, MAPVK_VSC_TO_VK_EX},
     },
 };
 

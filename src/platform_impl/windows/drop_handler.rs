@@ -12,8 +12,7 @@ use windows_sys::{
         Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK},
         System::{
             Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
-            Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE},
-            SystemServices::CF_HDROP,
+            Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE, CF_HDROP},
         },
         UI::Shell::{DragFinish, DragQueryFileW, HDROP},
     },

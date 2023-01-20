@@ -34,7 +34,7 @@ use windows_sys::Win32::{
             KeyboardAndMouse::{
                 EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
                 INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                VK_LMENU, VK_MENU,
+                VK_LMENU, VK_MENU, MAPVK_VK_TO_VSC
             },
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
@@ -45,7 +45,7 @@ use windows_sys::Win32::{
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
             FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
-            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
+            NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
             SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
             WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },

@@ -75,7 +75,7 @@ core-graphics = "0.22.3"
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.42"
+version = "0.45"
 features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
