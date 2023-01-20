@@ -739,7 +739,6 @@ declare_class!(
 
         #[sel(mouseMoved:)]
         fn mouse_moved(&mut self, event: &NSEvent) {
-            trace_scope!("mouseMoved:");
             self.mouse_motion(event);
         }
 
