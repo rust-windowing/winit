@@ -61,6 +61,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `Window::set_transparent` to provide a hint about transparency of the window on Wayland and macOS.
 - On macOS, fix the mouse buttons other than left/right/middle being reported as middle.
 - On Wayland, support fractional scaling via the wp-fractional-scale protocol.
+- On web, fix removal of mouse event listeners from the global object upon window distruction.
 
 # 0.27.5
 

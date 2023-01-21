@@ -133,6 +133,7 @@ features = [
     'DomRect',
     'Element',
     'Event',
+    "EventListenerOptions",
     'EventTarget',
     'FocusEvent',
     'HtmlCanvasElement',
