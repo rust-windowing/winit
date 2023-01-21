@@ -325,6 +325,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }
@@ -436,7 +441,7 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor() as _)
+        x11_or_wayland!(match self; Window(w) => w.scale_factor())
     }
 
     #[inline]
@@ -457,6 +462,11 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_minimized())
     }
 
     #[inline]
@@ -600,6 +610,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        x11_or_wayland!(match self; Window(window) => window.has_focus())
+    }
+
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
     }
@@ -644,9 +658,9 @@ unsafe extern "C" fn x_error_callback(
         // Don't log error.
         if !error_handled {
             error!("X11 error: {:#?}", error);
+            // XXX only update the error, if it wasn't handled by any of the hooks.
+            *xconn.latest_error.lock().unwrap() = Some(error);
         }
-
-        *xconn.latest_error.lock().unwrap() = Some(error);
     }
     // Fun fact: this return value is completely ignored.
     0

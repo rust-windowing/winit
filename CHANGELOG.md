@@ -8,6 +8,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Add `Window::is_minimized`.
+- On X11, fix errors handled during `register_xlib_error_hook` invocation bleeding into winit.
+- Add `Window::has_focus`.
+- On Windows, fix `Window::set_minimized(false)` not working for windows minimized by `Win + D` hotkey.
 - **Breaking:** On Web, touch input no longer fires `WindowEvent::Cursor*`, `WindowEvent::MouseInput`, or `DeviceEvent::MouseMotion` like other platforms, but instead it fires `WindowEvent::Touch`.
 - **Breaking:** Removed platform specific `WindowBuilder::with_parent` API in favor of `WindowBuilder::with_parent_window`.
 - On Windows, retain `WS_MAXIMIZE` window style when un-minimizing a maximized window.
@@ -50,9 +54,13 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** On Android, switched to using [`android-activity`](https://github.com/rib/android-activity) crate as a glue layer instead of [`ndk-glue`](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue). See [README.md#Android](https://github.com/rust-windowing/winit#Android) for more details. ([#2444](https://github.com/rust-windowing/winit/pull/2444))
 - **Breaking:** Removed support for `raw-window-handle` version `0.4`
 - On Wayland, `RedrawRequested` not emitted during resize.
+- Add a `set_wait_timeout` function to `ControlFlow` to allow waiting for a `Duration`.
 - **Breaking:** Remove the unstable `xlib_xconnection()` function from the private interface.
 - Added Orbital support for Redox OS
 - On X11, added `drag_resize_window` method.
+- Added `Window::set_transparent` to provide a hint about transparency of the window on Wayland and macOS.
+- On macOS, fix the mouse buttons other than left/right/middle being reported as middle.
+- On Wayland, support fractional scaling via the wp-fractional-scale protocol.
 - On web, fix removal of mouse event listeners from the global object upon window distruction.
 
 # 0.27.5

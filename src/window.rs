@@ -306,7 +306,9 @@ impl WindowBuilder {
     /// Sets whether the background of the window should be transparent.
     ///
     /// If this is `true`, writing colors with alpha values different than
-    /// `1.0` will produce a transparent window.
+    /// `1.0` will produce a transparent window. On some platforms this
+    /// is more of a hint for the system and you'd still have the alpha
+    /// buffer. To control it see [`Window::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -484,6 +486,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
+    /// - **Wayland:** Uses the wp-fractional-scale protocol if available. Falls back to integer-scale factors otherwise.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
@@ -735,6 +738,23 @@ impl Window {
         self.window.set_title(title)
     }
 
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a missmatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowBuilder::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.window.set_transparent(transparent)
+    }
+
     /// Modifies the window's visibility.
     ///
     /// If `false`, this will hide the window. If `true`, this will show the window.
@@ -820,6 +840,23 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         self.window.set_minimized(minimized);
+    }
+
+    /// Gets the window's current minimized state.
+    ///
+    /// `None` will be returned, if the minimized state couldn't be determined.
+    ///
+    /// ## Note
+    ///
+    /// - You shouldn't stop rendering for minimized windows, however you could lower the fps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: always `None`.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        self.window.is_minimized()
     }
 
     /// Sets the window to maximized or back.
@@ -1001,6 +1038,16 @@ impl Window {
     #[inline]
     pub fn focus_window(&self) {
         self.window.focus_window()
+    }
+
+    /// Gets whether the window has keyboard focus.
+    ///
+    /// This queries the same state information as [`WindowEvent::Focused`].
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.window.has_focus()
     }
 
     /// Requests user attention to the window, this has no effect if the application

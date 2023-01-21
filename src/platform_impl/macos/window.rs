@@ -506,6 +506,10 @@ impl WinitWindow {
         util::set_title_sync(self, title);
     }
 
+    pub fn set_transparent(&self, transparent: bool) {
+        self.setOpaque(!transparent)
+    }
+
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => util::make_key_and_order_front_sync(self),
@@ -861,6 +865,11 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(self.isMiniaturized())
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
@@ -1211,6 +1220,10 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.isKeyWindow()
+    }
+
     pub fn set_theme(&self, theme: Option<Theme>) {
         set_ns_theme(theme);
         self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));

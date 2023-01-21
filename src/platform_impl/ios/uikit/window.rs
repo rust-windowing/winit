@@ -28,5 +28,8 @@ extern_methods!(
 
         #[sel(makeKeyAndVisible)]
         pub fn makeKeyAndVisible(&self);
+
+        #[sel(isKeyWindow)]
+        pub fn isKeyWindow(&self) -> bool;
     }
 );

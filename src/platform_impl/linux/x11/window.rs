@@ -55,6 +55,7 @@ pub struct SharedState {
     pub resize_increments: Option<Size>,
     pub base_size: Option<Size>,
     pub visibility: Visibility,
+    pub has_focus: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -94,6 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
+            has_focus: true,
         })
     }
 }
@@ -800,6 +802,20 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        let state = self
+            .xconn
+            .get_property(self.xwindow, state_atom, ffi::XA_ATOM);
+        let hidden_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_HIDDEN\0") };
+
+        Some(match state {
+            Ok(atoms) => atoms.iter().any(|atom: &ffi::Atom| *atom == hidden_atom),
+            _ => false,
+        })
+    }
+
     fn set_minimized_inner(&self, minimized: bool) -> util::Flusher<'_> {
         unsafe {
             if minimized {
@@ -902,6 +918,9 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set window title");
     }
+
+    #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
         self.shared_state_lock().is_decorated = decorations;
@@ -1599,6 +1618,10 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.shared_state_lock().has_focus
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

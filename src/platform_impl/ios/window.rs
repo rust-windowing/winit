@@ -43,6 +43,10 @@ impl Inner {
         debug!("`Window::set_title` is ignored on iOS")
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {
+        debug!("`Window::set_transparent` is ignored on iOS")
+    }
+
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
     }
@@ -212,6 +216,11 @@ impl Inner {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
 
+    pub fn is_minimized(&self) -> Option<bool> {
+        warn!("`Window::is_minimized` is ignored on iOS");
+        None
+    }
+
     pub fn set_maximized(&self, _maximized: bool) {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
@@ -342,6 +351,10 @@ impl Inner {
     pub fn theme(&self) -> Option<Theme> {
         warn!("`Window::theme` is ignored on iOS");
         None
+    }
+
+    pub fn has_focus(&self) -> bool {
+        self.window.isKeyWindow()
     }
 
     #[inline]

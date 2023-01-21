@@ -24,9 +24,13 @@ pub type XlibErrorHook =
 
 /// Hook to winit's xlib error handling callback.
 ///
-/// This method is provided as a safe way to handle the errors comming from X11 when using xlib
-/// in external crates, like glutin for GLX access. Trying to handle errors by speculating with
-/// `XSetErrorHandler` is [`unsafe`].
+/// This method is provided as a safe way to handle the errors comming from X11
+/// when using xlib in external crates, like glutin for GLX access. Trying to
+/// handle errors by speculating with `XSetErrorHandler` is [`unsafe`].
+///
+/// **Be aware that your hook is always invoked and returning `true` from it will
+/// prevent `winit` from getting the error itself. It's wise to always return
+/// `false` if you're not initiated the `Sync`.**
 ///
 /// [`unsafe`]: https://www.remlab.net/op/xlib.shtml
 #[inline]

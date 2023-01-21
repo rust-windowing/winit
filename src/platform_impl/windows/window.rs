@@ -113,6 +113,8 @@ impl Window {
         }
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         let window = self.window.clone();
@@ -460,12 +462,22 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
+        let is_minimized = util::is_minimized(self.hwnd());
+
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
+            WindowState::set_window_flags_in_place(&mut window_state.lock().unwrap(), |f| {
+                f.set(WindowFlags::MINIMIZED, is_minimized)
+            });
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(util::is_minimized(self.hwnd()))
     }
 
     #[inline]
@@ -761,6 +773,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        let window_state = self.window_state.lock().unwrap();
+        window_state.has_active_focus()
+    }
+
     pub fn title(&self) -> String {
         let len = unsafe { GetWindowTextLengthW(self.window.0) } + 1;
         let mut buf = vec![0; len as usize];
@@ -793,7 +810,7 @@ impl Window {
         let window_flags = self.window_state_lock().window_flags();
 
         let is_visible = window_flags.contains(WindowFlags::VISIBLE);
-        let is_minimized = window_flags.contains(WindowFlags::MINIMIZED);
+        let is_minimized = util::is_minimized(self.hwnd());
         let is_foreground = window.0 == unsafe { GetForegroundWindow() };
 
         if is_visible && !is_minimized && !is_foreground {

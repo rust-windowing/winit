@@ -241,6 +241,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
+
+    #[inline]
     pub fn set_visible(&self, _visibility: bool) {}
 
     #[inline]
@@ -272,6 +275,11 @@ impl Window {
 
     #[inline]
     pub fn set_minimized(&self, _minimized: bool) {}
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        None
+    }
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {}
@@ -388,6 +396,11 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Option<window::Theme> {
         None
+    }
+
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        false
     }
 
     #[inline]
