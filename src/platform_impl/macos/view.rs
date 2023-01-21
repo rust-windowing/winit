@@ -196,19 +196,17 @@ declare_class!(
     }
 
     unsafe impl WinitView {
-        #[sel(viewDidMoveToWindow)]
-        fn view_did_move_to_window(&mut self) {
-            trace_scope!("viewDidMoveToWindow");
+        #[sel(updateTrackingAreas)]
+        fn update_tracking_areas(&mut self) {
             if let Some(tracking_area) = self.state.tracking_area.take() {
                 self.removeTrackingArea(&tracking_area);
             }
-
             let rect = self.visibleRect();
             let tracking_area = self.init_and_add_tracking_area(
+                rect,
                 NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
                     | NSTrackingAreaOptions::NSTrackingMouseMoved
                     | NSTrackingAreaOptions::NSTrackingActiveInActiveApp,
-                rect,
             );
             self.state.tracking_area = Some(tracking_area);
         }
@@ -216,21 +214,11 @@ declare_class!(
         #[sel(frameDidChange:)]
         fn frame_did_change(&mut self, _event: &NSEvent) {
             trace_scope!("frameDidChange:");
-            if let Some(tracking_area) = self.state.tracking_area.take() {
-                self.removeTrackingArea(&tracking_area);
-            }
-            let rect = self.visibleRect();
-            let tracking_area = self.init_and_add_tracking_area(
-                NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
-                    | NSTrackingAreaOptions::NSTrackingMouseMoved
-                    | NSTrackingAreaOptions::NSTrackingActiveAlways,
-                rect,
-            );
-            self.state.tracking_area = Some(tracking_area);
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
+            let rect = self.visibleRect();
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -1061,6 +1049,18 @@ impl WinitView {
         };
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
+    }
+
+    /// Initializes an NSTrackingArea and adds it to this NS/WinitView
+    fn init_and_add_tracking_area(
+        &self,
+        rect: NSRect,
+        options: NSTrackingAreaOptions,
+    ) -> Id<NSTrackingArea, Shared> {
+        let tracking_area = NSTrackingArea::initWithRect(rect, options, Some(self), None)
+            .expect("failed to create tracking area");
+        self.addTrackingArea(&tracking_area);
+        tracking_area
     }
 }
 

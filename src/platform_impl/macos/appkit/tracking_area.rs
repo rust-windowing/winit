@@ -24,14 +24,17 @@ extern_methods!(
             user_info: Option<&NSDictionary<Object, Object>>,
         ) -> Option<Id<NSTrackingArea, Shared>> {
             if options.are_valid() {
-                let cls = msg_send_id![Self::class(), alloc];
-                msg_send_id![
-                    cls,
-                    initWithRect: rect,
-                    options: options.bits,
-                    owner: owner,
-                    userInfo: user_info
-                ]
+                //SAFETY: All params are passed in as their Rust type, initWithRect: is documented to be non-null, options are checked so no UB
+                unsafe {
+                    let cls = msg_send_id![Self::class(), alloc];
+                    msg_send_id![
+                        cls,
+                        initWithRect: rect,
+                        options: options.bits,
+                        owner: owner,
+                        userInfo: user_info
+                    ]
+                }
             } else {
                 None
             }

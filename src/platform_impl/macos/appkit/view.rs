@@ -2,9 +2,7 @@ use objc2::foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{
-    NSCursor, NSResponder, NSTextInputContext, NSTrackingArea, NSTrackingAreaOptions, NSWindow,
-};
+use super::{NSCursor, NSResponder, NSTextInputContext, NSTrackingArea, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -70,17 +68,6 @@ extern_methods!(
 
         #[sel(removeTrackingArea:)]
         pub fn removeTrackingArea(&self, area: &NSTrackingArea);
-
-        pub fn init_and_add_tracking_area(
-            &self,
-            options: NSTrackingAreaOptions,
-            rect: NSRect,
-        ) -> Id<NSTrackingArea, Shared> {
-            let tracking_area = NSTrackingArea::initWithRect(rect, options, self)
-                .expect("failed to create tracking area");
-            self.addTrackingArea(&tracking_area);
-            tracking_area
-        }
 
         #[sel(addCursorRect:cursor:)]
         // NSCursor safe to take by shared reference since it is already immutable
