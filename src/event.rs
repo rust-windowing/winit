@@ -202,7 +202,16 @@ pub enum Event<'a, T: 'static> {
     /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
     /// something changes, like most non-game GUIs.
     ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS / iOS:** Due to implementation difficulties, this will often, but not always, be
+    ///   emitted directly inside `drawRect:`, with neither a preceding [`MainEventsCleared`] nor
+    ///   subsequent `RedrawEventsCleared`. See [#2640] for work on this.
+    ///
     /// [`MainEventsCleared`]: Self::MainEventsCleared
+    /// [`RedrawEventsCleared`]: Self::RedrawEventsCleared
+    /// [#2640]: https://github.com/rust-windowing/winit/issues/2640
     RedrawRequested(WindowId),
 
     /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
