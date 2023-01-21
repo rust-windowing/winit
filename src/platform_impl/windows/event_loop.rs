@@ -35,8 +35,8 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
-                TRACKMOUSEEVENT, MAPVK_VK_TO_VSC
+                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, MAPVK_VK_TO_VSC,
+                TME_LEAVE, TRACKMOUSEEVENT,
             },
             Pointer::{
                 POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
