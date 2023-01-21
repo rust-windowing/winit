@@ -204,11 +204,10 @@ declare_class!(
             }
 
             let rect = self.visibleRect();
-            //let tracking_area = self.add_tracking_rect(rect, false);
             let tracking_area = self.init_and_add_tracking_area(
                 NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
                     | NSTrackingAreaOptions::NSTrackingMouseMoved
-                    | NSTrackingAreaOptions::NSTrackingActiveAlways,
+                    | NSTrackingAreaOptions::NSTrackingActiveInActiveApp,
                 rect,
             );
             self.state.tracking_area = Some(tracking_area);
