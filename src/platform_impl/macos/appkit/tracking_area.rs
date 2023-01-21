@@ -1,9 +1,7 @@
-use std::ffi::c_void;
 use std::ops::BitAnd;
-use std::ptr;
 
 use objc2::ffi::NSUInteger;
-use objc2::foundation::{NSObject, NSRect};
+use objc2::foundation::{NSDictionary, NSObject, NSRect};
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
@@ -19,34 +17,24 @@ extern_class!(
 
 extern_methods!(
     unsafe impl NSTrackingArea {
-        unsafe fn inner_initWithRect(
+        pub fn initWithRect(
             rect: NSRect,
-            options: NSUInteger,
-            owner: &Object,
-            user_info: *mut c_void,
+            options: NSTrackingAreaOptions,
+            owner: Option<&Object>,
+            user_info: Option<&NSDictionary<Object, Object>>,
         ) -> Option<Id<NSTrackingArea, Shared>> {
-            unsafe {
+            if options.are_valid() {
                 let cls = msg_send_id![Self::class(), alloc];
                 msg_send_id![
                     cls,
                     initWithRect: rect,
-                    options: options,
+                    options: options.bits,
                     owner: owner,
                     userInfo: user_info
                 ]
+            } else {
+                None
             }
-        }
-
-        pub fn initWithRect(
-            rect: NSRect,
-            options: NSTrackingAreaOptions,
-            owner: &Object,
-        ) -> Option<Id<NSTrackingArea, Shared>> {
-            if !options.are_valid() {
-                return None;
-            }
-            //SAFETY: Returns none if options are invalid. userInfo is NULL, so it is guaranteed to be valid.
-            unsafe { Self::inner_initWithRect(rect, options.bits, owner, ptr::null_mut()) }
         }
     }
 );
@@ -71,7 +59,7 @@ bitflags! {
 
 impl NSTrackingAreaOptions {
     pub fn are_valid(&self) -> bool {
-        //ensure that exactly one active constant and at least one tracking-type constant are selected
+        //ensure that at least one tracking-type constant and exactly one active constant are specified
         self.bitand(
             NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
                 | NSTrackingAreaOptions::NSTrackingMouseMoved
