@@ -166,7 +166,7 @@ impl FileDropHandler {
         F: Fn(PathBuf),
     {
         let drop_format = FORMATETC {
-            cfFormat: CF_HDROP as u16,
+            cfFormat: CF_HDROP,
             ptd: ptr::null_mut(),
             dwAspect: DVASPECT_CONTENT,
             lindex: -1,
