@@ -2,6 +2,10 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
+use std::os::raw::{c_char, c_int};
+
+use objc2::foundation::NSString;
+
 mod application;
 mod coordinate_space;
 mod device;
@@ -28,3 +32,13 @@ pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollectio
 pub(crate) use self::view::{UIEdgeInsets, UIView};
 pub(crate) use self::view_controller::{UIInterfaceOrientationMask, UIViewController};
 pub(crate) use self::window::UIWindow;
+
+#[link(name = "UIKit", kind = "framework")]
+extern "C" {
+    pub fn UIApplicationMain(
+        argc: c_int,
+        argv: *const c_char,
+        principalClassName: Option<&NSString>,
+        delegateClassName: Option<&NSString>,
+    ) -> c_int;
+}

@@ -99,17 +99,17 @@ pub trait WindowExtIOS {
 impl WindowExtIOS for Window {
     #[inline]
     fn ui_window(&self) -> *mut c_void {
-        self.window.ui_window() as _
+        self.window.ui_window()
     }
 
     #[inline]
     fn ui_view_controller(&self) -> *mut c_void {
-        self.window.ui_view_controller() as _
+        self.window.ui_view_controller()
     }
 
     #[inline]
     fn ui_view(&self) -> *mut c_void {
-        self.window.ui_view() as _
+        self.window.ui_view()
     }
 
     #[inline]

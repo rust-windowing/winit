@@ -1,6 +1,7 @@
 use objc2::encode::{Encode, Encoding};
 use objc2::foundation::{NSObject, NSUInteger};
-use objc2::{extern_class, extern_methods, ClassType};
+use objc2::rc::{Id, Shared};
+use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
 use super::{UIResponder, UIView};
 
@@ -27,6 +28,10 @@ extern_methods!(
 
         #[sel(setNeedsUpdateOfScreenEdgesDeferringSystemGestures)]
         pub fn setNeedsUpdateOfScreenEdgesDeferringSystemGestures(&self);
+
+        pub fn view(&self) -> Option<Id<UIView, Shared>> {
+            unsafe { msg_send_id![self, view] }
+        }
 
         #[sel(setView:)]
         pub fn setView(&self, view: Option<&UIView>);
