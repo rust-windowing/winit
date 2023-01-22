@@ -17,6 +17,7 @@ use core_foundation::runloop::{
 };
 use objc2::foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
 use objc2::rc::{Id, Shared};
+use objc2::runtime::Object;
 use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
@@ -28,7 +29,7 @@ use crate::{
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{id, NSOperatingSystemVersion},
+        ffi::NSOperatingSystemVersion,
     },
     window::WindowId as RootWindowId,
 };
@@ -543,7 +544,7 @@ pub unsafe fn did_finish_launching() {
         // completed. This may result in incorrect visual appearance.
         // ```
         let screen = window.screen();
-        let _: () = msg_send![&window, setScreen: 0 as id];
+        let _: () = msg_send![&window, setScreen: ptr::null::<Object>()];
         window.setScreen(&screen);
 
         let controller = window.rootViewController();

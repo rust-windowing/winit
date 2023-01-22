@@ -4,11 +4,8 @@ use std::convert::TryInto;
 
 use objc2::encode::{Encode, Encoding};
 use objc2::foundation::{NSInteger, NSUInteger};
-use objc2::runtime::Object;
 
 use crate::platform::ios::{Idiom, ScreenEdge};
-
-pub type id = *mut Object;
 
 #[repr(C)]
 #[derive(Clone, Debug)]

@@ -2,6 +2,7 @@
 
 use std::{
     collections::VecDeque,
+    ffi::c_void,
     ops::{Deref, DerefMut},
 };
 
@@ -22,7 +23,7 @@ use crate::{
     platform_impl::platform::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
-        ffi::{id, UIRectEdge},
+        ffi::UIRectEdge,
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
@@ -503,14 +504,14 @@ impl Window {
 
 // WindowExtIOS
 impl Inner {
-    pub fn ui_window(&self) -> id {
-        Id::as_ptr(&self.window) as id
+    pub fn ui_window(&self) -> *mut c_void {
+        Id::as_ptr(&self.window) as *mut c_void
     }
-    pub fn ui_view_controller(&self) -> id {
-        Id::as_ptr(&self.view_controller) as id
+    pub fn ui_view_controller(&self) -> *mut c_void {
+        Id::as_ptr(&self.view_controller) as *mut c_void
     }
-    pub fn ui_view(&self) -> id {
-        Id::as_ptr(&self.view) as id
+    pub fn ui_view(&self) -> *mut c_void {
+        Id::as_ptr(&self.view) as *mut c_void
     }
 
     pub fn set_scale_factor(&self, scale_factor: f64) {
@@ -613,7 +614,7 @@ impl Inner {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId {
-    window: id,
+    window: *mut WinitUIWindow,
 }
 
 impl WindowId {
@@ -646,20 +647,6 @@ impl From<&Object> for WindowId {
         WindowId {
             window: window as *const _ as _,
         }
-    }
-}
-
-impl From<&mut Object> for WindowId {
-    fn from(window: &mut Object) -> WindowId {
-        WindowId {
-            window: window as _,
-        }
-    }
-}
-
-impl From<id> for WindowId {
-    fn from(window: id) -> WindowId {
-        WindowId { window }
     }
 }
 
