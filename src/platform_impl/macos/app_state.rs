@@ -368,13 +368,6 @@ impl AppState {
         HANDLER.events().push_back(wrapper);
     }
 
-    pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
-        if !is_main_thread() {
-            panic!("Events queued from different thread: {:#?}", wrappers);
-        }
-        HANDLER.events().append(&mut wrappers);
-    }
-
     pub fn cleared(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
