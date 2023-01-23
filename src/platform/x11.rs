@@ -3,7 +3,7 @@ use std::ptr;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
+    monitor::{MonitorGone, MonitorHandle},
     window::{Window, WindowBuilder},
 };
 
@@ -222,12 +222,12 @@ impl WindowBuilderExtX11 for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to X11.
 pub trait MonitorHandleExtX11 {
     /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
+    fn native_id(&self) -> Result<u32, MonitorGone>;
 }
 
 impl MonitorHandleExtX11 for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> u32 {
+    fn native_id(&self) -> Result<u32, MonitorGone> {
         self.inner.native_identifier()
     }
 }

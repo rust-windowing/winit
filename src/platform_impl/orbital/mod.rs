@@ -3,6 +3,7 @@
 use std::str;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::MonitorGone;
 
 pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 mod event_loop;
@@ -192,37 +193,37 @@ pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub struct MonitorHandle;
 
 impl MonitorHandle {
-    pub fn name(&self) -> Option<String> {
-        Some("Redox Device".to_owned())
+    pub fn name(&self) -> Result<String, MonitorGone> {
+        Ok("Redox Device".to_owned())
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize::new(0, 0) // TODO
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
+        Ok(PhysicalSize::new(0, 0)) // TODO
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
+        Ok((0, 0).into())
     }
 
-    pub fn scale_factor(&self) -> f64 {
-        1.0 // TODO
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        Ok(1.0) // TODO
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
         // FIXME no way to get real refresh rate for now.
-        None
+        Ok(60000)
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        let size = self.size().into();
+    pub fn video_modes(&self) -> Result<impl Iterator<Item = VideoMode>, MonitorGone> {
+        let size = self.size()?.into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        Ok(std::iter::once(VideoMode {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
             monitor: self.clone(),
-        })
+        }))
     }
 }
 

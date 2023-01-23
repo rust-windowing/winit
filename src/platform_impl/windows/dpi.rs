@@ -16,6 +16,7 @@ use windows_sys::Win32::{
     },
 };
 
+use crate::monitor::MonitorGone;
 use crate::platform_impl::platform::util::{
     ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
     SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
@@ -55,7 +56,7 @@ pub fn enable_non_client_dpi_scaling(hwnd: HWND) {
     }
 }
 
-pub fn get_monitor_dpi(hmonitor: HMONITOR) -> Option<u32> {
+pub fn get_monitor_dpi(hmonitor: HMONITOR) -> Result<u32, MonitorGone> {
     unsafe {
         if let Some(GetDpiForMonitor) = *GET_DPI_FOR_MONITOR {
             // We are on Windows 8.1 or later.
@@ -65,11 +66,15 @@ pub fn get_monitor_dpi(hmonitor: HMONITOR) -> Option<u32> {
                 // MSDN says that "the values of *dpiX and *dpiY are identical. You only need to
                 // record one of the values to determine the DPI and respond appropriately".
                 // https://msdn.microsoft.com/en-us/library/windows/desktop/dn280510(v=vs.85).aspx
-                return Some(dpi_x);
+                Ok(dpi_x)
+            } else {
+                Err(MonitorGone::new())
             }
+        } else {
+            // Fall back to a reasonable value
+            Ok(BASE_DPI)
         }
     }
-    None
 }
 
 pub const BASE_DPI: u32 = 96;

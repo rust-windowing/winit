@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeSet, VecDeque},
     hash::Hash,
-    io, mem, ptr,
+    mem, ptr,
 };
 
 use windows_sys::Win32::{
@@ -17,7 +17,7 @@ use windows_sys::Win32::{
 use super::util::decode_wide;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode as RootVideoMode,
+    monitor::{MonitorGone, VideoMode as RootVideoMode},
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         util::has_flag,
@@ -140,7 +140,7 @@ impl Window {
     }
 }
 
-pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io::Error> {
+pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, MonitorGone> {
     let mut monitor_info: MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
     let status = unsafe {
@@ -150,7 +150,7 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io:
         )
     };
     if status == false.into() {
-        Err(io::Error::last_os_error())
+        Err(MonitorGone::new())
     } else {
         Ok(monitor_info)
     }
@@ -162,18 +162,16 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn name(&self) -> Option<String> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
-        Some(
-            decode_wide(&monitor_info.szDevice)
-                .to_string_lossy()
-                .to_string(),
-        )
+    pub fn name(&self) -> Result<String, MonitorGone> {
+        let monitor_info = get_monitor_info(self.0)?;
+        Ok(decode_wide(&monitor_info.szDevice)
+            .to_string_lossy()
+            .to_string())
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> String {
-        self.name().unwrap()
+    pub fn native_identifier(&self) -> Result<String, MonitorGone> {
+        self.name()
     }
 
     #[inline]
@@ -182,17 +180,17 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
-        let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
-        PhysicalSize {
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
+        let rc_monitor = get_monitor_info(self.0)?.monitorInfo.rcMonitor;
+        Ok(PhysicalSize {
             width: (rc_monitor.right - rc_monitor.left) as u32,
             height: (rc_monitor.bottom - rc_monitor.top) as u32,
-        }
+        })
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let monitor_info = get_monitor_info(self.0).ok()?;
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
+        let monitor_info = get_monitor_info(self.0)?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {
             let mut mode: DEVMODEW = mem::zeroed();
@@ -200,29 +198,29 @@ impl MonitorHandle {
             if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
                 == false.into()
             {
-                None
+                Err(MonitorGone::new())
             } else {
-                Some(mode.dmDisplayFrequency * 1000)
+                Ok(mode.dmDisplayFrequency * 1000)
             }
         }
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
-        PhysicalPosition {
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
+        let rc_monitor = get_monitor_info(self.0)?.monitorInfo.rcMonitor;
+        Ok(PhysicalPosition {
             x: rc_monitor.left,
             y: rc_monitor.top,
-        }
+        })
     }
 
     #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        Ok(dpi_to_scale_factor(get_monitor_dpi(self.0)?))
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> Result<impl Iterator<Item = VideoMode>, MonitorGone> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
@@ -231,7 +229,7 @@ impl MonitorHandle {
 
         loop {
             unsafe {
-                let monitor_info = get_monitor_info(self.0).unwrap();
+                let monitor_info = get_monitor_info(self.0)?;
                 let device_name = monitor_info.szDevice.as_ptr();
                 let mut mode: DEVMODEW = mem::zeroed();
                 mode.dmSize = mem::size_of_val(&mode) as u16;
@@ -257,6 +255,6 @@ impl MonitorHandle {
             }
         }
 
-        modes.into_iter().map(|mode| mode.video_mode)
+        Ok(modes.into_iter().map(|mode| mode.video_mode))
     }
 }

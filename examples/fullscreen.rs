@@ -25,7 +25,11 @@ fn main() {
     println!("Monitor: {:?}", monitor.name());
 
     let mut mode_index = 0;
-    let mut mode = monitor.video_modes().next().expect("no mode found");
+    let mut mode = monitor
+        .video_modes()
+        .expect("monitor gone")
+        .next()
+        .expect("no mode found");
     println!("Mode: {}", mode);
 
     println!("Keys:");
@@ -78,16 +82,26 @@ fn main() {
                         println!("Monitor: {:?}", monitor.name());
 
                         mode_index = 0;
-                        mode = monitor.video_modes().next().expect("no mode found");
+                        mode = monitor
+                            .video_modes()
+                            .expect("monitor gone")
+                            .next()
+                            .expect("no mode found");
                         println!("Mode: {}", mode);
                     }
                     VirtualKeyCode::M => {
                         mode_index += 1;
-                        if let Some(m) = monitor.video_modes().nth(mode_index) {
+                        if let Some(m) =
+                            monitor.video_modes().expect("monitor gone").nth(mode_index)
+                        {
                             mode = m;
                         } else {
                             mode_index = 0;
-                            mode = monitor.video_modes().next().expect("no mode found");
+                            mode = monitor
+                                .video_modes()
+                                .expect("monitor gone")
+                                .next()
+                                .expect("no mode found");
                         }
                         println!("Mode: {}", mode);
                     }

@@ -2,7 +2,7 @@ use std::os::raw;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
+    monitor::{MonitorGone, MonitorHandle},
     window::{Window, WindowBuilder},
 };
 
@@ -133,12 +133,12 @@ impl WindowBuilderExtWayland for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to Wayland.
 pub trait MonitorHandleExtWayland {
     /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
+    fn native_id(&self) -> Result<u32, MonitorGone>;
 }
 
 impl MonitorHandleExtWayland for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> u32 {
+    fn native_id(&self) -> Result<u32, MonitorGone> {
         self.inner.native_identifier()
     }
 }

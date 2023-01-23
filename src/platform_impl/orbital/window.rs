@@ -41,7 +41,7 @@ impl Window {
         attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
-        let scale = MonitorHandle.scale_factor();
+        let scale = MonitorHandle.scale_factor().expect("monitor scale factor");
 
         let (x, y) = if let Some(pos) = attrs.position {
             pos.to_physical::<i32>(scale).into()
@@ -151,7 +151,7 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        MonitorHandle.scale_factor()
+        MonitorHandle.scale_factor().expect("monitor scale factor")
     }
 
     #[inline]

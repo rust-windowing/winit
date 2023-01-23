@@ -12,7 +12,7 @@ use objc2::rc::{Id, Shared};
 use super::uikit::{UIScreen, UIScreenMode};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode as RootVideoMode,
+    monitor::{MonitorGone, VideoMode as RootVideoMode},
     platform_impl::platform::app_state,
 };
 
@@ -133,39 +133,41 @@ impl MonitorHandle {
 }
 
 impl Inner {
-    pub fn name(&self) -> Option<String> {
+    pub fn name(&self) -> Result<String, MonitorGone> {
         let main = UIScreen::main(MainThreadMarker::new().unwrap());
         if self.uiscreen == main {
-            Some("Primary".to_string())
+            Ok("Primary".to_string())
         } else if self.uiscreen == main.mirroredScreen() {
-            Some("Mirrored".to_string())
+            Ok("Mirrored".to_string())
         } else {
             UIScreen::screens(MainThreadMarker::new().unwrap())
                 .iter()
                 .position(|rhs| rhs == &*self.uiscreen)
                 .map(|idx| idx.to_string())
+                .ok_or_else(MonitorGone::new)
         }
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
         let bounds = self.uiscreen.nativeBounds();
-        PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
+        // `nativeBounds` is measured in pixels
+        Ok(PhysicalSize::new(bounds.size.width, bounds.size.height).cast())
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
         let bounds = self.uiscreen.nativeBounds();
-        (bounds.origin.x as f64, bounds.origin.y as f64).into()
+        Ok(PhysicalPosition::new(bounds.origin.x, bounds.origin.y).cast())
     }
 
-    pub fn scale_factor(&self) -> f64 {
-        self.uiscreen.nativeScale() as f64
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        Ok(self.uiscreen.nativeScale() as f64)
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(refresh_rate_millihertz(&self.uiscreen))
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
+        Ok(refresh_rate_millihertz(&self.uiscreen))
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> Result<impl Iterator<Item = VideoMode>, MonitorGone> {
         // Use Ord impl of RootVideoMode
         let modes: BTreeSet<_> = self
             .uiscreen
@@ -181,7 +183,7 @@ impl Inner {
             })
             .collect();
 
-        modes.into_iter().map(|mode| mode.video_mode)
+        Ok(modes.into_iter().map(|mode| mode.video_mode))
     }
 }
 

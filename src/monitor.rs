@@ -5,6 +5,9 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`EventLoopWindowTarget::available_monitors`](crate::event_loop::EventLoopWindowTarget::available_monitors).
 //! - [`Window::available_monitors`](crate::window::Window::available_monitors).
+use std::error;
+use std::fmt;
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -12,7 +15,11 @@ use crate::{
 
 /// Describes a fullscreen video mode of a monitor.
 ///
-/// Can be acquired with [`MonitorHandle::video_modes`].
+/// A list of these can be acquired with [`MonitorHandle::video_modes`].
+///
+/// `VideoMode` is essentially just a static blob of data, and it's properties
+/// will _not_ be updated automatically if a video mode changes - refetch the
+/// modes instead.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,
@@ -59,10 +66,10 @@ impl VideoMode {
     /// available per color. This is generally 24 bits or 32 bits on modern
     /// systems, depending on whether the alpha channel is counted or not.
     ///
+    ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Orbital:** Always returns 32.
-    /// - **iOS:** Always returns 32.
+    /// - **Wayland / Orbital / iOS:** Always returns 32.
     #[inline]
     pub fn bit_depth(&self) -> u16 {
         self.video_mode.bit_depth()
@@ -97,9 +104,14 @@ impl std::fmt::Display for VideoMode {
     }
 }
 
-/// Handle to a monitor.
+/// A handle to a monitor.
 ///
-/// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
+/// Allows you to retrieve information about a given monitor, and can be used
+/// in [`Window`] creation to set the monitor that the window will go
+/// fullscreen on.
+///
+/// Since a monitor can be removed by the user at any time, all methods on
+/// this return a [`Result`] with a [`MonitorGone`] as the error case.
 ///
 /// [`Window`]: crate::window::Window
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -107,49 +119,63 @@ pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }
 
+/// Signifies that the monitor isn't connected to the system anymore.
+///
+/// This might sometimes also happen if the monitors parameters changed enough
+/// that the system deemed it should destroy and recreate the handle to it.
+///
+/// Finally, it may happen spuriously around the time when a monitor is
+/// reconnected.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MonitorGone {
+    _inner: (),
+}
+
+impl MonitorGone {
+    #[allow(dead_code)]
+    pub(crate) fn new() -> Self {
+        Self { _inner: () }
+    }
+}
+
+impl fmt::Display for MonitorGone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "the monitor could not be found (it might have been disconnected)"
+        )
+    }
+}
+
+impl error::Error for MonitorGone {}
+
 impl MonitorHandle {
-    /// Returns a human-readable name of the monitor.
-    ///
-    /// Returns `None` if the monitor doesn't exist anymore.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns None
+    /// A human-readable name of the monitor.
     #[inline]
-    pub fn name(&self) -> Option<String> {
+    pub fn name(&self) -> Result<String, MonitorGone> {
         self.inner.name()
     }
 
-    /// Returns the monitor's resolution.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns (0,0)
+    /// The monitor's currently configured resolution.
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
         self.inner.size()
     }
 
-    /// Returns the top-left corner position of the monitor relative to the larger full
-    /// screen area.
+    /// The current position of the monitor in the desktop at large.
     ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns (0,0)
+    /// The position has origin in the top-left of the monitor.
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
         self.inner.position()
     }
 
-    /// The monitor refresh rate used by the system.
-    ///
-    /// Return `Some` if succeed, or `None` if failed, which usually happens when the monitor
-    /// the window is on is removed.
+    /// The refresh rate currently in use on the monitor.
     ///
     /// When using exclusive fullscreen, the refresh rate of the [`VideoMode`] that was used to
     /// enter fullscreen should be used instead.
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
         self.inner.refresh_rate_millihertz()
     }
 
@@ -157,25 +183,20 @@ impl MonitorHandle {
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
+    ///
     /// ## Platform-specific
     ///
     /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
-    /// - **Android:** Always returns 1.0.
-    /// - **Web:** Always returns 1.0
     #[inline]
-    pub fn scale_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
         self.inner.scale_factor()
     }
 
     /// Returns all fullscreen video modes supported by this monitor.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns an empty iterator
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> Result<impl Iterator<Item = VideoMode>, MonitorGone> {
         self.inner
             .video_modes()
-            .map(|video_mode| VideoMode { video_mode })
+            .map(|modes| modes.map(|video_mode| VideoMode { video_mode }))
     }
 }

@@ -16,7 +16,7 @@ fn main() {
 
     println!("Listing available video modes:");
 
-    for mode in monitor.video_modes() {
+    for mode in monitor.video_modes().expect("monitor video modes") {
         println!("{}", mode);
     }
 }

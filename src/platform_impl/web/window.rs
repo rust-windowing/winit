@@ -307,7 +307,7 @@ impl Window {
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
-            Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))
+            Some(Fullscreen::Borderless(None))
         } else {
             None
         }
@@ -362,14 +362,8 @@ impl Window {
     }
 
     #[inline]
-    // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> MonitorHandle {
-        MonitorHandle
-    }
-
-    #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(self.current_monitor_inner())
+        None
     }
 
     #[inline]
@@ -379,7 +373,7 @@ impl Window {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     #[inline]
