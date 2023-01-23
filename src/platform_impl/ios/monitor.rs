@@ -113,24 +113,13 @@ impl Drop for MonitorHandle {
 
 impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Do this using the proper fmt API
-        #[derive(Debug)]
-        #[allow(dead_code)]
-        struct MonitorHandle {
-            name: Option<String>,
-            size: PhysicalSize<u32>,
-            position: PhysicalPosition<i32>,
-            scale_factor: f64,
-        }
-
-        let monitor_id_proxy = MonitorHandle {
-            name: self.name(),
-            size: self.size(),
-            position: self.position(),
-            scale_factor: self.scale_factor(),
-        };
-
-        monitor_id_proxy.fmt(f)
+        f.debug_struct("MonitorHandle")
+            .field("name", &self.name())
+            .field("size", &self.size())
+            .field("position", &self.position())
+            .field("scale_factor", &self.scale_factor())
+            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
+            .finish_non_exhaustive()
     }
 }
 

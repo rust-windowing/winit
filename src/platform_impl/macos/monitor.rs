@@ -16,9 +16,9 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {
-    pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate_millihertz: u32,
+    size: PhysicalSize<u32>,
+    bit_depth: u16,
+    refresh_rate_millihertz: u32,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
@@ -77,7 +77,7 @@ impl Clone for NativeDisplayMode {
 
 impl VideoMode {
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size.into()
+        self.size
     }
 
     pub fn bit_depth(&self) -> u16 {
@@ -151,26 +151,14 @@ pub fn primary_monitor() -> MonitorHandle {
 
 impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Do this using the proper fmt API
-        #[derive(Debug)]
-        #[allow(dead_code)]
-        struct MonitorHandle {
-            name: Option<String>,
-            native_identifier: u32,
-            size: PhysicalSize<u32>,
-            position: PhysicalPosition<i32>,
-            scale_factor: f64,
-        }
-
-        let monitor_id_proxy = MonitorHandle {
-            name: self.name(),
-            native_identifier: self.native_identifier(),
-            size: self.size(),
-            position: self.position(),
-            scale_factor: self.scale_factor(),
-        };
-
-        monitor_id_proxy.fmt(f)
+        f.debug_struct("MonitorHandle")
+            .field("name", &self.name())
+            .field("native_identifier", &self.native_identifier())
+            .field("size", &self.size())
+            .field("position", &self.position())
+            .field("scale_factor", &self.scale_factor())
+            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz())
+            .finish_non_exhaustive()
     }
 }
 
@@ -179,6 +167,8 @@ impl MonitorHandle {
         MonitorHandle(id)
     }
 
+    // TODO: Be smarter about this:
+    // <https://github.com/glfw/glfw/blob/57cbded0760a50b9039ee0cb3f3c14f60145567c/src/cocoa_monitor.m#L44-L126>
     pub fn name(&self) -> Option<String> {
         let MonitorHandle(display_id) = *self;
         let screen_num = CGDisplay::new(display_id).model_number();
@@ -255,13 +245,12 @@ impl MonitorHandle {
             };
 
             modes.into_iter().map(move |mode| {
-                let cg_refresh_rate_millihertz =
-                    ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
+                let cg_refresh_rate_hertz = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
-                let refresh_rate_millihertz = if cg_refresh_rate_millihertz > 0 {
-                    (cg_refresh_rate_millihertz * 1000) as u32
+                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0 {
+                    (cg_refresh_rate_hertz * 1000) as u32
                 } else {
                     refresh_rate_millihertz
                 };
@@ -280,7 +269,7 @@ impl MonitorHandle {
                 };
 
                 VideoMode {
-                    size: (
+                    size: PhysicalSize::new(
                         ffi::CGDisplayModeGetPixelWidth(mode) as u32,
                         ffi::CGDisplayModeGetPixelHeight(mode) as u32,
                     ),
