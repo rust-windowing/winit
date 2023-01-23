@@ -2,9 +2,7 @@
 use std::boxed::Box;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
-use std::os::raw::*;
-use std::ptr::{self, NonNull};
-use std::str;
+use std::ptr::NonNull;
 
 use icrate::Foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
@@ -262,10 +260,10 @@ declare_class!(
         // This is necessary to prevent a beefy terminal error on MacBook Pros:
         // IMKInputSession [0x7fc573576ff0 presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self textInputContext]=0x7fc573558e10 *NO* NSRemoteViewController to client, NSError=Error Domain=NSCocoaErrorDomain Code=4099 "The connection from pid 0 was invalidated from this process." UserInfo={NSDebugDescription=The connection from pid 0 was invalidated from this process.}, com.apple.inputmethod.EmojiFunctionRowItem
         // TODO: Add an API extension for using `NSTouchBar`
-        #[method(touchBar)]
-        fn touch_bar(&self) -> *const Object {
+        #[method_id(touchBar)]
+        fn touch_bar(&self) -> Option<Id<NSObject>> {
             trace_scope!("touchBar");
-            ptr::null()
+            None
         }
 
         #[method(resetCursorRects)]
@@ -379,20 +377,20 @@ declare_class!(
             }
         }
 
-        #[method(validAttributesForMarkedText)]
-        fn valid_attributes_for_marked_text(&self) -> *const NSArray<NSAttributedStringKey> {
+        #[method_id(validAttributesForMarkedText)]
+        fn valid_attributes_for_marked_text(&self) -> Id<NSArray<NSAttributedStringKey>> {
             trace_scope!("validAttributesForMarkedText");
-            Id::autorelease_return(NSArray::new())
+            NSArray::new()
         }
 
-        #[method(attributedSubstringForProposedRange:actualRange:)]
+        #[method_id(attributedSubstringForProposedRange:actualRange:)]
         fn attributed_substring_for_proposed_range(
             &self,
             _range: NSRange,
-            _actual_range: *mut c_void, // *mut NSRange
-        ) -> *const NSAttributedString {
+            _actual_range: *mut NSRange,
+        ) -> Option<Id<NSAttributedString>> {
             trace_scope!("attributedSubstringForProposedRange:actualRange:");
-            ptr::null()
+            None
         }
 
         #[method(characterIndexForPoint:)]
@@ -405,7 +403,7 @@ declare_class!(
         fn first_rect_for_character_range(
             &self,
             _range: NSRange,
-            _actual_range: *mut c_void, // *mut NSRange
+            _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
             let window = self.window();
@@ -552,7 +550,7 @@ declare_class!(
         }
 
         #[method(insertTab:)]
-        fn insert_tab(&self, _sender: *const Object) {
+        fn insert_tab(&self, _sender: Option<&Object>) {
             trace_scope!("insertTab:");
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
@@ -563,7 +561,7 @@ declare_class!(
         }
 
         #[method(insertBackTab:)]
-        fn insert_back_tab(&self, _sender: *const Object) {
+        fn insert_back_tab(&self, _sender: Option<&Object>) {
             trace_scope!("insertBackTab:");
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
@@ -576,7 +574,7 @@ declare_class!(
         // Allows us to receive Cmd-. (the shortcut for closing a dialog)
         // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
         #[method(cancelOperation:)]
-        fn cancel_operation(&self, _sender: *const Object) {
+        fn cancel_operation(&self, _sender: Option<&Object>) {
             trace_scope!("cancelOperation:");
 
             let event = NSApp()

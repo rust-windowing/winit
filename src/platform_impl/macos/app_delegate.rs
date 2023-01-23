@@ -43,7 +43,7 @@ declare_class!(
         }
 
         #[method(applicationDidFinishLaunching:)]
-        fn did_finish_launching(&self, _sender: *const Object) {
+        fn did_finish_launching(&self, _sender: Option<&Object>) {
             trace_scope!("applicationDidFinishLaunching:");
             AppState::launched(
                 *self.activation_policy,
@@ -53,7 +53,7 @@ declare_class!(
         }
 
         #[method(applicationWillTerminate:)]
-        fn will_terminate(&self, _sender: *const Object) {
+        fn will_terminate(&self, _sender: Option<&Object>) {
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
             AppState::exit();

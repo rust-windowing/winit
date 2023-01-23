@@ -185,7 +185,7 @@ declare_class!(
 
         /// Invoked when the dragged image enters destination bounds or frame
         #[method(draggingEntered:)]
-        fn dragging_entered(&self, sender: *mut Object) -> bool {
+        fn dragging_entered(&self, sender: &NSObject) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
@@ -204,14 +204,14 @@ declare_class!(
 
         /// Invoked when the image is released
         #[method(prepareForDragOperation:)]
-        fn prepare_for_drag_operation(&self, _: Option<&Object>) -> bool {
+        fn prepare_for_drag_operation(&self, _sender: &NSObject) -> bool {
             trace_scope!("prepareForDragOperation:");
             true
         }
 
         /// Invoked after the released image has been removed from the screen
         #[method(performDragOperation:)]
-        fn perform_drag_operation(&self, sender: *mut Object) -> bool {
+        fn perform_drag_operation(&self, sender: &NSObject) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
@@ -230,13 +230,13 @@ declare_class!(
 
         /// Invoked when the dragging operation is complete
         #[method(concludeDragOperation:)]
-        fn conclude_drag_operation(&self, _: Option<&Object>) {
+        fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
             trace_scope!("concludeDragOperation:");
         }
 
         /// Invoked when the dragging operation is cancelled
         #[method(draggingExited:)]
-        fn dragging_exited(&self, _: Option<&Object>) {
+        fn dragging_exited(&self, _sender: Option<&NSObject>) {
             trace_scope!("draggingExited:");
             self.queue_event(WindowEvent::HoveredFileCancelled);
         }
