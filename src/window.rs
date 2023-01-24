@@ -486,6 +486,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
+    /// - **Wayland:** Uses the wp-fractional-scale protocol if available. Falls back to integer-scale factors otherwise.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
@@ -839,6 +840,23 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         self.window.set_minimized(minimized);
+    }
+
+    /// Gets the window's current minimized state.
+    ///
+    /// `None` will be returned, if the minimized state couldn't be determined.
+    ///
+    /// ## Note
+    ///
+    /// - You shouldn't stop rendering for minimized windows, however you could lower the fps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: always `None`.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        self.window.is_minimized()
     }
 
     /// Sets the window to maximized or back.

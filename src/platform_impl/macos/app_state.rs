@@ -352,7 +352,13 @@ impl AppState {
     }
 
     pub fn handle_redraw(window_id: WindowId) {
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+        // Redraw request might come out of order from the OS.
+        // -> Don't go back into the callback when our callstack originates from there
+        if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
+            HANDLER
+                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.set_in_callback(false);
+        }
     }
 
     pub fn queue_event(wrapper: EventWrapper) {
@@ -360,13 +366,6 @@ impl AppState {
             panic!("Event queued from different thread: {:#?}", wrapper);
         }
         HANDLER.events().push_back(wrapper);
-    }
-
-    pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
-        if !is_main_thread() {
-            panic!("Events queued from different thread: {:#?}", wrappers);
-        }
-        HANDLER.events().append(&mut wrappers);
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {

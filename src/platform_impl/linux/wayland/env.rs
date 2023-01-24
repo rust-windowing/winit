@@ -14,12 +14,15 @@ use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_rela
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
 use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::reexports::protocols::viewporter::client::wp_viewporter::WpViewporter;
 
 use sctk::environment::{Environment, SimpleGlobal};
 use sctk::output::{OutputHandler, OutputHandling, OutputInfo, OutputStatusListener};
 use sctk::seat::{SeatData, SeatHandler, SeatHandling, SeatListener};
 use sctk::shell::{Shell, ShellHandler, ShellHandling};
 use sctk::shm::ShmHandler;
+
+use crate::platform_impl::wayland::protocols::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1;
 
 /// Set of extra features that are supported by the compositor.
 #[derive(Debug, Clone, Copy)]
@@ -61,6 +64,8 @@ sctk::environment!(WinitEnv,
         ZwpPointerConstraintsV1 => pointer_constraints,
         ZwpTextInputManagerV3 => text_input_manager,
         XdgActivationV1 => xdg_activation,
+        WpFractionalScaleManagerV1 => fractional_scale_manager,
+        WpViewporter => viewporter,
     ],
     multis = [
         WlSeat => seats,
@@ -91,6 +96,10 @@ pub struct WinitEnv {
     decoration_manager: SimpleGlobal<ZxdgDecorationManagerV1>,
 
     xdg_activation: SimpleGlobal<XdgActivationV1>,
+
+    fractional_scale_manager: SimpleGlobal<WpFractionalScaleManagerV1>,
+
+    viewporter: SimpleGlobal<WpViewporter>,
 }
 
 impl WinitEnv {
@@ -125,6 +134,12 @@ impl WinitEnv {
         // Surface activation.
         let xdg_activation = SimpleGlobal::new();
 
+        // Fractional surface scaling.
+        let fractional_scale_manager = SimpleGlobal::new();
+
+        // Surface resizing (used for fractional scaling).
+        let viewporter = SimpleGlobal::new();
+
         Self {
             seats,
             outputs,
@@ -137,6 +152,8 @@ impl WinitEnv {
             pointer_constraints,
             text_input_manager,
             xdg_activation,
+            fractional_scale_manager,
+            viewporter,
         }
     }
 }

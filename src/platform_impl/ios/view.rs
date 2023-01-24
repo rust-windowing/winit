@@ -18,7 +18,7 @@ use crate::{
     platform_impl::platform::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
-        ffi::{id, UIRectEdge, UIUserInterfaceIdiom},
+        ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId, Fullscreen,
     },
@@ -487,7 +487,7 @@ declare_class!(
     // UIApplicationDelegate protocol
     unsafe impl WinitApplicationDelegate {
         #[sel(application:didFinishLaunchingWithOptions:)]
-        fn did_finish_launching(&self, _application: &UIApplication, _: id) -> bool {
+        fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
             unsafe {
                 app_state::did_finish_launching();
             }

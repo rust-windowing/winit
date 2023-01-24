@@ -34,20 +34,19 @@ use windows_sys::Win32::{
             KeyboardAndMouse::{
                 EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
                 INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                VK_LMENU, VK_MENU,
+                MAPVK_VK_TO_VSC, VK_LMENU, VK_MENU,
             },
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, IsIconic,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
             FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
-            MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS,
-            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
-            WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
+            SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
 };
@@ -462,7 +461,7 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
-        let is_minimized = self.is_minimized();
+        let is_minimized = util::is_minimized(self.hwnd());
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
@@ -473,6 +472,11 @@ impl Window {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(util::is_minimized(self.hwnd()))
     }
 
     #[inline]
@@ -492,11 +496,6 @@ impl Window {
     pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
-    }
-
-    #[inline]
-    pub fn is_minimized(&self) -> bool {
-        unsafe { IsIconic(self.hwnd()) == 1 }
     }
 
     #[inline]
@@ -810,7 +809,7 @@ impl Window {
         let window_flags = self.window_state_lock().window_flags();
 
         let is_visible = window_flags.contains(WindowFlags::VISIBLE);
-        let is_minimized = window_flags.contains(WindowFlags::MINIMIZED);
+        let is_minimized = util::is_minimized(self.hwnd());
         let is_foreground = window.0 == unsafe { GetForegroundWindow() };
 
         if is_visible && !is_minimized && !is_foreground {

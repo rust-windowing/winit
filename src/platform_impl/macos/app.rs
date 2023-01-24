@@ -1,7 +1,5 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::collections::VecDeque;
-
 use objc2::foundation::NSObject;
 use objc2::{declare_class, msg_send, ClassType};
 
@@ -50,70 +48,51 @@ fn maybe_dispatch_device_event(event: &NSEvent) {
         | NSEventType::NSLeftMouseDragged
         | NSEventType::NSOtherMouseDragged
         | NSEventType::NSRightMouseDragged => {
-            let mut events = VecDeque::with_capacity(3);
-
             let delta_x = event.deltaX() as f64;
             let delta_y = event.deltaY() as f64;
 
             if delta_x != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
-                    device_id: DEVICE_ID,
-                    event: DeviceEvent::Motion {
-                        axis: 0,
-                        value: delta_x,
-                    },
-                }));
+                queue_device_event(DeviceEvent::Motion {
+                    axis: 0,
+                    value: delta_x,
+                });
             }
 
             if delta_y != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
-                    device_id: DEVICE_ID,
-                    event: DeviceEvent::Motion {
-                        axis: 1,
-                        value: delta_y,
-                    },
-                }));
+                queue_device_event(DeviceEvent::Motion {
+                    axis: 1,
+                    value: delta_y,
+                })
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
-                    device_id: DEVICE_ID,
-                    event: DeviceEvent::MouseMotion {
-                        delta: (delta_x, delta_y),
-                    },
-                }));
+                queue_device_event(DeviceEvent::MouseMotion {
+                    delta: (delta_x, delta_y),
+                });
             }
-
-            AppState::queue_events(events);
         }
         NSEventType::NSLeftMouseDown
         | NSEventType::NSRightMouseDown
         | NSEventType::NSOtherMouseDown => {
-            let mut events = VecDeque::with_capacity(1);
-
-            events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
-                device_id: DEVICE_ID,
-                event: DeviceEvent::Button {
-                    button: event.buttonNumber() as u32,
-                    state: ElementState::Pressed,
-                },
-            }));
-
-            AppState::queue_events(events);
+            queue_device_event(DeviceEvent::Button {
+                button: event.buttonNumber() as u32,
+                state: ElementState::Pressed,
+            });
         }
         NSEventType::NSLeftMouseUp | NSEventType::NSRightMouseUp | NSEventType::NSOtherMouseUp => {
-            let mut events = VecDeque::with_capacity(1);
-
-            events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
-                device_id: DEVICE_ID,
-                event: DeviceEvent::Button {
-                    button: event.buttonNumber() as u32,
-                    state: ElementState::Released,
-                },
-            }));
-
-            AppState::queue_events(events);
+            queue_device_event(DeviceEvent::Button {
+                button: event.buttonNumber() as u32,
+                state: ElementState::Released,
+            });
         }
         _ => (),
     }
+}
+
+fn queue_device_event(event: DeviceEvent) {
+    let event = Event::DeviceEvent {
+        device_id: DEVICE_ID,
+        event,
+    };
+    AppState::queue_event(EventWrapper::StaticEvent(event));
 }

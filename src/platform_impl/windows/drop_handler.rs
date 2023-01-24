@@ -13,8 +13,7 @@ use windows_sys::{
         Graphics::Gdi::ScreenToClient,
         System::{
             Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
-            Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE},
-            SystemServices::CF_HDROP,
+            Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE},
         },
         UI::Shell::{DragFinish, DragQueryFileW, HDROP},
     },
@@ -177,7 +176,7 @@ impl FileDropHandler {
         F: Fn(PathBuf),
     {
         let drop_format = FORMATETC {
-            cfFormat: CF_HDROP as u16,
+            cfFormat: CF_HDROP,
             ptd: ptr::null_mut(),
             dwAspect: DVASPECT_CONTENT,
             lindex: -1,

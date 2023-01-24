@@ -441,7 +441,7 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor() as _)
+        x11_or_wayland!(match self; Window(w) => w.scale_factor())
     }
 
     #[inline]
@@ -462,6 +462,11 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_minimized())
     }
 
     #[inline]
