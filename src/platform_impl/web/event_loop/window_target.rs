@@ -9,7 +9,7 @@ use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
     window::WindowId,
 };
-use crate::dpi::{PhysicalSize, Size};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, Touch, TouchPhase,

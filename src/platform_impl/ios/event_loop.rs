@@ -23,7 +23,7 @@ use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::view::WinitUIWindow;
 use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition},
     error::{ExternalError, NotSupportedError},
     event::Event,
     event_loop::{

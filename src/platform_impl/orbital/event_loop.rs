@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    dpi::PhysicalPosition,
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow},
