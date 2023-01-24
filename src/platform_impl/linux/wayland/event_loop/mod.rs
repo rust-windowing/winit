@@ -19,6 +19,9 @@ use sctk::environment::Environment;
 use sctk::seat::pointer::{ThemeManager, ThemeSpec};
 use sctk::WaylandSource;
 
+use crate::dpi::PhysicalPosition;
+use crate::error::ExternalError;
+use crate::error::NotSupportedError;
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform_impl::platform::sticky_exit_callback;
@@ -79,6 +82,10 @@ impl<T> EventLoopWindowTarget<T> {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.display.get_display_ptr() as *mut _;
         RawDisplayHandle::Wayland(display_handle)
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
 

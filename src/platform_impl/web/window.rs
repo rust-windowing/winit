@@ -282,6 +282,10 @@ impl Window {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'

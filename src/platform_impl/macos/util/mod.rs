@@ -9,6 +9,8 @@ use objc2::foundation::{CGFloat, NSNotFound, NSPoint, NSRange, NSRect, NSUIntege
 
 use crate::dpi::LogicalPosition;
 
+use super::appkit::NSEvent;
+
 // Replace with `!` once stable
 #[derive(Debug)]
 pub enum Never {}
@@ -62,4 +64,9 @@ pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
         position.x as CGFloat,
         CGDisplay::main().pixels_high() as CGFloat - position.y as CGFloat,
     )
+}
+
+pub fn cursor_position() -> crate::dpi::PhysicalPosition<f64> {
+    let pt: NSPoint = NSEvent::mouseLocation();
+    (pt.x, pt.y).into()
 }

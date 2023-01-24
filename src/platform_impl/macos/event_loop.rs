@@ -21,8 +21,13 @@ use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
-use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
+use super::{
+    appkit::{NSApp, NSApplicationActivationPolicy, NSEvent},
+    util,
+};
 use crate::{
+    dpi::PhysicalPosition,
+    error::ExternalError,
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     platform::macos::ActivationPolicy,
@@ -90,6 +95,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    }
+
+    #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Ok(util::cursor_position())
     }
 }
 

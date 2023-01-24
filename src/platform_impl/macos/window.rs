@@ -759,6 +759,11 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Ok(util::cursor_position())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.backingScaleFactor() as f64
     }

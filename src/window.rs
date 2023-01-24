@@ -833,7 +833,7 @@ impl Window {
 
     /// Sets the window to minimized or back
     ///
-    /// ## Platform-specific
+    /// ## Platform-specific1
     ///
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **Wayland:** Un-minimize is unsupported.
@@ -1230,6 +1230,16 @@ impl Window {
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_hittest(hittest)
+    }
+
+    /// Returns the current cursor position.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Wayland / Orbital / Web**: Unsupported, returns `None`.
+    #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        self.window.cursor_position()
     }
 }
 

@@ -10,6 +10,7 @@ use super::{
     window::WindowId,
 };
 use crate::dpi::{PhysicalSize, Size};
+use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, Touch, TouchPhase,
     WindowEvent,
@@ -351,5 +352,9 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Web(WebDisplayHandle::empty())
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }

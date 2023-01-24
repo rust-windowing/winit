@@ -45,7 +45,8 @@ use self::{
     util::modifiers::ModifierKeymap,
 };
 use crate::{
-    error::OsError as RootOsError,
+    dpi::PhysicalPosition,
+    error::{ExternalError, OsError as RootOsError},
     event::{Event, StartCause},
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
@@ -573,6 +574,10 @@ impl<T> EventLoopWindowTarget<T> {
         display_handle.screen =
             unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
         RawDisplayHandle::Xlib(display_handle)
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        self.xconn.cursor_position(self.root)
     }
 }
 

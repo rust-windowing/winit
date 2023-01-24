@@ -1,4 +1,4 @@
-use crate::window::CursorIcon;
+use crate::{dpi::PhysicalPosition, error::ExternalError, window::CursorIcon};
 
 use super::*;
 
@@ -126,5 +126,33 @@ impl XConnection {
 
             self.flush_requests().expect("Failed to set the cursor");
         }
+    }
+
+    pub fn cursor_position(
+        &self,
+        window: ffi::Window,
+    ) -> Result<PhysicalPosition<f64>, ExternalError> {
+        let mut root_return = 0;
+        let mut child_return = 0;
+        let mut root_x_return = 0;
+        let mut root_y_return = 0;
+        let mut win_x_return = 0;
+        let mut win_y_return = 0;
+        let mut mask_return = 0;
+
+        unsafe {
+            (self.xlib.XQueryPointer)(
+                self.display,
+                window,
+                &mut root_return,
+                &mut child_return,
+                &mut root_x_return,
+                &mut root_y_return,
+                &mut win_x_return,
+                &mut win_y_return,
+                &mut mask_return,
+            );
+        }
+        Ok((root_x_return, root_y_return).into())
     }
 }

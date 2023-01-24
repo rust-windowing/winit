@@ -385,6 +385,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        util::cursor_position()
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.window_state_lock().scale_factor
     }

@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow},
     window::WindowId as RootWindowId,
@@ -705,5 +706,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
     }
 }

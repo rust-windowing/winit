@@ -425,6 +425,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.cursor_position())
+    }
+
+    #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
     }
@@ -862,6 +867,10 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        x11_or_wayland!(match self; Self(evlp) => evlp.cursor_position())
     }
 }
 

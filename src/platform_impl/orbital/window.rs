@@ -339,6 +339,12 @@ impl Window {
         ))
     }
 
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
     #[inline]
     pub fn set_cursor_grab(&self, _: window::CursorGrabMode) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(

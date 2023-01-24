@@ -24,6 +24,7 @@ use super::view::WinitUIWindow;
 use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
     dpi::LogicalSize,
+    error::{ExternalError, NotSupportedError},
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
@@ -64,6 +65,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
 

@@ -70,6 +70,9 @@ extern_methods!(
         #[sel(locationInWindow)]
         pub fn locationInWindow(&self) -> NSPoint;
 
+        #[sel(mouseLocation)]
+        pub fn mouseLocation() -> NSPoint;
+
         // TODO: MainThreadMarker
         #[sel(pressedMouseButtons)]
         pub fn pressedMouseButtons() -> NSUInteger;

@@ -13,7 +13,7 @@ use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HINSTANCE, HWND, RECT},
+        Foundation::{BOOL, HINSTANCE, HWND, POINT, RECT},
         Graphics::Gdi::{ClientToScreen, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
@@ -23,17 +23,17 @@ use windows_sys::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
-                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowRect,
-                IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
-                IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
-                IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN,
+                ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics,
+                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
+                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
+                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
             },
         },
     },
 };
 
-use crate::window::CursorIcon;
+use crate::{dpi::PhysicalPosition, error::ExternalError, window::CursorIcon};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -244,3 +244,10 @@ pub static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
     Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
 pub static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
     Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));
+
+pub fn cursor_position() -> Result<PhysicalPosition<f64>, ExternalError> {
+    let mut pt = POINT { x: 0, y: 0 };
+    win_to_err(unsafe { GetCursorPos(&mut pt) })
+        .map(|_| (pt.x, pt.y).into())
+        .map_err(|e| ExternalError::Os(os_error!(e)))
+}
