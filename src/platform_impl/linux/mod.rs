@@ -33,6 +33,7 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
+    monitor::MonitorGone,
     window::{
         CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
         WindowButtons, WindowLevel,
@@ -225,38 +226,38 @@ macro_rules! x11_or_wayland {
 
 impl MonitorHandle {
     #[inline]
-    pub fn name(&self) -> Option<String> {
+    pub fn name(&self) -> Result<String, MonitorGone> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.name())
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
+    pub fn native_identifier(&self) -> Result<u32, MonitorGone> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.native_identifier())
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.size())
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.position())
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
         x11_or_wayland!(match self; MonitorHandle(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as _)
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor())
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
+    pub fn video_modes(&self) -> Result<Box<dyn Iterator<Item = VideoMode>>, MonitorGone> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.video_modes())
     }
 }
 

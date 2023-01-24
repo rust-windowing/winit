@@ -13,6 +13,7 @@ use super::{
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    monitor::MonitorGone,
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
@@ -170,39 +171,41 @@ impl MonitorHandle {
         self.id == 0
     }
 
-    pub fn name(&self) -> Option<String> {
-        Some(self.name.clone())
+    pub fn name(&self) -> Result<String, MonitorGone> {
+        Ok(self.name.clone())
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.id as _
+    pub fn native_identifier(&self) -> Result<u32, MonitorGone> {
+        Ok(self.id as _)
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        self.dimensions.into()
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
+        Ok(self.dimensions.into())
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        self.position.into()
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
+        Ok(self.position.into())
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        self.refresh_rate_millihertz
-    }
-
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        self.scale_factor
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
+        Ok(self.refresh_rate_millihertz.unwrap_or(0))
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        Ok(self.scale_factor)
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> Result<Box<dyn Iterator<Item = PlatformVideoMode>>, MonitorGone> {
         let monitor = self.clone();
-        self.video_modes.clone().into_iter().map(move |mut x| {
-            x.monitor = Some(monitor.clone());
-            PlatformVideoMode::X(x)
-        })
+        Ok(Box::new(self.video_modes.clone().into_iter().map(
+            move |mut x| {
+                x.monitor = Some(monitor.clone());
+                PlatformVideoMode::X(x)
+            },
+        )))
     }
 }
 

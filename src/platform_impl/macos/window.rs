@@ -219,7 +219,7 @@ impl WinitWindow {
             let screen = match &attrs.fullscreen {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
-                    monitor.ns_screen().or_else(NSScreen::main)
+                    monitor.ns_screen().ok().or_else(NSScreen::main)
                 }
                 Some(Fullscreen::Borderless(None)) => NSScreen::main(),
                 None => None,

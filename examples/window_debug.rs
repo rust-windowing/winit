@@ -83,6 +83,7 @@ fn main() {
                     let monitor = window.current_monitor().unwrap();
                     if let Some(mode) = monitor
                         .video_modes()
+                        .expect("monitor gone")
                         .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
                     {
                         window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));

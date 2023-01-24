@@ -151,7 +151,9 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
-        let scale_factor = guessed_monitor.scale_factor();
+        let scale_factor = guessed_monitor
+            .scale_factor()
+            .expect("monitor window scale");
 
         info!("Guessed window scale factor: {}", scale_factor);
 
@@ -741,7 +743,8 @@ impl UnownedWindow {
 
                 let window_position = self.outer_position_physical();
                 self.shared_state_lock().restore_position = Some(window_position);
-                let monitor_origin: (i32, i32) = monitor.position().into();
+                let monitor_origin: (i32, i32) =
+                    monitor.position().expect("monitor position").into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
                 Some(self.set_fullscreen_hint(true))

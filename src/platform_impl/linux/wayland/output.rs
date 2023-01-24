@@ -8,6 +8,7 @@ use sctk::environment::Environment;
 use sctk::output::OutputStatusListener;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::MonitorGone;
 use crate::platform_impl::platform::{
     MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
@@ -117,13 +118,15 @@ impl PartialOrd for MonitorHandle {
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.native_identifier().cmp(&other.native_identifier())
+        self.native_identifier()
+            .ok()
+            .cmp(&other.native_identifier().ok())
     }
 }
 
 impl std::hash::Hash for MonitorHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.native_identifier().hash(state);
+        self.native_identifier().ok().hash(state);
     }
 }
 
@@ -134,68 +137,72 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn name(&self) -> Option<String> {
+    pub fn name(&self) -> Result<String, MonitorGone> {
         sctk::output::with_output_info(&self.proxy, |info| {
             format!("{} ({})", info.model, info.make)
         })
+        .ok_or_else(MonitorGone::new)
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        sctk::output::with_output_info(&self.proxy, |info| info.id).unwrap_or(0)
+    pub fn native_identifier(&self) -> Result<u32, MonitorGone> {
+        sctk::output::with_output_info(&self.proxy, |info| info.id).ok_or_else(MonitorGone::new)
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
         match sctk::output::with_output_info(&self.proxy, |info| {
             info.modes
                 .iter()
                 .find(|mode| mode.is_current)
                 .map(|mode| mode.dimensions)
         }) {
-            Some(Some((w, h))) => (w as u32, h as u32),
-            _ => (0, 0),
+            Some(Some((w, h))) => Ok(PhysicalSize::new(w as u32, h as u32)),
+            _ => Err(MonitorGone::new()),
         }
-        .into()
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        sctk::output::with_output_info(&self.proxy, |info| info.location)
-            .unwrap_or((0, 0))
-            .into()
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
+        Ok(
+            sctk::output::with_output_info(&self.proxy, |info| info.location)
+                .ok_or_else(MonitorGone::new)?
+                .into(),
+        )
     }
 
     #[inline]
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
         sctk::output::with_output_info(&self.proxy, |info| {
             info.modes
                 .iter()
                 .find_map(|mode| mode.is_current.then(|| mode.refresh_rate as u32))
         })
         .flatten()
+        .ok_or_else(MonitorGone::new)
     }
 
     #[inline]
-    pub fn scale_factor(&self) -> i32 {
-        sctk::output::with_output_info(&self.proxy, |info| info.scale_factor).unwrap_or(1)
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        sctk::output::with_output_info(&self.proxy, |info| info.scale_factor as f64)
+            .ok_or_else(MonitorGone::new)
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
+    pub fn video_modes(&self) -> Result<Box<dyn Iterator<Item = PlatformVideoMode>>, MonitorGone> {
         let modes = sctk::output::with_output_info(&self.proxy, |info| info.modes.clone())
-            .unwrap_or_default();
+            .ok_or_else(MonitorGone::new)?;
 
         let monitor = self.clone();
 
-        modes.into_iter().map(move |mode| {
+        Ok(Box::new(modes.into_iter().map(move |mode| {
             PlatformVideoMode::Wayland(VideoMode {
                 size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
                 refresh_rate_millihertz: mode.refresh_rate as u32,
                 bit_depth: 32,
                 monitor: monitor.clone(),
             })
-        })
+        })))
     }
 }
 

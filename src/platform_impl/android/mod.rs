@@ -25,6 +25,7 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
+    monitor::MonitorGone,
     window::{self, CursorGrabMode, ResizeDirection, Theme, WindowButtons, WindowLevel},
 };
 
@@ -422,10 +423,10 @@ impl<T: 'static> EventLoop<T> {
                 }
                 MainEvent::ConfigChanged { .. } => {
                     let monitor = MonitorHandle::new(self.android_app.clone());
-                    let old_scale_factor = monitor.scale_factor();
-                    let scale_factor = monitor.scale_factor();
+                    let old_scale_factor = monitor.scale_factor().expect("monitor scale factor");
+                    let scale_factor = monitor.scale_factor().expect("monitor scale factor");
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let mut size = MonitorHandle::new(self.android_app.clone()).size();
+                        let mut size = monitor.size().expect("monitor size");
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::ScaleFactorChanged {
@@ -909,7 +910,9 @@ impl Window {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        MonitorHandle::new(self.app.clone()).scale_factor()
+        MonitorHandle::new(self.app.clone())
+            .scale_factor()
+            .expect("monitor scale factor")
     }
 
     pub fn request_redraw(&self) {
@@ -937,7 +940,9 @@ impl Window {
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        MonitorHandle::new(self.app.clone()).size()
+        MonitorHandle::new(self.app.clone())
+            .size()
+            .expect("monitor size")
     }
 
     pub fn set_min_inner_size(&self, _: Option<Size>) {}
@@ -1114,45 +1119,42 @@ impl MonitorHandle {
         Self { app }
     }
 
-    pub fn name(&self) -> Option<String> {
-        Some("Android Device".to_owned())
+    pub fn name(&self) -> Result<String, MonitorGone> {
+        Ok("Android Device".to_owned())
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        if let Some(native_window) = self.app.native_window() {
-            PhysicalSize::new(native_window.width() as _, native_window.height() as _)
-        } else {
-            PhysicalSize::new(0, 0)
-        }
+    pub fn size(&self) -> Result<PhysicalSize<u32>, MonitorGone> {
+        let native_window = self.app.native_window().ok_or_else(MonitorGone::new)?;
+        Ok(PhysicalSize::new(
+            native_window.width() as _,
+            native_window.height() as _,
+        ))
     }
 
-    pub fn position(&self) -> PhysicalPosition<i32> {
-        (0, 0).into()
+    pub fn position(&self) -> Result<PhysicalPosition<i32>, MonitorGone> {
+        Ok((0, 0).into())
     }
 
-    pub fn scale_factor(&self) -> f64 {
-        self.app
-            .config()
-            .density()
-            .map(|dpi| dpi as f64 / 160.0)
-            .unwrap_or(1.0)
+    pub fn scale_factor(&self) -> Result<f64, MonitorGone> {
+        let dpi = self.app.config().density().ok_or_else(MonitorGone::new)?;
+        Ok(dpi as f64 / 160.0)
     }
 
-    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+    pub fn refresh_rate_millihertz(&self) -> Result<u32, MonitorGone> {
         // FIXME no way to get real refresh rate for now.
-        None
+        Ok(60000)
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        let size = self.size().into();
+    pub fn video_modes(&self) -> Result<impl Iterator<Item = VideoMode>, MonitorGone> {
+        let size = self.size()?.into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        Ok(std::iter::once(VideoMode {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
             monitor: self.clone(),
-        })
+        }))
     }
 }
 

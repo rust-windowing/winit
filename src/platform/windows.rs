@@ -4,7 +4,7 @@ use crate::{
     dpi::PhysicalSize,
     event::DeviceId,
     event_loop::EventLoopBuilder,
-    monitor::MonitorHandle,
+    monitor::{MonitorGone, MonitorHandle},
     platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
@@ -275,21 +275,21 @@ impl WindowBuilderExtWindows for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to Windows.
 pub trait MonitorHandleExtWindows {
     /// Returns the name of the monitor adapter specific to the Win32 API.
-    fn native_id(&self) -> String;
+    fn native_id(&self) -> Result<String, MonitorGone>;
 
     /// Returns the handle of the monitor - `HMONITOR`.
-    fn hmonitor(&self) -> HMONITOR;
+    fn hmonitor(&self) -> Result<HMONITOR, MonitorGone>;
 }
 
 impl MonitorHandleExtWindows for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> String {
+    fn native_id(&self) -> Result<String, MonitorGone> {
         self.inner.native_identifier()
     }
 
     #[inline]
-    fn hmonitor(&self) -> HMONITOR {
-        self.inner.hmonitor()
+    fn hmonitor(&self) -> Result<HMONITOR, MonitorGone> {
+        Ok(self.inner.hmonitor())
     }
 }
 

@@ -8,6 +8,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Added `monitor::MonitorGone`.
+- **Breaking:** Changed the following methods to return `Result<T, MonitorGone>`, allowing handling errors that occur if the monitor disconnects:
+  - `MonitorHandle::name`
+  - `MonitorHandle::size`
+  - `MonitorHandle::position`
+  - `MonitorHandle::refresh_rate_millihertz`
+  - `MonitorHandle::scale_factor`
+  - `MonitorHandle::video_modes`
 - Add `Window::is_minimized`.
 - On X11, fix errors handled during `register_xlib_error_hook` invocation bleeding into winit.
 - Add `Window::has_focus`.

@@ -3,7 +3,7 @@ use std::os::raw::c_void;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
+    monitor::{MonitorGone, MonitorHandle},
     window::{Window, WindowBuilder},
 };
 
@@ -278,18 +278,18 @@ impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
 /// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
-    fn native_id(&self) -> u32;
+    fn native_id(&self) -> Result<u32, MonitorGone>;
     /// Returns a pointer to the NSScreen representing this monitor.
-    fn ns_screen(&self) -> Option<*mut c_void>;
+    fn ns_screen(&self) -> Result<*mut c_void, MonitorGone>;
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
+    fn native_id(&self) -> Result<u32, MonitorGone> {
+        Ok(self.inner.native_identifier())
     }
 
-    fn ns_screen(&self) -> Option<*mut c_void> {
+    fn ns_screen(&self) -> Result<*mut c_void, MonitorGone> {
         self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
     }
 }
