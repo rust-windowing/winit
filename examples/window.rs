@@ -17,11 +17,9 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        dbg!(event_loop.cursor_position().unwrap());
-
+    event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
-        // println!("{:?}", event);
+        println!("{:?}", event);
 
         match event {
             Event::WindowEvent {
