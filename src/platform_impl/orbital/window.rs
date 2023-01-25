@@ -138,6 +138,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
+    }
+
+    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
         v.push_back(MonitorHandle);

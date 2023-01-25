@@ -590,6 +590,21 @@ impl Window {
     }
 
     #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        match self {
+            #[cfg(x11_platform)]
+            Window::X(ref window) => {
+                let monitor = MonitorHandle::X(window.monitor_from_point(point));
+                Some(monitor)
+            }
+            #[cfg(wayland_platform)]
+            Window::Wayland(ref window) => {
+                window.monitor_from_point(point).map(MonitorHandle::Wayland)
+            }
+        }
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
     }
@@ -846,6 +861,21 @@ impl<T> EventLoopWindowTarget<T> {
             EventLoopWindowTarget::X(ref evlp) => {
                 let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
                 Some(primary_monitor)
+            }
+        }
+    }
+
+    #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        match *self {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(ref evlp) => {
+                evlp.monitor_from_point(point).map(MonitorHandle::Wayland)
+            }
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(ref evlp) => {
+                let monitor = MonitorHandle::X(evlp.x_connection().monitor_from_point(point));
+                Some(monitor)
             }
         }
     }

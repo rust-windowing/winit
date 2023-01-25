@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    dpi::PhysicalPosition,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow},
     window::WindowId as RootWindowId,
@@ -694,6 +695,10 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
+    }
+
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }
 

@@ -311,6 +311,21 @@ impl XConnection {
             .unwrap_or_else(MonitorHandle::dummy)
     }
 
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> MonitorHandle {
+        self.available_monitors()
+            .into_iter()
+            .find(|monitor| {
+                let (x, y) = monitor.position;
+                let (width, height) = monitor.dimensions;
+
+                x < point.x
+                    && point.x < x + width as i32
+                    && y < point.y
+                    && point.y < y + height as i32
+            })
+            .unwrap_or_else(MonitorHandle::dummy)
+    }
+
     pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
         let has_xrandr = unsafe {
             let mut major = 0;

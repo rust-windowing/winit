@@ -1284,6 +1284,19 @@ impl Window {
             .primary_monitor()
             .map(|inner| MonitorHandle { inner })
     }
+
+    /// Returns the monitor that contains the given point.
+    ///
+    /// This is the same as [`EventLoopWindowTarget::monitor_from_point`], and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        self.window
+            .monitor_from_point(point)
+            .map(|inner| MonitorHandle { inner })
+    }
 }
 unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window

@@ -650,6 +650,22 @@ impl Window {
     }
 
     #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        self.output_manager_handle
+            .available_outputs()
+            .into_iter()
+            .find(|m| {
+                let size = m.size();
+                let position = m.position();
+
+                position.x < point.x
+                    && point.x < position.x + size.width as i32
+                    && position.y < point.y
+                    && point.y < position.y + size.height as i32
+            })
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = WaylandWindowHandle::empty();
         window_handle.surface = self.surface.as_ref().c_ptr() as *mut _;

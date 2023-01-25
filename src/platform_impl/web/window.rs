@@ -383,6 +383,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         self.id
     }

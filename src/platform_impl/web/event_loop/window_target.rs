@@ -9,7 +9,7 @@ use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
     window::WindowId,
 };
-use crate::dpi::{PhysicalSize, Size};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Size};
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, Touch, TouchPhase,
     WindowEvent,
@@ -346,6 +346,10 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
+    }
+
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }
 

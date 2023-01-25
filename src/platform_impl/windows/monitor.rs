@@ -129,6 +129,11 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     MonitorHandle::new(hmonitor)
 }
 
+pub fn monitor_from_point(x: i32, y: i32) -> MonitorHandle {
+    let point = POINT { x, y };
+    MonitorHandle(unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) })
+}
+
 impl Window {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         available_monitors()

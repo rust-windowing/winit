@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Add `Window::monitor_from_point` and `EventLoopWindowTarget::monitor_from_point`.
 - Add `Window::is_minimized`.
 - On X11, fix errors handled during `register_xlib_error_hook` invocation bleeding into winit.
 - Add `Window::has_focus`.

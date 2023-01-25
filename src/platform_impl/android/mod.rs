@@ -827,6 +827,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         Some(MonitorHandle::new(self.app.clone()))
     }
 
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(self.app.clone()))
+    }
+
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
         v.push_back(MonitorHandle::new(self.app.clone()));
@@ -895,6 +899,10 @@ impl Window {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(self.app.clone()))
+    }
+
+    pub fn monitor_from_point(&self, _point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
     }
 

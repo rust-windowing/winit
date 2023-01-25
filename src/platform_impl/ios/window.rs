@@ -333,6 +333,20 @@ impl Inner {
         )))
     }
 
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        monitor::uiscreens(MainThreadMarker::new().unwrap())
+            .into_iter()
+            .find(|m| {
+                let size = m.size();
+                let position = m.position();
+
+                position.x < point.x
+                    && point.x < position.x + size.width as _
+                    && position.y < point.y
+                    && point.y < position.y + size.height as _
+            })
+    }
+
     pub fn id(&self) -> WindowId {
         self.window.id()
     }

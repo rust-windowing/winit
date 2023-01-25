@@ -15,6 +15,7 @@ use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
+use crate::dpi::PhysicalPosition;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -341,6 +342,18 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p
             .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Returns the monitor that contains the given point.
+    ///
+    /// ## Platform-specific:
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **Android / iOS / Orbital / Web:** Unsupported.
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        self.p
+            .monitor_from_point(point)
             .map(|inner| MonitorHandle { inner })
     }
 

@@ -23,7 +23,7 @@ use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::view::WinitUIWindow;
 use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition},
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
@@ -60,6 +60,20 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         Some(MonitorHandle::new(UIScreen::main(
             MainThreadMarker::new().unwrap(),
         )))
+    }
+
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        monitor::uiscreens(MainThreadMarker::new().unwrap())
+            .into_iter()
+            .find(|m| {
+                let size = m.size();
+                let position = m.position();
+
+                position.x < point.x
+                    && point.x < position.x + size.width as i32
+                    && position.y < point.y
+                    && point.y < position.y + size.height as i32
+            })
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

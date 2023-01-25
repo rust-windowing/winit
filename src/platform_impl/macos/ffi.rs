@@ -10,6 +10,7 @@ use core_foundation::{
 use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
+    geometry::{CGPoint, CGRect},
 };
 
 pub type CGDisplayFadeInterval = f32;
@@ -113,6 +114,7 @@ extern "C" {
     pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
+    pub fn CGRectContainsPoint(bounds: CGRect, point: CGPoint) -> i8;
 }
 
 mod core_video {

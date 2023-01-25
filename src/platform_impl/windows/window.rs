@@ -689,6 +689,10 @@ impl Window {
         Some(monitor::current_monitor(self.hwnd()))
     }
 
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        Some(monitor::monitor_from_point(point.x, point.y))
+    }
+
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {

@@ -326,6 +326,10 @@ impl<T> EventLoopWindowTarget<T> {
         Some(monitor)
     }
 
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        Some(monitor::monitor_from_point(point.x, point.y))
+    }
+
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }

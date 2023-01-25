@@ -1193,6 +1193,11 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        monitor::monitor_from_point(point.x, point.y)
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = AppKitWindowHandle::empty();
         window_handle.ns_window = self.ns_window();

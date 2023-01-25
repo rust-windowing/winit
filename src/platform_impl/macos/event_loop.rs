@@ -23,6 +23,7 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
 use crate::{
+    dpi::PhysicalPosition,
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     platform::macos::ActivationPolicy,
@@ -85,6 +86,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
         Some(monitor)
+    }
+
+    #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        monitor::monitor_from_point(point.x, point.y)
     }
 
     #[inline]

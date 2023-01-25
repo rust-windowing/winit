@@ -802,6 +802,10 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> X11MonitorHandle {
+        self.xconn.monitor_from_point(point)
+    }
+
     #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
         let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };

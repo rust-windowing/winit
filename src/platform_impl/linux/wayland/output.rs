@@ -244,4 +244,21 @@ impl<T> EventLoopWindowTarget<T> {
         // There's no primary monitor on Wayland.
         None
     }
+
+    #[inline]
+    pub fn monitor_from_point(&self, point: PhysicalPosition<i32>) -> Option<MonitorHandle> {
+        self.output_manager
+            .handle
+            .available_outputs()
+            .into_iter()
+            .find(|m| {
+                let size = m.size();
+                let position = m.position();
+
+                position.x < point.x
+                    && point.x < position.x + size.width as i32
+                    && position.y < point.y
+                    && point.y < position.y + size.height as i32
+            })
+    }
 }

@@ -7,11 +7,14 @@ use core_foundation::{
     base::{CFRelease, TCFType},
     string::CFString,
 };
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use core_graphics::{
+    display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds},
+    geometry::CGPoint,
+};
 use objc2::rc::{Id, Shared};
 
-use super::appkit::NSScreen;
 use super::ffi;
+use super::{appkit::NSScreen, ffi::CGRectContainsPoint};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
@@ -147,6 +150,19 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 
 pub fn primary_monitor() -> MonitorHandle {
     MonitorHandle(CGDisplay::main().id)
+}
+
+pub fn monitor_from_point(x: i32, y: i32) -> Option<MonitorHandle> {
+    for monitor in available_monitors() {
+        unsafe {
+            let bound = CGDisplayBounds(monitor.0);
+            if CGRectContainsPoint(bound, CGPoint::new(x as _, y as _)) == 1 {
+                return Some(monitor);
+            }
+        }
+    }
+
+    None
 }
 
 impl fmt::Debug for MonitorHandle {
