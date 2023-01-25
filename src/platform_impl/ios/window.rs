@@ -341,9 +341,9 @@ impl Inner {
                 let position = m.position();
 
                 position.x < point.x
-                    && point.x < position.x + size.width as _
+                    && point.x < position.x + size.width as i32
                     && position.y < point.y
-                    && point.y < position.y + size.height as _
+                    && point.y < position.y + size.height as i32
             })
     }
 
