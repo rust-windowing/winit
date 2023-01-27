@@ -984,7 +984,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // Limit the window size when maximized to the current monitor.
                 // Otherwise it would include the non-existent decorations.
                 //
-                // Use `MonitorFromRect` instead of `MonitorFromWindow` to achieve correct selsection.
+                // Use `MonitorFromRect` instead of `MonitorFromWindow` to select
+                // the correct monitor here.
                 // See https://github.com/MicrosoftEdge/WebView2Feedback/issues/2549
                 let monitor = MonitorFromRect(&params.rgrc[0], MONITOR_DEFAULTTONULL);
                 if let Ok(monitor_info) = monitor::get_monitor_info(monitor) {
