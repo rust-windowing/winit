@@ -983,8 +983,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
             if util::is_maximized(window) {
                 // Limit the window size when maximized to the current monitor.
                 // Otherwise it would include the non-existent decorations.
-                let monitor = monitor::current_monitor(window);
-                if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
+                //
+                // Use `MonitorFromRect` instead of `MonitorFromWindow` to achieve correct selsection.
+                // See https://github.com/MicrosoftEdge/WebView2Feedback/issues/2549
+                let monitor = MonitorFromRect(&params.rgrc[0], MONITOR_DEFAULTTONULL);
+                if let Ok(monitor_info) = monitor::get_monitor_info(monitor) {
                     params.rgrc[0] = monitor_info.monitorInfo.rcWork;
                 }
             } else if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
