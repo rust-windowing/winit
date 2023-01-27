@@ -406,7 +406,7 @@ impl WinitWindowDelegate {
         }
     }
 
-    fn queue_event(&self, event: WindowEvent<'static>) {
+    pub(crate) fn queue_event(&self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(self.window.id()),
             event,
