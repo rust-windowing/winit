@@ -281,12 +281,9 @@ impl Inner {
         }
     }
 
-    pub fn set_decorations(&self, _decorations: bool) {
-        warn!("`Window::set_decorations` is ignored on iOS")
-    }
+    pub fn set_decorations(&self, _decorations: bool) {}
 
     pub fn is_decorated(&self) -> bool {
-        warn!("`Window::is_decorated` is ignored on iOS");
         true
     }
 
