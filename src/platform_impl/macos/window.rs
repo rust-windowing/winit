@@ -217,7 +217,7 @@ impl WinitWindow {
         }
 
         let this = autoreleasepool(|_| {
-            let screen = match &attrs.fullscreen {
+            let screen = match attrs.fullscreen.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
                     monitor.ns_screen().or_else(NSScreen::main)
@@ -459,7 +459,7 @@ impl WinitWindow {
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
-        this.set_fullscreen(attrs.fullscreen);
+        this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size

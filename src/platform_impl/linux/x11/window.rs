@@ -484,7 +484,8 @@ impl UnownedWindow {
                 window.set_maximized_inner(window_attrs.maximized).queue();
             }
             if window_attrs.fullscreen.is_some() {
-                if let Some(flusher) = window.set_fullscreen_inner(window_attrs.fullscreen.clone())
+                if let Some(flusher) =
+                    window.set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into))
                 {
                     flusher.queue()
                 }

@@ -120,7 +120,7 @@ impl fmt::Debug for WindowBuilder {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
-pub(crate) struct WindowAttributes {
+pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -128,7 +128,7 @@ pub(crate) struct WindowAttributes {
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
-    pub fullscreen: Option<platform_impl::Fullscreen>,
+    pub fullscreen: Option<Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -174,6 +174,11 @@ impl WindowBuilder {
     #[inline]
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Get the current window attributes.
+    pub fn window_attributes(&self) -> &WindowAttributes {
+        &self.window
     }
 
     /// Requests the window to be of specific dimensions.
@@ -279,7 +284,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen.map(|f| f.into());
+        self.window.fullscreen = fullscreen;
         self
     }
 
