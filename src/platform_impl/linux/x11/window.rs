@@ -21,7 +21,7 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, ResizeDirection, Theme, UserAttentionType,
+        CursorGrabMode, CursorIcon, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
         WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -1531,6 +1531,9 @@ impl UnownedWindow {
             .unwrap()
             .send(ImeRequest::Allow(self.xwindow, allowed));
     }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn focus_window(&self) {

@@ -33,8 +33,8 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -1153,6 +1153,9 @@ impl WinitWindow {
         // TODO(madsmtm): Remove the need for this
         unsafe { Id::from_shared(self.view()) }.set_ime_allowed(allowed);
     }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn focus_window(&self) {

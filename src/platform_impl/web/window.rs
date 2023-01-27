@@ -3,8 +3,8 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons, WindowId as RootWI, WindowLevel,
+    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -348,6 +348,11 @@ impl Window {
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
+    }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         // Currently not implemented
     }
 

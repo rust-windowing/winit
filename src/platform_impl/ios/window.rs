@@ -27,8 +27,8 @@ use crate::{
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -300,6 +300,10 @@ impl Inner {
     }
 
     pub fn set_ime_allowed(&self, _allowed: bool) {
+        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    }
+
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         warn!("`Window::set_ime_allowed` is ignored on iOS")
     }
 

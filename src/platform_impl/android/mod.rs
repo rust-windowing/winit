@@ -25,7 +25,9 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, ResizeDirection, Theme, WindowButtons, WindowLevel},
+    window::{
+        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
+    },
 };
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
@@ -1005,6 +1007,8 @@ impl Window {
     pub fn set_ime_position(&self, _position: Position) {}
 
     pub fn set_ime_allowed(&self, _allowed: bool) {}
+
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     pub fn focus_window(&self) {}
 

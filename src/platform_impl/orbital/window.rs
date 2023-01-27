@@ -12,6 +12,7 @@ use crate::{
     error,
     platform_impl::Fullscreen,
     window,
+    window::ImePurpose,
 };
 
 use super::{
@@ -322,6 +323,9 @@ impl Window {
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {}
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn focus_window(&self) {}

@@ -1054,6 +1054,16 @@ impl Window {
         self.window.set_ime_allowed(allowed);
     }
 
+    /// Sets the IME purpose for the window using [`ImePurpose`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        self.window.set_ime_purpose(purpose);
+    }
+
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.
     ///
@@ -1541,6 +1551,33 @@ pub enum WindowLevel {
 }
 
 impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+/// Generic IME purposes for use in [`Window::set_ime_purpose`].
+///
+/// The purpose may improve UX by optimizing the IME for the specific use case,
+/// if winit can express the purpose to the platform and the platform reacts accordingly.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum ImePurpose {
+    /// No special hints for the IME (default).
+    Normal,
+    /// The IME is used for password input.
+    Password,
+    /// The IME is used to input into a terminal.
+    ///
+    /// For example, that could alter OSK on Wayland to show extra buttons.
+    Terminal,
+}
+
+impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
     }

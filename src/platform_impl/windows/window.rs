@@ -71,8 +71,8 @@ use crate::{
         Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -732,6 +732,9 @@ impl Window {
             ImeContext::set_ime_allowed(self.hwnd(), allowed);
         }
     }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {

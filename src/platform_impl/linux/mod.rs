@@ -34,8 +34,8 @@ use crate::{
     },
     icon::Icon,
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -517,6 +517,11 @@ impl Window {
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
+    }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
     }
 
     #[inline]

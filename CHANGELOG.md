@@ -65,6 +65,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, support fractional scaling via the wp-fractional-scale protocol.
 - On web, fix removal of mouse event listeners from the global object upon window distruction.
 - Add WindowAttributes getter to WindowBuilder to allow introspection of default values.
+- Added `Window::set_ime_purpose` for setting the IME purpose, currently implemented on Wayland only.
 
 # 0.27.5
 
