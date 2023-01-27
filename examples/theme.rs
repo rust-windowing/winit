@@ -36,7 +36,7 @@ fn main() {
                 window_id,
                 ..
             } if window_id == window.id() => {
-                println!("Theme is changed: {:?}", theme)
+                println!("Theme is changed: {theme:?}")
             }
             Event::WindowEvent {
                 event:

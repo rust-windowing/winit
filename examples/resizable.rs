@@ -39,7 +39,7 @@ fn main() {
                     ..
                 } => {
                     resizable = !resizable;
-                    println!("Resizable: {}", resizable);
+                    println!("Resizable: {resizable}");
                     window.set_resizable(resizable);
                 }
                 _ => (),

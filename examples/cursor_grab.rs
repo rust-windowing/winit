@@ -50,17 +50,17 @@ fn main() {
                     };
 
                     if let Err(err) = result {
-                        println!("error: {}", err);
+                        println!("error: {err}");
                     }
                 }
                 WindowEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
             Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
+                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {delta:?}"),
                 DeviceEvent::Button { button, state } => match state {
-                    ElementState::Pressed => println!("mouse button {} pressed", button),
-                    ElementState::Released => println!("mouse button {} released", button),
+                    ElementState::Pressed => println!("mouse button {button} pressed"),
+                    ElementState::Released => println!("mouse button {button} released"),
                 },
                 _ => (),
             },

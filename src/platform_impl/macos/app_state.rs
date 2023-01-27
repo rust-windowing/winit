@@ -363,7 +363,7 @@ impl AppState {
 
     pub fn queue_event(wrapper: EventWrapper) {
         if !is_main_thread() {
-            panic!("Event queued from different thread: {:#?}", wrapper);
+            panic!("Event queued from different thread: {wrapper:#?}");
         }
         HANDLER.events().push_back(wrapper);
     }

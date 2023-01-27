@@ -34,8 +34,7 @@ impl fmt::Display for BadIcon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
-                "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
-                byte_count,
+                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
             ),
             BadIcon::DimensionsVsPixelCount {
                 width,
@@ -43,10 +42,9 @@ impl fmt::Display for BadIcon {
                 width_x_height,
                 pixel_count,
             } => write!(f,
-                "The specified dimensions ({:?}x{:?}) don't match the number of pixels supplied by the `rgba` argument ({:?}). For those dimensions, the expected pixel count is {:?}.",
-                width, height, pixel_count, width_x_height,
+                "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}.",
             ),
-            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {:?}", e),
+            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {e:?}"),
         }
     }
 }

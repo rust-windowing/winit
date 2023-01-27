@@ -81,7 +81,7 @@ mod wasm {
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
             let log = document.create_element("li").unwrap();
-            log.set_text_content(Some(&format!("{:?}", event)));
+            log.set_text_content(Some(&format!("{event:?}")));
             log_list
                 .insert_before(&log, log_list.first_child().as_ref())
                 .unwrap();

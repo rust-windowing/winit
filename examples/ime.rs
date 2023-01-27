@@ -67,7 +67,7 @@ fn main() {
                 event: WindowEvent::Ime(event),
                 ..
             } => {
-                println!("{:?}", event);
+                println!("{event:?}");
                 may_show_ime = event != Ime::Disabled;
                 if may_show_ime {
                     window.set_ime_position(ime_pos);
@@ -77,20 +77,20 @@ fn main() {
                 event: WindowEvent::ReceivedCharacter(ch),
                 ..
             } => {
-                println!("ch: {:?}", ch);
+                println!("ch: {ch:?}");
             }
             Event::WindowEvent {
                 event: WindowEvent::KeyboardInput { input, .. },
                 ..
             } => {
-                println!("key: {:?}", input);
+                println!("key: {input:?}");
 
                 if input.state == ElementState::Pressed
                     && input.virtual_keycode == Some(VirtualKeyCode::F2)
                 {
                     ime_allowed = !ime_allowed;
                     window.set_ime_allowed(ime_allowed);
-                    println!("\nIME: {}\n", ime_allowed);
+                    println!("\nIME: {ime_allowed}\n");
                 }
             }
             _ => (),

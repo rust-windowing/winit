@@ -171,7 +171,7 @@ impl Ime {
         if self.is_destroyed() {
             return None;
         }
-        if let Some(&Some(ref context)) = self.inner.contexts.get(&window) {
+        if let Some(Some(context)) = self.inner.contexts.get(&window) {
             Some(context.ic)
         } else {
             None

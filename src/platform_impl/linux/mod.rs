@@ -727,8 +727,7 @@ impl<T: 'static> EventLoop<T> {
                     panic!("wayland feature is not enabled");
                 }
                 _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
+                    "Unknown environment variable value for {BACKEND_PREFERENCE_ENV_VAR}, try one of `x11`,`wayland`",
                 ),
             }
         }
@@ -751,8 +750,7 @@ impl<T: 'static> EventLoop<T> {
         let x11_err = "backend disabled";
 
         panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
+            "Failed to initialize any backend! Wayland status: {wayland_err:?} X11 status: {x11_err:?}",
         );
     }
 
