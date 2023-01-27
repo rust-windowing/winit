@@ -36,7 +36,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
-x11 = ["bytemuck", "x11-dl", "x11rb", "mio", "percent-encoding"]
+x11 = ["bytemuck", "x11-dl", "x11rb", "mio", "percent-encoding", "xim"]
 wayland = ["wayland-client", "wayland-protocols", "sctk", "wayland-commons"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
@@ -115,6 +115,7 @@ wayland-protocols = { version = "0.29.5", features = [ "staging_protocols"], opt
 wayland-commons = { version = "0.29.5", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 x11rb = { version = "0.11.0", features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
+xim = { git = "https://github.com/Riey/xim-rs.git", features = ["client", "x11rb-client", "x11rb-xcb"], optional = true }
 
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.42", default-features = false }

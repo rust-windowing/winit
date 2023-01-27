@@ -4,7 +4,7 @@ use std::{
     os::raw::*,
     path::Path,
     ptr, slice,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{mpsc::Sender, Arc, Mutex, MutexGuard},
 };
 
 use libc;
@@ -35,6 +35,7 @@ use crate::{
 use super::{
     atoms::*,
     ffi,
+    ime::ImeRequest,
     util::{self, PlErrorExt, VoidResultExt, XcbVoidCookie},
     EventLoopWindowTarget, PlatformError, WakeSender, WindowId, XConnection,
 };
@@ -123,6 +124,9 @@ pub(crate) struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: WakeSender<WindowId>,
+
+    /// Send IME update requests to the event loop.
+    ime_sender: Mutex<Sender<ImeRequest>>,
 }
 
 impl UnownedWindow {
@@ -324,6 +328,7 @@ impl UnownedWindow {
                 waker: event_loop.redraw_sender.waker.clone(),
                 sender: event_loop.redraw_sender.sender.clone(),
             },
+            ime_sender: Mutex::new(event_loop.ime_sender.clone()),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -498,23 +503,13 @@ impl UnownedWindow {
             ))
             .ignore_error();
 
-            /*{
-                let result = event_loop
-                    .ime
-                    .borrow_mut()
-                    .create_context(window.xwindow as _, false);
-                if let Err(err) = result {
-                    let e = match err {
-                        ImeContextCreationError::XError(err) => {
-                            OsError::XError(PlatformError::from(err).into())
-                        }
-                        ImeContextCreationError::Null => {
-                            OsError::XMisc("IME Context creation failed")
-                        }
-                    };
-                    return Err(os_error!(e));
+            {
+                if let Some(ime) = event_loop.ime.as_ref() {
+                    if ime.create_context(window.xwindow, false, None).is_err() {
+                        return Err(os_error!(OsError::XMisc("IME Context creation failed")));
+                    }
                 }
-            }*/
+            }
 
             // These properties must be set after mapping
             if window_attrs.maximized {
@@ -1591,27 +1586,22 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
-        let _ = spot;
-        /*
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+
         let _ = self
             .ime_sender
             .lock()
             .unwrap()
             .send(ImeRequest::Position(self.xwindow as _, x, y));
-        */
     }
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        let _ = allowed;
-        /*
         let _ = self
             .ime_sender
             .lock()
             .unwrap()
             .send(ImeRequest::Allow(self.xwindow as _, allowed));
-        */
     }
 
     #[inline]

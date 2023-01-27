@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use x11rb::{
     connection::Connection,
     errors::ConnectionError,
@@ -18,13 +13,16 @@ use libc::c_uint;
 
 use super::{
     atoms::*,
-    events, ffi, fp1616, fp3232, get_xtarget, mkdid, mkwid, monitor,
+    events, ffi, fp1616, fp3232, get_xtarget,
+    ime::{ImeEvent, ImeRequest},
+    mkdid, mkwid, monitor,
     util::{self, PlErrorExt},
     Device, DeviceId, DeviceInfo, Dnd, DndState, ScrollOrientation, UnownedWindow, WindowId,
 };
 
 use crate::event::{
     ElementState::{Pressed, Released},
+    Ime,
     MouseButton::{Left, Middle, Other, Right},
     MouseScrollDelta::LineDelta,
     Touch,
@@ -48,8 +46,6 @@ const KEYCODE_OFFSET: u8 = 8;
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
-    //pub(super) ime_receiver: ImeReceiver,
-    //pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
@@ -60,9 +56,6 @@ pub(super) struct EventProcessor<T: 'static> {
     // Currently focused window belonging to this process
     pub(super) active_window: Option<Window>,
     pub(super) is_composing: bool,
-
-    /// A queue containing events that we have read from the X server but have not yet processed.
-    pub(super) event_queue: VecDeque<X11Event>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -104,9 +97,12 @@ impl<T: 'static> EventProcessor<T> {
     ///
     /// Returns `true` if there are events in the queue, `false` otherwise.
     pub(super) fn poll(&mut self) -> bool {
+        let wt = get_xtarget(&self.target);
+        let mut event_queue = wt.xconn.event_queue.lock().unwrap();
+
         loop {
             // If we have events in the queue, we need to process them.
-            if !self.event_queue.is_empty() {
+            if !event_queue.is_empty() {
                 return true;
             }
 
@@ -114,7 +110,7 @@ impl<T: 'static> EventProcessor<T> {
             let wt = get_xtarget(&self.target);
             match wt.xconn.connection.poll_for_event() {
                 Ok(Some(event)) => {
-                    self.event_queue.push_back(event);
+                    event_queue.push_back(event);
                 }
                 Ok(None) => {
                     // No events in the queue, and no events on the connection.
@@ -134,12 +130,13 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     pub(super) fn poll_one_event(&mut self) -> Result<Option<X11Event>, ConnectionError> {
+        let wt = get_xtarget(&self.target);
+
         // If we previously polled and found an event, return it.
-        if let Some(event) = self.event_queue.pop_front() {
+        if let Some(event) = wt.xconn.event_queue.lock().unwrap().pop_front() {
             return Ok(Some(event));
         }
 
-        let wt = get_xtarget(&self.target);
         wt.xconn.connection.poll_for_event()
     }
 
@@ -149,7 +146,12 @@ impl<T: 'static> EventProcessor<T> {
     {
         let wt = get_xtarget(&self.target);
 
-        // TODO: Filter IME events.
+        // Filter out any IME events.
+        if let Some(ime_data) = wt.ime.as_ref() {
+            if ime_data.filter_event(xev) {
+                return;
+            }
+        }
 
         // We can't call a `&mut self` method because of the above borrow,
         // so we use this macro for repeated modifier state updates.
@@ -177,7 +179,7 @@ impl<T: 'static> EventProcessor<T> {
         match xev {
             X11Event::MappingNotify(mapping) => {
                 if matches!(mapping.request, Mapping::MODIFIER | Mapping::KEYBOARD) {
-                    // TODO: IME
+                    // TODO: Use XKB to get more accurate keymap info.
 
                     // Update modifier keymap.
                     self.mod_keymap
@@ -550,12 +552,10 @@ impl<T: 'static> EventProcessor<T> {
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
-                /*
-                wt.ime
-                    .borrow_mut()
-                    .remove_context(window as _)
-                    .expect("Failed to destroy input context");
-                */
+                if let Some(ime) = wt.ime.as_ref() {
+                    ime.remove_context(window as _)
+                        .expect("Failed to destroy input context");
+                }
 
                 callback(Event::WindowEvent {
                     window_id,
@@ -633,6 +633,7 @@ impl<T: 'static> EventProcessor<T> {
                 }
 
                 /*
+                TODO: XKB
                 if state == Pressed {
                     let written = if let Some(ic) = wt.ime.borrow().get_context(window as _) {
                         wt.xconn.lookup_utf8(ic, xkev)
@@ -923,12 +924,10 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             X11Event::XinputFocusIn(xev) => {
-                /*
-                wt.ime
-                    .borrow_mut()
-                    .focus(xev.event as _)
-                    .expect("Failed to focus input context");
-                */
+                if let Some(ime) = wt.ime.as_ref() {
+                    ime.focus_window(&wt.xconn, xev.event as _)
+                        .expect("Failed to focus input context");
+                }
 
                 let modifiers = ModifiersState::from_x11(&xev.mods);
 
@@ -994,12 +993,10 @@ impl<T: 'static> EventProcessor<T> {
                     return;
                 }
 
-                /*
-                wt.ime
-                    .borrow_mut()
-                    .unfocus(xev.event as _)
-                    .expect("Failed to unfocus input context");
-                */
+                if let Some(ime) = wt.ime.as_ref() {
+                    ime.unfocus_window(&wt.xconn, xev.event as _)
+                        .expect("Failed to focus input context");
+                }
 
                 if self.active_window.take() == Some(xev.event) {
                     let window_id = mkwid(xev.event);
@@ -1281,69 +1278,69 @@ impl<T: 'static> EventProcessor<T> {
                     }
                 }
             }
-
             _ => {}
         }
 
         // Handle IME requests.
-
-        /*
-        if let Ok(request) = self.ime_receiver.try_recv() {
-            let mut ime = wt.ime.borrow_mut();
-            match request {
-                ImeRequest::Position(window_id, x, y) => {
-                    ime.send_xim_spot(window_id, x, y);
+        if let Some(ime) = wt.ime.as_ref() {
+            if let Ok(ime_request) = wt.ime_receiver.try_recv() {
+                match ime_request {
+                    ImeRequest::Position(window_id, x, y) => {
+                        ime.set_spot(&wt.xconn, window_id, x, y)
+                            .expect("Failed to set IME spot");
+                    }
+                    ImeRequest::Allow(window_id, allowed) => {
+                        ime.set_ime_allowed(&wt.xconn, window_id, allowed)
+                            .expect("Failed to set IME allowed");
+                    }
                 }
-                ImeRequest::Allow(window_id, allowed) => {
-                    ime.set_ime_allowed(window_id, allowed);
-                }
             }
-        }
 
-        let (window, event) = match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => (window as _, event),
-            Err(_) => return,
-        };
+            // See if any IME events have occurred.
+            let (window, event) = match ime.next_event() {
+                Some((window, event)) => (window, event),
+                None => return,
+            };
 
-        match event {
-            ImeEvent::Enabled => {
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                });
-            }
-            ImeEvent::Start => {
-                self.is_composing = true;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                });
-            }
-            ImeEvent::Update(text, position) => {
-                if self.is_composing {
+            match event {
+                ImeEvent::Enabled => {
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        event: WindowEvent::Ime(Ime::Enabled),
+                    });
+                }
+                ImeEvent::Start => {
+                    self.is_composing = true;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                    });
+                }
+                ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id: mkwid(window),
+                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        });
+                    }
+                }
+                ImeEvent::End => {
+                    self.is_composing = false;
+                    // Issue empty preedit on `Done`.
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+                ImeEvent::Disabled => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Disabled),
                     });
                 }
             }
-            ImeEvent::End => {
-                self.is_composing = false;
-                // Issue empty preedit on `Done`.
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                });
-            }
-            ImeEvent::Disabled => {
-                self.is_composing = false;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Disabled),
-                });
-            }
         }
-        */
     }
 
     fn handle_pressed_keys<F>(

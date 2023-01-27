@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     error::Error,
     fmt,
     mem::ManuallyDrop,
@@ -8,9 +8,10 @@ use std::{
     sync::Mutex,
 };
 
+use x11rb::connection::{Connection, RequestConnection};
+use x11rb::protocol::{xproto, Event};
 use x11rb::resource_manager;
 use x11rb::xcb_ffi::XCBConnection;
-use x11rb::{connection::Connection, protocol::xproto};
 
 use crate::window::CursorIcon;
 
@@ -57,6 +58,9 @@ pub(crate) struct XConnection {
 
     /// The name of the window manager.
     pub wm_name: Mutex<Option<String>>,
+
+    /// The queue of events that we've received from the X server but haven't acted on yet.
+    pub(super) event_queue: Mutex<VecDeque<Event>>,
 }
 
 unsafe impl Send for XConnection {}
@@ -108,6 +112,18 @@ impl XConnection {
                 .expect("Failed to create x11rb connection")
         };
 
+        // Prefetch the extensions that we'll use.
+        macro_rules! prefetch {
+            ($($ext:ident),*) => {
+                $(
+                    connection.prefetch_extension_information(x11rb::protocol::$ext::X11_EXTENSION_NAME)
+                        .expect(concat!("Failed to prefetch ", stringify!($ext)));
+                )*
+            }
+        }
+
+        prefetch!(randr, xinput);
+
         // Begin loading the atoms.
         let atom_cookie = Atoms::request(&connection).expect("Failed to load atoms");
 
@@ -131,6 +147,7 @@ impl XConnection {
             cursor_cache: Default::default(),
             supported_hints: Mutex::new(Vec::new()),
             wm_name: Mutex::new(None),
+            event_queue: Mutex::new(VecDeque::new()),
         })
     }
 

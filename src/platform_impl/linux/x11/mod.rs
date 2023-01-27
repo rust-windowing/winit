@@ -5,6 +5,7 @@ mod dnd;
 mod event_processor;
 mod events;
 pub mod ffi;
+mod ime;
 mod monitor;
 pub mod util;
 mod window;
@@ -20,11 +21,11 @@ pub use self::xdisplay::{XError, XNotSupported};
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     fmt,
     ops::Deref,
     rc::Rc,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
+    sync::mpsc::{self, Receiver, Sender, TryRecvError},
     sync::{Arc, Weak},
     time::{Duration, Instant},
 };
@@ -173,9 +174,10 @@ impl<T> PeekableReceiver<T> {
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
-    //ime_sender: ImeSender,
     root: xproto::Window,
-    //ime: RefCell<Ime>,
+    ime: Option<ime::ImeData>,
+    ime_sender: Sender<ime::ImeRequest>,
+    ime_receiver: Receiver<ime::ImeRequest>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     device_event_filter: Cell<DeviceEventFilter>,
@@ -212,6 +214,7 @@ impl<T: 'static> EventLoop<T> {
 
         let dnd = Dnd::new(Arc::clone(&xconn));
 
+        let (ime_sender, ime_receiver) = mpsc::channel();
         /*
         let (ime_sender, ime_receiver) = mpsc::channel();
         let (ime_event_sender, ime_event_receiver) = mpsc::channel();
@@ -280,6 +283,9 @@ impl<T: 'static> EventLoop<T> {
         let window_target = EventLoopWindowTarget {
             root,
             windows: Default::default(),
+            ime: ime::ImeData::new(&xconn, xconn.default_screen).ok(),
+            ime_sender,
+            ime_receiver,
             _marker: ::std::marker::PhantomData,
             xconn,
             redraw_sender: WakeSender {
@@ -309,7 +315,6 @@ impl<T: 'static> EventLoop<T> {
             first_touch: None,
             active_window: None,
             is_composing: false,
-            event_queue: VecDeque::new(),
         };
 
         // Register for device hotplug events
