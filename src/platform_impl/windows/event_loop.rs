@@ -1006,10 +1006,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 params.rgrc[0].bottom += 1;
             }
 
-            println!("0: {}:{}:{}:{}", params.rgrc[0].top, params.rgrc[0].bottom, params.rgrc[0].left, params.rgrc[0].right);
-            println!("1: {}:{}:{}:{}", params.rgrc[1].top, params.rgrc[1].bottom, params.rgrc[1].left, params.rgrc[1].right);
-            println!("2: {}:{}:{}:{}", params.rgrc[2].top, params.rgrc[2].bottom, params.rgrc[2].left, params.rgrc[2].right);
-
             0
         }
 
