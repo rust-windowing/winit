@@ -1,6 +1,5 @@
 # Core maintainers:
 # - @msiglreith
-# - @francesca64
 # - @kchibisov
 # - @madsmtm
 # - @maroider
@@ -10,8 +9,8 @@
 /src/platform_impl/android          @msiglreith
 
 # iOS
-/src/platform/ios.rs                @francesca64 @madsmtm
-/src/platform_impl/ios              @francesca64 @madsmtm
+/src/platform/ios.rs                @madsmtm
+/src/platform_impl/ios              @madsmtm
 
 # Unix
 /src/platform_impl/linux/mod.rs     @kchibisov

@@ -35,8 +35,8 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
-                TRACKMOUSEEVENT,
+                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, MAPVK_VK_TO_VSC,
+                TME_LEAVE, TRACKMOUSEEVENT,
             },
             Pointer::{
                 POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
@@ -53,7 +53,7 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+            HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
             NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
@@ -387,8 +387,7 @@ fn get_wait_thread_id() -> u32 {
         );
         assert_eq!(
             msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
-            "this shouldn't be possible. please open an issue with Winit. error code: {}",
-            result
+            "this shouldn't be possible. please open an issue with Winit. error code: {result}"
         );
         msg.lParam as u32
     }
@@ -1006,6 +1005,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 params.rgrc[0].top += 1;
                 params.rgrc[0].bottom += 1;
             }
+
+            println!("0: {}:{}:{}:{}", params.rgrc[0].top, params.rgrc[0].bottom, params.rgrc[0].left, params.rgrc[0].right);
+            println!("1: {}:{}:{}:{}", params.rgrc[1].top, params.rgrc[1].bottom, params.rgrc[1].left, params.rgrc[1].right);
+            println!("2: {}:{}:{}:{}", params.rgrc[2].top, params.rgrc[2].bottom, params.rgrc[2].left, params.rgrc[2].right);
 
             0
         }

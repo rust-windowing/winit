@@ -10,6 +10,7 @@ pub use window::Window;
 mod env;
 mod event_loop;
 mod output;
+mod protocols;
 mod seat;
 mod window;
 

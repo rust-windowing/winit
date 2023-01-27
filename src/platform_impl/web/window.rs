@@ -288,6 +288,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        // Canvas cannot be 'minimized'
+        Some(false)
+    }
+
+    #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // Intentionally a no-op, as canvases cannot be 'maximized'
     }

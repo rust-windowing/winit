@@ -26,7 +26,7 @@ fn main() {
 
     let mut mode_index = 0;
     let mut mode = monitor.video_modes().next().expect("no mode found");
-    println!("Mode: {}", mode);
+    println!("Mode: {mode}");
 
     println!("Keys:");
     println!("- Esc\tExit");
@@ -59,12 +59,12 @@ fn main() {
                     }
                     VirtualKeyCode::F => {
                         let fullscreen = Some(Fullscreen::Exclusive(mode.clone()));
-                        println!("Setting mode: {:?}", fullscreen);
+                        println!("Setting mode: {fullscreen:?}");
                         window.set_fullscreen(fullscreen);
                     }
                     VirtualKeyCode::B => {
                         let fullscreen = Some(Fullscreen::Borderless(Some(monitor.clone())));
-                        println!("Setting mode: {:?}", fullscreen);
+                        println!("Setting mode: {fullscreen:?}");
                         window.set_fullscreen(fullscreen);
                     }
                     VirtualKeyCode::S => {
@@ -79,7 +79,7 @@ fn main() {
 
                         mode_index = 0;
                         mode = monitor.video_modes().next().expect("no mode found");
-                        println!("Mode: {}", mode);
+                        println!("Mode: {mode}");
                     }
                     VirtualKeyCode::M => {
                         mode_index += 1;
@@ -89,7 +89,7 @@ fn main() {
                             mode_index = 0;
                             mode = monitor.video_modes().next().expect("no mode found");
                         }
-                        println!("Mode: {}", mode);
+                        println!("Mode: {mode}");
                     }
                     VirtualKeyCode::D => {
                         decorations = !decorations;

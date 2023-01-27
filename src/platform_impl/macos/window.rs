@@ -19,6 +19,7 @@ use crate::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::WindowEvent,
     icon::Icon,
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
@@ -216,7 +217,7 @@ impl WinitWindow {
         }
 
         let this = autoreleasepool(|_| {
-            let screen = match &attrs.fullscreen {
+            let screen = match attrs.fullscreen.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
                     monitor.ns_screen().or_else(NSScreen::main)
@@ -458,19 +459,25 @@ impl WinitWindow {
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
-        this.set_fullscreen(attrs.fullscreen);
+        this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if attrs.visible {
-            // Tightly linked with `app_state::window_activation_hack`
-            this.makeKeyAndOrderFront(None);
+            if attrs.active {
+                // Tightly linked with `app_state::window_activation_hack`
+                this.makeKeyAndOrderFront(None);
+            } else {
+                this.orderFront(None);
+            }
         }
 
         if attrs.maximized {
             this.set_maximized(attrs.maximized);
         }
+
+        delegate.queue_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }
@@ -862,6 +869,11 @@ impl WinitWindow {
         } else {
             self.deminiaturize(Some(self));
         }
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        Some(self.isMiniaturized())
     }
 
     #[inline]

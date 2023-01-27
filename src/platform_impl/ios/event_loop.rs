@@ -14,13 +14,14 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::foundation::MainThreadMarker;
+use objc2::foundation::{MainThreadMarker, NSString};
 use objc2::rc::{Id, Shared};
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
-use super::uikit::{UIApplication, UIDevice, UIScreen};
+use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::view::WinitUIWindow;
+use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -28,12 +29,6 @@ use crate::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
-};
-
-use crate::platform_impl::platform::{
-    app_state,
-    ffi::{nil, NSStringRust, UIApplicationMain},
-    monitor, view, MonitorHandle,
 };
 
 #[derive(Debug)]
@@ -132,8 +127,8 @@ impl<T: 'static> EventLoop<T> {
             UIApplicationMain(
                 0,
                 ptr::null(),
-                nil,
-                NSStringRust::alloc(nil).init_str("WinitApplicationDelegate"),
+                None,
+                Some(&NSString::from_str("WinitApplicationDelegate")),
             );
             unreachable!()
         }

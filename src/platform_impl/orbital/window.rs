@@ -187,7 +187,7 @@ impl Window {
         //TODO: adjust for window decorations
         let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
         self.window_socket
-            .write(format!("P,{},{}", x, y).as_bytes())
+            .write(format!("P,{x},{y}").as_bytes())
             .expect("failed to set position");
     }
 
@@ -206,7 +206,7 @@ impl Window {
     pub fn set_inner_size(&self, size: Size) {
         let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         self.window_socket
-            .write(format!("S,{},{}", w, h).as_bytes())
+            .write(format!("S,{w},{h}").as_bytes())
             .expect("failed to set size");
     }
 
@@ -236,7 +236,7 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window_socket
-            .write(format!("T,{}", title).as_bytes())
+            .write(format!("T,{title}").as_bytes())
             .expect("failed to set title");
     }
 
@@ -275,6 +275,11 @@ impl Window {
 
     #[inline]
     pub fn set_minimized(&self, _minimized: bool) {}
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        None
+    }
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {}

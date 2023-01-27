@@ -95,7 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
-            has_focus: true,
+            has_focus: false,
         })
     }
 }
@@ -484,7 +484,8 @@ impl UnownedWindow {
                 window.set_maximized_inner(window_attrs.maximized).queue();
             }
             if window_attrs.fullscreen.is_some() {
-                if let Some(flusher) = window.set_fullscreen_inner(window_attrs.fullscreen.clone())
+                if let Some(flusher) =
+                    window.set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into))
                 {
                     flusher.queue()
                 }
@@ -800,6 +801,20 @@ impl UnownedWindow {
 
     pub fn primary_monitor(&self) -> X11MonitorHandle {
         self.xconn.primary_monitor()
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        let state = self
+            .xconn
+            .get_property(self.xwindow, state_atom, ffi::XA_ATOM);
+        let hidden_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_HIDDEN\0") };
+
+        Some(match state {
+            Ok(atoms) => atoms.iter().any(|atom: &ffi::Atom| *atom == hidden_atom),
+            _ => false,
+        })
     }
 
     fn set_minimized_inner(&self, minimized: bool) -> util::Flusher<'_> {

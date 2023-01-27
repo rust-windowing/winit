@@ -441,7 +441,7 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor() as _)
+        x11_or_wayland!(match self; Window(w) => w.scale_factor())
     }
 
     #[inline]
@@ -462,6 +462,11 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_minimized())
     }
 
     #[inline]
@@ -722,8 +727,7 @@ impl<T: 'static> EventLoop<T> {
                     panic!("wayland feature is not enabled");
                 }
                 _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
+                    "Unknown environment variable value for {BACKEND_PREFERENCE_ENV_VAR}, try one of `x11`,`wayland`",
                 ),
             }
         }
@@ -746,8 +750,7 @@ impl<T: 'static> EventLoop<T> {
         let x11_err = "backend disabled";
 
         panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
+            "Failed to initialize any backend! Wayland status: {wayland_err:?} X11 status: {x11_err:?}",
         );
     }
 

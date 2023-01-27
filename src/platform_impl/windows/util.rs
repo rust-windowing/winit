@@ -24,10 +24,10 @@ use windows_sys::{
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
                 ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
-                GetWindowRect, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND,
-                IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE,
-                IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
+                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
+                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
+                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
             },
         },
     },
@@ -143,6 +143,10 @@ pub fn get_desktop_rect() -> RECT {
 
 pub fn is_focused(window: HWND) -> bool {
     window == unsafe { GetActiveWindow() }
+}
+
+pub fn is_minimized(window: HWND) -> bool {
+    unsafe { IsIconic(window) != false.into() }
 }
 
 pub fn get_instance_handle() -> HINSTANCE {

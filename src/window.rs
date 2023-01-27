@@ -120,7 +120,7 @@ impl fmt::Debug for WindowBuilder {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
-pub(crate) struct WindowAttributes {
+pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -128,7 +128,7 @@ pub(crate) struct WindowAttributes {
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
-    pub fullscreen: Option<platform_impl::Fullscreen>,
+    pub fullscreen: Option<Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -139,6 +139,7 @@ pub(crate) struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub parent_window: Option<RawWindowHandle>,
+    pub active: bool,
 }
 
 impl Default for WindowAttributes {
@@ -163,6 +164,7 @@ impl Default for WindowAttributes {
             resize_increments: None,
             content_protected: false,
             parent_window: None,
+            active: true,
         }
     }
 }
@@ -172,6 +174,11 @@ impl WindowBuilder {
     #[inline]
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Get the current window attributes.
+    pub fn window_attributes(&self) -> &WindowAttributes {
+        &self.window
     }
 
     /// Requests the window to be of specific dimensions.
@@ -277,7 +284,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen.map(|f| f.into());
+        self.window.fullscreen = fullscreen;
         self
     }
 
@@ -405,6 +412,22 @@ impl WindowBuilder {
         self
     }
 
+    /// Whether the window will be initially focused or not.
+    ///
+    /// The window should be assumed as not focused by default
+    /// following by the [`WindowEvent::Focused`].
+    ///
+    /// ## Platform-specific:
+    ///
+    /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    #[inline]
+    pub fn with_active(mut self, active: bool) -> WindowBuilder {
+        self.window.active = active;
+        self
+    }
+
     /// Build window with parent window.
     ///
     /// The default is `None`.
@@ -486,6 +509,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
+    /// - **Wayland:** Uses the wp-fractional-scale protocol if available. Falls back to integer-scale factors otherwise.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
@@ -839,6 +863,23 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         self.window.set_minimized(minimized);
+    }
+
+    /// Gets the window's current minimized state.
+    ///
+    /// `None` will be returned, if the minimized state couldn't be determined.
+    ///
+    /// ## Note
+    ///
+    /// - You shouldn't stop rendering for minimized windows, however you could lower the fps.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland**: always `None`.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        self.window.is_minimized()
     }
 
     /// Sets the window to maximized or back.
