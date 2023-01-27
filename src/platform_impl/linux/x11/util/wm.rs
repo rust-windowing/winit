@@ -4,6 +4,17 @@ use once_cell::sync::Lazy;
 
 use super::*;
 
+// https://specifications.freedesktop.org/wm-spec/latest/ar01s04.html#idm46075117309248
+pub const MOVERESIZE_TOPLEFT: isize = 0;
+pub const MOVERESIZE_TOP: isize = 1;
+pub const MOVERESIZE_TOPRIGHT: isize = 2;
+pub const MOVERESIZE_RIGHT: isize = 3;
+pub const MOVERESIZE_BOTTOMRIGHT: isize = 4;
+pub const MOVERESIZE_BOTTOM: isize = 5;
+pub const MOVERESIZE_BOTTOMLEFT: isize = 6;
+pub const MOVERESIZE_LEFT: isize = 7;
+pub const MOVERESIZE_MOVE: isize = 8;
+
 // This info is global to the window manager.
 static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
     Lazy::new(|| Mutex::new(Vec::with_capacity(0)));

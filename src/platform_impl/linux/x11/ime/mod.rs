@@ -45,13 +45,13 @@ pub enum ImeRequest {
 }
 
 #[derive(Debug)]
-pub enum ImeCreationError {
+pub(crate) enum ImeCreationError {
     // Boxed to prevent large error type
     OpenFailure(Box<PotentialInputMethods>),
     SetDestroyCallbackFailed(XError),
 }
 
-pub struct Ime {
+pub(crate) struct Ime {
     xconn: Arc<XConnection>,
     // The actual meat of this struct is boxed away, since it needs to have a fixed location in
     // memory so we can pass a pointer to it around.

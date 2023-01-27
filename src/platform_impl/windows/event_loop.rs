@@ -1159,8 +1159,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             let windowpos = lparam as *const WINDOWPOS;
             if (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE {
-                let physical_position =
-                    PhysicalPosition::new((*windowpos).x as i32, (*windowpos).y as i32);
+                let physical_position = PhysicalPosition::new((*windowpos).x, (*windowpos).y);
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: Moved(physical_position),
@@ -1193,7 +1192,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
                 }
             }
-
             userdata.send_event(event);
             0
         }
@@ -2446,7 +2444,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             0
         }
         _ if msg == *EXEC_MSG_ID => {
-            let mut function: ThreadExecFn = Box::from_raw(wparam as usize as *mut _);
+            let mut function: ThreadExecFn = Box::from_raw(wparam as *mut _);
             function();
             0
         }

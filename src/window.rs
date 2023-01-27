@@ -138,6 +138,7 @@ pub(crate) struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
+    pub parent_window: Option<RawWindowHandle>,
 }
 
 impl Default for WindowAttributes {
@@ -161,6 +162,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            parent_window: None,
         }
     }
 }
@@ -304,7 +306,9 @@ impl WindowBuilder {
     /// Sets whether the background of the window should be transparent.
     ///
     /// If this is `true`, writing colors with alpha values different than
-    /// `1.0` will produce a transparent window.
+    /// `1.0` will produce a transparent window. On some platforms this
+    /// is more of a hint for the system and you'd still have the alpha
+    /// buffer. To control it see [`Window::set_transparent`].
     ///
     /// The default is `false`.
     #[inline]
@@ -366,7 +370,7 @@ impl WindowBuilder {
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     ///   Possible values for env variable are: "dark" and light".
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
-    /// - **iOS / Android / Web / x11:** Ignored.
+    /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
         self.window.preferred_theme = theme;
@@ -392,12 +396,33 @@ impl WindowBuilder {
     ///
     /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
     /// prevent all apps from reading the window content, for instance, QuickTime.
-    /// - **iOS / Android / Web / x11:** Ignored.
+    /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
+        self
+    }
+
+    /// Build window with parent window.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows** : A child window has the WS_CHILD style and is confined
+    /// to the client area of its parent window. For more information, see
+    /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
+    /// - **X11**: A child window is confined to the client area of its parent window.
+    /// - **Android / iOS / Wayland:** Unsupported.
+    #[inline]
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+        self.window.parent_window = parent_window;
         self
     }
 
@@ -644,7 +669,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
         self.window.set_min_inner_size(min_size.map(|s| s.into()))
@@ -667,7 +692,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
@@ -677,7 +702,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Windows:** Always returns [`None`].
+    /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Always returns [`None`].
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
         self.window.resize_increments()
@@ -692,7 +717,7 @@ impl Window {
     ///
     /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole numbers.
     /// - **Wayland / Windows:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_resize_increments<S: Into<Size>>(&self, increments: Option<S>) {
         self.window
@@ -710,6 +735,23 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
+    }
+
+    /// Change the window transparency state.
+    ///
+    /// This is just a hint that may not change anything about
+    /// the window transparency, however doing a missmatch between
+    /// the content of your window and this hint may result in
+    /// visual artifacts.
+    ///
+    /// The default value follows the [`WindowBuilder::with_transparent`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.window.set_transparent(transparent)
     }
 
     /// Modifies the window's visibility.
@@ -772,7 +814,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
+    /// - **Wayland / X11 / Orbital:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         self.window.set_enabled_buttons(buttons)
@@ -782,7 +824,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented. Always returns [`WindowButtons::all`].
+    /// - **Wayland / X11 / Orbital:** Not implemented. Always returns [`WindowButtons::all`].
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
     pub fn enabled_buttons(&self) -> WindowButtons {
         self.window.enabled_buttons()
@@ -792,7 +834,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **Wayland:** Un-minimize is unsupported.
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
@@ -803,7 +845,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -813,7 +855,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window.is_maximized()
@@ -838,7 +880,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
-    /// - **Android:** Unsupported.
+    /// - **Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen.map(|f| f.into()))
@@ -849,7 +891,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android:** Will always return `None`.
+    /// - **Android / Orbital:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
@@ -893,7 +935,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / macOS:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / macOS / Orbital:** Unsupported.
     ///
     /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -929,7 +971,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
@@ -955,7 +997,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -974,10 +1016,20 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / Orbital:** Unsupported.
     #[inline]
     pub fn focus_window(&self) {
         self.window.focus_window()
+    }
+
+    /// Gets whether the window has keyboard focus.
+    ///
+    /// This queries the same state information as [`WindowEvent::Focused`].
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.window.has_focus()
     }
 
     /// Requests user attention to the window, this has no effect if the application
@@ -989,7 +1041,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
@@ -1006,7 +1058,7 @@ impl Window {
     /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
     /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
-    /// - **iOS / Android / Web / x11:** Unsupported.
+    /// - **iOS / Android / Web / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {
         self.window.set_theme(theme)
@@ -1017,7 +1069,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **iOS / Android / Web / Wayland / x11:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
@@ -1029,11 +1081,11 @@ impl Window {
     ///
     /// - **macOS**: if `false`, [`NSWindowSharingNone`] is used but doesn't completely
     /// prevent all apps from reading the window content, for instance, QuickTime.
-    /// - **iOS / Android / x11 / Wayland / Web:** Unsupported.
+    /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(any(macos_platform, windows_platform))]
         self.window.set_content_protected(_protected);
     }
 
@@ -1054,7 +1106,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window.set_cursor_icon(cursor);
@@ -1077,7 +1129,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position.into())
@@ -1114,7 +1166,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS / Android:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)
@@ -1130,10 +1182,23 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
+    }
+
+    /// Resizes the window with the left mouse button until the button is released.
+    ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
+    /// ## Platform-specific
+    ///
+    /// Only X11 is supported at this time.
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.window.drag_resize_window(direction)
     }
 
     /// Modifies whether the window catches cursor events.
@@ -1143,7 +1208,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_hittest(hittest)
@@ -1232,109 +1297,6 @@ unsafe impl HasRawDisplayHandle for Window {
         self.window.raw_display_handle()
     }
 }
-unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
-    /// Returns a [`raw_window_handle_04::RawWindowHandle`] for the Window
-    ///
-    /// This provides backwards compatibility for downstream crates that have not yet
-    /// upgraded to `raw_window_handle` version 0.5, such as Wgpu version 0.13.
-    ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
-    /// try to get the handle outside of that period, this function will panic*!
-    ///
-    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
-    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
-    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
-    ///
-    /// [`Event::Resumed`]: crate::event::Event::Resumed
-    /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> raw_window_handle_04::RawWindowHandle {
-        use raw_window_handle_04::{
-            AndroidNdkHandle, AppKitHandle, HaikuHandle, OrbitalHandle, UiKitHandle, WaylandHandle,
-            WebHandle, Win32Handle, WinRtHandle, XcbHandle, XlibHandle,
-        };
-
-        // XXX: Ideally this would be encapsulated either through a
-        // compatibility API from raw_window_handle_05 or else within the
-        // backends but since this is only to provide short-term backwards
-        // compatibility, we just handle the full mapping inline here.
-        //
-        // The intention is to remove this trait implementation before Winit
-        // 0.28, once crates have had time to upgrade to raw_window_handle 0.5
-
-        match (self.window.raw_window_handle(), self.window.raw_display_handle()) {
-            (RawWindowHandle::UiKit(window_handle), _) => {
-                let mut handle = UiKitHandle::empty();
-                handle.ui_view = window_handle.ui_view;
-                handle.ui_window = window_handle.ui_window;
-                handle.ui_view_controller = window_handle.ui_view_controller;
-                raw_window_handle_04::RawWindowHandle::UiKit(handle)
-            },
-            (RawWindowHandle::AppKit(window_handle), _) => {
-                let mut handle = AppKitHandle::empty();
-                handle.ns_window = window_handle.ns_window;
-                handle.ns_view = window_handle.ns_view;
-                raw_window_handle_04::RawWindowHandle::AppKit(handle)
-            },
-            (RawWindowHandle::Orbital(window_handle), _) => {
-                let mut handle = OrbitalHandle::empty();
-                handle.window = window_handle.window;
-                raw_window_handle_04::RawWindowHandle::Orbital(handle)
-            },
-            (RawWindowHandle::Xlib(window_handle), RawDisplayHandle::Xlib(display_handle)) => {
-                let mut handle = XlibHandle::empty();
-                handle.display = display_handle.display;
-                handle.window = window_handle.window;
-                handle.visual_id = window_handle.visual_id;
-                raw_window_handle_04::RawWindowHandle::Xlib(handle)
-            },
-            (RawWindowHandle::Xcb(window_handle), RawDisplayHandle::Xcb(display_handle)) => {
-                let mut handle = XcbHandle::empty();
-                handle.connection = display_handle.connection;
-                handle.window = window_handle.window;
-                handle.visual_id = window_handle.visual_id;
-                raw_window_handle_04::RawWindowHandle::Xcb(handle)
-            },
-            (RawWindowHandle::Wayland(window_handle), RawDisplayHandle::Wayland(display_handle)) => {
-                let mut handle = WaylandHandle::empty();
-                handle.display = display_handle.display;
-                handle.surface = window_handle.surface;
-                raw_window_handle_04::RawWindowHandle::Wayland(handle)
-            },
-            (RawWindowHandle::Win32(window_handle), _) => {
-                let mut handle = Win32Handle::empty();
-                handle.hwnd = window_handle.hwnd;
-                handle.hinstance = window_handle.hinstance;
-                raw_window_handle_04::RawWindowHandle::Win32(handle)
-            },
-            (RawWindowHandle::WinRt(window_handle), _) => {
-                let mut handle = WinRtHandle::empty();
-                handle.core_window = window_handle.core_window;
-                raw_window_handle_04::RawWindowHandle::WinRt(handle)
-            },
-            (RawWindowHandle::Web(window_handle), _) => {
-                let mut handle = WebHandle::empty();
-                handle.id = window_handle.id;
-                raw_window_handle_04::RawWindowHandle::Web(handle)
-            },
-            (RawWindowHandle::AndroidNdk(window_handle), _) => {
-                let mut handle = AndroidNdkHandle::empty();
-                handle.a_native_window = window_handle.a_native_window;
-                raw_window_handle_04::RawWindowHandle::AndroidNdk(handle)
-            },
-            (RawWindowHandle::Haiku(window_handle), _) => {
-                let mut handle = HaikuHandle::empty();
-                handle.b_window = window_handle.b_window;
-                handle.b_direct_window = window_handle.b_direct_window;
-                raw_window_handle_04::RawWindowHandle::Haiku(handle)
-            },
-            _ => panic!("No HasRawWindowHandle version 0.4 backwards compatibility for new Winit window type"),
-        }
-    }
-}
 
 /// The behavior of cursor grabbing.
 ///
@@ -1353,7 +1315,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1364,7 +1326,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 
@@ -1430,6 +1392,35 @@ pub enum CursorIcon {
 impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
+    }
+}
+
+/// Defines the orientation that a window resize will be performed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ResizeDirection {
+    East,
+    North,
+    NorthEast,
+    NorthWest,
+    South,
+    SouthEast,
+    SouthWest,
+    West,
+}
+
+impl From<ResizeDirection> for CursorIcon {
+    fn from(direction: ResizeDirection) -> Self {
+        use ResizeDirection::*;
+        match direction {
+            East => CursorIcon::EResize,
+            North => CursorIcon::NResize,
+            NorthEast => CursorIcon::NeResize,
+            NorthWest => CursorIcon::NwResize,
+            South => CursorIcon::SResize,
+            SouthEast => CursorIcon::SeResize,
+            SouthWest => CursorIcon::SwResize,
+            West => CursorIcon::WResize,
+        }
     }
 }
 

@@ -391,7 +391,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
@@ -477,6 +477,10 @@ pub enum WindowEvent<'a> {
     },
 
     /// Touch event has been received
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Unsupported.
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -504,7 +508,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / X11 / Wayland:** Unsupported.
+    /// - **iOS / Android / X11 / Wayland / Orbital:** Unsupported.
     ThemeChanged(Theme),
 
     /// The window has been occluded (completely hidden from view).
@@ -513,7 +517,7 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Unsupported.
     Occluded(bool),
 }
 
@@ -924,6 +928,10 @@ pub enum TouchPhase {
 /// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
+///
+/// ## Platform-specific
+///
+/// - **macOS:** Unsupported.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,

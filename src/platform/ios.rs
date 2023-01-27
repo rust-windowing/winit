@@ -1,5 +1,7 @@
 use std::os::raw::c_void;
 
+use objc2::rc::Id;
+
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
@@ -239,7 +241,7 @@ pub trait MonitorHandleExtIOS {
 impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
-        self.inner.ui_screen() as _
+        Id::as_ptr(self.inner.ui_screen()) as *mut c_void
     }
 
     #[inline]

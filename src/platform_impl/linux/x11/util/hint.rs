@@ -185,7 +185,7 @@ impl MwmHints {
     }
 }
 
-pub struct NormalHints<'a> {
+pub(crate) struct NormalHints<'a> {
     size_hints: XSmartPointer<'a, ffi::XSizeHints>,
 }
 
@@ -194,11 +194,6 @@ impl<'a> NormalHints<'a> {
         NormalHints {
             size_hints: xconn.alloc_size_hints(),
         }
-    }
-
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        has_flag(self.size_hints.flags, ffi::PPosition)
-            .then(|| (self.size_hints.x as i32, self.size_hints.y as i32))
     }
 
     pub fn get_resize_increments(&self) -> Option<(u32, u32)> {

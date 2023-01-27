@@ -192,6 +192,9 @@ extern_methods!(
         #[sel(isVisible)]
         pub fn isVisible(&self) -> bool;
 
+        #[sel(isKeyWindow)]
+        pub fn isKeyWindow(&self) -> bool;
+
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
 
@@ -213,6 +216,9 @@ extern_methods!(
 
         #[sel(sendEvent:)]
         pub unsafe fn sendEvent(&self, event: &NSEvent);
+
+        #[sel(addChildWindow:ordered:)]
+        pub unsafe fn addChildWindow(&self, child: &NSWindow, ordered: NSWindowOrderingMode);
     }
 );
 
@@ -378,4 +384,17 @@ pub enum NSWindowSharingType {
 
 unsafe impl Encode for NSWindowSharingType {
     const ENCODING: Encoding = NSUInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(isize)] // NSInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowOrderingMode {
+    NSWindowAbove = 1,
+    NSWindowBelow = -1,
+    NSWindowOut = 0,
+}
+
+unsafe impl Encode for NSWindowOrderingMode {
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }

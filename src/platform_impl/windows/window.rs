@@ -1,4 +1,4 @@
-#![cfg(target_os = "windows")]
+#![cfg(windows_platform)]
 
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
@@ -40,7 +40,7 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
+            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW, IsIconic,
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
@@ -69,11 +69,11 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -113,6 +113,8 @@ impl Window {
         }
     }
 
+    pub fn set_transparent(&self, _transparent: bool) {}
+
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         let window = self.window.clone();
@@ -140,7 +142,7 @@ impl Window {
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::WindowArea::Outer.get_rect(self.hwnd())
-            .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
+            .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
@@ -150,7 +152,7 @@ impl Window {
         if unsafe { ClientToScreen(self.hwnd(), &mut position) } == false.into() {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
+        Ok(PhysicalPosition::new(position.x, position.y))
     }
 
     #[inline]
@@ -433,6 +435,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
@@ -455,8 +462,13 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
+        let is_minimized = self.is_minimized();
+
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
+            WindowState::set_window_flags_in_place(&mut window_state.lock().unwrap(), |f| {
+                f.set(WindowFlags::MINIMIZED, is_minimized)
+            });
             WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
@@ -480,6 +492,11 @@ impl Window {
     pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state_lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> bool {
+        unsafe { IsIconic(self.hwnd()) == 1 }
     }
 
     #[inline]
@@ -756,6 +773,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        let window_state = self.window_state.lock().unwrap();
+        window_state.has_active_focus()
+    }
+
     pub fn title(&self) -> String {
         let len = unsafe { GetWindowTextLengthW(self.window.0) } + 1;
         let mut buf = vec![0; len as usize];
@@ -1062,22 +1084,25 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
-    let parent = match pl_attribs.parent {
-        Parent::ChildOf(parent) => {
+    let parent = match attributes.parent_window {
+        Some(RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
-            Some(parent)
+            Some(handle.hwnd as HWND)
         }
-        Parent::OwnedBy(parent) => {
-            window_flags.set(WindowFlags::POPUP, true);
-            Some(parent)
-        }
-        Parent::None => {
-            window_flags.set(WindowFlags::ON_TASKBAR, true);
-            None
-        }
+        Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
+        None => match pl_attribs.owner {
+            Some(parent) => {
+                window_flags.set(WindowFlags::POPUP, true);
+                Some(parent)
+            }
+            None => {
+                window_flags.set(WindowFlags::ON_TASKBAR, true);
+                None
+            }
+        },
     };
 
     let mut initdata = InitData {

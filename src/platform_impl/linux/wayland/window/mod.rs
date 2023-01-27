@@ -19,7 +19,8 @@ use crate::platform_impl::{
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
+    CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+    WindowButtons,
 };
 
 use super::env::WindowingFeatures;
@@ -78,6 +79,9 @@ pub struct Window {
 
     /// Grabbing mode.
     cursor_grab_mode: Mutex<CursorGrabMode>,
+
+    /// Whether the window has keyboard focus.
+    has_focus: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -219,7 +223,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -243,6 +247,7 @@ impl Window {
         window.surface().commit();
 
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
+        let has_focus = Arc::new(AtomicBool::new(true));
 
         // We should trigger redraw and commit the surface for the newly created window.
         let mut window_user_request = WindowUserRequest::new();
@@ -257,8 +262,12 @@ impl Window {
             &event_loop_window_target.env,
             window,
             size.clone(),
+            has_focus.clone(),
             window_requests.clone(),
         );
+
+        // Set opaque region.
+        window_handle.set_transparent(attributes.transparent);
 
         // Set resizable state, so we can determine how to handle `Window::set_inner_size`.
         window_handle.is_resizable.set(attributes.resizable);
@@ -314,6 +323,7 @@ impl Window {
             resizeable: AtomicBool::new(attributes.resizable),
             decorated: AtomicBool::new(attributes.decorations),
             cursor_grab_mode: Mutex::new(CursorGrabMode::None),
+            has_focus,
         };
 
         Ok(window)
@@ -329,6 +339,11 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.send_request(WindowRequest::Title(title.to_owned()));
+    }
+
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        self.send_request(WindowRequest::Transparent(transparent));
     }
 
     #[inline]
@@ -490,7 +505,7 @@ impl Window {
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     PlatformMonitorHandle::X(_) => None,
                 });
 
@@ -558,6 +573,11 @@ impl Window {
         self.send_request(WindowRequest::DragWindow);
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
@@ -636,6 +656,10 @@ impl Window {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.has_focus.load(Ordering::Relaxed)
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

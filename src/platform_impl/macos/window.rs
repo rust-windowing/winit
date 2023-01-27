@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{
     collections::VecDeque,
     f64, ops,
@@ -21,6 +23,7 @@ use crate::{
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
+        appkit::NSWindowOrderingMode,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util,
@@ -29,8 +32,8 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowButtons,
-        WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -45,7 +48,7 @@ use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTitleVisibility,
 };
 
@@ -369,6 +372,38 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
+        match attrs.parent_window {
+            Some(RawWindowHandle::AppKit(handle)) => {
+                // SAFETY: Caller ensures the pointer is valid or NULL
+                let parent: Id<NSWindow, Shared> =
+                    match unsafe { Id::retain(handle.ns_window.cast()) } {
+                        Some(window) => window,
+                        None => {
+                            // SAFETY: Caller ensures the pointer is valid or NULL
+                            let parent_view: Id<NSView, Shared> =
+                                match unsafe { Id::retain(handle.ns_view.cast()) } {
+                                    Some(view) => view,
+                                    None => {
+                                        return Err(os_error!(OsError::CreationError(
+                                            "raw window handle should be non-empty"
+                                        )))
+                                    }
+                                };
+                            parent_view.window().ok_or_else(|| {
+                                os_error!(OsError::CreationError(
+                                    "parent view should be installed in a window"
+                                ))
+                            })?
+                        }
+                    };
+                // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
+                // where we allow making a window a child window is right here, just after it's been created.
+                unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
+            }
+            Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
+            None => (),
+        }
+
         let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
@@ -469,6 +504,10 @@ impl WinitWindow {
 
     pub fn set_title(&self, title: &str) {
         util::set_title_sync(self, title);
+    }
+
+    pub fn set_transparent(&self, transparent: bool) {
+        self.setOpaque(!transparent)
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -747,6 +786,11 @@ impl WinitWindow {
         let event = NSApp().currentEvent();
         self.performWindowDragWithEvent(event.as_deref());
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
@@ -1171,6 +1215,10 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.isKeyWindow()
+    }
+
     pub fn set_theme(&self, theme: Option<Theme>) {
         set_ns_theme(theme);
         self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));

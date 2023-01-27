@@ -8,17 +8,17 @@ use super::{
 };
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
-pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
+pub(crate) unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     (xconn.xlib.XCloseIM)(im);
     xconn.check_errors()
 }
 
-pub unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), XError> {
+pub(crate) unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), XError> {
     (xconn.xlib.XDestroyIC)(ic);
     xconn.check_errors()
 }
 
-pub struct ImeInner {
+pub(crate) struct ImeInner {
     pub xconn: Arc<XConnection>,
     pub im: Option<InputMethod>,
     pub potential_input_methods: PotentialInputMethods,
@@ -33,7 +33,7 @@ pub struct ImeInner {
 }
 
 impl ImeInner {
-    pub fn new(
+    pub(crate) fn new(
         xconn: Arc<XConnection>,
         potential_input_methods: PotentialInputMethods,
         event_sender: ImeEventSender,

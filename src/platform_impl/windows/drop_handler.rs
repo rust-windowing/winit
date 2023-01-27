@@ -169,7 +169,7 @@ impl FileDropHandler {
         let drop_format = FORMATETC {
             cfFormat: CF_HDROP as u16,
             ptd: ptr::null_mut(),
-            dwAspect: DVASPECT_CONTENT as u32,
+            dwAspect: DVASPECT_CONTENT,
             lindex: -1,
             tymed: TYMED_HGLOBAL as u32,
         };

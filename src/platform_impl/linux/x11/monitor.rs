@@ -108,6 +108,7 @@ impl std::hash::Hash for MonitorHandle {
 #[inline]
 pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
     if mode.dotClock > 0 && mode.hTotal > 0 && mode.vTotal > 0 {
+        #[allow(clippy::unnecessary_cast)]
         Some((mode.dotClock as u64 * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
     } else {
         None
@@ -123,8 +124,8 @@ impl MonitorHandle {
         primary: bool,
     ) -> Option<Self> {
         let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
+        let dimensions = unsafe { ((*crtc).width, (*crtc).height) };
+        let position = unsafe { ((*crtc).x, (*crtc).y) };
 
         // Get the refresh rate of the current video mode.
         let current_mode = unsafe { (*crtc).mode };
@@ -175,7 +176,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        self.id as u32
+        self.id as _
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {

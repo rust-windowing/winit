@@ -10,7 +10,7 @@ use std::{
 
 use libc;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
-use x11_dl::xlib::TrueColor;
+use x11_dl::xlib::{TrueColor, XID};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -21,8 +21,8 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, Icon, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -55,6 +55,7 @@ pub struct SharedState {
     pub resize_increments: Option<Size>,
     pub base_size: Option<Size>,
     pub visibility: Visibility,
+    pub has_focus: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -94,6 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
+            has_focus: true,
         })
     }
 }
@@ -101,11 +103,11 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
-pub struct UnownedWindow {
-    pub xconn: Arc<XConnection>, // never changes
-    xwindow: ffi::Window,        // never changes
-    root: ffi::Window,           // never changes
-    screen_id: i32,              // never changes
+pub(crate) struct UnownedWindow {
+    pub(crate) xconn: Arc<XConnection>, // never changes
+    xwindow: ffi::Window,               // never changes
+    root: ffi::Window,                  // never changes
+    screen_id: i32,                     // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -122,11 +124,11 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = if let Some(id) = pl_attribs.parent_id {
-            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
-            u64::from(id) as _
-        } else {
-            event_loop.root
+        let root = match window_attrs.parent_window {
+            Some(RawWindowHandle::Xlib(handle)) => handle.window,
+            Some(RawWindowHandle::Xcb(handle)) => handle.window as XID,
+            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
+            None => event_loop.root,
         };
 
         let mut monitors = xconn.available_monitors();
@@ -697,7 +699,7 @@ impl UnownedWindow {
                         (None, monitor)
                     }
                     Fullscreen::Borderless(None) => (None, self.current_monitor()),
-                    #[cfg(feature = "wayland")]
+                    #[cfg(wayland_platform)]
                     _ => unreachable!(),
                 };
 
@@ -902,6 +904,9 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set window title");
     }
+
+    #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
         self.shared_state_lock().is_decorated = decorations;
@@ -1300,11 +1305,6 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn xlib_xconnection(&self) -> Arc<XConnection> {
-        Arc::clone(&self.xconn)
-    }
-
-    #[inline]
     pub fn xlib_window(&self) -> c_ulong {
         self.xwindow
     }
@@ -1438,7 +1438,27 @@ impl UnownedWindow {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    /// Moves the window while it is being dragged.
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.drag_initiate(util::MOVERESIZE_MOVE)
+    }
+
+    /// Resizes the window while it is being dragged.
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.drag_initiate(match direction {
+            ResizeDirection::East => util::MOVERESIZE_RIGHT,
+            ResizeDirection::North => util::MOVERESIZE_TOP,
+            ResizeDirection::NorthEast => util::MOVERESIZE_TOPRIGHT,
+            ResizeDirection::NorthWest => util::MOVERESIZE_TOPLEFT,
+            ResizeDirection::South => util::MOVERESIZE_BOTTOM,
+            ResizeDirection::SouthEast => util::MOVERESIZE_BOTTOMRIGHT,
+            ResizeDirection::SouthWest => util::MOVERESIZE_BOTTOMLEFT,
+            ResizeDirection::West => util::MOVERESIZE_LEFT,
+        })
+    }
+
+    /// Initiates a drag operation while the left mouse button is pressed.
+    fn drag_initiate(&self, action: isize) -> Result<(), ExternalError> {
         let pointer = self
             .xconn
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
@@ -1469,7 +1489,7 @@ impl UnownedWindow {
                 [
                     (window.x as c_long + pointer.win_x as c_long),
                     (window.y as c_long + pointer.win_y as c_long),
-                    8, // _NET_WM_MOVERESIZE_MOVE
+                    action.try_into().unwrap(),
                     ffi::Button1 as c_long,
                     1,
                 ],
@@ -1551,14 +1571,14 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow as u64)
+        WindowId(self.xwindow as _)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
             .sender
-            .send(WindowId(self.xwindow as u64))
+            .send(WindowId(self.xwindow as _))
             .unwrap();
         self.redraw_sender.waker.wake().unwrap();
     }
@@ -1584,6 +1604,10 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.shared_state_lock().has_focus
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

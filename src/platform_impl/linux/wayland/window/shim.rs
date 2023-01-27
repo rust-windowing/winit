@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::mem::ManuallyDrop;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
@@ -80,6 +81,9 @@ pub enum WindowRequest {
     /// Enable IME on the given window.
     AllowIme(bool),
 
+    /// Mark the window as opaque.
+    Transparent(bool),
+
     /// Request Attention.
     ///
     /// `None` unsets the attention request.
@@ -151,8 +155,14 @@ pub struct WindowHandle {
     /// Whether the window is resizable.
     pub is_resizable: Cell<bool>,
 
+    /// Whether the window has keyboard focus.
+    pub has_focus: Arc<AtomicBool>,
+
     /// Allow IME events for that window.
     pub ime_allowed: Cell<bool>,
+
+    /// Wether the window is transparent.
+    pub transparent: Cell<bool>,
 
     /// Visible cursor or not.
     cursor_visible: Cell<bool>,
@@ -181,6 +191,7 @@ impl WindowHandle {
         env: &Environment<WinitEnv>,
         window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
+        has_focus: Arc<AtomicBool>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
@@ -194,6 +205,7 @@ impl WindowHandle {
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
             is_resizable: Cell::new(true),
+            transparent: Cell::new(false),
             cursor_grab_mode: Cell::new(CursorGrabMode::None),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
@@ -202,6 +214,7 @@ impl WindowHandle {
             attention_requested: Cell::new(false),
             compositor,
             ime_allowed: Cell::new(false),
+            has_focus,
         }
     }
 
@@ -349,6 +362,19 @@ impl WindowHandle {
         }
     }
 
+    pub fn set_transparent(&self, transparent: bool) {
+        self.transparent.set(transparent);
+        let surface = self.window.surface();
+        if transparent {
+            surface.set_opaque_region(None);
+        } else {
+            let region = self.compositor.create_region();
+            region.add(0, 0, i32::MAX, i32::MAX);
+            surface.set_opaque_region(Some(&region.detach()));
+            region.destroy();
+        }
+    }
+
     pub fn set_ime_allowed(&self, allowed: bool, event_sink: &mut EventSink) {
         if self.ime_allowed.get() == allowed {
             return;
@@ -451,6 +477,13 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 }
                 WindowRequest::Minimize => {
                     window_handle.window.set_minimized();
+                }
+                WindowRequest::Transparent(transparent) => {
+                    window_handle.set_transparent(transparent);
+
+                    // This requires surface commit.
+                    let window_request = window_user_requests.get_mut(window_id).unwrap();
+                    window_request.redraw_requested = true;
                 }
                 WindowRequest::Decorate(decorate) => {
                     let decorations = match decorate {

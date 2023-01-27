@@ -17,9 +17,11 @@ mod window_property;
 mod wm;
 
 pub use self::{
-    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, memory::*,
-    randr::*, window_property::*, wm::*,
+    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, randr::*,
+    window_property::*, wm::*,
 };
+
+pub(crate) use self::memory::*;
 
 use std::{
     mem::{self, MaybeUninit},
@@ -48,7 +50,7 @@ where
 }
 
 #[must_use = "This request was made asynchronously, and is still in the output buffer. You must explicitly choose to either `.flush()` (empty the output buffer, sending the request now) or `.queue()` (wait to send the request, allowing you to continue to add more requests without additional round-trips). For more information, see the documentation for `util::flush_requests`."]
-pub struct Flusher<'a> {
+pub(crate) struct Flusher<'a> {
     xconn: &'a XConnection,
 }
 

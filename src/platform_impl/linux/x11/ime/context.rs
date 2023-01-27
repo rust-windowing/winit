@@ -201,7 +201,7 @@ pub struct ImeContext {
 }
 
 impl ImeContext {
-    pub unsafe fn new(
+    pub(crate) unsafe fn new(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
         style: Style,
@@ -323,14 +323,14 @@ impl ImeContext {
         (!ic.is_null()).then(|| ic)
     }
 
-    pub fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
+    pub(crate) fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
         unsafe {
             (xconn.xlib.XSetICFocus)(self.ic);
         }
         xconn.check_errors()
     }
 
-    pub fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
+    pub(crate) fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
         unsafe {
             (xconn.xlib.XUnsetICFocus)(self.ic);
         }
@@ -346,7 +346,7 @@ impl ImeContext {
     // window and couldn't be changed.
     //
     // For me see: https://bugs.freedesktop.org/show_bug.cgi?id=1580.
-    pub fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
+    pub(crate) fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
         if !self.is_allowed() || self.ic_spot.x == x && self.ic_spot.y == y {
             return;
         }
