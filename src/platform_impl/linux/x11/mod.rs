@@ -175,7 +175,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {:#?}", state);
+                panic!("Failed to open input method: {state:#?}");
             }
             result.expect("Failed to set input method destruction callback")
         });
@@ -212,8 +212,7 @@ impl<T: 'static> EventLoop<T> {
             ) != ffi::Success as libc::c_int
             {
                 panic!(
-                    "X server has XInput extension {}.{} but does not support XInput2",
-                    xinput_major_ver, xinput_minor_ver,
+                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
                 );
             }
         }
@@ -454,7 +453,7 @@ impl<T: 'static> EventLoop<T> {
                 // Wait until
                 if let Err(e) = self.poll.poll(&mut events, iter_result.timeout) {
                     if e.raw_os_error() != Some(libc::EINTR) {
-                        panic!("epoll returned an error: {:?}", e);
+                        panic!("epoll returned an error: {e:?}");
                     }
                 }
                 events.clear();

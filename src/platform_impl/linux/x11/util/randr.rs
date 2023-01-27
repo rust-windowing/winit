@@ -117,8 +117,7 @@ impl XConnection {
                     EnvVarDPI::NotSet
                 } else {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        var
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{var}`"
                     );
                 }
             },
@@ -132,8 +131,7 @@ impl XConnection {
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        dpi_override,
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{dpi_override}`",
                     );
                 }
                 dpi_override

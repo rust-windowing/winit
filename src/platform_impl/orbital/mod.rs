@@ -20,7 +20,7 @@ impl RedoxSocket {
     }
 
     fn orbital(properties: &WindowProperties<'_>) -> syscall::Result<Self> {
-        Self::open_raw(&format!("{}", properties))
+        Self::open_raw(&format!("{properties}"))
     }
 
     // Paths should be checked to ensure they are actually sockets and not normal files. If a

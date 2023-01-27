@@ -98,7 +98,7 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
     let style = raw.style();
     style
         .set_property(property, value)
-        .unwrap_or_else(|err| panic!("error: {:?}\nFailed to set {}", err, property))
+        .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {

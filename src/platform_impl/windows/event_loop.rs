@@ -387,8 +387,7 @@ fn get_wait_thread_id() -> u32 {
         );
         assert_eq!(
             msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
-            "this shouldn't be possible. please open an issue with Winit. error code: {}",
-            result
+            "this shouldn't be possible. please open an issue with Winit. error code: {result}"
         );
         msg.lParam as u32
     }

@@ -349,10 +349,10 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    fn single_iteration<'a, F>(
+    fn single_iteration<F>(
         &mut self,
         control_flow: &mut ControlFlow,
-        main_event: Option<MainEvent<'a>>,
+        main_event: Option<MainEvent<'_>>,
         pending_redraw: &mut bool,
         cause: &mut StartCause,
         callback: &mut F,
