@@ -941,9 +941,13 @@ impl Window {
 
     /// Turn window decorations on or off.
     ///
+    /// Enable/disable window decorations provided by the server or Winit.
+    /// By default this is enabled. Note that fullscreen windows and windows on
+    /// mobile and web platforms naturally do not have decorations.
+    ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web:** No effect.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
@@ -951,10 +955,12 @@ impl Window {
 
     /// Gets the window's current decorations state.
     ///
+    /// Returns `true` when windows are decorated (server-side or by Winit).
+    /// Also returns `true` when no decorations are required (mobile, web).
+    ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web:** Always returns `true`.
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.window.is_decorated()
