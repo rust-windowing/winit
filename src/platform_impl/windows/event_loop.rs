@@ -977,19 +977,31 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 return DefWindowProcW(window, msg, wparam, lparam);
             }
 
-            // Extend the client area to cover the whole non-client area.
-            // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
-            //
-            // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
-            // This leads to a small black 1px border on the top. Adding a margin manually
-            // on all 4 borders would result in the caption getting drawn by the DWM.
-            //
-            // Another option would be to allow the DWM to paint inside the client area.
-            // Unfortunately this results in janky resize behavior, where the compositor is
-            // ahead of the window surface. Currently, there seems no option to achieve this
-            // with the Windows API.
-            if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
-                let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
+            let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
+
+            if util::is_maximized(window) {
+                // Limit the window size when maximized to the current monitor.
+                // Otherwise it would include the non-existent decorations.
+                //
+                // Use `MonitorFromRect` instead of `MonitorFromWindow` to select
+                // the correct monitor here.
+                // See https://github.com/MicrosoftEdge/WebView2Feedback/issues/2549
+                let monitor = MonitorFromRect(&params.rgrc[0], MONITOR_DEFAULTTONULL);
+                if let Ok(monitor_info) = monitor::get_monitor_info(monitor) {
+                    params.rgrc[0] = monitor_info.monitorInfo.rcWork;
+                }
+            } else if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
+                // Extend the client area to cover the whole non-client area.
+                // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
+                //
+                // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
+                // This leads to a small black 1px border on the top. Adding a margin manually
+                // on all 4 borders would result in the caption getting drawn by the DWM.
+                //
+                // Another option would be to allow the DWM to paint inside the client area.
+                // Unfortunately this results in janky resize behavior, where the compositor is
+                // ahead of the window surface. Currently, there seems no option to achieve this
+                // with the Windows API.
                 params.rgrc[0].top += 1;
                 params.rgrc[0].bottom += 1;
             }
