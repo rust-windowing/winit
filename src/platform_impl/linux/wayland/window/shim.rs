@@ -23,7 +23,7 @@ use crate::platform_impl::wayland::protocols::wp_fractional_scale_v1::WpFraction
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType};
+use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, Theme, UserAttentionType};
 
 use super::WinitFrame;
 
@@ -82,6 +82,9 @@ pub enum WindowRequest {
 
     /// Enable IME on the given window.
     AllowIme(bool),
+
+    /// Set the IME purpose.
+    ImePurpose(ImePurpose),
 
     /// Mark the window as opaque.
     Transparent(bool),
@@ -169,6 +172,9 @@ pub struct WindowHandle {
     /// Allow IME events for that window.
     pub ime_allowed: Cell<bool>,
 
+    /// IME purpose for that window.
+    pub ime_purpose: Cell<ImePurpose>,
+
     /// Wether the window is transparent.
     pub transparent: Cell<bool>,
 
@@ -226,6 +232,7 @@ impl WindowHandle {
             attention_requested: Cell::new(false),
             compositor,
             ime_allowed: Cell::new(false),
+            ime_purpose: Cell::new(ImePurpose::default()),
             has_focus,
         }
     }
@@ -399,8 +406,9 @@ impl WindowHandle {
         self.ime_allowed.replace(allowed);
         let window_id = wayland::make_wid(self.window.surface());
 
+        let purpose = allowed.then(|| self.ime_purpose.get());
         for text_input in self.text_inputs.iter() {
-            text_input.set_input_allowed(allowed);
+            text_input.set_input_allowed(purpose);
         }
 
         let event = if allowed {
@@ -410,6 +418,20 @@ impl WindowHandle {
         };
 
         event_sink.push_window_event(event, window_id);
+    }
+
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        if self.ime_purpose.get() == purpose {
+            return;
+        }
+
+        self.ime_purpose.replace(purpose);
+
+        if self.ime_allowed.get() {
+            for text_input in self.text_inputs.iter() {
+                text_input.set_content_type_by_purpose(purpose);
+            }
+        }
     }
 
     pub fn set_cursor_visible(&self, visible: bool) {
@@ -474,6 +496,9 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::AllowIme(allow) => {
                     let event_sink = &mut winit_state.event_sink;
                     window_handle.set_ime_allowed(allow, event_sink);
+                }
+                WindowRequest::ImePurpose(purpose) => {
+                    window_handle.set_ime_purpose(purpose);
                 }
                 WindowRequest::SetCursorGrabMode(mode) => {
                     window_handle.set_cursor_grab(mode);
