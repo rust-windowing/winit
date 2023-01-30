@@ -7,6 +7,9 @@ use objc2::foundation::{
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
+pub const NX_DEVICELALTKEYMASK: u32 = 0x00000020;
+pub const NX_DEVICERALTKEYMASK: u32 = 0x00000040;
+
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct NSEvent;
@@ -67,6 +70,35 @@ extern_methods!(
             }
         }
 
+        pub fn keyEventWithType(
+            type_: NSEventType,
+            location: NSPoint,
+            modifier_flags: NSEventModifierFlags,
+            timestamp: NSTimeInterval,
+            window_num: NSInteger,
+            context: Option<&NSObject>,
+            characters: &NSString,
+            characters_ignoring_modifiers: &NSString,
+            is_a_repeat: bool,
+            scancode: c_ushort,
+        ) -> Id<Self, Shared> {
+            unsafe {
+                msg_send_id![
+                    Self::class(),
+                    keyEventWithType: type_,
+                    location: location,
+                    modifierFlags: modifier_flags,
+                    timestamp: timestamp,
+                    windowNumber: window_num,
+                    context: context,
+                    characters: characters,
+                    charactersIgnoringModifiers: characters_ignoring_modifiers,
+                    isARepeat: is_a_repeat,
+                    keyCode: scancode,
+                ]
+            }
+        }
+
         #[sel(locationInWindow)]
         pub fn locationInWindow(&self) -> NSPoint;
 
@@ -123,12 +155,31 @@ extern_methods!(
         #[sel(stage)]
         pub fn stage(&self) -> NSInteger;
 
+        #[sel(isARepeat)]
+        pub fn is_a_repeat(&self) -> bool;
+
+        #[sel(windowNumber)]
+        pub fn window_number(&self) -> NSInteger;
+
+        #[sel(timestamp)]
+        pub fn timestamp(&self) -> NSTimeInterval;
+
         pub fn characters(&self) -> Option<Id<NSString, Shared>> {
             unsafe { msg_send_id![self, characters] }
         }
 
         pub fn charactersIgnoringModifiers(&self) -> Option<Id<NSString, Shared>> {
             unsafe { msg_send_id![self, charactersIgnoringModifiers] }
+        }
+
+        pub fn lalt_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICELALTKEYMASK != 0
+        }
+
+        pub fn ralt_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICERALTKEYMASK != 0
         }
     }
 );
