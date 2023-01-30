@@ -19,7 +19,7 @@ fn main() {
             continue;
         }
 
-        println!("");
+        println!();
         print_info("Output", mon);
     }
 }
@@ -36,7 +36,7 @@ fn print_info(intro: &str, monitor: MonitorHandle) {
     if let Some(m_hz) = monitor.refresh_rate_millihertz() {
         println!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
     } else {
-        println!("");
+        println!();
     }
 
     let PhysicalPosition { x, y } = monitor.position();
