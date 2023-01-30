@@ -833,7 +833,7 @@ impl Window {
 
     /// Sets the window to minimized or back
     ///
-    /// ## Platform-specific1
+    /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     /// - **Wayland:** Un-minimize is unsupported.
