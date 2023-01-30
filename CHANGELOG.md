@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, added `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
 - On Windows, fix window size for maximized, undecorated windows.
 - On Windows and macOS, add `WindowBuilder::with_active`.
 - Add `Window::is_minimized`.
