@@ -15,6 +15,7 @@ use super::appkit::{
     NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,
     NSView,
 };
+use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -463,7 +464,17 @@ declare_class!(
             }
             let was_in_preedit = self.state.ime_state == ImeState::Preedit;
 
-            let characters = get_characters(event, false);
+            // Get the characters from the event.
+            let ev_mods = event_mods(event);
+            let ignore_alt_characters = match self.window().option_as_alt() {
+                OptionAsAlt::OnlyLeft if event.lalt_pressed() => true,
+                OptionAsAlt::OnlyRight if event.ralt_pressed() => true,
+                OptionAsAlt::Both if ev_mods.alt() => true,
+                _ => false,
+            } && !ev_mods.ctrl()
+                && !ev_mods.logo();
+
+            let characters = get_characters(event, ignore_alt_characters);
             self.state.forward_key_to_app = false;
 
             // The `interpretKeyEvents` function might call
@@ -474,7 +485,13 @@ declare_class!(
             // is not handled by IME and should be handled by the application)
             let mut text_commited = false;
             if self.state.ime_allowed {
-                let events_for_nsview = NSArray::from_slice(&[event.copy()]);
+                let new_event = if ignore_alt_characters {
+                    replace_event_chars(event, &characters)
+                } else {
+                    event.copy()
+                };
+
+                let events_for_nsview = NSArray::from_slice(&[new_event]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
                 // If the text was commited we must treat the next keyboard event as IME related.
@@ -501,7 +518,7 @@ declare_class!(
                         state: ElementState::Pressed,
                         scancode,
                         virtual_keycode,
-                        modifiers: event_mods(event),
+                        modifiers: ev_mods,
                     },
                     is_synthetic: false,
                 });
@@ -981,4 +998,22 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         2 => MouseButton::Middle,
         n => MouseButton::Other(n as u16),
     }
+}
+
+fn replace_event_chars(event: &NSEvent, characters: &str) -> Id<NSEvent, Shared> {
+    let ns_chars = NSString::from_str(characters);
+    let chars_ignoring_mods = event.charactersIgnoringModifiers().unwrap();
+
+    NSEvent::keyEventWithType(
+        event.type_(),
+        event.locationInWindow(),
+        event.modifierFlags(),
+        event.timestamp(),
+        event.window_number(),
+        None,
+        &ns_chars,
+        &chars_ignoring_mods,
+        event.is_a_repeat(),
+        event.scancode(),
+    )
 }
