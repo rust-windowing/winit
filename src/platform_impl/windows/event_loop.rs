@@ -646,7 +646,7 @@ impl LazyMessageId {
         // Store the new ID. Since `RegisterWindowMessageA` returns the same value for any given string,
         // the target value will always either be a). `INVALID_ID` or b). the correct ID. Therefore a
         // compare-and-swap operation here (or really any consideration) is never necessary.
-        self.id.store(new_id, Ordering::Relaxed); 
+        self.id.store(new_id, Ordering::Relaxed);
 
         new_id
     }
@@ -671,7 +671,8 @@ static CANCEL_WAIT_UNTIL_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::Canc
 pub static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg\0");
 // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
 // documentation in the `window_state` module for more information.
-pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::SetRetainMaximized\0");
+pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
+    LazyMessageId::new("Winit::SetRetainMaximized\0");
 static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
     Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
