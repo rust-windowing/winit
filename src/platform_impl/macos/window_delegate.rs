@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::ptr;
 
 use objc2::declare::{Ivar, IvarDrop};
@@ -57,16 +59,13 @@ declare_class!(
             this.map(|this| {
                 let scale_factor = window.scale_factor();
 
-                Ivar::write(&mut this.window, unsafe {
-                    let window: *const WinitWindow = window;
-                    Id::retain(window as *mut WinitWindow).unwrap()
-                });
+                Ivar::write(&mut this.window, window.retain());
                 Ivar::write(&mut this.initial_fullscreen, initial_fullscreen);
                 Ivar::write(&mut this.previous_position, None);
                 Ivar::write(&mut this.previous_scale_factor, scale_factor);
 
                 if scale_factor != 1.0 {
-                    this.emit_static_scale_factor_changed_event();
+                    this.queue_static_scale_factor_changed_event();
                 }
                 this.window.setDelegate(Some(this));
 
@@ -95,7 +94,7 @@ declare_class!(
         #[sel(windowShouldClose:)]
         fn window_should_close(&self, _: Option<&Object>) -> bool {
             trace_scope!("windowShouldClose:");
-            self.emit_event(WindowEvent::CloseRequested);
+            self.queue_event(WindowEvent::CloseRequested);
             false
         }
 
@@ -108,7 +107,7 @@ declare_class!(
                 // be called after the window closes.
                 self.window.setDelegate(None);
             });
-            self.emit_event(WindowEvent::Destroyed);
+            self.queue_event(WindowEvent::Destroyed);
         }
 
         #[sel(windowDidResize:)]
@@ -128,7 +127,7 @@ declare_class!(
         #[sel(windowDidChangeBackingProperties:)]
         fn window_did_change_backing_properties(&mut self, _: Option<&Object>) {
             trace_scope!("windowDidChangeBackingProperties:");
-            self.emit_static_scale_factor_changed_event();
+            self.queue_static_scale_factor_changed_event();
         }
 
         #[sel(windowDidBecomeKey:)]
@@ -136,7 +135,7 @@ declare_class!(
             trace_scope!("windowDidBecomeKey:");
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
-            self.emit_event(WindowEvent::Focused(true));
+            self.queue_event(WindowEvent::Focused(true));
         }
 
         #[sel(windowDidResignKey:)]
@@ -156,10 +155,10 @@ declare_class!(
             // Both update the state and emit a ModifiersChanged event.
             if !view.state.modifiers.is_empty() {
                 view.state.modifiers = ModifiersState::empty();
-                self.emit_event(WindowEvent::ModifiersChanged(view.state.modifiers));
+                self.queue_event(WindowEvent::ModifiersChanged(view.state.modifiers));
             }
 
-            self.emit_event(WindowEvent::Focused(false));
+            self.queue_event(WindowEvent::Focused(false));
         }
 
         /// Invoked when the dragged image enters destination bounds or frame
@@ -175,7 +174,7 @@ declare_class!(
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
-                self.emit_event(WindowEvent::HoveredFile(path));
+                self.queue_event(WindowEvent::HoveredFile(path));
             });
 
             true
@@ -201,7 +200,7 @@ declare_class!(
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
-                self.emit_event(WindowEvent::DroppedFile(path));
+                self.queue_event(WindowEvent::DroppedFile(path));
             });
 
             true
@@ -217,7 +216,7 @@ declare_class!(
         #[sel(draggingExited:)]
         fn dragging_exited(&self, _: Option<&Object>) {
             trace_scope!("draggingExited:");
-            self.emit_event(WindowEvent::HoveredFileCancelled);
+            self.queue_event(WindowEvent::HoveredFileCancelled);
         }
 
         /// Invoked when before enter fullscreen
@@ -358,7 +357,7 @@ declare_class!(
         #[sel(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: Option<&Object>) {
             trace_scope!("windowDidChangeOcclusionState:");
-            self.emit_event(WindowEvent::Occluded(
+            self.queue_event(WindowEvent::Occluded(
                 !self
                     .window
                     .occlusionState()
@@ -390,7 +389,7 @@ declare_class!(
             shared_state.current_theme = Some(theme);
             drop(shared_state);
             if current_theme != Some(theme) {
-                self.emit_event(WindowEvent::ThemeChanged(theme));
+                self.queue_event(WindowEvent::ThemeChanged(theme));
             }
         }
     }
@@ -407,7 +406,7 @@ impl WinitWindowDelegate {
         }
     }
 
-    fn emit_event(&self, event: WindowEvent<'static>) {
+    pub(crate) fn queue_event(&self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(self.window.id()),
             event,
@@ -415,7 +414,7 @@ impl WinitWindowDelegate {
         AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
-    fn emit_static_scale_factor_changed_event(&mut self) {
+    fn queue_static_scale_factor_changed_event(&mut self) {
         let scale_factor = self.window.scale_factor();
         if scale_factor == *self.previous_scale_factor {
             return;
@@ -438,7 +437,7 @@ impl WinitWindowDelegate {
             *self.previous_position = Some(Box::new((x, y)));
             let scale_factor = self.window.scale_factor();
             let physical_pos = LogicalPosition::<f64>::from((x, y)).to_physical(scale_factor);
-            self.emit_event(WindowEvent::Moved(physical_pos));
+            self.queue_event(WindowEvent::Moved(physical_pos));
         }
     }
 

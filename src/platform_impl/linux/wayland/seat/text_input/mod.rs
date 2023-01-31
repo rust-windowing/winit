@@ -1,10 +1,13 @@
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
-use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_v3::ZwpTextInputV3;
+use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_v3::{
+    ContentHint, ContentPurpose, ZwpTextInputV3,
+};
 
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::WindowId;
+use crate::window::ImePurpose;
 
 mod handlers;
 
@@ -12,6 +15,21 @@ mod handlers;
 #[derive(Eq, PartialEq)]
 pub struct TextInputHandler {
     text_input: ZwpTextInputV3,
+}
+
+trait ZwpTextInputV3Ext {
+    fn set_content_type_by_purpose(&self, purpose: ImePurpose);
+}
+
+impl ZwpTextInputV3Ext for ZwpTextInputV3 {
+    fn set_content_type_by_purpose(&self, purpose: ImePurpose) {
+        let (hint, purpose) = match purpose {
+            ImePurpose::Normal => (ContentHint::None, ContentPurpose::Normal),
+            ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
+            ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
+        };
+        self.set_content_type(hint, purpose);
+    }
 }
 
 impl TextInputHandler {
@@ -22,8 +40,15 @@ impl TextInputHandler {
     }
 
     #[inline]
-    pub fn set_input_allowed(&self, allowed: bool) {
-        if allowed {
+    pub fn set_content_type_by_purpose(&self, purpose: ImePurpose) {
+        self.text_input.set_content_type_by_purpose(purpose);
+        self.text_input.commit();
+    }
+
+    #[inline]
+    pub fn set_input_allowed(&self, allowed: Option<ImePurpose>) {
+        if let Some(purpose) = allowed {
+            self.text_input.set_content_type_by_purpose(purpose);
             self.text_input.enable();
         } else {
             self.text_input.disable();

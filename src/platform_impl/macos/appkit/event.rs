@@ -67,6 +67,35 @@ extern_methods!(
             }
         }
 
+        pub fn keyEventWithType(
+            type_: NSEventType,
+            location: NSPoint,
+            modifier_flags: NSEventModifierFlags,
+            timestamp: NSTimeInterval,
+            window_num: NSInteger,
+            context: Option<&NSObject>,
+            characters: &NSString,
+            characters_ignoring_modifiers: &NSString,
+            is_a_repeat: bool,
+            scancode: c_ushort,
+        ) -> Id<Self, Shared> {
+            unsafe {
+                msg_send_id![
+                    Self::class(),
+                    keyEventWithType: type_,
+                    location: location,
+                    modifierFlags: modifier_flags,
+                    timestamp: timestamp,
+                    windowNumber: window_num,
+                    context: context,
+                    characters: characters,
+                    charactersIgnoringModifiers: characters_ignoring_modifiers,
+                    isARepeat: is_a_repeat,
+                    keyCode: scancode,
+                ]
+            }
+        }
+
         #[sel(locationInWindow)]
         pub fn locationInWindow(&self) -> NSPoint;
 
@@ -123,12 +152,31 @@ extern_methods!(
         #[sel(stage)]
         pub fn stage(&self) -> NSInteger;
 
+        #[sel(isARepeat)]
+        pub fn is_a_repeat(&self) -> bool;
+
+        #[sel(windowNumber)]
+        pub fn window_number(&self) -> NSInteger;
+
+        #[sel(timestamp)]
+        pub fn timestamp(&self) -> NSTimeInterval;
+
         pub fn characters(&self) -> Option<Id<NSString, Shared>> {
             unsafe { msg_send_id![self, characters] }
         }
 
         pub fn charactersIgnoringModifiers(&self) -> Option<Id<NSString, Shared>> {
             unsafe { msg_send_id![self, charactersIgnoringModifiers] }
+        }
+
+        pub fn lalt_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICELALTKEYMASK != 0
+        }
+
+        pub fn ralt_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICERALTKEYMASK != 0
         }
     }
 );
@@ -137,6 +185,10 @@ unsafe impl NSCopying for NSEvent {
     type Ownership = Shared;
     type Output = NSEvent;
 }
+
+// The values are from the https://github.com/apple-oss-distributions/IOHIDFamily/blob/19666c840a6d896468416ff0007040a10b7b46b8/IOHIDSystem/IOKit/hidsystem/IOLLEvent.h#L258-L259
+const NX_DEVICELALTKEYMASK: u32 = 0x00000020;
+const NX_DEVICERALTKEYMASK: u32 = 0x00000040;
 
 bitflags! {
     pub struct NSEventModifierFlags: NSUInteger {

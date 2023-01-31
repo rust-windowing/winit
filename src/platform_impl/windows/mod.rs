@@ -1,4 +1,4 @@
-#![cfg(target_os = "windows")]
+#![cfg(windows_platform)]
 
 use windows_sys::Win32::{
     Foundation::{HANDLE, HWND},
@@ -21,15 +21,8 @@ use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 
 #[derive(Clone)]
-pub enum Parent {
-    None,
-    ChildOf(HWND),
-    OwnedBy(HWND),
-}
-
-#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Parent,
+    pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
@@ -41,7 +34,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: Parent::None,
+            owner: None,
             menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,
@@ -120,7 +113,7 @@ impl From<u64> for WindowId {
 
 #[inline(always)]
 const fn get_xbutton_wparam(x: u32) -> u16 {
-    loword(x)
+    hiword(x)
 }
 
 #[inline(always)]

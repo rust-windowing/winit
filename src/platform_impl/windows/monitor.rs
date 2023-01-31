@@ -192,7 +192,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
+        let monitor_info = get_monitor_info(self.0).ok()?;
         let device_name = monitor_info.szDevice.as_ptr();
         unsafe {
             let mut mode: DEVMODEW = mem::zeroed();
@@ -241,7 +241,7 @@ impl MonitorHandle {
                 i += 1;
 
                 const REQUIRED_FIELDS: u32 =
-                    (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY) as u32;
+                    DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
                 assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
                 // Use Ord impl of RootVideoMode
@@ -249,7 +249,7 @@ impl MonitorHandle {
                     video_mode: VideoMode {
                         size: (mode.dmPelsWidth, mode.dmPelsHeight),
                         bit_depth: mode.dmBitsPerPel as u16,
-                        refresh_rate_millihertz: mode.dmDisplayFrequency as u32 * 1000,
+                        refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
                         monitor: self.clone(),
                         native_video_mode: Box::new(mode),
                     },

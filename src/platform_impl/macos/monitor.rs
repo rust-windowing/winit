@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{collections::VecDeque, fmt};
 
 use core_foundation::{
@@ -180,7 +182,7 @@ impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
         let MonitorHandle(display_id) = *self;
         let screen_num = CGDisplay::new(display_id).model_number();
-        Some(format!("Monitor #{}", screen_num))
+        Some(format!("Monitor #{screen_num}"))
     }
 
     #[inline]
@@ -215,15 +217,18 @@ impl MonitorHandle {
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
             let mut display_link = std::ptr::null_mut();
-            assert_eq!(
-                ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
-                ffi::kCVReturnSuccess
-            );
+            if ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link)
+                != ffi::kCVReturnSuccess
+            {
+                return None;
+            }
             let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
             ffi::CVDisplayLinkRelease(display_link);
 
             // This value is indefinite if an invalid display link was specified
-            assert!(time.flags & ffi::kCVTimeIsIndefinite == 0);
+            if time.flags & ffi::kCVTimeIsIndefinite != 0 {
+                return None;
+            }
 
             Some((time.time_scale as i64 / time.time_value * 1000) as u32)
         }

@@ -23,10 +23,11 @@ use windows_sys::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
-                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowRect,
-                ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
-                IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
-                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
+                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
+                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
+                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
             },
         },
     },
@@ -90,6 +91,15 @@ impl WindowArea {
     }
 }
 
+pub fn is_maximized(window: HWND) -> bool {
+    unsafe {
+        let mut placement: WINDOWPLACEMENT = mem::zeroed();
+        placement.length = mem::size_of::<WINDOWPLACEMENT>() as u32;
+        GetWindowPlacement(window, &mut placement);
+        placement.showCmd == SW_MAXIMIZE
+    }
+}
+
 pub fn set_cursor_hidden(hidden: bool) {
     static HIDDEN: AtomicBool = AtomicBool::new(false);
     let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
@@ -133,6 +143,10 @@ pub fn get_desktop_rect() -> RECT {
 
 pub fn is_focused(window: HWND) -> bool {
     window == unsafe { GetActiveWindow() }
+}
+
+pub fn is_minimized(window: HWND) -> bool {
+    unsafe { IsIconic(window) != false.into() }
 }
 
 pub fn get_instance_handle() -> HINSTANCE {

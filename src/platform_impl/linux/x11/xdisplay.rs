@@ -5,16 +5,13 @@ use crate::window::CursorIcon;
 use super::ffi;
 
 /// A connection to an X server.
-pub struct XConnection {
+pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
     /// Exposes XRandR functions from version < 1.5
     pub xrandr: ffi::Xrandr_2_2_0,
-    /// Exposes XRandR functions from version = 1.5
-    pub xrandr_1_5: Option<ffi::Xrandr>,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
-    pub xrender: ffi::Xrender,
     pub display: *mut ffi::Display,
     pub x11_fd: c_int,
     pub latest_error: Mutex<Option<XError>>,
@@ -33,10 +30,8 @@ impl XConnection {
         let xlib = ffi::Xlib::open()?;
         let xcursor = ffi::Xcursor::open()?;
         let xrandr = ffi::Xrandr_2_2_0::open()?;
-        let xrandr_1_5 = ffi::Xrandr::open().ok();
         let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
-        let xrender = ffi::Xrender::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -56,11 +51,9 @@ impl XConnection {
         Ok(XConnection {
             xlib,
             xrandr,
-            xrandr_1_5,
             xcursor,
             xinput2,
             xlib_xcb,
-            xrender,
             display,
             x11_fd: fd,
             latest_error: Mutex::new(None),
@@ -77,12 +70,6 @@ impl XConnection {
         } else {
             Ok(())
         }
-    }
-
-    /// Ignores any previous error.
-    #[inline]
-    pub fn ignore_error(&self) {
-        *self.latest_error.lock().unwrap() = None;
     }
 }
 

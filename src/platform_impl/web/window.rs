@@ -3,7 +3,8 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -22,6 +23,7 @@ pub struct Window {
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
+    has_focus: Rc<RefCell<bool>>,
 }
 
 impl Window {
@@ -41,7 +43,8 @@ impl Window {
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&canvas, id, prevent_default);
+        let has_focus = Rc::new(RefCell::new(false));
+        target.register(&canvas, id, prevent_default, has_focus.clone());
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -61,6 +64,7 @@ impl Window {
             register_redraw_request,
             resize_notify_fn,
             destroy_fn: Some(destroy_fn),
+            has_focus,
         };
 
         backend::set_canvas_size(
@@ -85,6 +89,8 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         self.canvas.borrow().set_attribute("alt", title);
     }
+
+    pub fn set_transparent(&self, _transparent: bool) {}
 
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
@@ -172,6 +178,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor()
     }
@@ -249,12 +263,17 @@ impl Window {
         } else {
             self.canvas
                 .borrow()
-                .set_attribute("cursor", *self.previous_pointer.borrow());
+                .set_attribute("cursor", &self.previous_pointer.borrow());
         }
     }
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -266,6 +285,12 @@ impl Window {
     #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
+    }
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        // Canvas cannot be 'minimized'
+        Some(false)
     }
 
     #[inline]
@@ -307,7 +332,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
+    pub fn set_window_level(&self, _level: WindowLevel) {
         // Intentionally a no-op, no window ordering
     }
 
@@ -323,6 +348,11 @@ impl Window {
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
+    }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         // Currently not implemented
     }
 
@@ -375,11 +405,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         None
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        *self.has_focus.borrow()
+    }
+
     pub fn title(&self) -> String {
         String::new()
     }

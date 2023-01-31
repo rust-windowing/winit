@@ -1,19 +1,13 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(free_unix)]
 
-#[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
+#[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
-#[cfg(feature = "wayland")]
+#[cfg(wayland_platform)]
 use std::error::Error;
 
 use std::{collections::VecDeque, env, fmt};
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 use std::{
     ffi::CStr,
     mem::MaybeUninit,
@@ -21,15 +15,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -39,15 +33,18 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
+    },
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
-#[cfg(feature = "wayland")]
+#[cfg(wayland_platform)]
 pub mod wayland;
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 pub mod x11;
 
 /// Environment variable specifying which backend should be used on unix platform.
@@ -61,9 +58,9 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X,
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland,
 }
 
@@ -88,75 +85,67 @@ impl ApplicationName {
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     pub visual_infos: Option<XVisualInfo>,
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     pub screen_id: Option<i32>,
-    #[cfg(feature = "x11")]
-    pub parent_id: Option<WindowId>,
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     pub base_size: Option<Size>,
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     pub override_redirect: bool,
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     pub x11_window_types: Vec<XWindowType>,
-    #[cfg(feature = "x11")]
-    pub gtk_theme_variant: Option<String>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             name: None,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             visual_infos: None,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             screen_id: None,
-            #[cfg(feature = "x11")]
-            parent_id: None,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             base_size: None,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             override_redirect: false,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             x11_window_types: vec![XWindowType::Normal],
-            #[cfg(feature = "x11")]
-            gtk_theme_variant: None,
         }
     }
 }
 
-#[cfg(feature = "x11")]
-pub static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+#[cfg(x11_platform)]
+pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
     Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
 pub enum OsError {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     XError(XError),
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     XMisc(&'static str),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     WaylandMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             OsError::XError(ref e) => _f.pad(&e.description),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             OsError::XMisc(e) => _f.pad(e),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             OsError::WaylandMisc(e) => _f.pad(e),
         }
     }
 }
 
-pub enum Window {
-    #[cfg(feature = "x11")]
+pub(crate) enum Window {
+    #[cfg(x11_platform)]
     X(x11::Window),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::Window),
 }
 
@@ -183,26 +172,26 @@ impl WindowId {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::DeviceId),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::DeviceId),
 }
 
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland_platform)]
         return DeviceId::Wayland(wayland::DeviceId::dummy());
-        #[cfg(all(not(feature = "wayland"), feature = "x11"))]
+        #[cfg(all(not(wayland_platform), x11_platform))]
         return DeviceId::X(x11::DeviceId::dummy());
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::MonitorHandle),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::MonitorHandle),
 }
 
@@ -218,17 +207,17 @@ pub enum MonitorHandle {
 macro_rules! x11_or_wayland {
     (match $what:expr; $enum:ident ( $($c1:tt)* ) => $x:expr; as $enum2:ident ) => {
         match $what {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             $enum::X($($c1)*) => $enum2::X($x),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             $enum::Wayland($($c1)*) => $enum2::Wayland($x),
         }
     };
     (match $what:expr; $enum:ident ( $($c1:tt)* ) => $x:expr) => {
         match $what {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             $enum::X($($c1)*) => $x,
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             $enum::Wayland($($c1)*) => $x,
         }
     };
@@ -262,7 +251,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as f64)
+        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as _)
     }
 
     #[inline]
@@ -273,9 +262,9 @@ impl MonitorHandle {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VideoMode {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::VideoMode),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::VideoMode),
 }
 
@@ -309,11 +298,11 @@ impl Window {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
             }
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
@@ -323,9 +312,9 @@ impl Window {
     #[inline]
     pub fn id(&self) -> WindowId {
         match self {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Self::Wayland(window) => window.id(),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Self::X(window) => window.id(),
         }
     }
@@ -333,6 +322,11 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         x11_or_wayland!(match self; Window(w) => w.set_title(title));
+    }
+
+    #[inline]
+    pub fn set_transparent(&self, transparent: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
     }
 
     #[inline]
@@ -406,6 +400,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
+        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
+    }
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
+    }
+
+    #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
     }
@@ -426,13 +430,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
+    }
+
+    #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_hittest(hittest))
     }
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
+        x11_or_wayland!(match self; Window(w) => w.scale_factor())
     }
 
     #[inline]
@@ -456,6 +465,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_minimized())
+    }
+
+    #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         x11_or_wayland!(match self; Window(w) => w.fullscreen())
     }
@@ -476,11 +490,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
+    pub fn set_window_level(&self, _level: WindowLevel) {
         match self {
-            #[cfg(feature = "x11")]
-            Window::X(ref w) => w.set_always_on_top(_always_on_top),
-            #[cfg(feature = "wayland")]
+            #[cfg(x11_platform)]
+            Window::X(ref w) => w.set_window_level(_level),
+            #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
         }
     }
@@ -488,9 +502,9 @@ impl Window {
     #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref w) => w.set_window_icon(_window_icon),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
         }
     }
@@ -506,19 +520,24 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref w) => w.focus_window(),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
         }
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref w) => w.request_user_attention(request_type),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(ref w) => w.request_user_attention(request_type),
         }
     }
@@ -531,12 +550,12 @@ impl Window {
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref window) => {
                 let current_monitor = MonitorHandle::X(window.current_monitor());
                 Some(current_monitor)
             }
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(ref window) => {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
                 Some(current_monitor)
@@ -547,13 +566,13 @@ impl Window {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref window) => window
                 .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(ref window) => window
                 .available_monitors()
                 .into_iter()
@@ -565,12 +584,12 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         match self {
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             Window::X(ref window) => {
                 let primary_monitor = MonitorHandle::X(window.primary_monitor());
                 Some(primary_monitor)
             }
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             Window::Wayland(ref window) => window.primary_monitor(),
         }
     }
@@ -586,22 +605,31 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_theme(&self, theme: Option<Theme>) {
+        x11_or_wayland!(match self; Window(window) => window.set_theme(theme))
+    }
+
+    #[inline]
     pub fn theme(&self) -> Option<Theme> {
         x11_or_wayland!(match self; Window(window) => window.theme())
     }
 
     #[inline]
+    pub fn has_focus(&self) -> bool {
+        x11_or_wayland!(match self; Window(window) => window.has_focus())
+    }
+
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
     }
 }
 
 /// Hooks for X11 errors.
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 pub(crate) static mut XLIB_ERROR_HOOKS: Lazy<Mutex<Vec<XlibErrorHook>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
 
-#[cfg(feature = "x11")]
+#[cfg(x11_platform)]
 unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
@@ -635,25 +663,25 @@ unsafe extern "C" fn x_error_callback(
         // Don't log error.
         if !error_handled {
             error!("X11 error: {:#?}", error);
+            // XXX only update the error, if it wasn't handled by any of the hooks.
+            *xconn.latest_error.lock().unwrap() = Some(error);
         }
-
-        *xconn.latest_error.lock().unwrap() = Some(error);
     }
     // Fun fact: this return value is completely ignored.
     0
 }
 
 pub enum EventLoop<T: 'static> {
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(Box<wayland::EventLoop<T>>),
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::EventLoop<T>),
 }
 
 pub enum EventLoopProxy<T: 'static> {
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::EventLoopProxy<T>),
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::EventLoopProxy<T>),
 }
 
@@ -674,13 +702,13 @@ impl<T: 'static> EventLoop<T> {
             );
         }
 
-        #[cfg(feature = "x11")]
+        #[cfg(x11_platform)]
         if attributes.forced_backend == Some(Backend::X) {
             // TODO: Propagate
             return EventLoop::new_x11_any_thread().unwrap();
         }
 
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland_platform)]
         if attributes.forced_backend == Some(Backend::Wayland) {
             // TODO: Propagate
             return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
@@ -690,55 +718,53 @@ impl<T: 'static> EventLoop<T> {
             match env_var.as_str() {
                 "x11" => {
                     // TODO: propagate
-                    #[cfg(feature = "x11")]
+                    #[cfg(x11_platform)]
                     return EventLoop::new_x11_any_thread()
                         .expect("Failed to initialize X11 backend");
-                    #[cfg(not(feature = "x11"))]
+                    #[cfg(not(x11_platform))]
                     panic!("x11 feature is not enabled")
                 }
                 "wayland" => {
-                    #[cfg(feature = "wayland")]
+                    #[cfg(wayland_platform)]
                     return EventLoop::new_wayland_any_thread()
                         .expect("Failed to initialize Wayland backend");
-                    #[cfg(not(feature = "wayland"))]
+                    #[cfg(not(wayland_platform))]
                     panic!("wayland feature is not enabled");
                 }
                 _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
+                    "Unknown environment variable value for {BACKEND_PREFERENCE_ENV_VAR}, try one of `x11`,`wayland`",
                 ),
             }
         }
 
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland_platform)]
         let wayland_err = match EventLoop::new_wayland_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
 
-        #[cfg(feature = "x11")]
+        #[cfg(x11_platform)]
         let x11_err = match EventLoop::new_x11_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
 
-        #[cfg(not(feature = "wayland"))]
+        #[cfg(not(wayland_platform))]
         let wayland_err = "backend disabled";
-        #[cfg(not(feature = "x11"))]
+        #[cfg(not(x11_platform))]
         let x11_err = "backend disabled";
 
         panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
+            "Failed to initialize any backend! Wayland status: {wayland_err:?} X11 status: {x11_err:?}",
         );
     }
 
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
         let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
@@ -778,9 +804,9 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 pub enum EventLoopWindowTarget<T> {
-    #[cfg(feature = "wayland")]
+    #[cfg(wayland_platform)]
     Wayland(wayland::EventLoopWindowTarget<T>),
-    #[cfg(feature = "x11")]
+    #[cfg(x11_platform)]
     X(x11::EventLoopWindowTarget<T>),
 }
 
@@ -788,9 +814,9 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn is_wayland(&self) -> bool {
         match *self {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(_) => true,
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => false,
         }
     }
@@ -798,13 +824,13 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref evlp) => evlp
                 .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => evlp
                 .x_connection()
                 .available_monitors()
@@ -817,9 +843,9 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         match *self {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => {
                 let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
                 Some(primary_monitor)
@@ -830,9 +856,9 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
         match *self {
-            #[cfg(feature = "wayland")]
+            #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(_) => (),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
         }
     }

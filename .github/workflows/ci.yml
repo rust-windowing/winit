@@ -33,7 +33,8 @@ jobs:
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: x11 }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: "wayland,wayland-dlopen" }
-          - { target: aarch64-linux-android,    os: ubuntu-latest,  cmd: 'apk --' }
+          - { target: aarch64-linux-android,    os: ubuntu-latest, options: -p winit, cmd: 'apk --', features: "android-native-activity" }
+          - { target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { target: x86_64-apple-darwin,      os: macos-latest,    }
           - { target: x86_64-apple-ios,         os: macos-latest,    }
           - { target: aarch64-apple-ios,        os: macos-latest,    }
@@ -75,31 +76,46 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
+
+    - name: Build crate
+      shell: bash
+      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build tests
       shell: bash
+      if: >
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.60.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
     - name: Run tests
       shell: bash
-      if: (
+      if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.60.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Lint with clippy
       shell: bash
-      if: (matrix.rust_version == '1.60.0') && !contains(matrix.platform.options, '--no-default-features')
+      if: (matrix.rust_version == 'stable') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build tests with serde enabled
       shell: bash
+      if: >
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.60.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
-      if: (
+      if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.60.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES

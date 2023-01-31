@@ -196,7 +196,7 @@ impl Handler {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
-                    callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
+                    callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
                 }
                 EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
             }
@@ -205,7 +205,7 @@ impl Handler {
 
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
+            callback.handle_user_events(&mut self.control_flow.lock().unwrap());
         }
     }
 
@@ -226,7 +226,7 @@ impl Handler {
             },
         };
 
-        callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+        callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
 
         let physical_size = *new_inner_size;
         let logical_size = physical_size.to_logical(scale_factor);
@@ -272,7 +272,11 @@ impl AppState {
         }
     }
 
-    pub fn launched(activation_policy: NSApplicationActivationPolicy, create_default_menu: bool) {
+    pub fn launched(
+        activation_policy: NSApplicationActivationPolicy,
+        create_default_menu: bool,
+        activate_ignoring_other_apps: bool,
+    ) {
         let app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -280,8 +284,7 @@ impl AppState {
         app.setActivationPolicy(activation_policy);
 
         window_activation_hack(&app);
-        // TODO: Consider allowing the user to specify they don't want their application activated
-        app.activateIgnoringOtherApps(true);
+        app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
         HANDLER.set_ready();
         HANDLER.waker().start();
@@ -349,21 +352,20 @@ impl AppState {
     }
 
     pub fn handle_redraw(window_id: WindowId) {
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+        // Redraw request might come out of order from the OS.
+        // -> Don't go back into the callback when our callstack originates from there
+        if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
+            HANDLER
+                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.set_in_callback(false);
+        }
     }
 
     pub fn queue_event(wrapper: EventWrapper) {
         if !is_main_thread() {
-            panic!("Event queued from different thread: {:#?}", wrapper);
+            panic!("Event queued from different thread: {wrapper:#?}");
         }
         HANDLER.events().push_back(wrapper);
-    }
-
-    pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
-        if !is_main_thread() {
-            panic!("Events queued from different thread: {:#?}", wrappers);
-        }
-        HANDLER.events().append(&mut wrappers);
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {

@@ -35,8 +35,8 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
-                TRACKMOUSEEVENT,
+                MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, MAPVK_VK_TO_VSC,
+                TME_LEAVE, TRACKMOUSEEVENT,
             },
             Pointer::{
                 POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
@@ -53,7 +53,7 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+            HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
             NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
@@ -387,8 +387,7 @@ fn get_wait_thread_id() -> u32 {
         );
         assert_eq!(
             msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
-            "this shouldn't be possible. please open an issue with Winit. error code: {}",
-            result
+            "this shouldn't be possible. please open an issue with Winit. error code: {result}"
         );
         msg.lParam as u32
     }
@@ -492,11 +491,11 @@ fn dur2timeout(dur: Duration) -> u32 {
         .checked_mul(1000)
         .and_then(|ms| ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000))
         .and_then(|ms| {
-            ms.checked_add(if dur.subsec_nanos() % 1_000_000 > 0 {
-                1
+            if dur.subsec_nanos() % 1_000_000 > 0 {
+                ms.checked_add(1)
             } else {
-                0
-            })
+                Some(ms)
+            }
         })
         .map(|ms| {
             if ms > u32::MAX as u64 {
@@ -978,19 +977,31 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 return DefWindowProcW(window, msg, wparam, lparam);
             }
 
-            // Extend the client area to cover the whole non-client area.
-            // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
-            //
-            // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
-            // This leads to a small black 1px border on the top. Adding a margin manually
-            // on all 4 borders would result in the caption getting drawn by the DWM.
-            //
-            // Another option would be to allow the DWM to paint inside the client area.
-            // Unfortunately this results in janky resize behavior, where the compositor is
-            // ahead of the window surface. Currently, there seems no option to achieve this
-            // with the Windows API.
-            if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
-                let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
+            let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
+
+            if util::is_maximized(window) {
+                // Limit the window size when maximized to the current monitor.
+                // Otherwise it would include the non-existent decorations.
+                //
+                // Use `MonitorFromRect` instead of `MonitorFromWindow` to select
+                // the correct monitor here.
+                // See https://github.com/MicrosoftEdge/WebView2Feedback/issues/2549
+                let monitor = MonitorFromRect(&params.rgrc[0], MONITOR_DEFAULTTONULL);
+                if let Ok(monitor_info) = monitor::get_monitor_info(monitor) {
+                    params.rgrc[0] = monitor_info.monitorInfo.rcWork;
+                }
+            } else if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
+                // Extend the client area to cover the whole non-client area.
+                // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
+                //
+                // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
+                // This leads to a small black 1px border on the top. Adding a margin manually
+                // on all 4 borders would result in the caption getting drawn by the DWM.
+                //
+                // Another option would be to allow the DWM to paint inside the client area.
+                // Unfortunately this results in janky resize behavior, where the compositor is
+                // ahead of the window surface. Currently, there seems no option to achieve this
+                // with the Windows API.
                 params.rgrc[0].top += 1;
                 params.rgrc[0].bottom += 1;
             }
@@ -1006,9 +1017,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_EXITSIZEMOVE => {
-            userdata
-                .window_state_lock()
-                .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
+            let mut state = userdata.window_state_lock();
+            if state.dragging {
+                state.dragging = false;
+                PostMessageW(window, WM_LBUTTONUP, 0, lparam);
+            }
+
+            state.set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
 
@@ -1147,8 +1162,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             let windowpos = lparam as *const WINDOWPOS;
             if (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE {
-                let physical_position =
-                    PhysicalPosition::new((*windowpos).x as i32, (*windowpos).y as i32);
+                let physical_position = PhysicalPosition::new((*windowpos).x, (*windowpos).y);
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: Moved(physical_position),
@@ -1181,7 +1195,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
                 }
             }
-
             userdata.send_event(event);
             0
         }
@@ -1547,7 +1560,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_LBUTTONDOWN => {
             use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1589,7 +1602,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1631,7 +1644,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1674,7 +1687,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
-            capture_mouse(window, &mut *userdata.window_state_lock());
+            capture_mouse(window, &mut userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -2155,6 +2168,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     // The direction to nudge the window in to get the window onto the monitor with
                     // the new DPI factor. We calculate this by seeing which monitor edges are
                     // shared and nudging away from the wrong monitor based on those.
+                    #[allow(clippy::bool_to_int_with_if)]
                     let delta_nudge_to_dpi_monitor = (
                         if wrong_monitor_rect.left == new_monitor_rect.right {
                             -1
@@ -2210,7 +2224,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 
-            if preferred_theme == None {
+            if preferred_theme.is_none() {
                 let new_theme = try_theme(window, preferred_theme);
                 let mut window_state = userdata.window_state_lock();
 
@@ -2433,7 +2447,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             0
         }
         _ if msg == *EXEC_MSG_ID => {
-            let mut function: ThreadExecFn = Box::from_raw(wparam as usize as *mut _);
+            let mut function: ThreadExecFn = Box::from_raw(wparam as *mut _);
             function();
             0
         }

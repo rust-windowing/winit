@@ -1,10 +1,4 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(x11_platform)]
 
 mod dnd;
 mod event_processor;
@@ -16,11 +10,13 @@ pub mod util;
 mod window;
 mod xdisplay;
 
-pub use self::{
+pub(crate) use self::{
     monitor::{MonitorHandle, VideoMode},
     window::UnownedWindow,
-    xdisplay::{XConnection, XError, XNotSupported},
+    xdisplay::XConnection,
 };
+
+pub use self::xdisplay::{XError, XNotSupported};
 
 use std::{
     cell::{Cell, RefCell},
@@ -141,7 +137,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
+    pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
@@ -179,7 +175,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {:#?}", state);
+                panic!("Failed to open input method: {state:#?}");
             }
             result.expect("Failed to set input method destruction callback")
         });
@@ -216,8 +212,7 @@ impl<T: 'static> EventLoop<T> {
             ) != ffi::Success as libc::c_int
             {
                 panic!(
-                    "X server has XInput extension {}.{} but does not support XInput2",
-                    xinput_major_ver, xinput_minor_ver,
+                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
                 );
             }
         }
@@ -458,7 +453,7 @@ impl<T: 'static> EventLoop<T> {
                 // Wait until
                 if let Err(e) = self.poll.poll(&mut events, iter_result.timeout) {
                     if e.raw_os_error() != Some(libc::EINTR) {
-                        panic!("epoll returned an error: {:?}", e);
+                        panic!("epoll returned an error: {e:?}");
                     }
                 }
                 events.clear();
@@ -536,7 +531,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(feature = "wayland")]
+        #[cfg(wayland_platform)]
         _ => unreachable!(),
     }
 }
@@ -544,7 +539,7 @@ pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
 impl<T> EventLoopWindowTarget<T> {
     /// Returns the `XConnection` of this events loop.
     #[inline]
-    pub fn x_connection(&self) -> &Arc<XConnection> {
+    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
     }
 
@@ -633,18 +628,19 @@ impl<'a> Deref for DeviceInfo<'a> {
 pub struct DeviceId(c_int);
 
 impl DeviceId {
+    #[allow(unused)]
     pub const unsafe fn dummy() -> Self {
         DeviceId(0)
     }
 }
 
-pub struct Window(Arc<UnownedWindow>);
+pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
     type Target = UnownedWindow;
     #[inline]
     fn deref(&self) -> &UnownedWindow {
-        &*self.0
+        &self.0
     }
 }
 
@@ -711,7 +707,7 @@ struct XExtension {
 }
 
 fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))

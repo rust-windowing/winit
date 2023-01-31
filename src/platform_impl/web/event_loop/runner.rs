@@ -15,6 +15,8 @@ use std::{
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
+pub(super) type EventHandler<T> = dyn FnMut(Event<'_, T>, &mut ControlFlow);
+
 impl<T> Clone for Shared<T> {
     fn clone(&self) -> Self {
         Shared(self.0.clone())
@@ -54,11 +56,11 @@ impl<T: 'static> RunnerEnum<T> {
 
 struct Runner<T: 'static> {
     state: State,
-    event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
+    event_handler: Box<EventHandler<T>>,
 }
 
 impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) -> Self {
+    pub fn new(event_handler: Box<EventHandler<T>>) -> Self {
         Runner {
             state: State::Init,
             event_handler,
@@ -123,7 +125,7 @@ impl<T: 'static> Shared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
-    pub fn set_listener(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
+    pub fn set_listener(&self, event_handler: Box<EventHandler<T>>) {
         {
             let mut runner = self.0.runner.borrow_mut();
             assert!(matches!(*runner, RunnerEnum::Pending));
@@ -320,8 +322,8 @@ impl<T: 'static> Shared<T> {
             };
             // First, we send the `ScaleFactorChanged` event:
             let current_size = crate::dpi::PhysicalSize {
-                width: canvas.width() as u32,
-                height: canvas.height() as u32,
+                width: canvas.width(),
+                height: canvas.height(),
             };
             let logical_size = current_size.to_logical::<f64>(old_scale);
             let mut new_size = logical_size.to_physical(new_scale);

@@ -1,6 +1,5 @@
 # Core maintainers:
 # - @msiglreith
-# - @francesca64
 # - @kchibisov
 # - @madsmtm
 # - @maroider
@@ -10,8 +9,8 @@
 /src/platform_impl/android          @msiglreith
 
 # iOS
-/src/platform/ios.rs                @francesca64 @madsmtm
-/src/platform_impl/ios              @francesca64 @madsmtm
+/src/platform/ios.rs                @madsmtm
+/src/platform_impl/ios              @madsmtm
 
 # Unix
 /src/platform_impl/linux/mod.rs     @kchibisov
@@ -35,3 +34,7 @@
 # Windows
 /src/platform/windows.rs            @msiglreith
 /src/platform_impl/windows          @msiglreith
+
+# Orbital (Redox OS)
+/src/platform/orbital.rs            @jackpot51
+/src/platform_impl/orbital          @jackpot51

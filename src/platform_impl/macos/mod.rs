@@ -57,7 +57,7 @@ pub(crate) struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         // Ensure the window is closed
-        util::close_async(Id::into_super(self.window.clone()));
+        util::close_sync(&self.window);
     }
 }
 
@@ -74,7 +74,7 @@ impl Deref for Window {
     type Target = WinitWindow;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.window
+        &self.window
     }
 }
 
@@ -92,7 +92,7 @@ impl Window {
 impl fmt::Display for OsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OsError::CGError(e) => f.pad(&format!("CGError {}", e)),
+            OsError::CGError(e) => f.pad(&format!("CGError {e}")),
             OsError::CreationError(e) => f.pad(e),
         }
     }
