@@ -72,11 +72,15 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let mouse_state = if has_pointer_event() {
-            MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
+        /*let mouse_state = if has_pointer_event() {
+            MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
         } else {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
-        };
+        };*/
+
+        //TODO: temporary fix for Right Click Blocks other buttons in games. Just use the No Pointer Event
+        MouseState::NoPointerEvent(mouse_handler::MouseHandler::new());
+
 
         Ok(Canvas {
             common: Common {
