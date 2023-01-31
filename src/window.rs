@@ -1490,9 +1490,14 @@ pub enum Fullscreen {
     Borderless(Option<MonitorHandle>),
 }
 
+/// The theme variant to use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Theme {
+    /// Use the light variant.
     Light,
+
+    /// Use the dark variant.
     Dark,
 }
 
