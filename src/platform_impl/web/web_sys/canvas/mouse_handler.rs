@@ -6,7 +6,6 @@ use crate::event::{ModifiersState, MouseButton};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use web_sys::console;
 use web_sys::{EventTarget, MouseEvent};
 
 type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>;
