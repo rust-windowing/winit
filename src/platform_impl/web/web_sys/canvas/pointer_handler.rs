@@ -4,7 +4,6 @@ use crate::dpi::PhysicalPosition;
 use crate::event::{ModifiersState, MouseButton};
 
 use web_sys::PointerEvent;
-use web_sys::console;
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
