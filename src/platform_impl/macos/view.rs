@@ -1,4 +1,6 @@
-use std::{boxed::Box, collections::VecDeque, os::raw::*, ptr, str, sync::Mutex};
+#![allow(clippy::unnecessary_cast)]
+
+use std::{boxed::Box, os::raw::*, ptr, str, sync::Mutex};
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
@@ -13,6 +15,7 @@ use super::appkit::{
     NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,
     NSView,
 };
+use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -136,6 +139,7 @@ declare_class!(
         _ns_window: IvarDrop<Id<WinitWindow, Shared>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
+        accepts_first_mouse: bool,
     }
 
     unsafe impl ClassType for WinitView {
@@ -144,8 +148,12 @@ declare_class!(
     }
 
     unsafe impl WinitView {
-        #[sel(initWithId:)]
-        fn init_with_id(&mut self, window: *mut WinitWindow) -> Option<&mut Self> {
+        #[sel(initWithId:acceptsFirstMouse:)]
+        fn init_with_id(
+            &mut self,
+            window: &WinitWindow,
+            accepts_first_mouse: bool,
+        ) -> Option<&mut Self> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
@@ -159,12 +167,10 @@ declare_class!(
                     forward_key_to_app: false,
                 };
 
-                Ivar::write(
-                    &mut this._ns_window,
-                    unsafe { Id::retain(window) }.expect("non-null window"),
-                );
+                Ivar::write(&mut this._ns_window, window.retain());
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
+                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
 
                 this.setPostsFrameChangedNotifications(true);
 
@@ -219,10 +225,7 @@ declare_class!(
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::Resized(size),
-            }));
+            self.queue_event(WindowEvent::Resized(size));
         }
 
         #[sel(drawRect:)]
@@ -324,10 +327,7 @@ declare_class!(
             // Notify IME is active if application still doesn't know it.
             if self.state.ime_state == ImeState::Disabled {
                 self.state.input_source = self.current_input_source();
-                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: self.window_id(),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                }));
+                self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
             // Don't update self.state to preedit when we've just commited a string, since the following
@@ -345,10 +345,7 @@ declare_class!(
             };
 
             // Send WindowEvent for updating marked text
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::Ime(Ime::Preedit(preedit_string, cursor_range)),
-            }));
+            self.queue_event(WindowEvent::Ime(Ime::Preedit(preedit_string, cursor_range)));
         }
 
         #[sel(unmarkText)]
@@ -359,10 +356,7 @@ declare_class!(
             let input_context = self.inputContext().expect("input context");
             input_context.discardMarkedText();
 
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-            }));
+            self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
                 // Leave the Preedit self.state
                 self.state.ime_state = ImeState::Enabled;
@@ -431,14 +425,8 @@ declare_class!(
             let is_control = string.chars().next().map_or(false, |c| c.is_control());
 
             if self.is_ime_enabled() && !is_control {
-                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: self.window_id(),
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                }));
-                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: self.window_id(),
-                    event: WindowEvent::Ime(Ime::Commit(string)),
-                }));
+                self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
+                self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.state.ime_state = ImeState::Commited;
             }
         }
@@ -468,20 +456,25 @@ declare_class!(
         #[sel(keyDown:)]
         fn key_down(&mut self, event: &NSEvent) {
             trace_scope!("keyDown:");
-            let window_id = self.window_id();
-
             let input_source = self.current_input_source();
             if self.state.input_source != input_source && self.is_ime_enabled() {
                 self.state.ime_state = ImeState::Disabled;
                 self.state.input_source = input_source;
-                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::Ime(Ime::Disabled),
-                }));
+                self.queue_event(WindowEvent::Ime(Ime::Disabled));
             }
             let was_in_preedit = self.state.ime_state == ImeState::Preedit;
 
-            let characters = get_characters(event, false);
+            // Get the characters from the event.
+            let ev_mods = event_mods(event);
+            let ignore_alt_characters = match self.window().option_as_alt() {
+                OptionAsAlt::OnlyLeft if event.lalt_pressed() => true,
+                OptionAsAlt::OnlyRight if event.ralt_pressed() => true,
+                OptionAsAlt::Both if ev_mods.alt() => true,
+                _ => false,
+            } && !ev_mods.ctrl()
+                && !ev_mods.logo();
+
+            let characters = get_characters(event, ignore_alt_characters);
             self.state.forward_key_to_app = false;
 
             // The `interpretKeyEvents` function might call
@@ -492,7 +485,13 @@ declare_class!(
             // is not handled by IME and should be handled by the application)
             let mut text_commited = false;
             if self.state.ime_allowed {
-                let events_for_nsview = NSArray::from_slice(&[event.copy()]);
+                let new_event = if ignore_alt_characters {
+                    replace_event_chars(event, &characters)
+                } else {
+                    event.copy()
+                };
+
+                let events_for_nsview = NSArray::from_slice(&[new_event]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
                 // If the text was commited we must treat the next keyboard event as IME related.
@@ -513,27 +512,19 @@ declare_class!(
 
             if !ime_related || self.state.forward_key_to_app || !self.state.ime_allowed {
                 #[allow(deprecated)]
-                let window_event = Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            state: ElementState::Pressed,
-                            scancode,
-                            virtual_keycode,
-                            modifiers: event_mods(event),
-                        },
-                        is_synthetic: false,
+                self.queue_event(WindowEvent::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    input: KeyboardInput {
+                        state: ElementState::Pressed,
+                        scancode,
+                        virtual_keycode,
+                        modifiers: ev_mods,
                     },
-                };
-
-                AppState::queue_event(EventWrapper::StaticEvent(window_event));
+                    is_synthetic: false,
+                });
 
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
+                    self.queue_event(WindowEvent::ReceivedCharacter(character));
                 }
             }
         }
@@ -549,21 +540,16 @@ declare_class!(
             // We want to send keyboard input when we are not currently in preedit
             if self.state.ime_state != ImeState::Preedit {
                 #[allow(deprecated)]
-                let window_event = Event::WindowEvent {
-                    window_id: self.window_id(),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            state: ElementState::Released,
-                            scancode,
-                            virtual_keycode,
-                            modifiers: event_mods(event),
-                        },
-                        is_synthetic: false,
+                self.queue_event(WindowEvent::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    input: KeyboardInput {
+                        state: ElementState::Released,
+                        scancode,
+                        virtual_keycode,
+                        modifiers: event_mods(event),
                     },
-                };
-
-                AppState::queue_event(EventWrapper::StaticEvent(window_event));
+                    is_synthetic: false,
+                });
             }
         }
 
@@ -571,15 +557,13 @@ declare_class!(
         fn flags_changed(&mut self, event: &NSEvent) {
             trace_scope!("flagsChanged:");
 
-            let mut events = VecDeque::with_capacity(4);
-
             if let Some(window_event) = modifier_event(
                 event,
                 NSEventModifierFlags::NSShiftKeyMask,
                 self.state.modifiers.shift(),
             ) {
                 self.state.modifiers.toggle(ModifiersState::SHIFT);
-                events.push_back(window_event);
+                self.queue_event(window_event);
             }
 
             if let Some(window_event) = modifier_event(
@@ -588,7 +572,7 @@ declare_class!(
                 self.state.modifiers.ctrl(),
             ) {
                 self.state.modifiers.toggle(ModifiersState::CTRL);
-                events.push_back(window_event);
+                self.queue_event(window_event);
             }
 
             if let Some(window_event) = modifier_event(
@@ -597,7 +581,7 @@ declare_class!(
                 self.state.modifiers.logo(),
             ) {
                 self.state.modifiers.toggle(ModifiersState::LOGO);
-                events.push_back(window_event);
+                self.queue_event(window_event);
             }
 
             if let Some(window_event) = modifier_event(
@@ -606,22 +590,10 @@ declare_class!(
                 self.state.modifiers.alt(),
             ) {
                 self.state.modifiers.toggle(ModifiersState::ALT);
-                events.push_back(window_event);
+                self.queue_event(window_event);
             }
 
-            let window_id = self.window_id();
-
-            for event in events {
-                AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id,
-                    event,
-                }));
-            }
-
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::ModifiersChanged(self.state.modifiers),
-            }));
+            self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers));
         }
 
         #[sel(insertTab:)]
@@ -662,63 +634,58 @@ declare_class!(
             self.update_potentially_stale_modifiers(&event);
 
             #[allow(deprecated)]
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    input: KeyboardInput {
-                        state: ElementState::Pressed,
-                        scancode: scancode as _,
-                        virtual_keycode,
-                        modifiers: event_mods(&event),
-                    },
-                    is_synthetic: false,
+            self.queue_event(WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    state: ElementState::Pressed,
+                    scancode: scancode as _,
+                    virtual_keycode,
+                    modifiers: event_mods(&event),
                 },
-            };
-
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+                is_synthetic: false,
+            });
         }
 
         #[sel(mouseDown:)]
         fn mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("mouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Left, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(mouseUp:)]
         fn mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("mouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Left, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(rightMouseDown:)]
         fn right_mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("rightMouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Right, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(rightMouseUp:)]
         fn right_mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("rightMouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Right, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(otherMouseDown:)]
         fn other_mouse_down(&mut self, event: &NSEvent) {
             trace_scope!("otherMouseDown:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Middle, ElementState::Pressed);
+            self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(otherMouseUp:)]
         fn other_mouse_up(&mut self, event: &NSEvent) {
             trace_scope!("otherMouseUp:");
             self.mouse_motion(event);
-            self.mouse_click(event, MouseButton::Middle, ElementState::Released);
+            self.mouse_click(event, ElementState::Released);
         }
 
         // No tracing on these because that would be overly verbose
@@ -746,27 +713,18 @@ declare_class!(
         #[sel(mouseEntered:)]
         fn mouse_entered(&self, _event: &NSEvent) {
             trace_scope!("mouseEntered:");
-            let enter_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::CursorEntered {
-                    device_id: DEVICE_ID,
-                },
-            };
-
-            AppState::queue_event(EventWrapper::StaticEvent(enter_event));
+            self.queue_event(WindowEvent::CursorEntered {
+                device_id: DEVICE_ID,
+            });
         }
 
         #[sel(mouseExited:)]
         fn mouse_exited(&self, _event: &NSEvent) {
             trace_scope!("mouseExited:");
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::CursorLeft {
-                    device_id: DEVICE_ID,
-                },
-            };
 
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+            self.queue_event(WindowEvent::CursorLeft {
+                device_id: DEVICE_ID,
+            });
         }
 
         #[sel(scrollWheel:)]
@@ -807,32 +765,21 @@ declare_class!(
                 },
             };
 
-            let device_event = Event::DeviceEvent {
-                device_id: DEVICE_ID,
-                event: DeviceEvent::MouseWheel { delta },
-            };
-
             self.update_potentially_stale_modifiers(event);
 
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::MouseWheel {
-                    device_id: DEVICE_ID,
-                    delta,
-                    phase,
-                    modifiers: event_mods(event),
-                },
-            };
-
-            AppState::queue_event(EventWrapper::StaticEvent(device_event));
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+            self.queue_device_event(DeviceEvent::MouseWheel { delta });
+            self.queue_event(WindowEvent::MouseWheel {
+                device_id: DEVICE_ID,
+                delta,
+                phase,
+                modifiers: event_mods(event),
+            });
         }
 
         #[sel(magnifyWithEvent:)]
         fn magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("magnifyWithEvent:");
 
-            let delta = event.magnification();
             let phase = match event.phase() {
                 NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
                 NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
@@ -841,23 +788,26 @@ declare_class!(
                 _ => return,
             };
 
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::TouchpadMagnify {
-                    device_id: DEVICE_ID,
-                    delta,
-                    phase,
-                },
-            };
+            self.queue_event(WindowEvent::TouchpadMagnify {
+                device_id: DEVICE_ID,
+                delta: event.magnification(),
+                phase,
+            });
+        }
 
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        #[sel(smartMagnifyWithEvent:)]
+        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+            trace_scope!("smartMagnifyWithEvent:");
+
+            self.queue_event(WindowEvent::SmartMagnify {
+                device_id: DEVICE_ID,
+            });
         }
 
         #[sel(rotateWithEvent:)]
         fn rotate_with_event(&self, event: &NSEvent) {
             trace_scope!("rotateWithEvent:");
 
-            let delta = event.rotation();
             let phase = match event.phase() {
                 NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
                 NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
@@ -866,16 +816,11 @@ declare_class!(
                 _ => return,
             };
 
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::TouchpadRotate {
-                    device_id: DEVICE_ID,
-                    delta,
-                    phase,
-                },
-            };
-
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+            self.queue_event(WindowEvent::TouchpadRotate {
+                device_id: DEVICE_ID,
+                delta: event.rotation(),
+                phase,
+            });
         }
 
         #[sel(pressureChangeWithEvent:)]
@@ -884,19 +829,11 @@ declare_class!(
 
             self.mouse_motion(event);
 
-            let pressure = event.pressure();
-            let stage = event.stage();
-
-            let window_event = Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::TouchpadPressure {
-                    device_id: DEVICE_ID,
-                    pressure,
-                    stage: stage as i64,
-                },
-            };
-
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
+            self.queue_event(WindowEvent::TouchpadPressure {
+                device_id: DEVICE_ID,
+                pressure: event.pressure(),
+                stage: event.stage() as i64,
+            });
         }
 
         // Allows us to receive Ctrl-Tab and Ctrl-Esc.
@@ -911,14 +848,20 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            true
+            *self.accepts_first_mouse
         }
     }
 );
 
 impl WinitView {
-    pub(super) fn new(window: &WinitWindow) -> Id<Self, Shared> {
-        unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window] }
+    pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self, Shared> {
+        unsafe {
+            msg_send_id![
+                msg_send_id![Self::class(), alloc],
+                initWithId: window,
+                acceptsFirstMouse: accepts_first_mouse,
+            ]
+        }
     }
 
     fn window(&self) -> Id<WinitWindow, Shared> {
@@ -932,6 +875,22 @@ impl WinitView {
 
     fn window_id(&self) -> WindowId {
         WindowId(self._ns_window.id())
+    }
+
+    fn queue_event(&self, event: WindowEvent<'static>) {
+        let event = Event::WindowEvent {
+            window_id: self.window_id(),
+            event,
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(event));
+    }
+
+    fn queue_device_event(&self, event: DeviceEvent) {
+        let event = Event::DeviceEvent {
+            device_id: DEVICE_ID,
+            event,
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
     fn scale_factor(&self) -> f64 {
@@ -964,10 +923,7 @@ impl WinitView {
 
         if self.state.ime_state != ImeState::Disabled {
             self.state.ime_state = ImeState::Disabled;
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::Ime(Ime::Disabled),
-            }));
+            self.queue_event(WindowEvent::Ime(Ime::Disabled));
         }
     }
 
@@ -983,27 +939,21 @@ impl WinitView {
         if self.state.modifiers != event_modifiers {
             self.state.modifiers = event_modifiers;
 
-            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: self.window_id(),
-                event: WindowEvent::ModifiersChanged(self.state.modifiers),
-            }));
+            self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers));
         }
     }
 
-    fn mouse_click(&mut self, event: &NSEvent, button: MouseButton, button_state: ElementState) {
+    fn mouse_click(&mut self, event: &NSEvent, button_state: ElementState) {
+        let button = mouse_button(event);
+
         self.update_potentially_stale_modifiers(event);
 
-        let window_event = Event::WindowEvent {
-            window_id: self.window_id(),
-            event: WindowEvent::MouseInput {
-                device_id: DEVICE_ID,
-                state: button_state,
-                button,
-                modifiers: event_mods(event),
-            },
-        };
-
-        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        self.queue_event(WindowEvent::MouseInput {
+            device_id: DEVICE_ID,
+            state: button_state,
+            button,
+            modifiers: event_mods(event),
+        });
     }
 
     fn mouse_motion(&mut self, event: &NSEvent) {
@@ -1029,15 +979,41 @@ impl WinitView {
 
         self.update_potentially_stale_modifiers(event);
 
-        let window_event = Event::WindowEvent {
-            window_id: self.window_id(),
-            event: WindowEvent::CursorMoved {
-                device_id: DEVICE_ID,
-                position: logical_position.to_physical(self.scale_factor()),
-                modifiers: event_mods(event),
-            },
-        };
-
-        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        self.queue_event(WindowEvent::CursorMoved {
+            device_id: DEVICE_ID,
+            position: logical_position.to_physical(self.scale_factor()),
+            modifiers: event_mods(event),
+        });
     }
+}
+
+/// Get the mouse button from the NSEvent.
+fn mouse_button(event: &NSEvent) -> MouseButton {
+    // The buttonNumber property only makes sense for the mouse events:
+    // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
+    // For the other events, it's always set to 0.
+    match event.buttonNumber() {
+        0 => MouseButton::Left,
+        1 => MouseButton::Right,
+        2 => MouseButton::Middle,
+        n => MouseButton::Other(n as u16),
+    }
+}
+
+fn replace_event_chars(event: &NSEvent, characters: &str) -> Id<NSEvent, Shared> {
+    let ns_chars = NSString::from_str(characters);
+    let chars_ignoring_mods = event.charactersIgnoringModifiers().unwrap();
+
+    NSEvent::keyEventWithType(
+        event.type_(),
+        event.locationInWindow(),
+        event.modifierFlags(),
+        event.timestamp(),
+        event.window_number(),
+        None,
+        &ns_chars,
+        &chars_ignoring_mods,
+        event.is_a_repeat(),
+        event.scancode(),
+    )
 }

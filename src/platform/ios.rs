@@ -1,5 +1,7 @@
 use std::os::raw::c_void;
 
+use objc2::rc::Id;
+
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
@@ -97,17 +99,17 @@ pub trait WindowExtIOS {
 impl WindowExtIOS for Window {
     #[inline]
     fn ui_window(&self) -> *mut c_void {
-        self.window.ui_window() as _
+        self.window.ui_window()
     }
 
     #[inline]
     fn ui_view_controller(&self) -> *mut c_void {
-        self.window.ui_view_controller() as _
+        self.window.ui_view_controller()
     }
 
     #[inline]
     fn ui_view(&self) -> *mut c_void {
-        self.window.ui_view() as _
+        self.window.ui_view()
     }
 
     #[inline]
@@ -139,13 +141,6 @@ impl WindowExtIOS for Window {
 
 /// Additional methods on [`WindowBuilder`] that are specific to iOS.
 pub trait WindowBuilderExtIOS {
-    /// Sets the root view class used by the [`Window`], otherwise a barebones [`UIView`] is provided.
-    ///
-    /// An instance of the class will be initialized by calling [`-[UIView initWithFrame:]`](https://developer.apple.com/documentation/uikit/uiview/1622488-initwithframe?language=objc).
-    ///
-    /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
-    fn with_root_view_class(self, root_view_class: *const c_void) -> WindowBuilder;
-
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
@@ -195,12 +190,6 @@ pub trait WindowBuilderExtIOS {
 }
 
 impl WindowBuilderExtIOS for WindowBuilder {
-    #[inline]
-    fn with_root_view_class(mut self, root_view_class: *const c_void) -> WindowBuilder {
-        self.platform_specific.root_view_class = unsafe { &*(root_view_class as *const _) };
-        self
-    }
-
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> WindowBuilder {
         self.platform_specific.scale_factor = Some(scale_factor);
@@ -252,12 +241,14 @@ pub trait MonitorHandleExtIOS {
 impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
-        self.inner.ui_screen() as _
+        Id::as_ptr(self.inner.ui_screen()) as *mut c_void
     }
 
     #[inline]
     fn preferred_video_mode(&self) -> VideoMode {
-        self.inner.preferred_video_mode()
+        VideoMode {
+            video_mode: self.inner.preferred_video_mode(),
+        }
     }
 }
 

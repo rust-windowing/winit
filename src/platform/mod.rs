@@ -15,47 +15,29 @@
 //!
 //! However only the module corresponding to the platform you're compiling to will be available.
 
-#[cfg(target_os = "android")]
+#[cfg(android_platform)]
 pub mod android;
-#[cfg(target_os = "ios")]
+#[cfg(ios_platform)]
 pub mod ios;
-#[cfg(target_os = "macos")]
+#[cfg(macos_platform)]
 pub mod macos;
-#[cfg(all(
-    feature = "wayland",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-    )
-))]
+#[cfg(orbital_platform)]
+pub mod orbital;
+#[cfg(wayland_platform)]
 pub mod wayland;
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 pub mod web;
-#[cfg(target_os = "windows")]
+#[cfg(windows_platform)]
 pub mod windows;
-#[cfg(all(
-    feature = "x11",
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-    )
-))]
+#[cfg(x11_platform)]
 pub mod x11;
 
 #[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "android",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
+    windows_platform,
+    macos_platform,
+    android_platform,
+    x11_platform,
+    wayland_platform,
+    orbital_platform
 ))]
 pub mod run_return;

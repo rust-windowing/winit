@@ -39,7 +39,7 @@ In other words, the deltas indicate the direction in which to move the content (
                 WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        println!("mouse wheel Line Delta: ({},{})", x, y);
+                        println!("mouse wheel Line Delta: ({x},{y})");
                         let pixels_per_line = 120.0;
                         let mut pos = window.outer_position().unwrap();
                         pos.x += (x * pixels_per_line) as i32;

@@ -19,14 +19,14 @@ pub fn initialize() {
     let process_name = NSProcessInfo::process_info().process_name();
 
     // About menu item
-    let about_item_title = ns_string!("About ").concat(&*process_name);
+    let about_item_title = ns_string!("About ").concat(&process_name);
     let about_item = menu_item(&about_item_title, sel!(orderFrontStandardAboutPanel:), None);
 
     // Seperator menu item
     let sep_first = NSMenuItem::separatorItem();
 
     // Hide application menu item
-    let hide_item_title = ns_string!("Hide ").concat(&*process_name);
+    let hide_item_title = ns_string!("Hide ").concat(&process_name);
     let hide_item = menu_item(
         &hide_item_title,
         sel!(hide:),
@@ -57,7 +57,7 @@ pub fn initialize() {
     let sep = NSMenuItem::separatorItem();
 
     // Quit application menu item
-    let quit_item_title = ns_string!("Quit ").concat(&*process_name);
+    let quit_item_title = ns_string!("Quit ").concat(&process_name);
     let quit_item = menu_item(
         &quit_item_title,
         sel!(terminate:),

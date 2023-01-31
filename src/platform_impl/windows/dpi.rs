@@ -65,7 +65,7 @@ pub fn get_monitor_dpi(hmonitor: HMONITOR) -> Option<u32> {
                 // MSDN says that "the values of *dpiX and *dpiY are identical. You only need to
                 // record one of the values to determine the DPI and respond appropriately".
                 // https://msdn.microsoft.com/en-us/library/windows/desktop/dn280510(v=vs.85).aspx
-                return Some(dpi_x as u32);
+                return Some(dpi_x);
             }
         }
     }
@@ -86,7 +86,7 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
         // We are on Windows 10 Anniversary Update (1607) or later.
         match GetDpiForWindow(hwnd) {
             0 => BASE_DPI, // 0 is returned if hwnd is invalid
-            dpi => dpi as u32,
+            dpi => dpi,
         }
     } else if let Some(GetDpiForMonitor) = *GET_DPI_FOR_MONITOR {
         // We are on Windows 8.1 or later.
@@ -98,7 +98,7 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
         let mut dpi_x = 0;
         let mut dpi_y = 0;
         if GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) == S_OK {
-            dpi_x as u32
+            dpi_x
         } else {
             BASE_DPI
         }

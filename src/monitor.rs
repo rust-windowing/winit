@@ -61,7 +61,7 @@ impl VideoMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland:** Always returns 32.
+    /// - **Wayland / Orbital:** Always returns 32.
     /// - **iOS:** Always returns 32.
     #[inline]
     pub fn bit_depth(&self) -> u16 {
@@ -78,7 +78,9 @@ impl VideoMode {
     /// a separate set of valid video modes.
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        self.video_mode.monitor()
+        MonitorHandle {
+            inner: self.video_mode.monitor(),
+        }
     }
 }
 
@@ -141,6 +143,9 @@ impl MonitorHandle {
 
     /// The monitor refresh rate used by the system.
     ///
+    /// Return `Some` if succeed, or `None` if failed, which usually happens when the monitor
+    /// the window is on is removed.
+    ///
     /// When using exclusive fullscreen, the refresh rate of the [`VideoMode`] that was used to
     /// enter fullscreen should be used instead.
     #[inline]
@@ -169,6 +174,8 @@ impl MonitorHandle {
     /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.inner.video_modes()
+        self.inner
+            .video_modes()
+            .map(|video_mode| VideoMode { video_mode })
     }
 }

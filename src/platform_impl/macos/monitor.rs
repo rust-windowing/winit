@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 use std::{collections::VecDeque, fmt};
 
 use core_foundation::{
@@ -10,10 +12,7 @@ use objc2::rc::{Id, Shared};
 
 use super::appkit::NSScreen;
 use super::ffi;
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -89,10 +88,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 
@@ -185,7 +182,7 @@ impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
         let MonitorHandle(display_id) = *self;
         let screen_num = CGDisplay::new(display_id).model_number();
-        Some(format!("Monitor #{}", screen_num))
+        Some(format!("Monitor #{screen_num}"))
     }
 
     #[inline]
@@ -220,21 +217,24 @@ impl MonitorHandle {
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
             let mut display_link = std::ptr::null_mut();
-            assert_eq!(
-                ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
-                ffi::kCVReturnSuccess
-            );
+            if ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link)
+                != ffi::kCVReturnSuccess
+            {
+                return None;
+            }
             let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
             ffi::CVDisplayLinkRelease(display_link);
 
             // This value is indefinite if an invalid display link was specified
-            assert!(time.flags & ffi::kCVTimeIsIndefinite == 0);
+            if time.flags & ffi::kCVTimeIsIndefinite != 0 {
+                return None;
+            }
 
             Some((time.time_scale as i64 / time.time_value * 1000) as u32)
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
         let monitor = self.clone();
 
@@ -279,7 +279,7 @@ impl MonitorHandle {
                     unimplemented!()
                 };
 
-                let video_mode = VideoMode {
+                VideoMode {
                     size: (
                         ffi::CGDisplayModeGetPixelWidth(mode) as u32,
                         ffi::CGDisplayModeGetPixelHeight(mode) as u32,
@@ -288,9 +288,7 @@ impl MonitorHandle {
                     bit_depth,
                     monitor: monitor.clone(),
                     native_mode: NativeDisplayMode(mode),
-                };
-
-                RootVideoMode { video_mode }
+                }
             })
         }
     }

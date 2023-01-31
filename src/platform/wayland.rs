@@ -41,7 +41,7 @@ impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
             }
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => None,
         }
     }
@@ -88,14 +88,6 @@ pub trait WindowExtWayland {
     ///
     /// The pointer will become invalid when the [`Window`] is destroyed.
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
-
-    /// Updates [`Theme`] of window decorations.
-    ///
-    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light".
-    ///
-    /// When unspecified a theme is automatically selected.
-    fn wayland_set_csd_theme(&self, config: Theme);
 }
 
 impl WindowExtWayland for Window {
@@ -103,7 +95,7 @@ impl WindowExtWayland for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => None,
         }
     }
@@ -112,18 +104,8 @@ impl WindowExtWayland for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
-            #[cfg(feature = "x11")]
+            #[cfg(x11_platform)]
             _ => None,
-        }
-    }
-
-    #[inline]
-    fn wayland_set_csd_theme(&self, theme: Theme) {
-        #[allow(clippy::single_match)]
-        match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
-            #[cfg(feature = "x11")]
-            _ => (),
         }
     }
 }
@@ -138,26 +120,12 @@ pub trait WindowBuilderExtWayland {
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
-
-    /// Build window with certain decoration [`Theme`]
-    ///
-    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light".
-    ///
-    /// When unspecified a theme is automatically selected.
-    fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 }
 
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
-        self
-    }
-
-    #[inline]
-    fn with_wayland_csd_theme(mut self, theme: Theme) -> Self {
-        self.platform_specific.csd_theme = Some(theme);
         self
     }
 }

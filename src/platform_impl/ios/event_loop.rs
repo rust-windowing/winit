@@ -14,36 +14,33 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::runtime::Object;
-use objc2::{class, msg_send, ClassType};
+use objc2::foundation::{MainThreadMarker, NSString};
+use objc2::rc::{Id, Shared};
+use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
+use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
+use super::view::WinitUIWindow;
+use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
     dpi::LogicalSize,
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::Idiom,
 };
 
-use crate::platform_impl::platform::{
-    app_state,
-    ffi::{id, nil, NSStringRust, UIApplicationMain, UIUserInterfaceIdiom},
-    monitor, view, MonitorHandle,
-};
-
 #[derive(Debug)]
-pub enum EventWrapper {
+pub(crate) enum EventWrapper {
     StaticEvent(Event<'static, Never>),
     EventProxy(EventProxy),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum EventProxy {
+pub(crate) enum EventProxy {
     DpiChangedProxy {
-        window_id: id,
+        window: Id<WinitUIWindow, Shared>,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     },
@@ -56,15 +53,13 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        // guaranteed to be on main thread
-        unsafe { monitor::uiscreens() }
+        monitor::uiscreens(MainThreadMarker::new().unwrap())
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
-        // guaranteed to be on main thread
-        let monitor = unsafe { monitor::main_uiscreen() };
-
-        Some(RootMonitorHandle { inner: monitor })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle::new(UIScreen::main(
+            MainThreadMarker::new().unwrap(),
+        )))
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
@@ -114,13 +109,12 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            assert_eq!(
-                application,
-                ptr::null_mut(),
+            let application = UIApplication::shared(MainThreadMarker::new().unwrap());
+            assert!(
+                application.is_none(),
                 "\
-                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
-                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
+                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
+                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
             );
             app_state::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,
@@ -133,8 +127,8 @@ impl<T: 'static> EventLoop<T> {
             UIApplicationMain(
                 0,
                 ptr::null(),
-                nil,
-                NSStringRust::alloc(nil).init_str("WinitApplicationDelegate"),
+                None,
+                Some(&NSString::from_str("WinitApplicationDelegate")),
             );
             unreachable!()
         }
@@ -152,8 +146,9 @@ impl<T: 'static> EventLoop<T> {
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
-        // guaranteed to be on main thread
-        unsafe { self::get_idiom() }
+        UIDevice::current(MainThreadMarker::new().unwrap())
+            .userInterfaceIdiom()
+            .into()
     }
 }
 
@@ -355,11 +350,4 @@ where
             (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
         }
     }
-}
-
-// must be called on main thread
-pub unsafe fn get_idiom() -> Idiom {
-    let device: id = msg_send![class!(UIDevice), currentDevice];
-    let raw_idiom: UIUserInterfaceIdiom = msg_send![device, userInterfaceIdiom];
-    raw_idiom.into()
 }

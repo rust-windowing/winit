@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 mod r#async;
 
 pub(crate) use self::r#async::*;

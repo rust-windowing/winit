@@ -13,7 +13,6 @@ use super::{
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
@@ -53,10 +52,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()),
-        }
+    pub fn monitor(&self) -> PlatformMonitorHandle {
+        PlatformMonitorHandle::X(self.monitor.clone().unwrap())
     }
 }
 
@@ -111,6 +108,7 @@ impl std::hash::Hash for MonitorHandle {
 #[inline]
 pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
     if mode.dotClock > 0 && mode.hTotal > 0 && mode.vTotal > 0 {
+        #[allow(clippy::unnecessary_cast)]
         Some((mode.dotClock as u64 * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
     } else {
         None
@@ -126,8 +124,8 @@ impl MonitorHandle {
         primary: bool,
     ) -> Option<Self> {
         let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
+        let dimensions = unsafe { ((*crtc).width, (*crtc).height) };
+        let position = unsafe { ((*crtc).x, (*crtc).y) };
 
         // Get the refresh rate of the current video mode.
         let current_mode = unsafe { (*crtc).mode };
@@ -178,7 +176,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        self.id as u32
+        self.id as _
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
@@ -199,13 +197,11 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
             x.monitor = Some(monitor.clone());
-            RootVideoMode {
-                video_mode: PlatformVideoMode::X(x),
-            }
+            PlatformVideoMode::X(x)
         })
     }
 }

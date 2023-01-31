@@ -21,7 +21,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
-        println!("{:?}", event);
+        println!("{event:?}");
 
         match event {
             Event::WindowEvent {

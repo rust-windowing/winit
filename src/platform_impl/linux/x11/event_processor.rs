@@ -57,7 +57,7 @@ impl<T: 'static> EventProcessor<T> {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId(window_id as u64);
+        let window_id = WindowId(window_id as _);
         let wt = get_xtarget(&self.target);
         let result = wt
             .windows
@@ -347,7 +347,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     // These are both in physical space.
                     let new_inner_size = (xev.width as u32, xev.height as u32);
-                    let new_inner_position = (xev.x as i32, xev.y as i32);
+                    let new_inner_position = (xev.x, xev.y);
 
                     let (mut resized, moved) = {
                         let mut shared_state_lock = window.shared_state_lock();
@@ -511,7 +511,24 @@ impl<T: 'static> EventProcessor<T> {
                     window.invalidate_cached_frame_extents();
                 });
             }
+            ffi::MapNotify => {
+                let xev: &ffi::XMapEvent = xev.as_ref();
+                let window = xev.window;
+                let window_id = mkwid(window);
 
+                // XXX re-issue the focus state when mapping the window.
+                //
+                // The purpose of it is to deliver initial focused state of the newly created
+                // window, given that we can't rely on `CreateNotify`, due to it being not
+                // sent.
+                let focus = self
+                    .with_window(window, |window| window.has_focus())
+                    .unwrap_or_default();
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Focused(focus),
+                });
+            }
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
 
@@ -520,7 +537,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window as u64));
+                wt.windows.borrow_mut().remove(&WindowId(window as _));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
@@ -930,6 +947,10 @@ impl<T: 'static> EventProcessor<T> {
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = true;
+                            }
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: Focused(true),
@@ -1002,6 +1023,10 @@ impl<T: 'static> EventProcessor<T> {
                                 event: WindowEvent::ModifiersChanged(ModifiersState::empty()),
                             });
 
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = false;
+                            }
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: Focused(false),
@@ -1021,8 +1046,7 @@ impl<T: 'static> EventProcessor<T> {
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
                             let modifiers = self.device_mod_state.modifiers();
-                            let location =
-                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                            let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // Mouse cursor position changes when touch events are received.
                             // Only the first concurrently active touch ID moves the mouse cursor.
@@ -1228,7 +1252,7 @@ impl<T: 'static> EventProcessor<T> {
                                                 new_monitor.scale_factor,
                                                 width,
                                                 height,
-                                                &*window.shared_state_lock(),
+                                                &window.shared_state_lock(),
                                             );
 
                                             let window_id = crate::window::WindowId(*window_id);

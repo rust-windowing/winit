@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(wasm_platform))]
 fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
@@ -39,7 +39,7 @@ fn main() {
         control_flow.set_wait();
 
         match event {
-            Event::UserEvent(event) => println!("user event: {:?}", event),
+            Event::UserEvent(event) => println!("user event: {event:?}"),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
@@ -49,7 +49,7 @@ fn main() {
     });
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 fn main() {
     panic!("This example is not supported on web.");
 }

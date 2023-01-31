@@ -25,7 +25,6 @@ use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
     platform_impl::platform::{
         app::WinitApplication,
@@ -83,9 +82,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]
@@ -125,6 +124,7 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
+    pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -132,6 +132,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             activation_policy: Default::default(), // Regular
             default_menu: true,
+            activate_ignoring_other_apps: true,
         }
     }
 }
@@ -155,7 +156,11 @@ impl<T> EventLoop<T> {
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
-        let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
+        let delegate = ApplicationDelegate::new(
+            activation_policy,
+            attributes.default_menu,
+            attributes.activate_ignoring_other_apps,
+        );
 
         autoreleasepool(|_| {
             app.setDelegate(&delegate);
