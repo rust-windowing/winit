@@ -50,10 +50,10 @@ use windows_sys::Win32::{
         },
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-            GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
-            PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
-            TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
+            GetMenu, GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW,
+            PostMessageW, PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor,
+            SetWindowPos, TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE,
+            GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
             NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
@@ -1550,7 +1550,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     },
                 });
             }
-            if msg == WM_SYSKEYUP {
+            if msg == WM_SYSKEYUP && GetMenu(window) != 0 {
+                // let Windows handle event if the window has a native menu, a modal event loop
+                // is started here on Alt key up.
                 DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 0
