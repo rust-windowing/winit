@@ -424,10 +424,14 @@ declare_class!(
 
             let is_control = string.chars().next().map_or(false, |c| c.is_control());
 
-            if self.is_ime_enabled() && !is_control {
+            // Commit only if we have marked text.
+            if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.state.ime_state = ImeState::Commited;
+
+                // Remove any marked text, so normal input can continue.
+                *self.marked_text = NSMutableAttributedString::new();
             }
         }
 
