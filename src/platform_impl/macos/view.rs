@@ -429,9 +429,6 @@ declare_class!(
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.state.ime_state = ImeState::Commited;
-
-                // Remove any marked text, so normal input can continue.
-                *self.marked_text = NSMutableAttributedString::new();
             }
         }
 
@@ -500,6 +497,8 @@ declare_class!(
 
                 // If the text was commited we must treat the next keyboard event as IME related.
                 if self.state.ime_state == ImeState::Commited {
+                    // Remove any marked text, so normal input can continue.
+                    *self.marked_text = NSMutableAttributedString::new();
                     self.state.ime_state = ImeState::Enabled;
                     text_commited = true;
                 }
