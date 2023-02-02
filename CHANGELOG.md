@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Wayland, fix crash when dropping a window in multi-window setup.
+
 # 0.28.0
 
 - On macOS, fixed `Ime::Commit` persisting for all input after interacting with `Ime`.
