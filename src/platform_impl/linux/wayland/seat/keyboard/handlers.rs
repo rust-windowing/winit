@@ -24,7 +24,10 @@ pub(super) fn handle_keyboard(
         KeyboardEvent::Enter { surface, .. } => {
             let window_id = wayland::make_wid(&surface);
 
-            let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
             window_handle.has_focus.store(true, Ordering::Relaxed);
 
             // Window gained focus.
@@ -39,7 +42,14 @@ pub(super) fn handle_keyboard(
             inner.target_window_id = Some(window_id);
         }
         KeyboardEvent::Leave { surface, .. } => {
+            // Reset the id.
+            inner.target_window_id = None;
+
             let window_id = wayland::make_wid(&surface);
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
 
             // Notify that no modifiers are being pressed.
             if !inner.modifiers_state.borrow().is_empty() {
@@ -49,14 +59,10 @@ pub(super) fn handle_keyboard(
                 );
             }
 
-            let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
             window_handle.has_focus.store(false, Ordering::Relaxed);
 
             // Window lost focus.
             event_sink.push_window_event(WindowEvent::Focused(false), window_id);
-
-            // Reset the id.
-            inner.target_window_id = None;
         }
         KeyboardEvent::Key {
             rawkey,
