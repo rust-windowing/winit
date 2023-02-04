@@ -1,9 +1,9 @@
-//! Convert Wayland keys to winit keys.
+use sctk::seat::keyboard::keysyms;
 
 use crate::event::VirtualKeyCode;
 
+/// Convert xkb keysym into winit's VirtualKeyCode.
 pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
-    use sctk::seat::keyboard::keysyms;
     match keysym {
         // Numbers.
         keysyms::XKB_KEY_1 => Some(VirtualKeyCode::Key1),
