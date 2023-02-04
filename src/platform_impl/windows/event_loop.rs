@@ -205,7 +205,10 @@ impl<T: 'static> EventLoop<T> {
 
         let thread_msg_target = create_event_target_window::<T>();
 
-        thread::spawn(move || wait_thread(thread_id, thread_msg_target));
+        thread::Builder::new()
+            .name("winit wait thread".to_string())
+            .spawn(move || wait_thread(thread_id, thread_msg_target))
+            .expect("Failed to spawn winit wait thread");
         let wait_thread_id = get_wait_thread_id();
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target, wait_thread_id));
