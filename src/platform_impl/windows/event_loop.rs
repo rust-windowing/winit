@@ -10,6 +10,7 @@ use std::{
     mem, panic, ptr,
     rc::Rc,
     sync::{
+        atomic::{AtomicU32, Ordering},
         mpsc::{self, Receiver, Sender},
         Arc, Mutex, MutexGuard,
     },
@@ -382,11 +383,12 @@ fn get_wait_thread_id() -> u32 {
         let result = GetMessageW(
             &mut msg,
             -1,
-            *SEND_WAIT_THREAD_ID_MSG_ID,
-            *SEND_WAIT_THREAD_ID_MSG_ID,
+            SEND_WAIT_THREAD_ID_MSG_ID.get(),
+            SEND_WAIT_THREAD_ID_MSG_ID.get(),
         );
         assert_eq!(
-            msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
+            msg.message,
+            SEND_WAIT_THREAD_ID_MSG_ID.get(),
             "this shouldn't be possible. please open an issue with Winit. error code: {result}"
         );
         msg.lParam as u32
@@ -412,7 +414,7 @@ fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
         let cur_thread_id = GetCurrentThreadId();
         PostThreadMessageW(
             parent_thread_id,
-            *SEND_WAIT_THREAD_ID_MSG_ID,
+            SEND_WAIT_THREAD_ID_MSG_ID.get(),
             0,
             cur_thread_id as LPARAM,
         );
@@ -436,9 +438,9 @@ fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
                 DispatchMessageW(&msg);
             }
 
-            if msg.message == *WAIT_UNTIL_MSG_ID {
+            if msg.message == WAIT_UNTIL_MSG_ID.get() {
                 wait_until_opt = Some(*WaitUntilInstantBox::from_raw(msg.lParam as *mut _));
-            } else if msg.message == *CANCEL_WAIT_UNTIL_MSG_ID {
+            } else if msg.message == CANCEL_WAIT_UNTIL_MSG_ID.get() {
                 wait_until_opt = None;
             }
 
@@ -466,11 +468,11 @@ fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
                         timeEndPeriod(period);
                     }
                     if resume_reason == WAIT_TIMEOUT {
-                        PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+                        PostMessageW(msg_window_id, PROCESS_NEW_EVENTS_MSG_ID.get(), 0, 0);
                         wait_until_opt = None;
                     }
                 } else {
-                    PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+                    PostMessageW(msg_window_id, PROCESS_NEW_EVENTS_MSG_ID.get(), 0, 0);
                     wait_until_opt = None;
                 }
             }
@@ -556,7 +558,7 @@ impl EventLoopThreadExecutor {
 
                 let raw = Box::into_raw(boxed2);
 
-                let res = PostMessageW(self.target_window, *EXEC_MSG_ID, raw as usize, 0);
+                let res = PostMessageW(self.target_window, EXEC_MSG_ID.get(), raw as usize, 0);
                 assert!(
                     res != false.into(),
                     "PostMessage failed; is the messages queue full?"
@@ -586,7 +588,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         unsafe {
-            if PostMessageW(self.target_window, *USER_EVENT_MSG_ID, 0, 0) != false.into() {
+            if PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) != false.into() {
                 self.event_send.send(event).ok();
                 Ok(())
             } else {
@@ -598,40 +600,84 @@ impl<T: 'static> EventLoopProxy<T> {
 
 type WaitUntilInstantBox = Box<Instant>;
 
+/// A lazily-initialized window message ID.
+pub struct LazyMessageId {
+    /// The ID.
+    id: AtomicU32,
+
+    /// The name of the message.
+    name: &'static str,
+}
+
+/// An invalid custom window ID.
+const INVALID_ID: u32 = 0x0;
+
+impl LazyMessageId {
+    /// Create a new `LazyId`.
+    const fn new(name: &'static str) -> Self {
+        Self {
+            id: AtomicU32::new(INVALID_ID),
+            name,
+        }
+    }
+
+    /// Get the message ID.
+    pub fn get(&self) -> u32 {
+        // Load the ID.
+        let id = self.id.load(Ordering::Relaxed);
+
+        if id != INVALID_ID {
+            return id;
+        }
+
+        // Register the message.
+        // SAFETY: We are sure that the pointer is a valid C string ending with '\0'.
+        assert!(self.name.ends_with('\0'));
+        let new_id = unsafe { RegisterWindowMessageA(self.name.as_ptr()) };
+
+        assert_ne!(
+            new_id,
+            0,
+            "RegisterWindowMessageA returned zero for '{}': {}",
+            self.name,
+            std::io::Error::last_os_error()
+        );
+
+        // Store the new ID. Since `RegisterWindowMessageA` returns the same value for any given string,
+        // the target value will always either be a). `INVALID_ID` or b). the correct ID. Therefore a
+        // compare-and-swap operation here (or really any consideration) is never necessary.
+        self.id.store(new_id, Ordering::Relaxed);
+
+        new_id
+    }
+}
+
 // Message sent by the `EventLoopProxy` when we want to wake up the thread.
 // WPARAM and LPARAM are unused.
-static USER_EVENT_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr()) });
+static USER_EVENT_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::WakeupMsg\0");
 // Message sent when we want to execute a closure in the thread.
 // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
 // and LPARAM is unused.
-static EXEC_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr()) });
-static PROCESS_NEW_EVENTS_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr()) });
+static EXEC_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::ExecMsg\0");
+static PROCESS_NEW_EVENTS_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::ProcessNewEvents\0");
 /// lparam is the wait thread's message id.
-static SEND_WAIT_THREAD_ID_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr()) });
+static SEND_WAIT_THREAD_ID_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::SendWaitThreadId\0");
 /// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
 /// be sent.
-static WAIT_UNTIL_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr()) });
-static CANCEL_WAIT_UNTIL_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr()) });
+static WAIT_UNTIL_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::WaitUntil\0");
+static CANCEL_WAIT_UNTIL_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::CancelWaitUntil\0");
 // Message sent by a `Window` when it wants to be destroyed by the main thread.
 // WPARAM and LPARAM are unused.
-pub static DESTROY_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr()) });
+pub static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg\0");
 // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
 // documentation in the `window_state` module for more information.
-pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr()) });
+pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
+    LazyMessageId::new("Winit::SetRetainMaximized\0");
 static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
     Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
-pub static TASKBAR_CREATED: Lazy<u32> =
-    Lazy::new(|| unsafe { RegisterWindowMessageA("TaskbarCreated\0".as_ptr()) });
+pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
 fn create_event_target_window<T: 'static>() -> HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
@@ -783,13 +829,18 @@ unsafe fn flush_paint_messages<T: 'static>(
 unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
     match runner.control_flow() {
         ControlFlow::Poll => {
-            PostMessageW(runner.thread_msg_target(), *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+            PostMessageW(
+                runner.thread_msg_target(),
+                PROCESS_NEW_EVENTS_MSG_ID.get(),
+                0,
+                0,
+            );
         }
         ControlFlow::Wait => (),
         ControlFlow::WaitUntil(until) => {
             PostThreadMessageW(
                 runner.wait_thread_id(),
-                *WAIT_UNTIL_MSG_ID,
+                WAIT_UNTIL_MSG_ID.get(),
                 0,
                 Box::into_raw(WaitUntilInstantBox::new(until)) as isize,
             );
@@ -2244,16 +2295,16 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         _ => {
-            if msg == *DESTROY_MSG_ID {
+            if msg == DESTROY_MSG_ID.get() {
                 DestroyWindow(window);
                 0
-            } else if msg == *SET_RETAIN_STATE_ON_SIZE_MSG_ID {
+            } else if msg == SET_RETAIN_STATE_ON_SIZE_MSG_ID.get() {
                 let mut window_state = userdata.window_state_lock();
                 window_state.set_window_flags_in_place(|f| {
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
-            } else if msg == *TASKBAR_CREATED {
+            } else if msg == TASKBAR_CREATED.get() {
                 let window_state = userdata.window_state_lock();
                 set_skip_taskbar(window, window_state.skip_taskbar);
                 DefWindowProcW(window, msg, wparam, lparam)
@@ -2442,21 +2493,21 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             DefWindowProcW(window, msg, wparam, lparam)
         }
 
-        _ if msg == *USER_EVENT_MSG_ID => {
+        _ if msg == USER_EVENT_MSG_ID.get() => {
             if let Ok(event) = userdata.user_event_receiver.recv() {
                 userdata.send_event(Event::UserEvent(event));
             }
             0
         }
-        _ if msg == *EXEC_MSG_ID => {
+        _ if msg == EXEC_MSG_ID.get() => {
             let mut function: ThreadExecFn = Box::from_raw(wparam as *mut _);
             function();
             0
         }
-        _ if msg == *PROCESS_NEW_EVENTS_MSG_ID => {
+        _ if msg == PROCESS_NEW_EVENTS_MSG_ID.get() => {
             PostThreadMessageW(
                 userdata.event_loop_runner.wait_thread_id(),
-                *CANCEL_WAIT_UNTIL_MSG_ID,
+                CANCEL_WAIT_UNTIL_MSG_ID.get(),
                 0,
                 0,
             );
