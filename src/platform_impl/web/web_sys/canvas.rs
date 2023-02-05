@@ -239,6 +239,11 @@ impl Canvas {
                     event.prevent_default();
                 }
 
+                if event.key().len() > 1 {
+                    // ignore keypress for "Enter" key etc.
+                    return;
+                }
+
                 handler(event::codepoint(&event));
             },
         ));

@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Web, fix Enter key being handled as the character E if `with_prevent_default` is false.
+
 # 0.28.1
 
 - On Wayland, fix crash when dropping a window in multi-window setup.
