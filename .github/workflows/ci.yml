@@ -128,7 +128,7 @@ jobs:
         contains(matrix.platform.features, 'x11')
       run: |
           for example in examples/*.rs; do
-            example=${examples/examples\//}
+            example=${example/examples\//}
             example=${example/.rs/}
             WINIT_EXAMPLE_TIMEOUT=1 xvfb-run -a cargo run --example "$example" || exit 1
           done
