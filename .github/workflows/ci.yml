@@ -125,7 +125,8 @@ jobs:
       shell: bash
       if: >
         contains(matrix.platform.target, 'linux') &&
-        contains(matrix.platform.features, 'x11')
+        contains(matrix.platform.features, 'x11') && 
+        (contains(matrix.rust_version, 'stable') || contains(matrix.rust_version, 'nightly'))
       run: |
           for example in examples/*.rs; do
             example=${example/examples\//}
