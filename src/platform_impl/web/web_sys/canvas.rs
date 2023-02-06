@@ -239,7 +239,7 @@ impl Canvas {
                     event.prevent_default();
                 }
 
-                if event.key().len() > 1 {
+                if event.key().chars().nth(1).is_some() {
                     // ignore keypress for "Enter" key etc.
                     return;
                 }
