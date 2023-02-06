@@ -6,6 +6,7 @@ use winit::event_loop::EventLoop;
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+
     let monitor = match event_loop.primary_monitor() {
         Some(monitor) => monitor,
         None => {

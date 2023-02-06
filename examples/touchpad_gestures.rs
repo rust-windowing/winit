@@ -5,9 +5,12 @@ use winit::{
     window::WindowBuilder,
 };
 
+include!("it_util/timeout.rs");
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let _window = WindowBuilder::new()
         .with_title("Touchpad gestures")
@@ -41,6 +44,8 @@ fn main() {
                 }
                 _ => (),
             }
+        } else if let Event::UserEvent(()) = event {
+            control_flow.set_exit();
         }
     });
 }

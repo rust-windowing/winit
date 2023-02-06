@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use winit::{
@@ -21,6 +23,7 @@ fn main() {
     println!("Press F3 to cycle through IME purposes.");
 
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_inner_size(winit::dpi::LogicalSize::new(256f64, 128f64))
@@ -105,6 +108,9 @@ fn main() {
                     window.set_ime_purpose(ime_purpose);
                     println!("\nIME purpose: {ime_purpose:?}\n");
                 }
+            }
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
             }
             _ => (),
         }

@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -8,6 +10,7 @@ use winit::{
 
 pub fn main() {
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -30,6 +33,9 @@ pub fn main() {
             } if window_id == window.id() => control_flow.set_exit(),
             Event::MainEventsCleared => {
                 window.request_redraw();
+            }
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
             }
             _ => (),
         }

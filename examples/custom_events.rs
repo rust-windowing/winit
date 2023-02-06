@@ -1,6 +1,9 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
+include!("it_util/timeout.rs");
+
+#[cfg(not(wasm_platform))]
 fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
@@ -12,10 +15,12 @@ fn main() {
     #[derive(Debug, Clone, Copy)]
     enum CustomEvent {
         Timer,
+        Timeout,
     }
 
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
+    util::start_timeout_thread(&event_loop, CustomEvent::Timeout);
 
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -39,7 +44,11 @@ fn main() {
         control_flow.set_wait();
 
         match event {
-            Event::UserEvent(event) => println!("user event: {event:?}"),
+            Event::UserEvent(CustomEvent::Timer) => println!("user event: {event:?}"),
+            Event::UserEvent(CustomEvent::Timeout) => {
+                println!("user event: {event:?}");
+                control_flow.set_exit();
+            }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..

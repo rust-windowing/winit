@@ -1,6 +1,9 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
+include!("it_util/timeout.rs");
+
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
@@ -17,6 +20,8 @@ fn main() {
 
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
+
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
@@ -188,6 +193,10 @@ fn main() {
                     }
                 }
             },
+            Event::UserEvent(()) => {
+                window_senders.clear();
+                control_flow.set_exit();
+            }
             _ => {}
         }
     })

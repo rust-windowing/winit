@@ -1,5 +1,7 @@
 //! Demonstrates capability to create in-app draggable regions for client-side decoration support.
 
+include!("it_util/timeout.rs");
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{
@@ -14,6 +16,7 @@ const BORDER: f64 = 8.0;
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_inner_size(winit::dpi::LogicalSize::new(600.0, 400.0))
@@ -66,6 +69,7 @@ fn main() {
             }
             _ => (),
         },
+        Event::UserEvent(()) => control_flow.set_exit(),
         _ => (),
     });
 }

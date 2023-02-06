@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use std::path::Path;
 
 use simple_logger::SimpleLogger;
@@ -21,6 +23,7 @@ fn main() {
     let icon = load_icon(Path::new(path));
 
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("An iconic window!")
@@ -42,6 +45,8 @@ fn main() {
                 }
                 _ => (),
             }
+        } else if let Event::UserEvent(()) = event {
+            control_flow.set_exit();
         }
     });
 }

@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
@@ -11,6 +13,7 @@ use winit::{
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let mut resizable = false;
 
@@ -44,6 +47,9 @@ fn main() {
                 }
                 _ => (),
             },
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
+            }
             _ => (),
         };
     });

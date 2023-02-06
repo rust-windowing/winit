@@ -1,5 +1,15 @@
 #![allow(clippy::single_match)]
 
+#[cfg(any(
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform,
+    orbital_platform,
+))]
+include!("it_util/timeout.rs");
+
 // Limit this example to only compatible platforms.
 #[cfg(any(
     windows_platform,
@@ -20,6 +30,7 @@ fn main() {
         window::WindowBuilder,
     };
     let mut event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     SimpleLogger::new().init().unwrap();
     let _window = WindowBuilder::new()
@@ -46,6 +57,10 @@ fn main() {
                     quit = true;
                 }
                 Event::MainEventsCleared => {
+                    control_flow.set_exit();
+                }
+                Event::UserEvent(()) => {
+                    quit = true;
                     control_flow.set_exit();
                 }
                 _ => (),

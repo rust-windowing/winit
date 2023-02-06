@@ -1,6 +1,9 @@
 #![allow(clippy::single_match)]
 
 #[cfg(target_os = "macos")]
+include!("it_util/timeout.rs");
+
+#[cfg(target_os = "macos")]
 use winit::platform::macos::{OptionAsAlt, WindowExtMacOS};
 
 #[cfg(target_os = "macos")]
@@ -16,6 +19,7 @@ use winit::{
 #[cfg(target_os = "macos")]
 fn main() {
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -55,6 +59,9 @@ fn main() {
             },
             Event::MainEventsCleared => {
                 window.request_redraw();
+            }
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
             }
             _ => (),
         }

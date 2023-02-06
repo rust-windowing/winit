@@ -10,9 +10,12 @@ use winit::{
     window::{Fullscreen, WindowBuilder},
 };
 
+include!("it_util/timeout.rs");
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -126,6 +129,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => control_flow.set_exit(),
+            Event::UserEvent(()) => control_flow.set_exit(),
             _ => (),
         }
     });

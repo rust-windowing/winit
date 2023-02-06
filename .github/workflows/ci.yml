@@ -119,3 +119,16 @@ jobs:
         !contains(matrix.platform.target, 'redox') &&
         matrix.rust_version != '1.60.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+
+    # derived from  https://github.com/psychon/x11rb/blob/15153e514a4e3e4c116279f76ab1c3635abc05e5/.github/workflows/CI.yml#L141-L159
+    - name: Run examples
+      shell: bash
+      if: >
+        contains(matrix.platform.target, 'linux') &&
+        contains(matrix.platform.features, 'x11')
+      run: |
+          for example in examples/*.rs; do
+            example=${examples/examples\//}
+            example=${example/.rs/}
+            WINIT_EXAMPLE_TIMEOUT=1 xvfb-run -a cargo run --example "$example" || exit 1
+          done

@@ -1,4 +1,7 @@
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
+include!("it_util/timeout.rs");
+
+#[cfg(any(x11_platform, macos_platform, windows_platform))]
 fn main() {
     use std::collections::HashMap;
 
@@ -39,6 +42,7 @@ fn main() {
         .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
         .build(&event_loop)
         .unwrap();
+    util::start_timeout_thread(&event_loop, ());
 
     println!("parent window: {parent_window:?})");
 
@@ -70,6 +74,9 @@ fn main() {
                 }
                 _ => (),
             }
+        } else if let Event::UserEvent(()) = event {
+            windows.clear();
+            *control_flow = ControlFlow::Exit;
         }
     })
 }

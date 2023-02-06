@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use std::{thread, time};
 
 use simple_logger::SimpleLogger;
@@ -33,6 +35,8 @@ fn main() {
         .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
         .build(&event_loop)
         .unwrap();
+
+    util::start_timeout_thread(&event_loop, ());
 
     let mut mode = Mode::Wait;
     let mut request_redraw = false;
@@ -107,6 +111,9 @@ fn main() {
                         control_flow.set_poll();
                     }
                 };
+            }
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
             }
             _ => (),
         }

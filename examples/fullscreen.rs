@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use simple_logger::SimpleLogger;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::EventLoop;
@@ -8,6 +10,7 @@ use winit::window::{Fullscreen, WindowBuilder};
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let mut decorations = true;
     let mut minimized = false;
@@ -107,6 +110,7 @@ fn main() {
                 },
                 _ => (),
             },
+            Event::UserEvent(()) => control_flow.set_exit(),
             _ => {}
         }
     });

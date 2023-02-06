@@ -1,6 +1,9 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
+include!("it_util/timeout.rs");
+
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{thread, time};
 
@@ -13,6 +16,7 @@ fn main() {
 
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -36,6 +40,9 @@ fn main() {
             } => control_flow.set_exit(),
             Event::RedrawRequested(_) => {
                 println!("\nredrawing!\n");
+            }
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
             }
             _ => (),
         }

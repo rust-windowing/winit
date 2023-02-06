@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+include!("it_util/timeout.rs");
+
 use instant::Instant;
 use std::time::Duration;
 
@@ -13,6 +15,7 @@ use winit::{
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -35,7 +38,8 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => control_flow.set_exit(),
+            }
+            | Event::UserEvent(()) => control_flow.set_exit(),
             _ => (),
         }
     });

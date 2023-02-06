@@ -7,9 +7,12 @@ use winit::{
     window::WindowBuilder,
 };
 
+include!("it_util/timeout.rs");
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
+    util::start_timeout_thread(&event_loop, ());
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -51,6 +54,9 @@ fn main() {
                 window.set_resize_increments(new_increments);
             }
             Event::MainEventsCleared => window.request_redraw(),
+            Event::UserEvent(()) => {
+                control_flow.set_exit();
+            }
             _ => (),
         }
     });
