@@ -1427,10 +1427,6 @@ impl UnownedWindow {
         self.xconn.set_cursor_icon(self.xwindow, cursor);
     }
 
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        self.xconn.cursor_position(self.root)
-    }
-
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.current_monitor().scale_factor

@@ -425,11 +425,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.cursor_position())
-    }
-
-    #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
     }

@@ -1032,12 +1032,6 @@ impl Window {
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
-    }
-
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),

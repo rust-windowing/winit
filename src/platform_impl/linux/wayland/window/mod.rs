@@ -612,11 +612,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
-    }
-
-    #[inline]
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
