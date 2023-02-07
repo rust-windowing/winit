@@ -21,8 +21,8 @@ use crate::platform_impl::{
     OsError, PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-    WindowButtons,
+    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    WindowAttributes, WindowButtons,
 };
 
 use super::env::WindowingFeatures;
@@ -240,7 +240,7 @@ impl Window {
         window.set_title(attributes.title);
 
         // Set fullscreen/maximized if so was requested.
-        match attributes.fullscreen {
+        match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
@@ -621,6 +621,11 @@ impl Window {
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         self.send_request(WindowRequest::AllowIme(allowed));
+    }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        self.send_request(WindowRequest::ImePurpose(purpose));
     }
 
     #[inline]

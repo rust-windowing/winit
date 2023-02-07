@@ -28,7 +28,9 @@ mod wayland {
 
 fn main() {
     // The script doesn't depend on our code
-    println!("cargo:rerun-if-changed=build.rs:wayland_protocols");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=wayland_protocols");
+
     // Setup cfg aliases
     cfg_aliases! {
         // Systems.

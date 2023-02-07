@@ -115,7 +115,7 @@ impl Canvas {
         self.common
             .raw
             .set_attribute(attribute, value)
-            .unwrap_or_else(|err| panic!("error: {:?}\nSet attribute: {}", err, attribute))
+            .unwrap_or_else(|err| panic!("error: {err:?}\nSet attribute: {attribute}"))
     }
 
     pub fn position(&self) -> LogicalPosition<f64> {

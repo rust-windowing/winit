@@ -114,6 +114,9 @@ extern_methods!(
         #[sel(makeKeyAndOrderFront:)]
         pub fn makeKeyAndOrderFront(&self, sender: Option<&Object>);
 
+        #[sel(orderFront:)]
+        pub fn orderFront(&self, sender: Option<&Object>);
+
         #[sel(miniaturize:)]
         pub fn miniaturize(&self, sender: Option<&Object>);
 

@@ -24,9 +24,9 @@ fn main() {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::TouchpadMagnify { delta, .. } => {
                     if delta > 0.0 {
-                        println!("Zoomed in {}", delta);
+                        println!("Zoomed in {delta}");
                     } else {
-                        println!("Zoomed out {}", delta);
+                        println!("Zoomed out {delta}");
                     }
                 }
                 WindowEvent::SmartMagnify { .. } => {
@@ -34,9 +34,9 @@ fn main() {
                 }
                 WindowEvent::TouchpadRotate { delta, .. } => {
                     if delta > 0.0 {
-                        println!("Rotated counterclockwise {}", delta);
+                        println!("Rotated counterclockwise {delta}");
                     } else {
-                        println!("Rotated clockwise {}", delta);
+                        println!("Rotated clockwise {delta}");
                     }
                 }
                 _ => (),

@@ -27,7 +27,7 @@ fn main() {
 
         let id = child_window.id();
         windows.insert(id, child_window);
-        println!("child window created with id: {:?}", id);
+        println!("child window created with id: {id:?}");
     }
 
     let mut windows = HashMap::new();
@@ -40,7 +40,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    println!("parent window: {:?})", parent_window);
+    println!("parent window: {parent_window:?})");
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -56,7 +56,7 @@ fn main() {
                     // by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
                     // so we also can see this log when we move the cursor arround (200, 200) in parent window.
-                    println!("cursor entered in the window {:?}", window_id);
+                    println!("cursor entered in the window {window_id:?}");
                 }
                 WindowEvent::KeyboardInput {
                     input:

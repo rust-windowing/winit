@@ -182,7 +182,7 @@ impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
         let MonitorHandle(display_id) = *self;
         let screen_num = CGDisplay::new(display_id).model_number();
-        Some(format!("Monitor #{}", screen_num))
+        Some(format!("Monitor #{screen_num}"))
     }
 
     #[inline]

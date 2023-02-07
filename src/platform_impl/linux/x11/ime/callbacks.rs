@@ -168,7 +168,7 @@ pub unsafe extern "C" fn xim_instantiate_callback(
             Err(err) => {
                 if (*inner).is_destroyed {
                     // We have no usable input methods!
-                    panic!("Failed to reopen input method: {:?}", err);
+                    panic!("Failed to reopen input method: {err:?}");
                 }
             }
         }
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn xim_destroy_callback(
                 Ok(()) => (*inner).is_fallback = true,
                 Err(err) => {
                     // We have no usable input methods!
-                    panic!("Failed to open fallback input method: {:?}", err);
+                    panic!("Failed to open fallback input method: {err:?}");
                 }
             }
         }
