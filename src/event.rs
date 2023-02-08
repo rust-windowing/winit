@@ -342,31 +342,18 @@ pub enum WindowEvent<'a> {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    DroppedFile {
-        path: PathBuf,
-        /// The position of the mouse cursor, similar to [`WindowEvent::CursorMoved`].
+    DragEnter {
+        paths: Vec<PathBuf>,
         position: PhysicalPosition<f64>,
     },
-
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately.
-    HoveredFile {
-        path: PathBuf,
-        /// The position of the mouse cursor, similar to [`WindowEvent::CursorMoved`].
+    DragOver {
         position: PhysicalPosition<f64>,
     },
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
-    /// hovered.
-    HoveredFileCancelled,
+    DragDrop {
+        paths: Vec<PathBuf>,
+        position: PhysicalPosition<f64>,
+    },
+    DragLeave,
 
     /// The window received a unicode character.
     ///
@@ -424,10 +411,14 @@ pub enum WindowEvent<'a> {
     },
 
     /// The cursor has entered the window.
-    CursorEntered { device_id: DeviceId },
+    CursorEntered {
+        device_id: DeviceId,
+    },
 
     /// The cursor has left the window.
-    CursorLeft { device_id: DeviceId },
+    CursorLeft {
+        device_id: DeviceId,
+    },
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
@@ -478,7 +469,9 @@ pub enum WindowEvent<'a> {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS 10.8** and later.
-    SmartMagnify { device_id: DeviceId },
+    SmartMagnify {
+        device_id: DeviceId,
+    },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -565,15 +558,18 @@ impl Clone for WindowEvent<'static> {
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
-            DroppedFile { path, position } => DroppedFile {
-                path: path.clone(),
-                position: *position,
+            DragEnter { paths, position } => DragEnter {
+                paths: paths.clone(),
+                position: position.clone(),
             },
-            HoveredFile { path, position } => HoveredFile {
-                path: path.clone(),
-                position: *position,
+            DragOver { position } => DragOver {
+                position: position.clone(),
             },
-            HoveredFileCancelled => HoveredFileCancelled,
+            DragDrop { paths, position } => DragDrop {
+                paths: paths.clone(),
+                position: position.clone(),
+            },
+            DragLeave => DragLeave,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
             KeyboardInput {
@@ -684,9 +680,10 @@ impl<'a> WindowEvent<'a> {
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
-            DroppedFile { path, position } => Some(DroppedFile { path, position }),
-            HoveredFile { path, position } => Some(HoveredFile { path, position }),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
+            DragEnter { paths, position } => Some(DragEnter { paths, position }),
+            DragOver { position } => Some(DragOver { position }),
+            DragDrop { paths, position } => Some(DragDrop { paths, position }),
+            DragLeave => Some(DragLeave),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {
