@@ -1,10 +1,12 @@
 #![allow(non_snake_case)]
 
+mod handler;
 mod runner;
 
 use std::{
     cell::Cell,
     collections::VecDeque,
+    convert::Infallible,
     ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
@@ -144,6 +146,17 @@ impl<T> WindowData<T> {
 
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
+    }
+}
+
+/// Trait abstraction over `WindowData<T>` that ignores the type parameter.
+trait GenericWindowData {
+    unsafe fn send_event(&self, event: Event<'_, Infallible>);
+}
+
+impl<T: 'static> GenericWindowData for WindowData<T> {
+    unsafe fn send_event(&self, event: Event<'_, Infallible>) {
+        self.send_event(event.map_nonuser_event().unwrap_or_else(|_| unreachable!()))
     }
 }
 

@@ -2,6 +2,7 @@ use std::{
     any::Any,
     cell::{Cell, RefCell},
     collections::{HashSet, VecDeque},
+    convert::Infallible,
     mem, panic, ptr,
     rc::Rc,
     time::Instant,
@@ -408,6 +409,63 @@ impl<T> EventLoopRunner<T> {
     unsafe fn call_redraw_events_cleared(&self) {
         self.call_event_handler(Event::RedrawEventsCleared);
         self.last_events_cleared.set(Instant::now());
+    }
+}
+
+/// A trait abstracting over `EventLoopRunner` but without the user data.
+///
+/// This is useful for implementing the event handlers for `WindowData`, which don't use the
+/// user data.
+pub(crate) trait EventLoopRunnerDyn {
+    /// Send an event to the event loop.
+    unsafe fn send_event(&self, event: Event<'_, Infallible>);
+
+    /// Get the thread data target.
+    fn thread_msg_target(&self) -> HWND;
+
+    /// Remove a window.
+    fn remove_window(&self, window: HWND);
+
+    /// Should we buffer?
+    fn should_buffer(&self) -> bool;
+
+    /// Clear redraw events.
+    unsafe fn redraw_events_cleared(&self);
+
+    /// Run a closure and catch a panic.
+    fn catch_unwind(&self, cb: &mut dyn FnMut() -> isize) -> Option<isize>;
+
+    /// Are we redrawing?
+    fn redrawing(&self) -> bool;
+}
+
+impl<T: 'static> EventLoopRunnerDyn for EventLoopRunner<T> {
+    unsafe fn send_event(&self, event: Event<'_, Infallible>) {
+        self.send_event(event.map_nonuser_event().unwrap_or_else(|_| unreachable!()))
+    }
+
+    fn thread_msg_target(&self) -> HWND {
+        self.thread_msg_target()
+    }
+
+    fn remove_window(&self, window: HWND) {
+        self.remove_window(window);
+    }
+
+    fn should_buffer(&self) -> bool {
+        self.should_buffer()
+    }
+
+    unsafe fn redraw_events_cleared(&self) {
+        self.redraw_events_cleared()
+    }
+
+    fn catch_unwind(&self, cb: &mut dyn FnMut() -> isize) -> Option<isize> {
+        self.catch_unwind(move || cb())
+    }
+
+    fn redrawing(&self) -> bool {
+        self.redrawing()
     }
 }
 
