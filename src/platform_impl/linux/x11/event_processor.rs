@@ -215,12 +215,11 @@ impl<T: 'static> EventProcessor<T> {
                     }
                 } else if client_msg.message_type == self.dnd.atoms.position {
                     // This event occurs every time the mouse moves while a file's being dragged
-                    // over our window. We emit HoveredFile in response; while the macOS backend
+                    // over our window. We emit DragEnter in response; while the macOS backend
                     // does that upon a drag entering, XDND doesn't have access to the actual drop
                     // data until this event. For parity with other platforms, we only emit
-                    // `HoveredFile` the first time, though if winit's API is later extended to
-                    // supply position updates with `HoveredFile` or another event, implementing
-                    // that here would be trivial.
+                    // `DragEnter` the first time, then we emit `DragOver` for later events to
+                    // match other backends.
 
                     let source_window = client_msg.data.get_long(0) as c_ulong;
 
@@ -249,16 +248,14 @@ impl<T: 'static> EventProcessor<T> {
                     if accepted {
                         self.dnd.source_window = Some(source_window);
                         unsafe {
-                            if self.dnd.result.is_none() {
-                                let time = if version >= 1 {
-                                    client_msg.data.get_long(3) as c_ulong
-                                } else {
-                                    // In version 0, time isn't specified
-                                    ffi::CurrentTime
-                                };
-                                // This results in the `SelectionNotify` event below
-                                self.dnd.convert_selection(window, time);
-                            }
+                            let time = if version >= 1 {
+                                client_msg.data.get_long(3) as c_ulong
+                            } else {
+                                // In version 0, time isn't specified
+                                ffi::CurrentTime
+                            };
+                            // This results in the `SelectionNotify` event below
+                            self.dnd.convert_selection(window, time);
                             self.dnd
                                 .send_status(window, source_window, DndState::Accepted)
                                 .expect("Failed to send `XdndStatus` message.");
@@ -288,15 +285,13 @@ impl<T: 'static> EventProcessor<T> {
                             let position =
                                 PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
 
-                            for path in path_list {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::DroppedFile {
-                                        path: path.clone(),
-                                        position,
-                                    },
-                                });
-                            }
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::DragDrop {
+                                    paths: path_list.iter().map(Into::into).collect(),
+                                    position,
+                                },
+                            });
                         }
                         (source_window, DndState::Accepted)
                     } else {
@@ -315,7 +310,7 @@ impl<T: 'static> EventProcessor<T> {
                     self.dnd.reset();
                     callback(Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::HoveredFileCancelled,
+                        event: WindowEvent::DragLeave,
                     });
                 }
             }
@@ -348,20 +343,28 @@ impl<T: 'static> EventProcessor<T> {
                             let position =
                                 PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
 
-                            for path in path_list {
+                            if self.dnd.result.is_none() {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::HoveredFile {
-                                        path: path.clone(),
+                                    event: WindowEvent::DragEnter {
+                                        paths: path_list.iter().map(Into::into).collect(),
                                         position,
                                     },
                                 });
+                            } else {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::DragOver { position },
+                                });
                             }
                         }
+
                         result = Some(parse_result);
                     }
 
-                    self.dnd.result = result;
+                    if self.dnd.result.is_none() {
+                        self.dnd.result = result;
+                    }
                 }
             }
 
