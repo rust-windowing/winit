@@ -62,7 +62,7 @@ use crate::{
         },
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        event_loop::{self, EventLoopWindowTarget, WindowMessageMap, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
         monitor::{self, MonitorHandle},
@@ -953,6 +953,7 @@ impl<'a, T: 'static> InitData<'a, T> {
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),
+            message_map: WindowMessageMap::get(),
         }
     }
 
