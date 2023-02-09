@@ -337,6 +337,10 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, filter);
     }
+
+    pub fn platform(&self) -> crate::platform::Platform {
+        crate::platform::Platform::Windows
+    }
 }
 
 /// Returns the id of the main thread.

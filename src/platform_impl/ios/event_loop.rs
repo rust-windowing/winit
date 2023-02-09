@@ -65,6 +65,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
     }
+
+    pub fn platform(&self) -> crate::platform::Platform {
+        crate::platform::Platform::IOS
+    }
 }
 
 pub struct EventLoop<T: 'static> {

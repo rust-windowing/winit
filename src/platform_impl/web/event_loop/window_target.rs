@@ -352,4 +352,8 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Web(WebDisplayHandle::empty())
     }
+
+    pub fn platform(&self) -> crate::platform::Platform {
+        crate::platform::Platform::Web
+    }
 }

@@ -866,6 +866,14 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
     }
+
+    pub fn platform(&self) -> crate::platform::Platform {
+        if self.is_wayland() {
+            crate::platform::Platform::Wayland
+        } else {
+            crate::platform::Platform::X11
+        }
+    }
 }
 
 fn sticky_exit_callback<T, F>(

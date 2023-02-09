@@ -41,3 +41,130 @@ pub mod x11;
     orbital_platform
 ))]
 pub mod run_return;
+
+/// Enumeration of platforms
+///
+/// Each option is compile-time enabled only if that platform is possible.
+/// Methods like [`Self::is_wayland`] are available on all platforms.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Platform {
+    #[cfg(android_platform)]
+    Android,
+
+    #[cfg(ios_platform)]
+    IOS,
+
+    #[cfg(macos_platform)]
+    MacOS,
+
+    #[cfg(orbital_platform)]
+    Orbital,
+
+    #[cfg(wasm_platform)]
+    Web,
+
+    #[cfg(windows_platform)]
+    Windows,
+
+    #[cfg(any(x11_platform, wayland_platform))]
+    Wayland,
+    #[cfg(any(x11_platform, wayland_platform))]
+    X11,
+}
+
+impl Platform {
+    /// True if the platform is Android
+    pub fn is_android(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(android_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is IOS
+    pub fn is_ios(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(ios_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is MacOS
+    pub fn is_macos(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(macos_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is Orbital
+    pub fn is_orbital(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(orbital_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is Web
+    pub fn is_web(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(wasm_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is Windows
+    pub fn is_windows(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(windows_platform)] {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is Wayland
+    pub fn is_wayland(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(any(x11_platform, wayland_platform))] {
+                match self {
+                    Platform::Wayland => true,
+                    _ => false,
+                }
+            } else {
+                false
+            }
+        }
+    }
+
+    /// True if the platform is X11
+    pub fn is_x11(&self) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(any(x11_platform, wayland_platform))] {
+                match self {
+                    Platform::X11 => true,
+                    _ => false,
+                }
+            } else {
+                false
+            }
+        }
+    }
+}

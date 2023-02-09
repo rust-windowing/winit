@@ -15,7 +15,7 @@ use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
-use crate::{event::Event, monitor::MonitorHandle, platform_impl};
+use crate::{event::Event, monitor::MonitorHandle, platform::Platform, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -358,6 +358,11 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
         #[cfg(any(x11_platform, wayland_platform, windows))]
         self.p.set_device_event_filter(_filter);
+    }
+
+    /// Return detected platform
+    pub fn platform(&self) -> Platform {
+        self.p.platform()
     }
 }
 

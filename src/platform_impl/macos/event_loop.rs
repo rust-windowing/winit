@@ -91,6 +91,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
+
+    pub fn platform(&self) -> crate::platform::Platform {
+        crate::platform::Platform::MacOS
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
