@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Increase the Minimum Safe Rust Version (MSRV) from 1.60.0 to 1.62.0.
+
 # 0.28.1
 
 - On Wayland, fix crash when dropping a window in multi-window setup.
