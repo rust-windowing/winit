@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Implement `HasRawDisplayHandle` for `EventLoop`.
+
 # 0.28.1
 
 - On Wayland, fix crash when dropping a window in multi-window setup.
