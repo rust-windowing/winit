@@ -21,7 +21,7 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, ResizeDirection, Theme, UserAttentionType,
+        CursorGrabMode, CursorIcon, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
         WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -95,7 +95,7 @@ impl SharedState {
             max_inner_size: None,
             resize_increments: None,
             base_size: None,
-            has_focus: true,
+            has_focus: false,
         })
     }
 }
@@ -484,7 +484,8 @@ impl UnownedWindow {
                 window.set_maximized_inner(window_attrs.maximized).queue();
             }
             if window_attrs.fullscreen.is_some() {
-                if let Some(flusher) = window.set_fullscreen_inner(window_attrs.fullscreen.clone())
+                if let Some(flusher) =
+                    window.set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into))
                 {
                     flusher.queue()
                 }
@@ -1530,6 +1531,9 @@ impl UnownedWindow {
             .unwrap()
             .send(ImeRequest::Allow(self.xwindow, allowed));
     }
+
+    #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
     pub fn focus_window(&self) {

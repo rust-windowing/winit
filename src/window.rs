@@ -120,7 +120,7 @@ impl fmt::Debug for WindowBuilder {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
-pub(crate) struct WindowAttributes {
+pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -128,7 +128,7 @@ pub(crate) struct WindowAttributes {
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
-    pub fullscreen: Option<platform_impl::Fullscreen>,
+    pub fullscreen: Option<Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -139,6 +139,7 @@ pub(crate) struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub parent_window: Option<RawWindowHandle>,
+    pub active: bool,
 }
 
 impl Default for WindowAttributes {
@@ -163,6 +164,7 @@ impl Default for WindowAttributes {
             resize_increments: None,
             content_protected: false,
             parent_window: None,
+            active: true,
         }
     }
 }
@@ -172,6 +174,11 @@ impl WindowBuilder {
     #[inline]
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Get the current window attributes.
+    pub fn window_attributes(&self) -> &WindowAttributes {
+        &self.window
     }
 
     /// Requests the window to be of specific dimensions.
@@ -277,7 +284,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen.map(|f| f.into());
+        self.window.fullscreen = fullscreen;
         self
     }
 
@@ -402,6 +409,22 @@ impl WindowBuilder {
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
         self.window.content_protected = protected;
+        self
+    }
+
+    /// Whether the window will be initially focused or not.
+    ///
+    /// The window should be assumed as not focused by default
+    /// following by the [`WindowEvent::Focused`].
+    ///
+    /// ## Platform-specific:
+    ///
+    /// **Android / iOS / X11 / Wayland / Orbital:** Unsupported.
+    ///
+    /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
+    #[inline]
+    pub fn with_active(mut self, active: bool) -> WindowBuilder {
+        self.window.active = active;
         self
     }
 
@@ -918,9 +941,13 @@ impl Window {
 
     /// Turn window decorations on or off.
     ///
+    /// Enable/disable window decorations provided by the server or Winit.
+    /// By default this is enabled. Note that fullscreen windows and windows on
+    /// mobile and web platforms naturally do not have decorations.
+    ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web:** No effect.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
@@ -928,10 +955,12 @@ impl Window {
 
     /// Gets the window's current decorations state.
     ///
+    /// Returns `true` when windows are decorated (server-side or by Winit).
+    /// Also returns `true` when no decorations are required (mobile, web).
+    ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web:** Always returns `true`.
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.window.is_decorated()
@@ -1023,6 +1052,16 @@ impl Window {
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         self.window.set_ime_allowed(allowed);
+    }
+
+    /// Sets the IME purpose for the window using [`ImePurpose`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        self.window.set_ime_purpose(purpose);
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is
@@ -1451,9 +1490,14 @@ pub enum Fullscreen {
     Borderless(Option<MonitorHandle>),
 }
 
+/// The theme variant to use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Theme {
+    /// Use the light variant.
     Light,
+
+    /// Use the dark variant.
     Dark,
 }
 
@@ -1512,6 +1556,33 @@ pub enum WindowLevel {
 }
 
 impl Default for WindowLevel {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+/// Generic IME purposes for use in [`Window::set_ime_purpose`].
+///
+/// The purpose may improve UX by optimizing the IME for the specific use case,
+/// if winit can express the purpose to the platform and the platform reacts accordingly.
+///
+/// ## Platform-specific
+///
+/// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum ImePurpose {
+    /// No special hints for the IME (default).
+    Normal,
+    /// The IME is used for password input.
+    Password,
+    /// The IME is used to input into a terminal.
+    ///
+    /// For example, that could alter OSK on Wayland to show extra buttons.
+    Terminal,
+}
+
+impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
     }

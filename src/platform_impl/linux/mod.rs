@@ -34,8 +34,8 @@ use crate::{
     },
     icon::Icon,
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -520,6 +520,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_purpose(&self, purpose: ImePurpose) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         match self {
             #[cfg(x11_platform)]
@@ -727,8 +732,7 @@ impl<T: 'static> EventLoop<T> {
                     panic!("wayland feature is not enabled");
                 }
                 _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
+                    "Unknown environment variable value for {BACKEND_PREFERENCE_ENV_VAR}, try one of `x11`,`wayland`",
                 ),
             }
         }
@@ -751,8 +755,7 @@ impl<T: 'static> EventLoop<T> {
         let x11_err = "backend disabled";
 
         panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
+            "Failed to initialize any backend! Wayland status: {wayland_err:?} X11 status: {x11_err:?}",
         );
     }
 

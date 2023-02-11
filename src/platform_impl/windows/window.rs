@@ -71,8 +71,8 @@ use crate::{
         Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -734,6 +734,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
         let active_window_handle = unsafe { GetActiveWindow() };
@@ -838,7 +841,7 @@ impl Drop for Window {
         unsafe {
             // The window must be destroyed from the same thread that created it, so we send a
             // custom message to be handled by our callback to do the actual work.
-            PostMessageW(self.hwnd(), *DESTROY_MSG_ID, 0, 0);
+            PostMessageW(self.hwnd(), DESTROY_MSG_ID.get(), 0, 0);
         }
     }
 }
@@ -1011,7 +1014,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         win.set_enabled_buttons(attributes.enabled_buttons);
 
         if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen);
+            win.set_fullscreen(attributes.fullscreen.map(Into::into));
             force_window_active(win.window.0);
         } else {
             let size = attributes
@@ -1076,6 +1079,7 @@ where
         WindowFlags::NO_BACK_BUFFER,
         pl_attribs.no_redirection_bitmap,
     );
+    window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);

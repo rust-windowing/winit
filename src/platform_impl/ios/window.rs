@@ -27,8 +27,8 @@ use crate::{
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -281,12 +281,9 @@ impl Inner {
         }
     }
 
-    pub fn set_decorations(&self, _decorations: bool) {
-        warn!("`Window::set_decorations` is ignored on iOS")
-    }
+    pub fn set_decorations(&self, _decorations: bool) {}
 
     pub fn is_decorated(&self) -> bool {
-        warn!("`Window::is_decorated` is ignored on iOS");
         true
     }
 
@@ -303,6 +300,10 @@ impl Inner {
     }
 
     pub fn set_ime_allowed(&self, _allowed: bool) {
+        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    }
+
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         warn!("`Window::set_ime_allowed` is ignored on iOS")
     }
 
@@ -416,7 +417,8 @@ impl Window {
         // TODO: transparency, visible
 
         let main_screen = UIScreen::main(mtm);
-        let screen = match window_attributes.fullscreen {
+        let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
+        let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
             Some(Fullscreen::Borderless(None)) | None => &main_screen,

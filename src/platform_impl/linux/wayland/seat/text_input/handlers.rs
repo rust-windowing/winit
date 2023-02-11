@@ -9,7 +9,7 @@ use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::event_loop::WinitState;
 
-use super::{Preedit, TextInputHandler, TextInputInner};
+use super::{Preedit, TextInputHandler, TextInputInner, ZwpTextInputV3Ext};
 
 #[inline]
 pub(super) fn handle_text_input(
@@ -32,6 +32,7 @@ pub(super) fn handle_text_input(
             // Enable text input on that surface.
             if window_handle.ime_allowed.get() {
                 text_input.enable();
+                text_input.set_content_type_by_purpose(window_handle.ime_purpose.get());
                 text_input.commit();
                 event_sink.push_window_event(WindowEvent::Ime(Ime::Enabled), window_id);
             }

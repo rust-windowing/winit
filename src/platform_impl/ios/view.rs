@@ -455,7 +455,7 @@ impl WinitUIWindow {
 
         this.setRootViewController(Some(view_controller));
 
-        match window_attributes.fullscreen {
+        match window_attributes.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Exclusive(ref video_mode)) => {
                 let monitor = video_mode.monitor();
                 let screen = monitor.ui_screen();

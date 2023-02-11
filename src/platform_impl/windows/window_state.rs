@@ -16,11 +16,11 @@ use windows_sys::Win32::{
         HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE,
         SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION,
         SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
-        WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD,
-        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-        WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
-        WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
-        WS_SYSMENU, WS_VISIBLE,
+        SW_SHOWNOACTIVATE, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION,
+        WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW,
+        WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+        WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX,
+        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
     },
 };
 
@@ -115,6 +115,8 @@ bitflags! {
         const MARKER_DECORATIONS = 1 << 19;
         /// Drop shadow for undecorated windows.
         const MARKER_UNDECORATED_SHADOW = 1 << 20;
+
+        const MARKER_ACTIVATE = 1 << 21;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
     }
@@ -306,8 +308,14 @@ impl WindowFlags {
         }
 
         if new.contains(WindowFlags::VISIBLE) {
+            let flag = if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                self.set(WindowFlags::MARKER_ACTIVATE, true);
+                SW_SHOWNOACTIVATE
+            } else {
+                SW_SHOW
+            };
             unsafe {
-                ShowWindow(window, SW_SHOW);
+                ShowWindow(window, flag);
             }
         }
 
@@ -383,7 +391,12 @@ impl WindowFlags {
             let (style, style_ex) = new.to_window_styles();
 
             unsafe {
-                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
+                SendMessageW(
+                    window,
+                    event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(),
+                    1,
+                    0,
+                );
 
                 // This condition is necessary to avoid having an unrestorable window
                 if !new.contains(WindowFlags::MINIMIZED) {
@@ -404,7 +417,12 @@ impl WindowFlags {
 
                 // Refresh the window frame
                 SetWindowPos(window, 0, 0, 0, 0, 0, flags);
-                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
+                SendMessageW(
+                    window,
+                    event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(),
+                    0,
+                    0,
+                );
             }
         }
     }

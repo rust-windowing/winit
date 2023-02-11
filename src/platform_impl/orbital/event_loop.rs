@@ -522,7 +522,7 @@ impl<T: 'static> EventLoop<T> {
                 // Acknowledge the latest resize event.
                 if let Some((w, h)) = event_state.resize_opt.take() {
                     window
-                        .write(format!("S,{},{}", w, h).as_bytes())
+                        .write(format!("S,{w},{h}").as_bytes())
                         .expect("failed to acknowledge resize");
 
                     // Require redraw after resize.

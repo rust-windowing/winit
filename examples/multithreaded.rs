@@ -62,7 +62,7 @@ fn main() {
                             },
                         ..
                     } => {
-                        window.set_title(&format!("{:?}", key));
+                        window.set_title(&format!("{key:?}"));
                         let state = !modifiers.shift();
                         use VirtualKeyCode::*;
                         match key {
@@ -92,17 +92,17 @@ fn main() {
                             }),
                             L if state => {
                                 if let Err(err) = window.set_cursor_grab(CursorGrabMode::Locked) {
-                                    println!("error: {}", err);
+                                    println!("error: {err}");
                                 }
                             }
                             G if state => {
                                 if let Err(err) = window.set_cursor_grab(CursorGrabMode::Confined) {
-                                    println!("error: {}", err);
+                                    println!("error: {err}");
                                 }
                             }
                             G | L if !state => {
                                 if let Err(err) = window.set_cursor_grab(CursorGrabMode::None) {
-                                    println!("error: {}", err);
+                                    println!("error: {err}");
                                 }
                             }
                             H => window.set_cursor_visible(!state),
