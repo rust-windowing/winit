@@ -561,15 +561,15 @@ impl Clone for WindowEvent<'static> {
             Destroyed => Destroyed,
             DragEnter { paths, position } => DragEnter {
                 paths: paths.clone(),
-                position: position.clone(),
+                position: *position,
             },
             DragOver { paths, position } => DragOver {
                 paths: paths.clone(),
-                position: position.clone(),
+                position: *position,
             },
             DragDrop { paths, position } => DragDrop {
                 paths: paths.clone(),
-                position: position.clone(),
+                position: *position,
             },
             DragLeave => DragLeave,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
