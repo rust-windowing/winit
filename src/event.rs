@@ -347,6 +347,7 @@ pub enum WindowEvent<'a> {
         position: PhysicalPosition<f64>,
     },
     DragOver {
+        paths: Vec<PathBuf>,
         position: PhysicalPosition<f64>,
     },
     DragDrop {
@@ -562,7 +563,8 @@ impl Clone for WindowEvent<'static> {
                 paths: paths.clone(),
                 position: position.clone(),
             },
-            DragOver { position } => DragOver {
+            DragOver { paths, position } => DragOver {
+                paths: paths.clone(),
                 position: position.clone(),
             },
             DragDrop { paths, position } => DragDrop {
@@ -681,7 +683,7 @@ impl<'a> WindowEvent<'a> {
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
             DragEnter { paths, position } => Some(DragEnter { paths, position }),
-            DragOver { position } => Some(DragOver { position }),
+            DragOver { paths, position } => Some(DragOver { paths, position }),
             DragDrop { paths, position } => Some(DragDrop { paths, position }),
             DragLeave => Some(DragLeave),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),

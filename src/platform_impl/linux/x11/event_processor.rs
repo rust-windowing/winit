@@ -343,18 +343,18 @@ impl<T: 'static> EventProcessor<T> {
                             let position =
                                 PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
 
-                            if self.dnd.result.is_none() {
+                            let paths = path_list.iter().map(Into::into).collect();
+
+                            if self.dnd.has_entered {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::DragEnter {
-                                        paths: path_list.iter().map(Into::into).collect(),
-                                        position,
-                                    },
+                                    event: WindowEvent::DragOver { paths, position },
                                 });
                             } else {
+                                self.dnd.has_entered = true;
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::DragOver { position },
+                                    event: WindowEvent::DragEnter { paths, position },
                                 });
                             }
                         }
@@ -362,9 +362,7 @@ impl<T: 'static> EventProcessor<T> {
                         result = Some(parse_result);
                     }
 
-                    if self.dnd.result.is_none() {
-                        self.dnd.result = result;
-                    }
+                    self.dnd.result = result;
                 }
             }
 

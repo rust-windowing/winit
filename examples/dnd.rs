@@ -7,7 +7,7 @@ fn main() {
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
-        .with_title("An iconic window!")
+        .with_title("Drop files on me!!")
         .build(&event_loop)
         .unwrap();
 

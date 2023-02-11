@@ -37,6 +37,7 @@ pub struct FileDropHandlerData {
     send_event: Box<dyn Fn(Event<'static, ()>)>,
     cursor_effect: u32,
     enter_is_valid: bool, /* If the currently hovered item is not valid there must not be any `DragLeave` emitted */
+    paths: Option<Vec<PathBuf>>,
 }
 
 pub struct FileDropHandler {
@@ -55,6 +56,7 @@ impl FileDropHandler {
             send_event,
             cursor_effect: DROPEFFECT_NONE,
             enter_is_valid: false,
+            paths: None,
         });
         FileDropHandler {
             data: Box::into_raw(data),
@@ -104,8 +106,12 @@ impl FileDropHandler {
         let hdrop = Self::iterate_filenames(pDataObj, |path| paths.push(path));
         drop_handler.send_event(Event::WindowEvent {
             window_id: RootWindowId(WindowId(drop_handler.window)),
-            event: DragEnter { paths, position },
+            event: DragEnter {
+                paths: paths.clone(),
+                position,
+            },
         });
+        drop_handler.paths = Some(paths);
         drop_handler.enter_is_valid = hdrop.is_some();
         drop_handler.cursor_effect = if drop_handler.enter_is_valid {
             DROPEFFECT_COPY
@@ -131,7 +137,10 @@ impl FileDropHandler {
             let position = PhysicalPosition::new(pt.x as f64, pt.y as f64);
             drop_handler.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: DragOver { position },
+                event: DragOver {
+                    position,
+                    paths: drop_handler.paths.clone().unwrap(),
+                },
             });
         }
         *pdwEffect = drop_handler.cursor_effect;
@@ -147,6 +156,7 @@ impl FileDropHandler {
                 event: DragLeave,
             });
         }
+        drop_handler.paths = None;
 
         S_OK
     }
@@ -174,6 +184,7 @@ impl FileDropHandler {
                 DragFinish(hdrop);
             }
         }
+        drop_handler.paths = None;
 
         S_OK
     }
