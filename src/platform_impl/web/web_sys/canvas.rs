@@ -78,7 +78,8 @@ impl Canvas {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         };*/
 
-        //TODO: temporary fix for Right Click Blocks other buttons in games. Just use the No Pointer Event
+        //A temp. fix for When one button is pressed, it blocks the other buttons. 
+        //So Just use the No Pointer Event for now...
         let mouse_state = MouseState::NoPointerEvent(mouse_handler::MouseHandler::new());
 
 
