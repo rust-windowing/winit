@@ -8,6 +8,15 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Implement `HasRawDisplayHandle` for `EventLoop`.
+
+# 0.28.1
+
+- On Wayland, fix crash when dropping a window in multi-window setup.
+
+# 0.28.0
+
+- On macOS, fixed `Ime::Commit` persisting for all input after interacting with `Ime`.
 - On macOS, added `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
 - On Windows, fix window size for maximized, undecorated windows.
 - On Windows and macOS, add `WindowBuilder::with_active`.

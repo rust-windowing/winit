@@ -841,7 +841,7 @@ impl Drop for Window {
         unsafe {
             // The window must be destroyed from the same thread that created it, so we send a
             // custom message to be handled by our callback to do the actual work.
-            PostMessageW(self.hwnd(), *DESTROY_MSG_ID, 0, 0);
+            PostMessageW(self.hwnd(), DESTROY_MSG_ID.get(), 0, 0);
         }
     }
 }

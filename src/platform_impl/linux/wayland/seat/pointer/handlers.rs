@@ -45,9 +45,6 @@ pub(super) fn handle_pointer(
             pointer_data.latest_enter_serial.replace(serial);
 
             let window_id = wayland::make_wid(&surface);
-            if !winit_state.window_map.contains_key(&window_id) {
-                return;
-            }
             let window_handle = match winit_state.window_map.get_mut(&window_id) {
                 Some(window_handle) => window_handle,
                 None => return,
