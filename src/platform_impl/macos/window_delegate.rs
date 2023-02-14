@@ -409,6 +409,20 @@ declare_class!(
                 self.queue_event(WindowEvent::ThemeChanged(theme));
             }
         }
+
+        #[sel(windowDidChangeScreen:)]
+        fn window_did_change_screen(&self, _: Option<&Object>) {
+            trace_scope!("windowDidChangeScreen:");
+            let is_simple_fullscreen = self
+                .window
+                .lock_shared_state("window_did_change_screen")
+                .is_simple_fullscreen;
+            if is_simple_fullscreen {
+                if let Some(screen) = self.window.screen() {
+                    self.window.setFrame_display(screen.frame(), true);
+                }
+            }
+        }
     }
 );
 

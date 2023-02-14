@@ -150,7 +150,7 @@ pub struct SharedState {
     pub(crate) target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
-    is_simple_fullscreen: bool,
+    pub(crate) is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     /// Presentation options saved before entering `set_simple_fullscreen`, and
     /// restored upon exiting it. Also used when transitioning from Borderless to
@@ -1317,6 +1317,10 @@ impl WindowExtMacOS for WinitWindow {
             // Tell our window's state that we're in fullscreen
             shared_state_lock.is_simple_fullscreen = true;
 
+            // Drop shared state lock before calling app.setPresentationOptions, because
+            // it will call our windowDidChangeScreen listener which reacquires the lock
+            drop(shared_state_lock);
+
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
             let presentation_options =
                 NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
@@ -1341,11 +1345,17 @@ impl WindowExtMacOS for WinitWindow {
             self.set_style_mask_sync(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
-            if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {
+            let save_presentation_opts = shared_state_lock.save_presentation_opts;
+            let frame = shared_state_lock.saved_standard_frame();
+
+            // Drop shared state lock before calling app.setPresentationOptions, because
+            // it will call our windowDidChangeScreen listener which reacquires the lock
+            drop(shared_state_lock);
+
+            if let Some(presentation_opts) = save_presentation_opts {
                 app.setPresentationOptions(presentation_opts);
             }
 
-            let frame = shared_state_lock.saved_standard_frame();
             self.setFrame_display(frame, true);
             self.setMovable(true);
 
