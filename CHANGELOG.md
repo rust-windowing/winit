@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Implement `HasRawDisplayHandle` for `EventLoop`.
+- On macOS, set resize increments only for live resizes.
 
 # 0.28.1
 
