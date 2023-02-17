@@ -1126,7 +1126,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **iOS / Android / Web / Wayland / x11 / Orbital:** Unsupported.
+    /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         self.window.theme()
