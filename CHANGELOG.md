@@ -10,6 +10,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - Implement `HasRawDisplayHandle` for `EventLoop`.
 - On macOS, set resize increments only for live resizes.
+- On Wayland, fix rare crash on DPI change
 
 # 0.28.1
 
