@@ -12,6 +12,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, set resize increments only for live resizes.
 - On Wayland, fix rare crash on DPI change
 - Web: Added support for `Window::theme`.
+- On Wayland, fix rounding issues when doing resize.
 
 # 0.28.1
 

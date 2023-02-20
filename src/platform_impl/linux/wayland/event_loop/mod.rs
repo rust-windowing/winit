@@ -19,6 +19,7 @@ use sctk::environment::Environment;
 use sctk::seat::pointer::{ThemeManager, ThemeSpec};
 use sctk::WaylandSource;
 
+use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform_impl::platform::sticky_exit_callback;
@@ -385,7 +386,7 @@ impl<T: 'static> EventLoop<T> {
                         let window_size = window_compositor_update.size.unwrap_or(*size);
                         *size = window_size;
 
-                        window_size.to_physical(scale_factor)
+                        logical_to_physical_rounded(window_size, scale_factor)
                     });
 
                     sticky_exit_callback(
@@ -430,7 +431,7 @@ impl<T: 'static> EventLoop<T> {
                         } else {
                             *window_size = size;
                             let scale_factor = window_handle.scale_factor();
-                            let physical_size = size.to_physical(scale_factor);
+                            let physical_size = logical_to_physical_rounded(size, scale_factor);
                             Some(physical_size)
                         };
 
@@ -598,4 +599,11 @@ impl<T: 'static> EventLoop<T> {
             .dispatch(timeout, state)
             .map_err(|error| error.into())
     }
+}
+
+// The default routine does floor, but we need round on Wayland.
+fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> PhysicalSize<u32> {
+    let width = size.width as f64 * scale_factor;
+    let height = size.height as f64 * scale_factor;
+    (width.round(), height.round()).into()
 }
