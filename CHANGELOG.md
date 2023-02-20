@@ -11,6 +11,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Add `WindowEvent::DragEnter`, `WindowEvent::DragOver`, `WindowEvent::DragDrop` and `WindowEvent::DragLeave` events.
 - **Breaking:** Removed `WindowEvent::DroppedFile`, `WindowEvent::HoveredFile` and `WindowEvent::HoveredFileCancelled` events.
 - Implement `HasRawDisplayHandle` for `EventLoop`.
+- On macOS, set resize increments only for live resizes.
+- On Wayland, fix rare crash on DPI change
+- Web: Added support for `Window::theme`.
 
 # 0.28.1
 
