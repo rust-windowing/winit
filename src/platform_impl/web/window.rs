@@ -409,7 +409,20 @@ impl Window {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        None
+        web_sys::window()
+            .and_then(|window| {
+                window
+                    .match_media("(prefers-color-scheme: dark)")
+                    .ok()
+                    .flatten()
+            })
+            .map(|media_query_list| {
+                if media_query_list.matches() {
+                    Theme::Dark
+                } else {
+                    Theme::Light
+                }
+            })
     }
 
     #[inline]
