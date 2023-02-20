@@ -343,14 +343,13 @@ impl<T: 'static> EventProcessor<T> {
                             let position =
                                 PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
 
-                            let paths = path_list.iter().map(Into::into).collect();
-
                             if self.dnd.has_entered {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::DragOver { paths, position },
+                                    event: WindowEvent::DragOver { position },
                                 });
                             } else {
+                                let paths = path_list.iter().map(Into::into).collect();
                                 self.dnd.has_entered = true;
                                 callback(Event::WindowEvent {
                                     window_id,

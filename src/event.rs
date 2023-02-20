@@ -342,18 +342,26 @@ pub enum WindowEvent<'a> {
     /// The window has been destroyed.
     Destroyed,
 
+    /// A drag operation has entered the window.
     DragEnter {
+        /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
+        /// Position of the drag operation.
         position: PhysicalPosition<f64>,
     },
+    /// A drag operation is moving over the window.
     DragOver {
-        paths: Vec<PathBuf>,
+        /// Position of the drag operation.
         position: PhysicalPosition<f64>,
     },
+    /// The drag operation has dropped file(s) on the window.
     DragDrop {
+        /// List of paths that are being dragged onto the window.
         paths: Vec<PathBuf>,
+        /// Position of the drag operation.
         position: PhysicalPosition<f64>,
     },
+    /// The drag operation has been cancelled or left the window.
     DragLeave,
 
     /// The window received a unicode character.
@@ -412,14 +420,10 @@ pub enum WindowEvent<'a> {
     },
 
     /// The cursor has entered the window.
-    CursorEntered {
-        device_id: DeviceId,
-    },
+    CursorEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
-    CursorLeft {
-        device_id: DeviceId,
-    },
+    CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
@@ -470,9 +474,7 @@ pub enum WindowEvent<'a> {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS 10.8** and later.
-    SmartMagnify {
-        device_id: DeviceId,
-    },
+    SmartMagnify { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -563,8 +565,7 @@ impl Clone for WindowEvent<'static> {
                 paths: paths.clone(),
                 position: *position,
             },
-            DragOver { paths, position } => DragOver {
-                paths: paths.clone(),
+            DragOver { position } => DragOver {
                 position: *position,
             },
             DragDrop { paths, position } => DragDrop {
@@ -683,7 +684,7 @@ impl<'a> WindowEvent<'a> {
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
             DragEnter { paths, position } => Some(DragEnter { paths, position }),
-            DragOver { paths, position } => Some(DragOver { paths, position }),
+            DragOver { position } => Some(DragOver { position }),
             DragDrop { paths, position } => Some(DragDrop { paths, position }),
             DragLeave => Some(DragLeave),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),

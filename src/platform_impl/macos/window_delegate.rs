@@ -198,23 +198,13 @@ declare_class!(
         fn dragging_updated(&self, sender: *mut Object) -> bool {
             trace_scope!("draggingUpdated:");
 
-            use std::path::PathBuf;
-
-            let pb: Id<NSPasteboard, Shared> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType });
-            let filenames: Id<NSArray<NSString>, Shared> = unsafe { Id::cast(filenames) };
-            let paths = filenames
-                .into_iter()
-                .map(|file| PathBuf::from(file.to_string()))
-                .collect();
-
             let dl: NSPoint = unsafe { msg_send![sender, draggingLocation] };
             let y = self.window.frame().size.height - dl.y;
 
             let scale_factor = self.window.scale_factor();
             let position = LogicalPosition::<f64>::from((dl.x, y)).to_physical(scale_factor);
 
-            self.queue_event(WindowEvent::DragOver { paths, position });
+            self.queue_event(WindowEvent::DragOver { position });
 
             true
         }
