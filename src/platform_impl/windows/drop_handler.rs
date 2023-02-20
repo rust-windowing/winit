@@ -104,10 +104,7 @@ impl FileDropHandler {
         let hdrop = Self::iterate_filenames(pDataObj, |path| paths.push(path));
         drop_handler.send_event(Event::WindowEvent {
             window_id: RootWindowId(WindowId(drop_handler.window)),
-            event: DragEnter {
-                paths: paths.clone(),
-                position,
-            },
+            event: DragEnter { paths, position },
         });
         drop_handler.enter_is_valid = hdrop.is_some();
         drop_handler.cursor_effect = if drop_handler.enter_is_valid {
