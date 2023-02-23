@@ -42,8 +42,8 @@ impl AaRect {
 
 #[derive(Debug, Default)]
 pub struct TranslatedCoords {
-    pub x_rel_root: c_int,
-    pub y_rel_root: c_int,
+    pub x_rel: c_int,
+    pub y_rel: c_int,
     pub child: ffi::Window,
 }
 
@@ -142,7 +142,7 @@ impl FrameExtentsHeuristic {
 
 impl XConnection {
     // This is adequate for inner_position
-    pub fn translate_coords(
+    pub fn translate_coords_root(
         &self,
         window: ffi::Window,
         root: ffi::Window,
@@ -156,8 +156,34 @@ impl XConnection {
                 root,
                 0,
                 0,
-                &mut coords.x_rel_root,
-                &mut coords.y_rel_root,
+                &mut coords.x_rel,
+                &mut coords.y_rel,
+                &mut coords.child,
+            );
+        }
+
+        self.check_errors()?;
+        Ok(coords)
+    }
+
+    pub fn translate_coords(
+        &self,
+        src_w: ffi::Window,
+        dest_w: ffi::Window,
+        src_x: i32,
+        src_y: i32,
+    ) -> Result<TranslatedCoords, XError> {
+        let mut coords = TranslatedCoords::default();
+
+        unsafe {
+            (self.xlib.XTranslateCoordinates)(
+                self.display,
+                src_w,
+                dest_w,
+                src_x,
+                src_y,
+                &mut coords.x_rel,
+                &mut coords.y_rel,
                 &mut coords.child,
             );
         }
@@ -284,11 +310,11 @@ impl XConnection {
         // With rare exceptions, this is the position of a nested window. Cases where the window
         // isn't nested are outlined in the comments throghout this function, but in addition to
         // that, fullscreen windows often aren't nested.
-        let (inner_y_rel_root, child) = {
+        let (inner_y_rel, child) = {
             let coords = self
-                .translate_coords(window, root)
+                .translate_coords_root(window, root)
                 .expect("Failed to translate window coordinates");
-            (coords.y_rel_root, coords.child)
+            (coords.y_rel, coords.child)
         };
 
         let (width, height, border) = {
@@ -331,7 +357,7 @@ impl XConnection {
             //   having a position (-10, -8).
             // * Compiz has a drop shadow margin just like Mutter/Muffin/Budgie, though it's 10px
             //   on all sides, and there's no additional border.
-            // * Enlightenment otherwise gets a y position equivalent to inner_y_rel_root.
+            // * Enlightenment otherwise gets a y position equivalent to inner_y_rel.
             //   Without decorations, there's no difference. This is presumably related to
             //   Enlightenment's fairly unique concept of window position; it interprets
             //   positions given to XMoveWindow as a client area position rather than a position
@@ -363,7 +389,7 @@ impl XConnection {
             // area, we can figure out what's in between.
             let diff_x = outer_width.saturating_sub(width);
             let diff_y = outer_height.saturating_sub(height);
-            let offset_y = inner_y_rel_root.saturating_sub(outer_y) as c_uint;
+            let offset_y = inner_y_rel.saturating_sub(outer_y) as c_uint;
 
             let left = diff_x / 2;
             let right = left;

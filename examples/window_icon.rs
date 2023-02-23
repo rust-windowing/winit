@@ -37,8 +37,8 @@ fn main() {
             use winit::event::WindowEvent::*;
             match event {
                 CloseRequested => control_flow.set_exit(),
-                DroppedFile(path) => {
-                    window.set_window_icon(Some(load_icon(&path)));
+                DragDrop { paths, .. } => {
+                    window.set_window_icon(Some(load_icon(&paths[0])));
                 }
                 _ => (),
             }

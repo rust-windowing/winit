@@ -92,8 +92,12 @@ pub(crate) struct Dnd {
     pub type_list: Option<Vec<c_ulong>>,
     // Populated by XdndPosition event handler
     pub source_window: Option<c_ulong>,
+    // Populated by XdndPosition event handler
+    pub position: (c_long, c_long),
     // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
     pub result: Option<Result<Vec<PathBuf>, DndDataParseError>>,
+    // Populated by SelectionNotify event handler (triggered by XdndPosition event handler)
+    pub has_entered: bool,
 }
 
 impl Dnd {
@@ -105,7 +109,9 @@ impl Dnd {
             version: None,
             type_list: None,
             source_window: None,
+            position: (0, 0),
             result: None,
+            has_entered: false,
         })
     }
 
@@ -114,6 +120,7 @@ impl Dnd {
         self.type_list = None;
         self.source_window = None;
         self.result = None;
+        self.has_entered = false;
     }
 
     pub unsafe fn send_status(

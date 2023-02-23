@@ -342,23 +342,27 @@ pub enum WindowEvent<'a> {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    DroppedFile(PathBuf),
-
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately.
-    HoveredFile(PathBuf),
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
-    /// hovered.
-    HoveredFileCancelled,
+    /// A drag operation has entered the window.
+    DragEnter {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// A drag operation is moving over the window.
+    DragOver {
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// The drag operation has dropped file(s) on the window.
+    DragDrop {
+        /// List of paths that are being dragged onto the window.
+        paths: Vec<PathBuf>,
+        /// Position of the drag operation.
+        position: PhysicalPosition<f64>,
+    },
+    /// The drag operation has been cancelled or left the window.
+    DragLeave,
 
     /// The window received a unicode character.
     ///
@@ -557,9 +561,18 @@ impl Clone for WindowEvent<'static> {
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
+            DragEnter { paths, position } => DragEnter {
+                paths: paths.clone(),
+                position: *position,
+            },
+            DragOver { position } => DragOver {
+                position: *position,
+            },
+            DragDrop { paths, position } => DragDrop {
+                paths: paths.clone(),
+                position: *position,
+            },
+            DragLeave => DragLeave,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
             KeyboardInput {
@@ -670,9 +683,10 @@ impl<'a> WindowEvent<'a> {
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
+            DragEnter { paths, position } => Some(DragEnter { paths, position }),
+            DragOver { position } => Some(DragOver { position }),
+            DragDrop { paths, position } => Some(DragDrop { paths, position }),
+            DragLeave => Some(DragLeave),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {

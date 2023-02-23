@@ -215,12 +215,11 @@ impl<T: 'static> EventProcessor<T> {
                     }
                 } else if client_msg.message_type == self.dnd.atoms.position {
                     // This event occurs every time the mouse moves while a file's being dragged
-                    // over our window. We emit HoveredFile in response; while the macOS backend
+                    // over our window. We emit DragEnter in response; while the macOS backend
                     // does that upon a drag entering, XDND doesn't have access to the actual drop
                     // data until this event. For parity with other platforms, we only emit
-                    // `HoveredFile` the first time, though if winit's API is later extended to
-                    // supply position updates with `HoveredFile` or another event, implementing
-                    // that here would be trivial.
+                    // `DragEnter` the first time, then we emit `DragOver` for later events to
+                    // match other backends.
 
                     let source_window = client_msg.data.get_long(0) as c_ulong;
 
@@ -228,10 +227,11 @@ impl<T: 'static> EventProcessor<T> {
                     // where `shift = mem::size_of::<c_short>() * 8`
                     // Note that coordinates are in "desktop space", not "window space"
                     // (in X11 parlance, they're root window coordinates)
-                    //let packed_coordinates = client_msg.data.get_long(2);
-                    //let shift = mem::size_of::<libc::c_short>() * 8;
-                    //let x = packed_coordinates >> shift;
-                    //let y = packed_coordinates & !(x << shift);
+                    let packed_coordinates = client_msg.data.get_long(2);
+                    let shift = std::mem::size_of::<libc::c_short>() * 8;
+                    let x = packed_coordinates >> shift;
+                    let y = packed_coordinates & !(x << shift);
+                    self.dnd.position = (x, y);
 
                     // By our own state flow, `version` should never be `None` at this point.
                     let version = self.dnd.version.unwrap_or(5);
@@ -248,16 +248,14 @@ impl<T: 'static> EventProcessor<T> {
                     if accepted {
                         self.dnd.source_window = Some(source_window);
                         unsafe {
-                            if self.dnd.result.is_none() {
-                                let time = if version >= 1 {
-                                    client_msg.data.get_long(3) as c_ulong
-                                } else {
-                                    // In version 0, time isn't specified
-                                    ffi::CurrentTime
-                                };
-                                // This results in the `SelectionNotify` event below
-                                self.dnd.convert_selection(window, time);
-                            }
+                            let time = if version >= 1 {
+                                client_msg.data.get_long(3) as c_ulong
+                            } else {
+                                // In version 0, time isn't specified
+                                ffi::CurrentTime
+                            };
+                            // This results in the `SelectionNotify` event below
+                            self.dnd.convert_selection(window, time);
                             self.dnd
                                 .send_status(window, source_window, DndState::Accepted)
                                 .expect("Failed to send `XdndStatus` message.");
@@ -274,12 +272,26 @@ impl<T: 'static> EventProcessor<T> {
                     let (source_window, state) = if let Some(source_window) = self.dnd.source_window
                     {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
-                            for path in path_list {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::DroppedFile(path.clone()),
-                                });
-                            }
+                            let coords = wt
+                                .xconn
+                                .translate_coords(
+                                    source_window,
+                                    window,
+                                    self.dnd.position.0 as _,
+                                    self.dnd.position.1 as _,
+                                )
+                                .expect("Failed to translate window coordinates");
+
+                            let position =
+                                PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::DragDrop {
+                                    paths: path_list.iter().map(Into::into).collect(),
+                                    position,
+                                },
+                            });
                         }
                         (source_window, DndState::Accepted)
                     } else {
@@ -298,7 +310,7 @@ impl<T: 'static> EventProcessor<T> {
                     self.dnd.reset();
                     callback(Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::HoveredFileCancelled,
+                        event: WindowEvent::DragLeave,
                     });
                 }
             }
@@ -316,13 +328,36 @@ impl<T: 'static> EventProcessor<T> {
                     if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
                         let parse_result = self.dnd.parse_data(&mut data);
                         if let Ok(ref path_list) = parse_result {
-                            for path in path_list {
+                            let source_window = self.dnd.source_window.unwrap_or(wt.root);
+
+                            let coords = wt
+                                .xconn
+                                .translate_coords(
+                                    source_window,
+                                    window,
+                                    self.dnd.position.0 as _,
+                                    self.dnd.position.1 as _,
+                                )
+                                .expect("Failed to translate window coordinates");
+
+                            let position =
+                                PhysicalPosition::new(coords.x_rel as f64, coords.y_rel as f64);
+
+                            if self.dnd.has_entered {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::HoveredFile(path.clone()),
+                                    event: WindowEvent::DragOver { position },
+                                });
+                            } else {
+                                let paths = path_list.iter().map(Into::into).collect();
+                                self.dnd.has_entered = true;
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::DragEnter { paths, position },
                                 });
                             }
                         }
+
                         result = Some(parse_result);
                     }
 
