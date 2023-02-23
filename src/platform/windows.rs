@@ -192,6 +192,7 @@ pub trait WindowBuilderExtWindows {
     /// - An owned window is hidden when its owner is minimized.
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
+    #[deprecated = "Use `WindowBuilderExtPopup::with_transient_parent()` instead"]
     fn with_owner_window(self, parent: HWND) -> WindowBuilder;
 
     /// Sets a menu on the window to be created.
@@ -233,7 +234,11 @@ pub trait WindowBuilderExtWindows {
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.owner = Some(parent);
+        use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
+
+        let mut hwnd = Win32WindowHandle::empty();
+        hwnd.hwnd = parent as _;
+        self.platform_specific.owner = Some(RawWindowHandle::Win32(hwnd));
         self
     }
 

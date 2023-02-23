@@ -22,9 +22,11 @@ use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 
+use raw_window_handle::RawWindowHandle;
+
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub owner: Option<HWND>,
+    pub owner: Option<RawWindowHandle>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,

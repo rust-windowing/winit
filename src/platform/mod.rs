@@ -45,3 +45,6 @@ pub mod modifier_supplement;
 ))]
 pub mod run_return;
 pub mod scancode;
+
+#[cfg(any(windows_platform, x11_platform))]
+pub mod popup;

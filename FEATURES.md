@@ -191,7 +191,7 @@ Legend:
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |**N/A** |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|**N/A** |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |✔️    |❌      |
-|Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|**N/A** |
+|Popup windows                    |✔     |❌    |✔         |❌             |❌    |❌     |**N/A**|**N/A** |
 
 ### System information
 |Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |Web      |Redox OS|

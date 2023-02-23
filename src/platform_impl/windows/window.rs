@@ -1140,10 +1140,11 @@ where
         }
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
         None => match pl_attribs.owner {
-            Some(parent) => {
+            Some(RawWindowHandle::Win32(parent)) => {
                 window_flags.set(WindowFlags::POPUP, true);
-                Some(parent)
+                Some(parent.hwnd as _)
             }
+            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
             None => {
                 window_flags.set(WindowFlags::ON_TASKBAR, true);
                 None

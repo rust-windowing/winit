@@ -101,6 +101,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     #[cfg(x11_platform)]
     pub x11_window_types: Vec<XWindowType>,
+    #[cfg(x11_platform)]
+    pub owner: Option<RawWindowHandle>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -118,6 +120,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             override_redirect: false,
             #[cfg(x11_platform)]
             x11_window_types: vec![XWindowType::Normal],
+            #[cfg(x11_platform)]
+            owner: None,
         }
     }
 }
