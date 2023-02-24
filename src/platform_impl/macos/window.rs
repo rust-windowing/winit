@@ -466,6 +466,10 @@ impl WinitWindow {
 
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
+        // XXX Send `Focused(false)` right after creating the window delegate, so we won't
+        // obscure the real focused events on the startup.
+        delegate.queue_event(WindowEvent::Focused(false));
+
         // Set fullscreen mode after we setup everything
         this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
@@ -484,8 +488,6 @@ impl WinitWindow {
         if attrs.maximized {
             this.set_maximized(attrs.maximized);
         }
-
-        delegate.queue_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }
