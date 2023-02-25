@@ -144,10 +144,7 @@ impl Platform {
     pub fn is_wayland(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(any(x11_platform, wayland_platform))] {
-                match self {
-                    Platform::Wayland => true,
-                    _ => false,
-                }
+                matches!(self, Platform::Wayland)
             } else {
                 false
             }
@@ -158,10 +155,7 @@ impl Platform {
     pub fn is_x11(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(any(x11_platform, wayland_platform))] {
-                match self {
-                    Platform::X11 => true,
-                    _ => false,
-                }
+                matches!(self, Platform::X11)
             } else {
                 false
             }
