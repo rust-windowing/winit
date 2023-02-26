@@ -12,99 +12,100 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
-    event::{self, StartCause, VirtualKeyCode},
+    event::{self, Ime, StartCause},
     event_loop::{self, ControlFlow},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKey, NativeKeyCode},
     window::WindowId as RootWindowId,
 };
 
 use super::{
-    DeviceId, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket,
-    WindowId, WindowProperties,
+    DeviceId, KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket,
+    TimeSocket, WindowId, WindowProperties,
 };
 
-fn convert_scancode(scancode: u8) -> Option<VirtualKeyCode> {
+fn convert_scancode(scancode: u8) -> KeyCode {
     match scancode {
-        orbclient::K_A => Some(VirtualKeyCode::A),
-        orbclient::K_B => Some(VirtualKeyCode::B),
-        orbclient::K_C => Some(VirtualKeyCode::C),
-        orbclient::K_D => Some(VirtualKeyCode::D),
-        orbclient::K_E => Some(VirtualKeyCode::E),
-        orbclient::K_F => Some(VirtualKeyCode::F),
-        orbclient::K_G => Some(VirtualKeyCode::G),
-        orbclient::K_H => Some(VirtualKeyCode::H),
-        orbclient::K_I => Some(VirtualKeyCode::I),
-        orbclient::K_J => Some(VirtualKeyCode::J),
-        orbclient::K_K => Some(VirtualKeyCode::K),
-        orbclient::K_L => Some(VirtualKeyCode::L),
-        orbclient::K_M => Some(VirtualKeyCode::M),
-        orbclient::K_N => Some(VirtualKeyCode::N),
-        orbclient::K_O => Some(VirtualKeyCode::O),
-        orbclient::K_P => Some(VirtualKeyCode::P),
-        orbclient::K_Q => Some(VirtualKeyCode::Q),
-        orbclient::K_R => Some(VirtualKeyCode::R),
-        orbclient::K_S => Some(VirtualKeyCode::S),
-        orbclient::K_T => Some(VirtualKeyCode::T),
-        orbclient::K_U => Some(VirtualKeyCode::U),
-        orbclient::K_V => Some(VirtualKeyCode::V),
-        orbclient::K_W => Some(VirtualKeyCode::W),
-        orbclient::K_X => Some(VirtualKeyCode::X),
-        orbclient::K_Y => Some(VirtualKeyCode::Y),
-        orbclient::K_Z => Some(VirtualKeyCode::Z),
-        orbclient::K_0 => Some(VirtualKeyCode::Key0),
-        orbclient::K_1 => Some(VirtualKeyCode::Key1),
-        orbclient::K_2 => Some(VirtualKeyCode::Key2),
-        orbclient::K_3 => Some(VirtualKeyCode::Key3),
-        orbclient::K_4 => Some(VirtualKeyCode::Key4),
-        orbclient::K_5 => Some(VirtualKeyCode::Key5),
-        orbclient::K_6 => Some(VirtualKeyCode::Key6),
-        orbclient::K_7 => Some(VirtualKeyCode::Key7),
-        orbclient::K_8 => Some(VirtualKeyCode::Key8),
-        orbclient::K_9 => Some(VirtualKeyCode::Key9),
+        orbclient::K_A => KeyCode::KeyA,
+        orbclient::K_B => KeyCode::KeyB,
+        orbclient::K_C => KeyCode::KeyC,
+        orbclient::K_D => KeyCode::KeyD,
+        orbclient::K_E => KeyCode::KeyE,
+        orbclient::K_F => KeyCode::KeyF,
+        orbclient::K_G => KeyCode::KeyG,
+        orbclient::K_H => KeyCode::KeyH,
+        orbclient::K_I => KeyCode::KeyI,
+        orbclient::K_J => KeyCode::KeyJ,
+        orbclient::K_K => KeyCode::KeyK,
+        orbclient::K_L => KeyCode::KeyL,
+        orbclient::K_M => KeyCode::KeyM,
+        orbclient::K_N => KeyCode::KeyN,
+        orbclient::K_O => KeyCode::KeyO,
+        orbclient::K_P => KeyCode::KeyP,
+        orbclient::K_Q => KeyCode::KeyQ,
+        orbclient::K_R => KeyCode::KeyR,
+        orbclient::K_S => KeyCode::KeyS,
+        orbclient::K_T => KeyCode::KeyT,
+        orbclient::K_U => KeyCode::KeyU,
+        orbclient::K_V => KeyCode::KeyV,
+        orbclient::K_W => KeyCode::KeyW,
+        orbclient::K_X => KeyCode::KeyX,
+        orbclient::K_Y => KeyCode::KeyY,
+        orbclient::K_Z => KeyCode::KeyZ,
+        orbclient::K_0 => KeyCode::Digit0,
+        orbclient::K_1 => KeyCode::Digit1,
+        orbclient::K_2 => KeyCode::Digit2,
+        orbclient::K_3 => KeyCode::Digit3,
+        orbclient::K_4 => KeyCode::Digit4,
+        orbclient::K_5 => KeyCode::Digit5,
+        orbclient::K_6 => KeyCode::Digit6,
+        orbclient::K_7 => KeyCode::Digit7,
+        orbclient::K_8 => KeyCode::Digit8,
+        orbclient::K_9 => KeyCode::Digit9,
 
-        orbclient::K_TICK => Some(VirtualKeyCode::Grave),
-        orbclient::K_MINUS => Some(VirtualKeyCode::Minus),
-        orbclient::K_EQUALS => Some(VirtualKeyCode::Equals),
-        orbclient::K_BACKSLASH => Some(VirtualKeyCode::Backslash),
-        orbclient::K_BRACE_OPEN => Some(VirtualKeyCode::LBracket),
-        orbclient::K_BRACE_CLOSE => Some(VirtualKeyCode::RBracket),
-        orbclient::K_SEMICOLON => Some(VirtualKeyCode::Semicolon),
-        orbclient::K_QUOTE => Some(VirtualKeyCode::Apostrophe),
-        orbclient::K_COMMA => Some(VirtualKeyCode::Comma),
-        orbclient::K_PERIOD => Some(VirtualKeyCode::Period),
-        orbclient::K_SLASH => Some(VirtualKeyCode::Slash),
-        orbclient::K_BKSP => Some(VirtualKeyCode::Back),
-        orbclient::K_SPACE => Some(VirtualKeyCode::Space),
-        orbclient::K_TAB => Some(VirtualKeyCode::Tab),
-        //orbclient::K_CAPS => Some(VirtualKeyCode::CAPS),
-        orbclient::K_LEFT_SHIFT => Some(VirtualKeyCode::LShift),
-        orbclient::K_RIGHT_SHIFT => Some(VirtualKeyCode::RShift),
-        orbclient::K_CTRL => Some(VirtualKeyCode::LControl),
-        orbclient::K_ALT => Some(VirtualKeyCode::LAlt),
-        orbclient::K_ENTER => Some(VirtualKeyCode::Return),
-        orbclient::K_ESC => Some(VirtualKeyCode::Escape),
-        orbclient::K_F1 => Some(VirtualKeyCode::F1),
-        orbclient::K_F2 => Some(VirtualKeyCode::F2),
-        orbclient::K_F3 => Some(VirtualKeyCode::F3),
-        orbclient::K_F4 => Some(VirtualKeyCode::F4),
-        orbclient::K_F5 => Some(VirtualKeyCode::F5),
-        orbclient::K_F6 => Some(VirtualKeyCode::F6),
-        orbclient::K_F7 => Some(VirtualKeyCode::F7),
-        orbclient::K_F8 => Some(VirtualKeyCode::F8),
-        orbclient::K_F9 => Some(VirtualKeyCode::F9),
-        orbclient::K_F10 => Some(VirtualKeyCode::F10),
-        orbclient::K_HOME => Some(VirtualKeyCode::Home),
-        orbclient::K_UP => Some(VirtualKeyCode::Up),
-        orbclient::K_PGUP => Some(VirtualKeyCode::PageUp),
-        orbclient::K_LEFT => Some(VirtualKeyCode::Left),
-        orbclient::K_RIGHT => Some(VirtualKeyCode::Right),
-        orbclient::K_END => Some(VirtualKeyCode::End),
-        orbclient::K_DOWN => Some(VirtualKeyCode::Down),
-        orbclient::K_PGDN => Some(VirtualKeyCode::PageDown),
-        orbclient::K_DEL => Some(VirtualKeyCode::Delete),
-        orbclient::K_F11 => Some(VirtualKeyCode::F11),
-        orbclient::K_F12 => Some(VirtualKeyCode::F12),
+        orbclient::K_TICK => KeyCode::Backquote,
+        orbclient::K_MINUS => KeyCode::Minus,
+        orbclient::K_EQUALS => KeyCode::Equal,
+        orbclient::K_BACKSLASH => KeyCode::Backslash,
+        orbclient::K_BRACE_OPEN => KeyCode::BracketLeft,
+        orbclient::K_BRACE_CLOSE => KeyCode::BracketRight,
+        orbclient::K_SEMICOLON => KeyCode::Semicolon,
+        orbclient::K_QUOTE => KeyCode::Quote,
+        orbclient::K_COMMA => KeyCode::Comma,
+        orbclient::K_PERIOD => KeyCode::Period,
+        orbclient::K_SLASH => KeyCode::Slash,
+        orbclient::K_BKSP => KeyCode::Backspace,
+        orbclient::K_SPACE => KeyCode::Space,
+        orbclient::K_TAB => KeyCode::Tab,
+        //orbclient::K_CAPS => KeyCode::CAPS,
+        orbclient::K_LEFT_SHIFT => KeyCode::ShiftLeft,
+        orbclient::K_RIGHT_SHIFT => KeyCode::ShiftRight,
+        orbclient::K_CTRL => KeyCode::ControlLeft,
+        orbclient::K_ALT => KeyCode::AltLeft,
+        orbclient::K_ENTER => KeyCode::Enter,
+        orbclient::K_ESC => KeyCode::Escape,
+        orbclient::K_F1 => KeyCode::F1,
+        orbclient::K_F2 => KeyCode::F2,
+        orbclient::K_F3 => KeyCode::F3,
+        orbclient::K_F4 => KeyCode::F4,
+        orbclient::K_F5 => KeyCode::F5,
+        orbclient::K_F6 => KeyCode::F6,
+        orbclient::K_F7 => KeyCode::F7,
+        orbclient::K_F8 => KeyCode::F8,
+        orbclient::K_F9 => KeyCode::F9,
+        orbclient::K_F10 => KeyCode::F10,
+        orbclient::K_HOME => KeyCode::Home,
+        orbclient::K_UP => KeyCode::ArrowUp,
+        orbclient::K_PGUP => KeyCode::PageUp,
+        orbclient::K_LEFT => KeyCode::ArrowLeft,
+        orbclient::K_RIGHT => KeyCode::ArrowRight,
+        orbclient::K_END => KeyCode::End,
+        orbclient::K_DOWN => KeyCode::ArrowDown,
+        orbclient::K_PGDN => KeyCode::PageDown,
+        orbclient::K_DEL => KeyCode::Delete,
+        orbclient::K_F11 => KeyCode::F11,
+        orbclient::K_F12 => KeyCode::F12,
 
-        _ => None,
+        _ => KeyCode::Unidentified(NativeKeyCode::Unidentified),
     }
 }
 
@@ -147,16 +148,16 @@ struct EventState {
 }
 
 impl EventState {
-    fn key(&mut self, vk: VirtualKeyCode, pressed: bool) {
-        match vk {
-            VirtualKeyCode::LShift => self.keyboard.set(KeyboardModifierState::LSHIFT, pressed),
-            VirtualKeyCode::RShift => self.keyboard.set(KeyboardModifierState::RSHIFT, pressed),
-            VirtualKeyCode::LControl => self.keyboard.set(KeyboardModifierState::LCTRL, pressed),
-            VirtualKeyCode::RControl => self.keyboard.set(KeyboardModifierState::RCTRL, pressed),
-            VirtualKeyCode::LAlt => self.keyboard.set(KeyboardModifierState::LALT, pressed),
-            VirtualKeyCode::RAlt => self.keyboard.set(KeyboardModifierState::RALT, pressed),
-            VirtualKeyCode::LWin => self.keyboard.set(KeyboardModifierState::LSUPER, pressed),
-            VirtualKeyCode::RWin => self.keyboard.set(KeyboardModifierState::RSUPER, pressed),
+    fn key(&mut self, code: KeyCode, pressed: bool) {
+        match code {
+            KeyCode::ShiftLeft => self.keyboard.set(KeyboardModifierState::LSHIFT, pressed),
+            KeyCode::ShiftRight => self.keyboard.set(KeyboardModifierState::RSHIFT, pressed),
+            KeyCode::ControlLeft => self.keyboard.set(KeyboardModifierState::LCTRL, pressed),
+            KeyCode::ControlRight => self.keyboard.set(KeyboardModifierState::RCTRL, pressed),
+            KeyCode::AltLeft => self.keyboard.set(KeyboardModifierState::LALT, pressed),
+            KeyCode::AltRight => self.keyboard.set(KeyboardModifierState::RALT, pressed),
+            KeyCode::SuperLeft => self.keyboard.set(KeyboardModifierState::LSUPER, pressed),
+            KeyCode::SuperRight => self.keyboard.set(KeyboardModifierState::RSUPER, pressed),
             _ => (),
         }
     }
@@ -185,31 +186,31 @@ impl EventState {
         None
     }
 
-    fn modifiers(&self) -> event::ModifiersState {
-        let mut modifiers = event::ModifiersState::empty();
+    fn modifiers(&self) -> ModifiersState {
+        let mut modifiers = ModifiersState::empty();
         if self
             .keyboard
             .intersects(KeyboardModifierState::LSHIFT | KeyboardModifierState::RSHIFT)
         {
-            modifiers |= event::ModifiersState::SHIFT;
+            modifiers |= ModifiersState::SHIFT;
         }
         if self
             .keyboard
             .intersects(KeyboardModifierState::LCTRL | KeyboardModifierState::RCTRL)
         {
-            modifiers |= event::ModifiersState::CTRL;
+            modifiers |= ModifiersState::CONTROL;
         }
         if self
             .keyboard
             .intersects(KeyboardModifierState::LALT | KeyboardModifierState::RALT)
         {
-            modifiers |= event::ModifiersState::ALT;
+            modifiers |= ModifiersState::ALT;
         }
         if self
             .keyboard
             .intersects(KeyboardModifierState::LSUPER | KeyboardModifierState::RSUPER)
         {
-            modifiers |= event::ModifiersState::LOGO
+            modifiers |= ModifiersState::SUPER
         }
         modifiers
     }
@@ -277,32 +278,35 @@ impl<T: 'static> EventLoop<T> {
                 pressed,
             }) => {
                 if scancode != 0 {
-                    let vk_opt = convert_scancode(scancode);
-                    if let Some(vk) = vk_opt {
-                        event_state.key(vk, pressed);
-                    }
-                    event_handler(
-                        #[allow(deprecated)]
-                        event::Event::WindowEvent {
-                            window_id: RootWindowId(window_id),
-                            event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId),
-                                input: event::KeyboardInput {
-                                    scancode: scancode as u32,
-                                    state: element_state(pressed),
-                                    virtual_keycode: vk_opt,
-                                    modifiers: event_state.modifiers(),
-                                },
-                                is_synthetic: false,
+                    let code = convert_scancode(scancode);
+                    event_state.key(code.clone(), pressed);
+                    event_handler(event::Event::WindowEvent {
+                        window_id: RootWindowId(window_id),
+                        event: event::WindowEvent::KeyboardInput {
+                            device_id: event::DeviceId(DeviceId),
+                            event: event::KeyEvent {
+                                logical_key: Key::Unidentified(NativeKey::Unidentified),
+                                physical_key: code,
+                                location: KeyLocation::Standard,
+                                state: element_state(pressed),
+                                repeat: false,
+                                text: None,
+
+                                platform_specific: KeyEventExtra {},
                             },
+                            is_synthetic: false,
                         },
-                    );
+                    });
                 }
             }
             EventOption::TextInput(TextInputEvent { character }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::ReceivedCharacter(character),
+                    event: event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
+                });
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::Ime(Ime::Commit(character.into())),
                 });
             }
             EventOption::Mouse(MouseEvent { x, y }) => {

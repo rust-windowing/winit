@@ -167,6 +167,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn reset_dead_keys(&self) {
+        // TODO?
+    }
+
+    #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self
