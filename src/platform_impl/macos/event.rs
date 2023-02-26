@@ -1,6 +1,9 @@
 use std::{collections::HashSet, ffi::c_void, sync::Mutex};
 
-use core_foundation::{base::CFRelease, data::CFDataGetBytePtr};
+use core_foundation::{
+    base::CFRelease,
+    data::{CFDataGetBytePtr, CFDataRef},
+};
 use objc2::rc::{Id, Shared};
 use once_cell::sync::Lazy;
 
@@ -11,7 +14,10 @@ use crate::{
     event::{ElementState, Event, KeyEvent},
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKey, NativeKeyCode},
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
-    platform_impl::platform::{ffi, util::Never},
+    platform_impl::platform::{
+        ffi,
+        util::{get_kbd_type, Never},
+    },
 };
 
 static KEY_STRINGS: Lazy<Mutex<HashSet<&'static str>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -74,9 +80,9 @@ pub fn get_modifierless_char(scancode: u16) -> Key<'static> {
             log::error!("`TISGetInputSourceProperty` returned null ptr");
             return Key::Unidentified(NativeKey::MacOS(scancode));
         }
-        layout = CFDataGetBytePtr(layout_data) as *const ffi::UCKeyboardLayout;
+        layout = CFDataGetBytePtr(layout_data as CFDataRef) as *const ffi::UCKeyboardLayout;
     }
-    let keyboard_type = unsafe { ffi::LMGetKbdType() };
+    let keyboard_type = get_kbd_type();
 
     let mut result_len = 0;
     let mut dead_keys = 0;
@@ -136,7 +142,7 @@ pub(crate) fn create_key_event(
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
-    let scancode = ns_event.scancode();
+    let scancode = ns_event.key_code();
     let mut physical_key = key_override
         .clone()
         .unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));

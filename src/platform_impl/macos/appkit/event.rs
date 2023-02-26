@@ -77,7 +77,7 @@ extern_methods!(
             characters: &NSString,
             characters_ignoring_modifiers: &NSString,
             is_a_repeat: bool,
-            scancode: c_ushort,
+            key_code: c_ushort,
         ) -> Id<Self, Shared> {
             unsafe {
                 msg_send_id![
@@ -91,7 +91,7 @@ extern_methods!(
                     characters: characters,
                     charactersIgnoringModifiers: characters_ignoring_modifiers,
                     isARepeat: is_a_repeat,
-                    keyCode: scancode,
+                    keyCode: key_code,
                 ]
             }
         }
@@ -109,12 +109,8 @@ extern_methods!(
         #[sel(type)]
         pub fn type_(&self) -> NSEventType;
 
-        // In AppKit, `keyCode` refers to the position (scancode) of a key rather than its character,
-        // and there is no easy way to navtively retrieve the layout-dependent character.
-        // In winit, we use keycode to refer to the key's character, and so this function aligns
-        // AppKit's terminology with ours.
         #[sel(keyCode)]
-        pub fn scancode(&self) -> c_ushort;
+        pub fn key_code(&self) -> c_ushort;
 
         #[sel(magnification)]
         pub fn magnification(&self) -> CGFloat;

@@ -912,7 +912,7 @@ impl WinitView {
         // when the user presses/releases a modifier even if the same kind of modifier
         // has already been pressed
         if is_flags_changed_event {
-            let scancode = ns_event.scancode();
+            let scancode = ns_event.key_code();
             let keycode = KeyCode::from_scancode(scancode as u32);
 
             // We'll correct the `is_press` later.
@@ -1076,6 +1076,6 @@ fn replace_event_chars(event: &NSEvent, characters: &str) -> Id<NSEvent, Shared>
         &ns_chars,
         &chars_ignoring_mods,
         event.is_a_repeat(),
-        event.scancode(),
+        event.key_code(),
     )
 }

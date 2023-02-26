@@ -5,8 +5,7 @@
 use std::ffi::c_void;
 
 use core_foundation::{
-    array::CFArrayRef, data::CFDataRef, dictionary::CFDictionaryRef, string::CFStringRef,
-    uuid::CFUUIDRef,
+    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };
 use core_graphics::{
     base::CGError,
@@ -182,7 +181,7 @@ extern "C" {
     pub fn TISGetInputSourceProperty(
         inputSource: TISInputSourceRef,
         propertyKey: CFStringRef,
-    ) -> CFDataRef;
+    ) -> *mut c_void;
 
     pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;
 
