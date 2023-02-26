@@ -179,7 +179,7 @@ Legend:
 |Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**|**N/A** |
 |Window decorations               |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|✔️      |
 |Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
-|Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |✔️      |
+|Window resizing                  |✔️     |✔️     |✔️         |✔️        |**N/A**|**N/A**|✔️        |✔️      |
 |Window resize increments         |❌     |✔️     |✔️         |❌             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |✔️      |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
@@ -210,7 +210,7 @@ Legend:
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |**N/A** |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |✔️    |❌     |✔️        |✔️      |
-|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |**N/A** |
+|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |▢[#720]   |**N/A**|**N/A**|❓        |**N/A** |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |**N/A** |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |**N/A** |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |**N/A** |
@@ -223,7 +223,7 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- | ------ |
 |New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |❓      |
-|Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |✔️     |✔️    |❓        |❓      |
+|Event Loop 2.0 ([#459])             |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |❓      |
 |Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌    |❓        |❓      |
 
 ### Completed API Reworks
