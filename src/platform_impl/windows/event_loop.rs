@@ -76,9 +76,7 @@ use windows_sys::Win32::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, Ime, RawKeyEvent, Touch, TouchPhase, WindowEvent},
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     keyboard::{KeyCode, ModifiersState},
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
@@ -344,7 +342,7 @@ impl<T> EventLoopWindowTarget<T> {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
 
-    pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
+    pub fn listen_device_events(&self, filter: DeviceEvents) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, filter);
     }
 }

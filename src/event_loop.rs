@@ -363,9 +363,9 @@ impl<T> EventLoopWindowTarget<T> {
     /// - **Wayland / macOS / iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
+    pub fn listen_device_events(&self, _filter: DeviceEvents) {
         #[cfg(any(x11_platform, wayland_platform, windows))]
-        self.p.set_device_event_filter(_filter);
+        self.p.listen_device_events(_filter);
     }
 }
 
@@ -423,19 +423,19 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
 
-/// Filter controlling the propagation of device events.
+/// Controlling when device events are propagated.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum DeviceEventFilter {
-    /// Always filter out device events.
+pub enum DeviceEvents {
+    /// Report device events regardless of window focus.
     Always,
-    /// Filter out device events while the window is not focused.
-    Unfocused,
-    /// Report all device events regardless of window focus.
+    /// Only propogate device events while the window is focused.
+    WhenFocused,
+    /// Never propogate device events.
     Never,
 }
 
-impl Default for DeviceEventFilter {
+impl Default for DeviceEvents {
     fn default() -> Self {
-        Self::Unfocused
+        Self::WhenFocused
     }
 }

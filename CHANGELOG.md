@@ -7,6 +7,8 @@ Please keep one empty line before and after all headers. (This is required for `
 And please only add new entries to the top of this list, right below the `# Unreleased` header.
 
 # Unreleased
+- **Breaking** Renamed `EventLoopWindowTarget::set_device_event_filter` to `EventLoopWindowTarget::listen_device_events` and `DeviceEventFilter` to `DeviceEvents` and appropriately reversed its variants.
+- On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
 
 - **Breaking:** Remove all deprecated `modifiers` fields.
 - **Breaking:** Overhaul keyboard input handling.
