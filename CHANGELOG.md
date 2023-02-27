@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix rare crash on DPI change
 - Web: Added support for `Window::theme`.
 - On Wayland, fix rounding issues when doing resize.
+- On macOS, fix wrong focused state on startup.
 
 # 0.28.1
 
