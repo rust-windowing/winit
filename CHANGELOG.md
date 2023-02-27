@@ -14,6 +14,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Web: Added support for `Window::theme`.
 - On Wayland, fix rounding issues when doing resize.
 - On macOS, fix wrong focused state on startup.
+- On Windows, fix crash on setting taskbar when using Visual Studio debugger.
 
 # 0.28.1
 
