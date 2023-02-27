@@ -468,6 +468,10 @@ impl WinitWindow {
         // Set fullscreen mode after we setup everything
         this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
+        // Sending the unfocused event by default
+        // A focus event will be sent if the window is made key by the next step
+        delegate.queue_event(WindowEvent::Focused(false));
+
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
@@ -483,8 +487,6 @@ impl WinitWindow {
         if attrs.maximized {
             this.set_maximized(attrs.maximized);
         }
-
-        delegate.queue_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }
