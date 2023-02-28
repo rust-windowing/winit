@@ -127,10 +127,6 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
     state
 }
 
-pub fn touch_position(event: &PointerEvent, _canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
-    // TODO: Should this handle more, like `mouse_position_by_client` does?
-    LogicalPosition {
-        x: event.client_x() as f64,
-        y: event.client_y() as f64,
-    }
+pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
+    mouse_position_by_client(event, canvas)
 }

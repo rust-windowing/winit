@@ -49,6 +49,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Implement `PartialOrd` and `Ord` on types in the `dpi` module.
 - Bump MSRV from `1.60` to `1.64`.
+- Web: Fix position of touch events to be relative to the canvas.
 
 # 0.28.6
 
