@@ -5,6 +5,9 @@ use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEve
 use winit::event_loop::EventLoop;
 use winit::window::{Fullscreen, WindowBuilder};
 
+#[cfg(target_os = "macos")]
+use winit::platform::macos::WindowExtMacOS;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -32,6 +35,8 @@ fn main() {
     println!("- Esc\tExit");
     println!("- F\tToggle exclusive fullscreen mode");
     println!("- B\tToggle borderless mode");
+    #[cfg(target_os = "macos")]
+    println!("- C\tToggle simple fullscreen mode");
     println!("- S\tNext screen");
     println!("- M\tNext mode for this screen");
     println!("- D\tToggle window decorations");
@@ -66,6 +71,10 @@ fn main() {
                         let fullscreen = Some(Fullscreen::Borderless(Some(monitor.clone())));
                         println!("Setting mode: {fullscreen:?}");
                         window.set_fullscreen(fullscreen);
+                    }
+                    #[cfg(target_os = "macos")]
+                    VirtualKeyCode::C => {
+                        window.set_simple_fullscreen(!window.simple_fullscreen());
                     }
                     VirtualKeyCode::S => {
                         monitor_index += 1;
