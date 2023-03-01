@@ -15,6 +15,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix rounding issues when doing resize.
 - On macOS, fix wrong focused state on startup.
 - On Windows, fix crash on setting taskbar when using Visual Studio debugger.
+- On macOS, resize simple fullscreen windows on windowDidChangeScreen events.
 
 # 0.28.1
 
