@@ -1218,10 +1218,13 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
                 &IID_ITaskbarList2,
                 &mut task_bar_list2 as *mut _ as *mut _,
             );
+            if hr != S_OK {
+                // In visual studio retrieving the taskbar list fails
+                return;
+            }
 
             let hr_init = (*(*task_bar_list2).lpVtbl).parent.HrInit;
-
-            if hr != S_OK || hr_init(task_bar_list2.cast()) != S_OK {
+            if hr_init(task_bar_list2.cast()) != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
@@ -1247,10 +1250,13 @@ pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
                 &IID_ITaskbarList,
                 &mut task_bar_list as *mut _ as *mut _,
             );
+            if hr != S_OK {
+                // In visual studio retrieving the taskbar list fails
+                return;
+            }
 
             let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
-
-            if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
+            if hr_init(task_bar_list.cast()) != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
