@@ -1,6 +1,6 @@
 # https://embarkstudios.github.io/cargo-deny/
 # cargo install cargo-deny
-# cargo deny --all-features --log-level error check
+# cargo update && cargo deny --all-features --log-level error check
 
 targets = [
     { triple = "aarch64-apple-darwin" },
