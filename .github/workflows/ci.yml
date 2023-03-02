@@ -39,7 +39,7 @@ jobs:
       with:
         command: check
         log-level: error
-        arguments: --all-features --target ${{ matrix.platform.target }}
+        arguments: --all-features --target ${{ matrix.platform }}
 
   tests:
     name: Tests
