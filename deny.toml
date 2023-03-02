@@ -1,0 +1,35 @@
+# https://embarkstudios.github.io/cargo-deny/
+# cargo install cargo-deny
+# cargo deny --all-features --log-level error check
+
+targets = [
+    { triple = "aarch64-apple-darwin" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "aarch64-linux-android" },
+    { triple = "wasm32-unknown-unknown" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+]
+
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "deny"
+ignore = []
+
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"        # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
+deny = []
+skip = []
+skip-tree = []
+
+
+[licenses]
+unlicensed = "allow"
+allow-osi-fsf-free = "either"
+copyleft = "allow"

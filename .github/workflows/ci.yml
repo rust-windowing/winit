@@ -119,3 +119,9 @@ jobs:
         !contains(matrix.platform.target, 'redox') &&
         matrix.rust_version != '1.64.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+
+    - uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        command: check
+        log-level: error
+        arguments: --all-features
