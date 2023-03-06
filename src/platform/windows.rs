@@ -226,6 +226,9 @@ pub trait WindowBuilderExtWindows {
     /// The shadow is hidden by default.
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> WindowBuilder;
+
+    /// whether to apply WS_EX_TOOLWINDOW to hide both window from taskbar and remove animations
+    fn with_tool_window(self, tool_window: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -268,6 +271,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> WindowBuilder {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_tool_window(mut self, tool_window: bool) -> WindowBuilder {
+        self.platform_specific.tool_window = tool_window;
         self
     }
 }

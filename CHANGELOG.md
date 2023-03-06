@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, add `WindowBuilderExtWindows::with_tool_window` to create a window with the `WS_EX_TOOLWINDOW` ex\_style.
+
 # 0.28.2
 
 - Implement `HasRawDisplayHandle` for `EventLoop`.
