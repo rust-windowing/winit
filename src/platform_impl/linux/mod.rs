@@ -892,12 +892,12 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn listen_device_events(&self, _filter: DeviceEvents) {
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
         match *self {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(_) => (),
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => evlp.listen_device_events(_filter),
+            EventLoopWindowTarget::X(ref evlp) => evlp.set_listen_device_events(_allowed),
         }
     }
 

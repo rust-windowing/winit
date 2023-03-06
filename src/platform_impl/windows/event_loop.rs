@@ -342,8 +342,8 @@ impl<T> EventLoopWindowTarget<T> {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
 
-    pub fn listen_device_events(&self, filter: DeviceEvents) {
-        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, filter);
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
     }
 }
 

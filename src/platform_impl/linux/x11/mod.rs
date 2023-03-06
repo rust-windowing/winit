@@ -105,7 +105,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
-    device_event_filter: Cell<DeviceEvents>,
+    device_events: Cell<DeviceEvents>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -264,11 +264,11 @@ impl<T: 'static> EventLoop<T> {
                 sender: redraw_sender, // not used again so no clone
                 waker: waker.clone(),
             },
-            device_event_filter: Default::default(),
+            device_events: Default::default(),
         };
 
         // Set initial device event filter.
-        window_target.update_device_event_filter(true);
+        window_target.update_listen_device_events(true);
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(window_target),
@@ -571,14 +571,14 @@ impl<T> EventLoopWindowTarget<T> {
         &self.xconn
     }
 
-    pub fn listen_device_events(&self, filter: DeviceEvents) {
-        self.device_event_filter.set(filter);
+    pub fn set_listen_device_events(&self, allowed: DeviceEvents) {
+        self.device_events.set(allowed);
     }
 
     /// Update the device event filter based on window focus.
-    pub fn update_device_event_filter(&self, focus: bool) {
-        let filter_events = self.device_event_filter.get() == DeviceEvents::Never
-            || (self.device_event_filter.get() == DeviceEvents::WhenFocused && !focus);
+    pub fn update_listen_device_events(&self, focus: bool) {
+        let filter_events = self.device_events.get() == DeviceEvents::Never
+            || (self.device_events.get() == DeviceEvents::WhenFocused && !focus);
 
         let mut mask = 0;
         if !filter_events {
