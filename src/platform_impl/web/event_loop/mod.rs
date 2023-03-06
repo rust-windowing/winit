@@ -8,7 +8,9 @@ pub use self::window_target::EventLoopWindowTarget;
 
 use super::{backend, device, window};
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, EventLoopBuilder, EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 
 use std::marker::PhantomData;
 

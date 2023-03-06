@@ -114,7 +114,10 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
-        let mut event_loop_created = EVENT_LOOP_CREATED.get_or_init(|| Mutex::new(false)).lock().unwrap();
+        let mut event_loop_created = EVENT_LOOP_CREATED
+            .get_or_init(|| Mutex::new(false))
+            .lock()
+            .unwrap();
         if *event_loop_created {
             panic!("Creating EventLoop multiple times is not supported.");
         } else {
