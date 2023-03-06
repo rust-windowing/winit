@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On web, allow event loops to be recreated with `spawn`.
 - Bump MSRV from `1.60` to `1.64`.
 - Fix macOS memory leaks.
 

@@ -9,6 +9,7 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::sync::Mutex;
 use std::{error, fmt};
 
 use instant::{Duration, Instant};
@@ -66,6 +67,8 @@ impl EventLoopBuilder<()> {
     }
 }
 
+static EVENT_LOOP_CREATED: OnceCell<Mutex<bool>> = OnceCell::new();
+
 impl<T> EventLoopBuilder<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
@@ -111,15 +114,25 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
-        static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
-        if EVENT_LOOP_CREATED.set(()).is_err() {
+        let mut event_loop_created = EVENT_LOOP_CREATED.get_or_init(|| Mutex::new(false)).lock().unwrap();
+        if *event_loop_created {
             panic!("Creating EventLoop multiple times is not supported.");
+        } else {
+            *event_loop_created = true;
         }
+
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
             event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn allow_event_loop_recreation() {
+        if let Some(event_loop_created) = EVENT_LOOP_CREATED.get() {
+            *event_loop_created.lock().unwrap() = false
         }
     }
 }
