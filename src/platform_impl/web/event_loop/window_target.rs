@@ -85,6 +85,8 @@ impl<T> EventLoopWindowTarget<T> {
             });
         });
 
+        canvas.on_contextmenu(prevent_default);
+
         let runner = self.runner.clone();
         canvas.on_keyboard_press(
             move |scancode, virtual_keycode, modifiers| {

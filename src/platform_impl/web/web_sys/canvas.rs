@@ -27,6 +27,7 @@ pub struct Canvas {
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_contextmenu: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
@@ -72,6 +73,12 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
+        // Prevent double clicks on the canvas from causing text selections elsewhere on the page
+        // Calling preventDefault within a dblclick/pointerdown handler on the canvas does not work.
+        for prefix in ["", "-webkit-", "-moz-", "-ms-"] {
+            super::set_canvas_style_property(&canvas, &format!("{}user-select", prefix), "none");
+        }
+
         let mouse_state = if has_pointer_event() {
             MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
         } else {
@@ -87,6 +94,7 @@ impl Canvas {
             on_touch_end: None,
             on_blur: None,
             on_focus: None,
+            on_contextmenu: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
             on_received_character: None,
@@ -169,6 +177,19 @@ impl Canvas {
     {
         self.on_focus = Some(self.common.add_event("focus", move |_: FocusEvent| {
             handler();
+        }));
+    }
+
+    pub fn on_contextmenu(&mut self, prevent_default: bool) {
+        // Setup a handler to prevent the default context menu from appearing.
+        //
+        // contextmenu events normally occur on right click and can interfere with the sequence of
+        // pointer events, e.g. https://github.com/rust-windowing/winit/issues/2608.
+        self.on_contextmenu = Some(self.common.add_event("contextmenu", move |event: Event| {
+            if prevent_default {
+                trace!("contextmenu event ignored because prevent_default is true");
+                event.prevent_default();
+            }
         }));
     }
 
@@ -364,6 +385,7 @@ impl Canvas {
     pub fn remove_listeners(&mut self) {
         self.on_focus = None;
         self.on_blur = None;
+        self.on_contextmenu = None;
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
         self.on_received_character = None;

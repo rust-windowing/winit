@@ -11,6 +11,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
 - **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
 - **Breaking:** `CursorIcon::Arrow` was removed.
+- **Breaking:** Web: Canvases will now capture the contextmenu if prevent_default is enabled so they don't interfere with right click pointer events.
+- **Breaking:** Web: Canvases will now have `user-select: none` to prevent double clicks from selecting text outside the canvas.
 - On Wayland, fix maximized startup not taking full size on GNOME.
 - On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
 - On Wayland, `Window::outer_size` now accounts for **client side** decorations.
