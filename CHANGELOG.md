@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Bump MSRV from `1.60` to `1.64`.
+
 # 0.28.2
 
 - Implement `HasRawDisplayHandle` for `EventLoop`.

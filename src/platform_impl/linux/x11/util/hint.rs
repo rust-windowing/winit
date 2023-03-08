@@ -197,7 +197,7 @@ impl<'a> NormalHints<'a> {
     }
 
     pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
-        has_flag(self.size_hints.flags, ffi::PResizeInc).then(|| {
+        has_flag(self.size_hints.flags, ffi::PResizeInc).then_some({
             (
                 self.size_hints.width_inc as u32,
                 self.size_hints.height_inc as u32,
