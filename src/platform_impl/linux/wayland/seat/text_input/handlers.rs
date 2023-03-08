@@ -72,10 +72,10 @@ pub(super) fn handle_text_input(
             let text = text.unwrap_or_default();
             let cursor_begin = usize::try_from(cursor_begin)
                 .ok()
-                .and_then(|idx| text.is_char_boundary(idx).then(|| idx));
+                .and_then(|idx| text.is_char_boundary(idx).then_some(idx));
             let cursor_end = usize::try_from(cursor_end)
                 .ok()
-                .and_then(|idx| text.is_char_boundary(idx).then(|| idx));
+                .and_then(|idx| text.is_char_boundary(idx).then_some(idx));
 
             inner.pending_preedit = Some(Preedit {
                 text,

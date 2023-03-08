@@ -263,7 +263,7 @@ impl ImeContext {
             ptr::null_mut::<()>(),
         );
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     unsafe fn create_preedit_ic(
@@ -302,7 +302,7 @@ impl ImeContext {
             ptr::null_mut::<()>(),
         );
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     unsafe fn create_nothing_ic(
@@ -320,7 +320,7 @@ impl ImeContext {
             ptr::null_mut::<()>(),
         );
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     pub(crate) fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {

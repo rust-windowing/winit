@@ -20,7 +20,7 @@ your description of the issue as detailed as possible:
 
 When making a code contribution to winit, before opening your pull request, please make sure that:
 
-- your patch builds with Winit's minimal supported rust version - Rust 1.60.
+- your patch builds with Winit's minimal supported rust version - Rust 1.64.
 - you tested your modifications on all the platforms impacted, or if not possible detail which platforms
   were not tested, and what should be tested, so that a maintainer or another contributor can test them
 - you updated any relevant documentation in winit

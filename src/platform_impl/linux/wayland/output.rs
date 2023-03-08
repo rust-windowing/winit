@@ -171,7 +171,7 @@ impl MonitorHandle {
         sctk::output::with_output_info(&self.proxy, |info| {
             info.modes
                 .iter()
-                .find_map(|mode| mode.is_current.then(|| mode.refresh_rate as u32))
+                .find_map(|mode| mode.is_current.then_some(mode.refresh_rate as u32))
         })
         .flatten()
     }
