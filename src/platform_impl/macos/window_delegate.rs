@@ -42,6 +42,8 @@ declare_class!(
 
         // Used to prevent redundant events.
         previous_scale_factor: f64,
+
+        _dealloc_helper: IvarDrop<Box<super::util::DeallocHelper<WinitWindowDelegate>>>,
     }
 
     unsafe impl ClassType for WinitWindowDelegate {
@@ -63,6 +65,8 @@ declare_class!(
                 Ivar::write(&mut this.initial_fullscreen, initial_fullscreen);
                 Ivar::write(&mut this.previous_position, None);
                 Ivar::write(&mut this.previous_scale_factor, scale_factor);
+                let helper = unsafe { super::util::DeallocHelper::new(&*this) };
+                Ivar::write(&mut this._dealloc_helper, Box::new(helper));
 
                 if scale_factor != 1.0 {
                     this.queue_static_scale_factor_changed_event();

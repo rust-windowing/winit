@@ -113,6 +113,7 @@ declare_class!(
         // SAFETY: These are initialized in WinitWindow::new, right after it is created.
         shared_state: IvarDrop<Box<Mutex<SharedState>>>,
         decorations: IvarDrop<Box<AtomicBool>>,
+        _dealloc_helper: IvarDrop<Box<super::util::DeallocHelper<WinitWindow>>>,
     }
 
     unsafe impl ClassType for WinitWindow {
@@ -329,6 +330,8 @@ impl WinitWindow {
                     &mut this.decorations,
                     Box::new(AtomicBool::new(attrs.decorations)),
                 );
+                let helper = unsafe { super::util::DeallocHelper::new(&*this) };
+                Ivar::write(&mut this._dealloc_helper, Box::new(helper));
 
                 this.setReleasedWhenClosed(false);
                 this.setTitle(&NSString::from_str(&attrs.title));

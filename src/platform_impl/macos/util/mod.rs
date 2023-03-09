@@ -6,6 +6,7 @@ pub(crate) use self::r#async::*;
 
 use core_graphics::display::CGDisplay;
 use objc2::foundation::{CGFloat, NSNotFound, NSPoint, NSRange, NSRect, NSUInteger};
+use objc2::{msg_send, ClassType};
 
 use crate::dpi::LogicalPosition;
 
@@ -62,4 +63,31 @@ pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
         position.x as CGFloat,
         CGDisplay::main().pixels_high() as CGFloat - position.y as CGFloat,
     )
+}
+
+/// Helper for the broken `dealloc` impl of `declare_class!`
+#[derive(Debug)]
+pub(crate) struct DeallocHelper<T: ClassType>
+where
+    T::Super: ClassType,
+{
+    ptr: *const T,
+}
+
+impl<T: ClassType> DeallocHelper<T>
+where
+    T::Super: ClassType,
+{
+    pub(crate) unsafe fn new(ptr: *const T) -> Self {
+        Self { ptr }
+    }
+}
+
+impl<T: ClassType> Drop for DeallocHelper<T>
+where
+    T::Super: ClassType,
+{
+    fn drop(&mut self) {
+        unsafe { msg_send![super(self.ptr, T::Super::class()), dealloc] }
+    }
 }

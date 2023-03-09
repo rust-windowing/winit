@@ -140,6 +140,7 @@ declare_class!(
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
         accepts_first_mouse: bool,
+        _dealloc_helper: IvarDrop<Box<super::util::DeallocHelper<WinitView>>>,
     }
 
     unsafe impl ClassType for WinitView {
@@ -174,6 +175,8 @@ declare_class!(
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
                 Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
+                let helper = unsafe { super::util::DeallocHelper::new(&*this) };
+                Ivar::write(&mut this._dealloc_helper, Box::new(helper));
 
                 this.setPostsFrameChangedNotifications(true);
 
