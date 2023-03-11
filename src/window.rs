@@ -1534,22 +1534,19 @@ bitflags! {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Wayland:** Unsupported.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///
     /// This is useful for a widget-based app.
     AlwaysOnBottom,
+
     /// The default.
+    #[default]
     Normal,
+
     /// The window will always be on top of normal windows.
     AlwaysOnTop,
-}
-
-impl Default for WindowLevel {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
