@@ -331,6 +331,7 @@ impl<T> EventLoopWindowTarget<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
         self.p
             .available_monitors()
             .into_iter()

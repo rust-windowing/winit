@@ -1299,6 +1299,7 @@ impl Window {
     /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
         self.window
             .available_monitors()
             .into_iter()
