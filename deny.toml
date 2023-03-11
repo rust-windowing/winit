@@ -1,8 +1,8 @@
 # https://embarkstudios.github.io/cargo-deny/
 # cargo install cargo-deny
-# cargo update && cargo deny --all-features --log-level error check
-
-# If we don't specify this, all targets are checked
+# cargo update && cargo deny --all-features --log-level error --target aarch64-apple-ios check
+# Note: running just `cargo deny check` without a `--target` will result in
+# false positives due to https://github.com/EmbarkStudios/cargo-deny/issues/324
 targets = [
     { triple = "aarch64-apple-ios" },
     { triple = "aarch64-linux-android" },
