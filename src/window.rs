@@ -1388,10 +1388,11 @@ pub enum CursorGrabMode {
 }
 
 /// Describes the appearance of the mouse cursor.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
+    #[default]
     Default,
     /// A simple crosshair.
     Crosshair,
@@ -1444,12 +1445,6 @@ pub enum CursorIcon {
     NwseResize,
     ColResize,
     RowResize,
-}
-
-impl Default for CursorIcon {
-    fn default() -> Self {
-        CursorIcon::Default
-    }
 }
 
 /// Defines the orientation that a window resize will be performed.
@@ -1507,24 +1502,20 @@ pub enum Theme {
 ///
 /// [`Critical`]: Self::Critical
 /// [`Informational`]: Self::Informational
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     Critical,
+
     /// ## Platform-specific
     ///
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    #[default]
     Informational,
-}
-
-impl Default for UserAttentionType {
-    fn default() -> Self {
-        UserAttentionType::Informational
-    }
 }
 
 bitflags! {

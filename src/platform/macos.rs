@@ -122,20 +122,17 @@ impl WindowExtMacOS for Window {
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
+    #[default]
     Regular,
+
     /// Corresponds to `NSApplicationActivationPolicyAccessory`.
     Accessory,
+
     /// Corresponds to `NSApplicationActivationPolicyProhibited`.
     Prohibited,
-}
-
-impl Default for ActivationPolicy {
-    fn default() -> Self {
-        ActivationPolicy::Regular
-    }
 }
 
 /// Additional methods on [`WindowBuilder`] that are specific to MacOS.
@@ -348,7 +345,7 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
 /// Option as alt behavior.
 ///
 /// The default is `None`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.
@@ -361,11 +358,6 @@ pub enum OptionAsAlt {
     Both,
 
     /// No special handling is applied for `Option` key.
+    #[default]
     None,
-}
-
-impl Default for OptionAsAlt {
-    fn default() -> Self {
-        OptionAsAlt::None
-    }
 }
