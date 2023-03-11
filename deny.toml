@@ -2,14 +2,20 @@
 # cargo install cargo-deny
 # cargo update && cargo deny --all-features --log-level error check
 
+# If we don't specify this, all targets are checked
 targets = [
-    { triple = "aarch64-apple-darwin" },
-    { triple = "aarch64-apple-darwin" },
+    { triple = "aarch64-apple-ios" },
     { triple = "aarch64-linux-android" },
+    { triple = "i686-pc-windows-gnu" },
+    { triple = "i686-pc-windows-msvc" },
+    { triple = "i686-unknown-linux-gnu" },
+    { triple = "wasm32-unknown-unknown" },
     { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-apple-ios" },
+    { triple = "x86_64-pc-windows-gnu" },
     { triple = "x86_64-pc-windows-msvc" },
     { triple = "x86_64-unknown-linux-gnu" },
-    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "x86_64-unknown-redox" },
 ]
 
 
