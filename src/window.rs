@@ -1299,6 +1299,7 @@ impl Window {
     /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
         self.window
             .available_monitors()
             .into_iter()
@@ -1388,10 +1389,11 @@ pub enum CursorGrabMode {
 }
 
 /// Describes the appearance of the mouse cursor.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
+    #[default]
     Default,
     /// A simple crosshair.
     Crosshair,
@@ -1444,12 +1446,6 @@ pub enum CursorIcon {
     NwseResize,
     ColResize,
     RowResize,
-}
-
-impl Default for CursorIcon {
-    fn default() -> Self {
-        CursorIcon::Default
-    }
 }
 
 /// Defines the orientation that a window resize will be performed.
@@ -1507,24 +1503,20 @@ pub enum Theme {
 ///
 /// [`Critical`]: Self::Critical
 /// [`Informational`]: Self::Informational
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
     ///
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     Critical,
+
     /// ## Platform-specific
     ///
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    #[default]
     Informational,
-}
-
-impl Default for UserAttentionType {
-    fn default() -> Self {
-        UserAttentionType::Informational
-    }
 }
 
 bitflags! {
@@ -1543,22 +1535,19 @@ bitflags! {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Wayland:** Unsupported.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum WindowLevel {
     /// The window will always be below normal windows.
     ///
     /// This is useful for a widget-based app.
     AlwaysOnBottom,
+
     /// The default.
+    #[default]
     Normal,
+
     /// The window will always be on top of normal windows.
     AlwaysOnTop,
-}
-
-impl Default for WindowLevel {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// Generic IME purposes for use in [`Window::set_ime_purpose`].
