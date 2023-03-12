@@ -157,6 +157,7 @@ impl<T: 'static> Shared<T> {
 
     pub fn request_redraw(&self, id: WindowId) {
         self.0.redraw_pending.borrow_mut().insert(id);
+        self.send_events(iter::empty());
     }
 
     pub fn init(&self) {
