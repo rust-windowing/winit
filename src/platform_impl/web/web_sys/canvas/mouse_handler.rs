@@ -40,6 +40,7 @@ impl MouseHandler {
             mouse_capture_state: Rc::new(RefCell::new(MouseCaptureState::NotCaptured)),
         }
     }
+
     pub fn on_cursor_leave<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
         F: 'static + FnMut(i32),

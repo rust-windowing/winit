@@ -1,3 +1,6 @@
+use self::mouse_handler::MouseHandler;
+use self::pointer_handler::PointerHandler;
+
 use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
@@ -27,13 +30,15 @@ pub struct Canvas {
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_contextmenu: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
-    mouse_state: MouseState,
+    mouse_handler: MouseHandler,
+    pointer_handler: Option<PointerHandler>,
 }
 
 struct Common {
@@ -72,11 +77,11 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let mouse_state = if has_pointer_event() {
-            MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
-        } else {
-            MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
-        };
+        // Prevent double clicks on the canvas from causing text selections elsewhere on the page
+        // Calling preventDefault within a dblclick/pointerdown handler on the canvas does not work.
+        for prefix in ["", "-webkit-", "-moz-", "-ms-"] {
+            super::set_canvas_style_property(&canvas, &format!("{}user-select", prefix), "none");
+        }
 
         Ok(Canvas {
             common: Common {
@@ -87,13 +92,15 @@ impl Canvas {
             on_touch_end: None,
             on_blur: None,
             on_focus: None,
+            on_contextmenu: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
             on_received_character: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
-            mouse_state,
+            mouse_handler: mouse_handler::MouseHandler::new(),
+            pointer_handler: has_pointer_event().then(|| pointer_handler::PointerHandler::new()),
         })
     }
 
@@ -169,6 +176,19 @@ impl Canvas {
     {
         self.on_focus = Some(self.common.add_event("focus", move |_: FocusEvent| {
             handler();
+        }));
+    }
+
+    pub fn on_contextmenu(&mut self, prevent_default: bool) {
+        // Setup a handler to prevent the default context menu from appearing.
+        //
+        // contextmenu events normally occur on right click and can interfere with the sequence of
+        // pointer events, e.g. https://github.com/rust-windowing/winit/issues/2608.
+        self.on_contextmenu = Some(self.common.add_event("contextmenu", move |event: Event| {
+            if prevent_default {
+                trace!("contextmenu event ignored because prevent_default is true");
+                event.prevent_default();
+            }
         }));
     }
 
@@ -248,20 +268,22 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
-        }
+        self.mouse_handler.on_cursor_leave(&self.common, handler);
+        // match &mut self.mouse_state {
+        //     MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
+        //     MouseState::NoPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
+        // }
     }
 
     pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
-        }
+        self.mouse_handler.on_cursor_enter(&self.common, handler);
+        // match &mut self.mouse_state {
+        //     MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
+        //     MouseState::NoPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
+        // }
     }
 
     pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
@@ -269,11 +291,10 @@ impl Canvas {
         M: 'static + FnMut(i32, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_mouse_release(&self.common, mouse_handler, touch_handler)
-            }
-            MouseState::NoPointerEvent(h) => h.on_mouse_release(&self.common, mouse_handler),
+        self.mouse_handler
+            .on_mouse_release(&self.common, mouse_handler);
+        if let Some(pointer_handler) = &mut self.pointer_handler {
+            pointer_handler.on_mouse_release(&self.common, touch_handler);
         }
     }
 
@@ -282,11 +303,10 @@ impl Canvas {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_mouse_press(&self.common, mouse_handler, touch_handler)
-            }
-            MouseState::NoPointerEvent(h) => h.on_mouse_press(&self.common, mouse_handler),
+        self.mouse_handler
+            .on_mouse_press(&self.common, mouse_handler);
+        if let Some(pointer_handler) = &mut self.pointer_handler {
+            pointer_handler.on_mouse_press(&self.common, touch_handler);
         }
     }
 
@@ -299,11 +319,10 @@ impl Canvas {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_cursor_move(&self.common, mouse_handler, touch_handler, prevent_default)
-            }
-            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, mouse_handler),
+        self.mouse_handler
+            .on_cursor_move(&self.common, mouse_handler);
+        if let Some(pointer_handler) = &mut self.pointer_handler {
+            pointer_handler.on_cursor_move(&self.common, touch_handler, prevent_default);
         }
     }
 
@@ -311,8 +330,8 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
-            h.on_touch_cancel(&self.common, handler)
+        if let Some(pointer_handler) = &mut self.pointer_handler {
+            pointer_handler.on_touch_cancel(&self.common, handler);
         }
     }
 
@@ -364,15 +383,16 @@ impl Canvas {
     pub fn remove_listeners(&mut self) {
         self.on_focus = None;
         self.on_blur = None;
+        self.on_contextmenu = None;
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
         self.on_received_character = None;
         self.on_mouse_wheel = None;
         self.on_fullscreen_change = None;
         self.on_dark_mode = None;
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.remove_listeners(),
-            MouseState::NoPointerEvent(h) => h.remove_listeners(),
+        self.mouse_handler.remove_listeners();
+        if let Some(pointer_handler) = &mut self.pointer_handler {
+            pointer_handler.remove_listeners();
         }
     }
 }
@@ -471,12 +491,6 @@ impl Common {
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
     }
-}
-
-/// Pointer events are supported or not.
-enum MouseState {
-    HasPointerEvent(pointer_handler::PointerHandler),
-    NoPointerEvent(mouse_handler::MouseHandler),
 }
 
 /// Returns whether pointer events are supported.
