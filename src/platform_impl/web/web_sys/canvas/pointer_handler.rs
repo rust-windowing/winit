@@ -23,11 +23,8 @@ impl PointerHandler {
         }
     }
 
-    pub fn on_mouse_release<F>(
-        &mut self,
-        canvas_common: &super::Common,
-        mut handler: F,
-    ) where
+    pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -46,11 +43,8 @@ impl PointerHandler {
         ));
     }
 
-    pub fn on_mouse_press<F>(
-        &mut self,
-        canvas_common: &super::Common,
-        mut handler: F,
-    ) where
+    pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
