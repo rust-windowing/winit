@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # 0.28.3
 
 - Fix macOS memory leaks.
+- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
 
 # 0.28.2
 
