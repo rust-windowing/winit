@@ -1,3 +1,5 @@
+use super::proxy::{self, AsyncSender};
+use super::EventLoopProxy;
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop::ControlFlow;
@@ -32,6 +34,7 @@ pub struct Execution<T: 'static> {
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    proxy_sender: AsyncSender<T>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -99,7 +102,9 @@ impl<T: 'static> Runner<T> {
 
 impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
-        Shared(Rc::new(Execution {
+        let (proxy_sender, mut proxy_receiver) = proxy::channel();
+
+        let this = Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
@@ -108,7 +113,22 @@ impl<T: 'static> Shared<T> {
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
-        }))
+            proxy_sender,
+        }));
+
+        wasm_bindgen_futures::spawn_local({
+            let runner = this.clone();
+            async move {
+                while let Ok(value) = (&mut proxy_receiver).await {
+                    runner.send_event(Event::UserEvent(value))
+                }
+
+                // An error was returned because the channel was closed, which
+                // happens when the event loop gets closed, so we can stop now.
+            }
+        });
+
+        this
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -153,6 +173,10 @@ impl<T: 'static> Shared<T> {
         *id += 1;
 
         *id
+    }
+
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy::new(self.0.proxy_sender.clone())
     }
 
     pub fn request_redraw(&self, id: WindowId) {
