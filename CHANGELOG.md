@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # 0.28.3
 
 - Fix macOS memory leaks.
+- On Web, `EventLoopProxy` now implements `Send`.
 
 # 0.28.2
 

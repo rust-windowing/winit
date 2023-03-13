@@ -36,7 +36,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.runner.clone())
+        self.runner.create_proxy()
     }
 
     pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
