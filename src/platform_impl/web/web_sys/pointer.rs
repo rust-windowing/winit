@@ -96,6 +96,7 @@ impl PointerHandler {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
@@ -105,12 +106,13 @@ impl PointerHandler {
                 match event.pointer_type().as_str() {
                     "touch" => touch_handler(
                         event.pointer_id(),
-                        event::touch_position(&event, &canvas).to_physical(super::scale_factor()),
+                        event::touch_position(&event, &canvas)
+                            .to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     ),
                     "mouse" => mouse_handler(
                         event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::scale_factor()),
+                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_button(&event).expect("no mouse button released"),
                     ),
                     _ => (),
@@ -131,6 +133,7 @@ impl PointerHandler {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
@@ -149,14 +152,14 @@ impl PointerHandler {
                         touch_handler(
                             event.pointer_id(),
                             event::touch_position(&event, &canvas)
-                                .to_physical(super::scale_factor()),
+                                .to_physical(super::scale_factor(&window)),
                             Force::Normalized(event.pressure() as f64),
                         );
                     }
                     "mouse" => {
                         mouse_handler(
                             event.pointer_id(),
-                            event::mouse_position(&event).to_physical(super::scale_factor()),
+                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                             event::mouse_button(&event).expect("no mouse button pressed"),
                         );
 
@@ -185,6 +188,7 @@ impl PointerHandler {
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
         B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_cursor_move = Some(canvas_common.add_event(
             if has_pointer_raw_support(&canvas) {
@@ -230,7 +234,7 @@ impl PointerHandler {
 
                     button_handler(
                         id,
-                        event::mouse_position(&event).to_physical(super::scale_factor()),
+                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_buttons(&event),
                         button,
                     );
@@ -261,13 +265,13 @@ impl PointerHandler {
                     match pointer_type.as_str() {
                         "mouse" => mouse_handler(
                             id,
-                            event::mouse_position(&event).to_physical(super::scale_factor()),
-                            event::mouse_delta(&event).to_physical(super::scale_factor()),
+                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
+                            event::mouse_delta(&event).to_physical(super::scale_factor(&window)),
                         ),
                         "touch" => touch_handler(
                             id,
                             event::touch_position(&event, &canvas)
-                                .to_physical(super::scale_factor()),
+                                .to_physical(super::scale_factor(&window)),
                             Force::Normalized(event.pressure() as f64),
                         ),
                         _ => unreachable!("didn't return early before"),
@@ -281,6 +285,7 @@ impl PointerHandler {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_touch_cancel = Some(canvas_common.add_event(
             "pointercancel",
@@ -288,7 +293,8 @@ impl PointerHandler {
                 if event.pointer_type() == "touch" {
                     handler(
                         event.pointer_id(),
-                        event::touch_position(&event, &canvas).to_physical(super::scale_factor()),
+                        event::touch_position(&event, &canvas)
+                            .to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 }

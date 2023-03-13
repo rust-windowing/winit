@@ -36,19 +36,20 @@ pub struct Canvas {
 }
 
 pub struct Common {
+    pub window: web_sys::Window,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
 impl Canvas {
-    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+    pub fn create(
+        window: web_sys::Window,
+        attr: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Self, RootOE> {
         let canvas = match attr.canvas {
             Some(canvas) => canvas,
             None => {
-                let window = web_sys::window()
-                    .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
-
                 let document = window
                     .document()
                     .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
@@ -73,6 +74,7 @@ impl Canvas {
 
         Ok(Canvas {
             common: Common {
+                window,
                 raw: canvas,
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
@@ -93,9 +95,9 @@ impl Canvas {
         if lock {
             self.raw().request_pointer_lock();
         } else {
-            let window = web_sys::window()
-                .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
-            let document = window
+            let document = self
+                .common
+                .window
                 .document()
                 .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
             document.exit_pointer_lock();
@@ -294,12 +296,13 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
+        let window = self.common.window.clone();
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             if prevent_default {
                 event.prevent_default();
             }
 
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
+            if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
                 let modifiers = event::mouse_modifiers(&event);
                 handler(0, delta, modifiers);
             }
@@ -325,7 +328,8 @@ impl Canvas {
                 Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
                     as Box<dyn FnMut(_)>,
             );
-        self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
+        self.on_dark_mode =
+            MediaQueryListHandle::new(&self.common.window, "(prefers-color-scheme: dark)", closure);
     }
 
     pub fn request_fullscreen(&self) {
@@ -426,6 +430,6 @@ impl Common {
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        super::is_fullscreen(&self.raw)
+        super::is_fullscreen(&self.window, &self.raw)
     }
 }

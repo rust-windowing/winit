@@ -8,10 +8,10 @@ pub(super) struct MediaQueryListHandle {
 
 impl MediaQueryListHandle {
     pub fn new(
+        window: &web_sys::Window,
         media_query: &str,
         listener: Closure<dyn FnMut(MediaQueryListEvent)>,
     ) -> Option<Self> {
-        let window = web_sys::window().expect("Failed to obtain window");
         let mql = window
             .match_media(media_query)
             .ok()

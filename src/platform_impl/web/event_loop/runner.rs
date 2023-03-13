@@ -27,6 +27,7 @@ pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
     events: RefCell<VecDeque<Event<'static, T>>>,
     id: RefCell<u32>,
+    window: web_sys::Window,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
@@ -102,6 +103,8 @@ impl<T: 'static> Shared<T> {
         Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
             events: RefCell::new(VecDeque::new()),
+            #[allow(clippy::disallowed_methods)]
+            window: web_sys::window().expect("only callable from inside the `Window`"),
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
@@ -109,6 +112,10 @@ impl<T: 'static> Shared<T> {
             scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
         }))
+    }
+
+    pub fn window(&self) -> &web_sys::Window {
+        &self.0.window
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -135,15 +142,19 @@ impl<T: 'static> Shared<T> {
 
         let close_instance = self.clone();
         *self.0.unload_event_handle.borrow_mut() =
-            Some(backend::on_unload(move || close_instance.handle_unload()));
+            Some(backend::on_unload(self.window(), move || {
+                close_instance.handle_unload()
+            }));
     }
 
     pub(crate) fn set_on_scale_change<F>(&self, handler: F)
     where
         F: 'static + FnMut(ScaleChangeArgs),
     {
-        *self.0.scale_change_detector.borrow_mut() =
-            Some(backend::ScaleChangeDetector::new(handler));
+        *self.0.scale_change_detector.borrow_mut() = Some(backend::ScaleChangeDetector::new(
+            self.window().clone(),
+            handler,
+        ));
     }
 
     // Generate a strictly increasing ID
@@ -340,7 +351,7 @@ impl<T: 'static> Shared<T> {
             );
 
             // Then we resize the canvas to the new size and send a `Resized` event:
-            backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
+            backend::set_canvas_size(self.window(), &canvas, crate::dpi::Size::Physical(new_size));
             self.handle_single_event_sync(
                 Event::WindowEvent {
                     window_id: id,
@@ -431,7 +442,10 @@ impl<T: 'static> Shared<T> {
             ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    request: backend::AnimationFrameRequest::new(move || cloned.poll()),
+                    request: backend::AnimationFrameRequest::new(
+                        self.window().clone(),
+                        move || cloned.poll(),
+                    ),
                 }
             }
             ControlFlow::Wait => State::Wait {
@@ -452,6 +466,7 @@ impl<T: 'static> Shared<T> {
                     start,
                     end,
                     timeout: backend::Timeout::new(
+                        self.window().clone(),
                         move || cloned.resume_time_reached(start, end),
                         delay,
                     ),

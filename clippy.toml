@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "web_sys::window", reason = "is not available in every context" },
+]
