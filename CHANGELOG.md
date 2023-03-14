@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Fix macOS memory leaks.
+
 # 0.28.2
 
 - Implement `HasRawDisplayHandle` for `EventLoop`.

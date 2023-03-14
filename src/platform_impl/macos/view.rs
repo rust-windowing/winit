@@ -7,7 +7,7 @@ use objc2::foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSObject, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
-use objc2::rc::{Id, Owned, Shared};
+use objc2::rc::{Id, Owned, Shared, WeakId};
 use objc2::runtime::{Object, Sel};
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
@@ -136,7 +136,8 @@ declare_class!(
     #[derive(Debug)]
     #[allow(non_snake_case)]
     pub(super) struct WinitView {
-        _ns_window: IvarDrop<Id<WinitWindow, Shared>>,
+        // Weak reference because the window keeps a strong reference to the view
+        _ns_window: IvarDrop<Box<WeakId<WinitWindow>>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
         accepts_first_mouse: bool,
@@ -167,7 +168,10 @@ declare_class!(
                     forward_key_to_app: false,
                 };
 
-                Ivar::write(&mut this._ns_window, window.retain());
+                Ivar::write(
+                    &mut this._ns_window,
+                    Box::new(WeakId::new(&window.retain())),
+                );
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
                 Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
@@ -873,11 +877,11 @@ impl WinitView {
         // (which is incompatible with `frameDidChange:`)
         //
         // unsafe { msg_send_id![self, window] }
-        (*self._ns_window).clone()
+        self._ns_window.load().expect("view to have a window")
     }
 
     fn window_id(&self) -> WindowId {
-        WindowId(self._ns_window.id())
+        WindowId(self.window().id())
     }
 
     fn queue_event(&self, event: WindowEvent<'static>) {

@@ -68,7 +68,7 @@ ndk = "0.7.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = "=0.3.0-beta.3"
+objc2 = ">=0.3.0-beta.3, <0.3.0-beta.4" # Allow `0.3.0-beta.3.patch-leaks`
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.22.3"
