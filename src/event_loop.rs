@@ -9,11 +9,10 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{error, fmt};
 
 use instant::{Duration, Instant};
-use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
@@ -67,7 +66,7 @@ impl EventLoopBuilder<()> {
     }
 }
 
-static EVENT_LOOP_CREATED: OnceCell<Mutex<bool>> = OnceCell::new();
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
 
 impl<T> EventLoopBuilder<T> {
     /// Start building a new event loop, with the given type as the user event
@@ -114,14 +113,8 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
-        let mut event_loop_created = EVENT_LOOP_CREATED
-            .get_or_init(|| Mutex::new(false))
-            .lock()
-            .unwrap();
-        if *event_loop_created {
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             panic!("Creating EventLoop multiple times is not supported.");
-        } else {
-            *event_loop_created = true;
         }
 
         // Certain platforms accept a mutable reference in their API.
@@ -132,11 +125,9 @@ impl<T> EventLoopBuilder<T> {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(wasm_platform)]
     pub(crate) fn allow_event_loop_recreation() {
-        if let Some(event_loop_created) = EVENT_LOOP_CREATED.get() {
-            *event_loop_created.lock().unwrap() = false
-        }
+        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 }
 
