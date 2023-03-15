@@ -1,8 +1,8 @@
-use std::future::Future;
-use std::pin::Pin;
+use std::future;
+use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
+use std::task::{Poll, Waker};
 
 use crate::event_loop::EventLoopClosed;
 
@@ -39,7 +39,10 @@ pub fn channel<T: 'static>() -> (AsyncSender<T>, AsyncReceiver<T>) {
         sender,
         waker: Arc::clone(&waker),
     };
-    let receiver = AsyncReceiver { receiver, waker };
+    let receiver = AsyncReceiver {
+        receiver: Rc::new(receiver),
+        waker,
+    };
 
     (sender, receiver)
 }
@@ -71,15 +74,13 @@ impl<T: 'static> Clone for AsyncSender<T> {
 }
 
 pub struct AsyncReceiver<T: 'static> {
-    receiver: Receiver<T>,
+    receiver: Rc<Receiver<T>>,
     waker: Arc<Mutex<Option<Waker>>>,
 }
 
-impl<T: 'static> Future for AsyncReceiver<T> {
-    type Output = Result<T, RecvError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.receiver.try_recv() {
+impl<T: 'static> AsyncReceiver<T> {
+    pub async fn next(&mut self) -> Result<T, RecvError> {
+        future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
             Err(TryRecvError::Empty) => {
                 *self.waker.lock().unwrap() = Some(cx.waker().clone());
@@ -91,6 +92,7 @@ impl<T: 'static> Future for AsyncReceiver<T> {
                 }
             }
             Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
-        }
+        })
+        .await
     }
 }

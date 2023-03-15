@@ -119,7 +119,7 @@ impl<T: 'static> Shared<T> {
         wasm_bindgen_futures::spawn_local({
             let runner = this.clone();
             async move {
-                while let Ok(value) = (&mut proxy_receiver).await {
+                while let Ok(value) = proxy_receiver.next().await {
                     runner.send_event(Event::UserEvent(value))
                 }
 
