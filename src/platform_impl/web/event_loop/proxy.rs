@@ -36,7 +36,7 @@ pub fn channel<T: 'static>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let waker = Arc::new(Mutex::new(None));
 
     let sender = AsyncSender {
-        sender,
+        sender: Some(sender),
         waker: Arc::clone(&waker),
     };
     let receiver = AsyncReceiver {
@@ -48,13 +48,13 @@ pub fn channel<T: 'static>() -> (AsyncSender<T>, AsyncReceiver<T>) {
 }
 
 pub struct AsyncSender<T: 'static> {
-    sender: Sender<T>,
+    sender: Option<Sender<T>>,
     waker: Arc<Mutex<Option<Waker>>>,
 }
 
 impl<T: 'static> AsyncSender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
-        self.sender.send(event)?;
+        self.sender.as_ref().unwrap().send(event)?;
 
         if let Some(waker) = self.waker.lock().unwrap().take() {
             waker.wake();
@@ -69,6 +69,27 @@ impl<T: 'static> Clone for AsyncSender<T> {
         Self {
             sender: self.sender.clone(),
             waker: self.waker.clone(),
+        }
+    }
+}
+
+impl<T> Drop for AsyncSender<T> {
+    fn drop(&mut self) {
+        // The corresponding `Receiver` is used to spawn a future that waits
+        // for messages in a loop. The future itself needs to be cleaned up
+        // somehow, which is signalled by dropping the last `Sender`. But it
+        // will do nothing if not woken up.
+
+        // We have to drop the potentially last `Sender` **before** checking if
+        // this is the last `Sender`. `Arc::strong_count` doesn't prevent
+        // races.
+        self.sender.take().unwrap();
+
+        // This one + the one held by the future.
+        if Arc::strong_count(&self.waker) == 2 {
+            if let Some(waker) = self.waker.lock().unwrap().take() {
+                waker.wake();
+            }
         }
     }
 }
