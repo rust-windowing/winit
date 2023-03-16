@@ -35,7 +35,7 @@ fn main() {
     cfg_aliases! {
         // Systems.
         android_platform: { target_os = "android" },
-        wasm_platform: { target_arch = "wasm32" },
+        wasm_platform: { target_family = "wasm" },
         macos_platform: { target_os = "macos" },
         ios_platform: { target_os = "ios" },
         windows_platform: { target_os = "windows" },
