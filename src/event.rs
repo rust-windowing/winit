@@ -64,7 +64,7 @@ pub enum Event<'a, T: 'static> {
         event: WindowEvent<'a>,
     },
 
-    /// Emitted when the OS sends an event to a device.
+    /// Emitted when the OS sends an event not associated with any particular window, but rather with a hardware device.
     DeviceEvent {
         device_id: DeviceId,
         event: DeviceEvent,
