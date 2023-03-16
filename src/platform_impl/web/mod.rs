@@ -17,6 +17,7 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
+mod r#async;
 mod device;
 mod error;
 mod event_loop;

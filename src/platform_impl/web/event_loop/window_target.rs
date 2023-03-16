@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
 
@@ -36,7 +38,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn proxy(&self) -> EventLoopProxy<T> {
-        self.runner.create_proxy()
+        EventLoopProxy::new(self.runner.clone())
     }
 
     pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
@@ -56,7 +58,7 @@ impl<T> EventLoopWindowTarget<T> {
         canvas: &Rc<RefCell<backend::Canvas>>,
         id: WindowId,
         prevent_default: bool,
-        has_focus: Rc<RefCell<bool>>,
+        has_focus: Arc<AtomicBool>,
     ) {
         self.runner.add_canvas(RootWindowId(id), canvas);
         let mut canvas = canvas.borrow_mut();
@@ -68,7 +70,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus_clone = has_focus.clone();
         canvas.on_blur(move || {
-            *has_focus_clone.borrow_mut() = false;
+            has_focus_clone.store(false, Ordering::Relaxed);
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Focused(false),
@@ -78,7 +80,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus_clone = has_focus.clone();
         canvas.on_focus(move || {
-            *has_focus_clone.borrow_mut() = true;
+            has_focus_clone.store(true, Ordering::Relaxed);
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Focused(true),
@@ -196,7 +198,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner_touch = self.runner.clone();
         canvas.on_mouse_press(
             move |pointer_id, position, button, modifiers| {
-                *has_focus.borrow_mut() = true;
+                has_focus.store(true, Ordering::Relaxed);
 
                 // A mouse down event may come in without any prior CursorMoved events,
                 // therefore we should send a CursorMoved event to make sure that the
@@ -291,26 +293,30 @@ impl<T> EventLoopWindowTarget<T> {
             width: raw.width(),
             height: raw.height(),
         };
-        canvas.on_fullscreen_change(move || {
-            // If the canvas is marked as fullscreen, it is moving *into* fullscreen
-            // If it is not, it is moving *out of* fullscreen
-            let new_size = if backend::is_fullscreen(&raw) {
-                intended_size = PhysicalSize {
-                    width: raw.width(),
-                    height: raw.height(),
+
+        canvas.on_fullscreen_change({
+            let window = self.runner.window().clone();
+            move || {
+                // If the canvas is marked as fullscreen, it is moving *into* fullscreen
+                // If it is not, it is moving *out of* fullscreen
+                let new_size = if backend::is_fullscreen(&window, &raw) {
+                    intended_size = PhysicalSize {
+                        width: raw.width(),
+                        height: raw.height(),
+                    };
+
+                    backend::window_size(&window).to_physical(backend::scale_factor(&window))
+                } else {
+                    intended_size
                 };
 
-                backend::window_size().to_physical(backend::scale_factor())
-            } else {
-                intended_size
-            };
-
-            backend::set_canvas_size(&raw, Size::Physical(new_size));
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Resized(new_size),
-            });
-            runner.request_redraw(RootWindowId(id));
+                backend::set_canvas_size(&window, &raw, Size::Physical(new_size));
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Resized(new_size),
+                });
+                runner.request_redraw(RootWindowId(id));
+            }
         });
 
         let runner = self.runner.clone();

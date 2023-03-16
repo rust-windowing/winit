@@ -6,17 +6,16 @@ use wasm_bindgen::JsCast;
 
 #[derive(Debug)]
 pub struct Timeout {
+    window: web_sys::Window,
     handle: i32,
     _closure: Closure<dyn FnMut()>,
 }
 
 impl Timeout {
-    pub fn new<F>(f: F, duration: Duration) -> Timeout
+    pub fn new<F>(window: web_sys::Window, f: F, duration: Duration) -> Timeout
     where
         F: 'static + FnMut(),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
-
         let closure = Closure::wrap(Box::new(f) as Box<dyn FnMut()>);
 
         let handle = window
@@ -27,6 +26,7 @@ impl Timeout {
             .expect("Failed to set timeout");
 
         Timeout {
+            window,
             handle,
             _closure: closure,
         }
@@ -35,14 +35,13 @@ impl Timeout {
 
 impl Drop for Timeout {
     fn drop(&mut self) {
-        let window = web_sys::window().expect("Failed to obtain window");
-
-        window.clear_timeout_with_handle(self.handle);
+        self.window.clear_timeout_with_handle(self.handle);
     }
 }
 
 #[derive(Debug)]
 pub struct AnimationFrameRequest {
+    window: web_sys::Window,
     handle: i32,
     // track callback state, because `cancelAnimationFrame` is slow
     fired: Rc<Cell<bool>>,
@@ -50,12 +49,10 @@ pub struct AnimationFrameRequest {
 }
 
 impl AnimationFrameRequest {
-    pub fn new<F>(mut f: F) -> AnimationFrameRequest
+    pub fn new<F>(window: web_sys::Window, mut f: F) -> AnimationFrameRequest
     where
         F: 'static + FnMut(),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
-
         let fired = Rc::new(Cell::new(false));
         let c_fired = fired.clone();
         let closure = Closure::wrap(Box::new(move || {
@@ -68,6 +65,7 @@ impl AnimationFrameRequest {
             .expect("Failed to request animation frame");
 
         AnimationFrameRequest {
+            window,
             handle,
             fired,
             _closure: closure,
@@ -78,8 +76,7 @@ impl AnimationFrameRequest {
 impl Drop for AnimationFrameRequest {
     fn drop(&mut self) {
         if !(*self.fired).get() {
-            let window = web_sys::window().expect("Failed to obtain window");
-            window
+            self.window
                 .cancel_animation_frame(self.handle)
                 .expect("Failed to cancel animation frame");
         }

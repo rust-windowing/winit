@@ -75,6 +75,7 @@ impl PointerHandler {
         M: 'static + FnMut(i32, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
@@ -83,7 +84,7 @@ impl PointerHandler {
                     touch_handler(
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
+                            .to_physical(super::super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
@@ -106,6 +107,7 @@ impl PointerHandler {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
@@ -114,13 +116,14 @@ impl PointerHandler {
                     touch_handler(
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
+                            .to_physical(super::super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
                     mouse_handler(
                         event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                        event::mouse_position(&event)
+                            .to_physical(super::super::scale_factor(&window)),
                         event::mouse_button(&event),
                         event::mouse_modifiers(&event),
                     );
@@ -144,6 +147,7 @@ impl PointerHandler {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
@@ -156,14 +160,15 @@ impl PointerHandler {
                     touch_handler(
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
+                            .to_physical(super::super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
                     mouse_handler(
                         event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                        event::mouse_delta(&event).to_physical(super::super::scale_factor()),
+                        event::mouse_position(&event)
+                            .to_physical(super::super::scale_factor(&window)),
+                        event::mouse_delta(&event).to_physical(super::super::scale_factor(&window)),
                         event::mouse_modifiers(&event),
                     );
                 }
@@ -175,6 +180,7 @@ impl PointerHandler {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_touch_cancel = Some(canvas_common.add_event(
             "pointercancel",
@@ -183,7 +189,7 @@ impl PointerHandler {
                     handler(
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
+                            .to_physical(super::super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 }

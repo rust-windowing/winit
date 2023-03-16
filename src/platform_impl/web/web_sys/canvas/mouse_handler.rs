@@ -129,6 +129,7 @@ impl MouseHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_mouse_press = Some(canvas_common.add_window_mouse_event(
             "mousedown",
@@ -153,7 +154,7 @@ impl MouseHandler {
                 event.stop_propagation();
                 handler(
                     0,
-                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    event::mouse_position(&event).to_physical(super::super::scale_factor(&window)),
                     event::mouse_button(&event),
                     event::mouse_modifiers(&event),
                 );
@@ -166,6 +167,7 @@ impl MouseHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
+        let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_mouse_move = Some(canvas_common.add_window_mouse_event(
             "mousemove",
@@ -196,8 +198,8 @@ impl MouseHandler {
                         let mouse_delta = event::mouse_delta(&event);
                         handler(
                             0,
-                            mouse_pos.to_physical(super::super::scale_factor()),
-                            mouse_delta.to_physical(super::super::scale_factor()),
+                            mouse_pos.to_physical(super::super::scale_factor(&window)),
+                            mouse_delta.to_physical(super::super::scale_factor(&window)),
                             event::mouse_modifiers(&event),
                         );
                     }

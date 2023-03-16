@@ -14,7 +14,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - Fix macOS memory leaks.
 - On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
-- On Web, `EventLoopProxy` now implements `Send`.
+- On Web, `EventLoopProxy` now implements `Send` and `Sync`.
+- On Web, `Window` now implements `Send` and `Sync`.
 
 # 0.28.2
 

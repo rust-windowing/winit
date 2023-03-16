@@ -37,19 +37,20 @@ pub struct Canvas {
 }
 
 struct Common {
+    window: web_sys::Window,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlCanvasElement,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
 impl Canvas {
-    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+    pub fn create(
+        window: web_sys::Window,
+        attr: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Self, RootOE> {
         let canvas = match attr.canvas {
             Some(canvas) => canvas,
             None => {
-                let window = web_sys::window()
-                    .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
-
                 let document = window
                     .document()
                     .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
@@ -72,7 +73,7 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let mouse_state = if has_pointer_event() {
+        let mouse_state = if has_pointer_event(&window) {
             MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
         } else {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
@@ -80,6 +81,7 @@ impl Canvas {
 
         Ok(Canvas {
             common: Common {
+                window,
                 raw: canvas,
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
@@ -101,9 +103,9 @@ impl Canvas {
         if lock {
             self.raw().request_pointer_lock();
         } else {
-            let window = web_sys::window()
-                .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
-            let document = window
+            let document = self
+                .common
+                .window
                 .document()
                 .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
             document.exit_pointer_lock();
@@ -320,12 +322,13 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
+        let window = self.common.window.clone();
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             if prevent_default {
                 event.prevent_default();
             }
 
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
+            if let Some(delta) = event::mouse_scroll_delta(&window, &event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
         }));
@@ -350,7 +353,8 @@ impl Canvas {
                 Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
                     as Box<dyn FnMut(_)>,
             );
-        self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
+        self.on_dark_mode =
+            MediaQueryListHandle::new(&self.common.window, "(prefers-color-scheme: dark)", closure);
     }
 
     pub fn request_fullscreen(&self) {
@@ -441,7 +445,6 @@ impl Common {
     {
         let wants_fullscreen = self.wants_fullscreen.clone();
         let canvas = self.raw.clone();
-        let window = web_sys::window().expect("Failed to obtain window");
 
         let closure = Closure::wrap(Box::new(move |event: MouseEvent| {
             handler(event);
@@ -455,7 +458,7 @@ impl Common {
         }) as Box<dyn FnMut(_)>);
 
         let listener = EventListenerHandle::with_options(
-            &window,
+            &self.window,
             event_name,
             closure,
             AddEventListenerOptions::new().capture(true),
@@ -469,7 +472,7 @@ impl Common {
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        super::is_fullscreen(&self.raw)
+        super::is_fullscreen(&self.window, &self.raw)
     }
 }
 
@@ -483,10 +486,6 @@ enum MouseState {
 /// Used to decide whether to use pointer events
 /// or plain mouse events. Note that Safari
 /// doesn't support pointer events now.
-fn has_pointer_event() -> bool {
-    if let Some(window) = web_sys::window() {
-        window.get("PointerEvent").is_some()
-    } else {
-        false
-    }
+fn has_pointer_event(window: &web_sys::Window) -> bool {
+    window.get("PointerEvent").is_some()
 }
