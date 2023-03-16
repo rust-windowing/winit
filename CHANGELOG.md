@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.28.3
+
 - Fix macOS memory leaks.
 
 # 0.28.2
