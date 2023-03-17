@@ -89,7 +89,7 @@
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //! // Data structures that can access application data must be moved into the
 //! // closure passed to `run`.
-//! let app = MyApp { frame_count: 0 };
+//! let mut app = MyApp { frame_count: 0 };
 //!
 //! event_loop.run(move |event, _window_target, control_flow| {
 //!     // ControlFlow::Wait pauses the event loop until events are available to process.
@@ -156,7 +156,7 @@
 //! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtRunReturn::run_return`]: platform::run_return::EventLoopExtRunReturn::run_return
+//! [`EventLoopExtRunReturn::run_return`]: ./platform/run_return/trait.EventLoopExtRunReturn.html#tymethod.run_return
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [`EventLoop::run()`]: event_loop::EventLoop::run
 //! [`EventLoopWindowTarget`]: event_loop::EventLoopWindowTarget
