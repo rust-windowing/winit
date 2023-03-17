@@ -29,7 +29,7 @@
 //! the behaviour of the loop through setting the [`ControlFlow`] also passed to the closure. With the order illustrated
 //! by the following diagram, showing how the events loop.
 //!
-//! <img src="../../../docs/event-loop.png" alt="Flowchart illustrating order of events" height="630px" style="float:left">
+//! <img src="../../../docs/event-loop.svg" alt="Flowchart illustrating order of events" height="630px" style="float:left">
 //!
 //! The progress of the event loop is marked by so-called "loop-stage events". Key application logic is most often run
 //! while handling such loop-stage events.
