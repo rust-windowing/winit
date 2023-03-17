@@ -14,6 +14,7 @@ use std::{error, fmt};
 use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
+use window_handle::{Active, DisplayHandle, HasDisplayHandle};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -320,6 +321,22 @@ unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
     }
 }
 
+impl<T> HasDisplayHandle for EventLoop<T> {
+    fn active(&self) -> Option<Active<'_>> {
+        self.event_loop.window_target().active()
+    }
+
+    fn display_handle<'this, 'active>(
+        &'this self,
+        active: &'active Active<'_>,
+    ) -> DisplayHandle<'this>
+    where
+        'active: 'this,
+    {
+        self.event_loop.window_target().display_handle(active)
+    }
+}
+
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
@@ -373,6 +390,38 @@ unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> RawDisplayHandle {
         self.p.raw_display_handle()
+    }
+}
+
+impl<T> HasDisplayHandle for EventLoopWindowTarget<T> {
+    fn active(&self) -> Option<Active<'_>> {
+        // On non-Android platforms, the display handle is always active.
+        #[cfg(not(android_platform))]
+        return Some(Active::new());
+
+        // On Android platforms, the display handle is only active when the application isn't
+        // suspended.
+        #[cfg(android_platform)]
+        {
+            if self.p.suspended() {
+                None
+            } else {
+                // SAFETY: The application is active.
+                Some(unsafe { Active::new_unchecked() })
+            }
+        }
+    }
+
+    fn display_handle<'this, 'active>(
+        &'this self,
+        active: &'active Active<'_>,
+    ) -> DisplayHandle<'this>
+    where
+        'active: 'this,
+    {
+        // SAFETY: The application is active and the display handle is valid for as long as the
+        // window target is.
+        unsafe { DisplayHandle::borrow_raw(self.raw_display_handle(), active) }
     }
 }
 

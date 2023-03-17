@@ -4,6 +4,7 @@ use std::fmt;
 use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
+use window_handle::{Active, DisplayHandle, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -1325,6 +1326,7 @@ impl Window {
             .map(|inner| MonitorHandle { inner })
     }
 }
+
 unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
@@ -1346,6 +1348,20 @@ unsafe impl HasRawWindowHandle for Window {
     }
 }
 
+impl HasWindowHandle for Window {
+    fn window_handle<'this, 'active>(
+        &'this self,
+        active: &'active Active<'_>,
+    ) -> WindowHandle<'this>
+    where
+        'active: 'this,
+    {
+        // SAFETY: The display is active and the window handle is valid for the duration of this
+        // object's lifetime.
+        unsafe { WindowHandle::borrow_raw(self.raw_window_handle(), active) }
+    }
+}
+
 unsafe impl HasRawDisplayHandle for Window {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
@@ -1353,6 +1369,35 @@ unsafe impl HasRawDisplayHandle for Window {
     /// [`EventLoop`]: crate::event_loop::EventLoop
     fn raw_display_handle(&self) -> RawDisplayHandle {
         self.window.raw_display_handle()
+    }
+}
+
+impl HasDisplayHandle for Window {
+    fn active(&self) -> Option<Active<'_>> {
+        #[cfg(not(android_platform))]
+        return Some(Active::new());
+
+        #[cfg(android_platform)]
+        {
+            if self.window.suspended() {
+                None
+            } else {
+                // SAFETY: The display is active.
+                Some(unsafe { Active::new_unchecked() })
+            }
+        }
+    }
+
+    fn display_handle<'this, 'active>(
+        &'this self,
+        active: &'active Active<'_>,
+    ) -> DisplayHandle<'this>
+    where
+        'active: 'this,
+    {
+        // SAFETY: The display is active and the display handle is valid for the duration of this
+        // object's lifetime.
+        unsafe { DisplayHandle::borrow_raw(self.raw_display_handle(), active) }
     }
 }
 
