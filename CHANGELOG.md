@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Update docs on event loop and add event loop flow chart
 - Bump MSRV from `1.60` to `1.64`.
 
 # 0.28.3
