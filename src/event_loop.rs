@@ -13,8 +13,9 @@ use std::{error, fmt};
 
 use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
-use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
-use window_handle::{Active, DisplayHandle, HasDisplayHandle};
+use raw_window_handle::{
+    Active, DisplayHandle, HasDisplayHandle, HasRawDisplayHandle, RawDisplayHandle,
+};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 

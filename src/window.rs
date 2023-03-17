@@ -2,9 +2,9 @@
 use std::fmt;
 
 use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+    Active, DisplayHandle, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle,
+    HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
-use window_handle::{Active, DisplayHandle, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
