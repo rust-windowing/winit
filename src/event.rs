@@ -300,11 +300,7 @@ impl<'a, T> Event<'a, T> {
     }
 }
 
-/// Describes the reason the event loop is resuming. A continuing loop will be
-/// in [`Poll`], with other variants describing a loop resuming
-/// for a particular reason.
-///
-/// [`Poll`]: crate::event::StartCause::Poll
+/// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
     /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
@@ -325,8 +321,7 @@ pub enum StartCause {
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// [`ControlFlow::Poll`]. This is the default state of a contuining event loop
-    /// without intervention from user code.
+    /// [`ControlFlow::Poll`].
     ///
     /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     Poll,
