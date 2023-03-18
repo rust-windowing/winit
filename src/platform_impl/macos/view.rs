@@ -73,6 +73,7 @@ pub(super) struct ViewState {
     tracking_rect: Option<NSTrackingRectTag>,
     ime_state: ImeState,
     input_source: String,
+    insert_text: Option<String>,
 
     /// True iff the application wants IME events.
     ///
@@ -164,6 +165,7 @@ declare_class!(
                     tracking_rect: None,
                     ime_state: ImeState::Disabled,
                     input_source: String::new(),
+                    insert_text: None,
                     ime_allowed: false,
                     forward_key_to_app: false,
                 };
@@ -428,6 +430,11 @@ declare_class!(
 
             let is_control = string.chars().next().map_or(false, |c| c.is_control());
 
+            if !self.hasMarkedText() && !is_control && string.chars().count() == 1 {
+                let c = string.chars().next().unwrap();
+                self.state.insert_text = Some(String::from(c));
+            }
+
             // Commit only if we have marked text.
             if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
@@ -479,7 +486,7 @@ declare_class!(
             } && !ev_mods.ctrl()
                 && !ev_mods.logo();
 
-            let characters = get_characters(event, ignore_alt_characters);
+            let mut characters = get_characters(event, ignore_alt_characters);
             self.state.forward_key_to_app = false;
 
             // The `interpretKeyEvents` function might call
@@ -507,6 +514,19 @@ declare_class!(
                     text_commited = true;
                 }
             }
+
+            let event = &if let Some(c) = &self.state.insert_text {
+                let new_event = if !ignore_alt_characters {
+                    replace_event_chars(event, &c)
+                } else {
+                    event.copy()
+                };
+                characters = get_characters(&new_event, ignore_alt_characters);
+                self.state.insert_text = None;
+                new_event
+            } else {
+                event.copy()
+            };
 
             let now_in_preedit = self.state.ime_state == ImeState::Preedit;
 
