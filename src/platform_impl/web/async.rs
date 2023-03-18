@@ -5,6 +5,7 @@ use std::future;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
 use std::rc::{Rc, Weak};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex};
 use std::task::Poll;
@@ -12,9 +13,12 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
-// `value` must *only* be accessed on the main thread.
+// `value` **must** only be accessed on the main thread.
 pub struct MainThreadSafe<T: 'static, E: 'static> {
-    value: ManuallyDrop<Weak<RefCell<T>>>,
+    // We wrap this in an `Arc` to allow it to be cloned without accessing the value.
+    // Additionally we can't enforce that the last one is dropped on the main thread,
+    // so we have to use `ManuallyDrop`. This means that we will always leak one `Weak`.
+    value: Arc<ManuallyDrop<Weak<RefCell<T>>>>,
     handler: fn(&RefCell<T>, E),
     sender: AsyncSender<E>,
 }
@@ -56,16 +60,18 @@ impl<T, E> MainThreadSafe<T, E> {
                 }
 
                 // An error was returned because the channel was closed, which
-                // happens when the window get dropped, so we can stop now.
+                // happens when all senders are dropped.
                 match Rc::try_unwrap(value) {
                     Ok(value) => drop(value),
-                    Err(_) => panic!("couldn't enforce that value is dropped on the main thread"),
+                    Err(_) => {
+                        panic!("can't enforce that the value is dropped on the main thread")
+                    }
                 }
             }
         });
 
         Some(Self {
-            value: ManuallyDrop::new(weak),
+            value: Arc::new(ManuallyDrop::new(weak)),
             handler,
             sender,
         })
@@ -193,26 +199,37 @@ impl<T> Deref for Dispatcher<T> {
 
 fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let (sender, receiver) = mpsc::channel();
-    let sender = Mutex::new(Some(sender));
+    let sender = Arc::new(Mutex::new(sender));
     let waker = Arc::new(AtomicWaker::new());
+    let closed = Arc::new(AtomicBool::new(false));
 
     let sender = AsyncSender {
         sender,
+        closed: closed.clone(),
         waker: Arc::clone(&waker),
     };
-    let receiver = AsyncReceiver { receiver, waker };
+    let receiver = AsyncReceiver {
+        receiver,
+        closed,
+        waker,
+    };
 
     (sender, receiver)
 }
 
 struct AsyncSender<T> {
-    sender: Mutex<Option<Sender<T>>>,
+    // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
+    // be accessed on the main thread, as it could block. Additionally we need
+    // to wrap it in an `Arc` to make it clonable on the main thread without
+    // having to block.
+    sender: Arc<Mutex<Sender<T>>>,
+    closed: Arc<AtomicBool>,
     waker: Arc<AtomicWaker>,
 }
 
 impl<T> AsyncSender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
-        self.sender.lock().unwrap().as_ref().unwrap().send(event)?;
+        self.sender.lock().unwrap().send(event)?;
         self.waker.wake();
 
         Ok(())
@@ -222,21 +239,19 @@ impl<T> AsyncSender<T> {
 impl<T> Clone for AsyncSender<T> {
     fn clone(&self) -> Self {
         Self {
-            sender: Mutex::new(self.sender.lock().unwrap().clone()),
+            sender: self.sender.clone(),
             waker: self.waker.clone(),
+            closed: self.closed.clone(),
         }
     }
 }
 
 impl<T> Drop for AsyncSender<T> {
     fn drop(&mut self) {
-        self.sender.lock().unwrap().take().unwrap();
-
         // If it's the last + the one held by the receiver make sure to wake it
-        // up and tell it to drop the value. It will only drop the value if the
-        // receiver reports that the last sender was dropped, this is why we
-        // drop the sender before this check.
-        if Arc::strong_count(&self.waker) == 2 {
+        // up and tell it that all receiver have dropped.
+        if Arc::strong_count(&self.closed) == 2 {
+            self.closed.store(true, Ordering::Relaxed);
             self.waker.wake()
         }
     }
@@ -244,6 +259,7 @@ impl<T> Drop for AsyncSender<T> {
 
 struct AsyncReceiver<T> {
     receiver: Receiver<T>,
+    closed: Arc<AtomicBool>,
     waker: Arc<AtomicWaker>,
 }
 
@@ -252,11 +268,21 @@ impl<T> AsyncReceiver<T> {
         future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
             Err(TryRecvError::Empty) => {
+                if self.closed.load(Ordering::Relaxed) {
+                    return Poll::Ready(Err(RecvError));
+                }
+
                 self.waker.register(cx.waker());
 
                 match self.receiver.try_recv() {
                     Ok(event) => Poll::Ready(Ok(event)),
-                    Err(TryRecvError::Empty) => Poll::Pending,
+                    Err(TryRecvError::Empty) => {
+                        if self.closed.load(Ordering::Relaxed) {
+                            Poll::Ready(Err(RecvError))
+                        } else {
+                            Poll::Pending
+                        }
+                    }
                     Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
                 }
             }
