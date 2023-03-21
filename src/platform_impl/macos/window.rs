@@ -150,7 +150,7 @@ pub struct SharedState {
     pub(crate) target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
-    is_simple_fullscreen: bool,
+    pub(crate) is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     /// Presentation options saved before entering `set_simple_fullscreen`, and
     /// restored upon exiting it. Also used when transitioning from Borderless to
@@ -159,6 +159,9 @@ pub struct SharedState {
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub current_theme: Option<Theme>,
+
+    /// The current resize incerments for the window content.
+    pub(crate) resize_increments: NSSize,
 
     /// The state of the `Option` as `Alt`.
     pub(crate) option_as_alt: OptionAsAlt,
@@ -301,6 +304,16 @@ impl WinitWindow {
             };
 
             this.map(|mut this| {
+                let resize_increments = match attrs
+                    .resize_increments
+                    .map(|i| i.to_logical::<f64>(this.scale_factor()))
+                {
+                    Some(LogicalSize { width, height }) if width >= 1. && height >= 1. => {
+                        NSSize::new(width, height)
+                    }
+                    _ => NSSize::new(1., 1.),
+                };
+
                 // Properly initialize the window's variables
                 //
                 // Ideally this should be done in an `init` method,
@@ -308,6 +321,7 @@ impl WinitWindow {
                 let state = SharedState {
                     resizable: attrs.resizable,
                     maximized: attrs.maximized,
+                    resize_increments,
                     ..Default::default()
                 };
                 Ivar::write(&mut this.shared_state, Box::new(Mutex::new(state)));
@@ -350,19 +364,6 @@ impl WinitWindow {
                 if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
                     if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
                         button.setEnabled(false);
-                    }
-                }
-
-                if let Some(increments) = attrs.resize_increments {
-                    let increments = increments.to_logical(this.scale_factor());
-                    let (w, h) = (increments.width, increments.height);
-                    if w >= 1.0 && h >= 1.0 {
-                        let size = NSSize::new(w, h);
-                        // It was concluded (#2411) that there is never a use-case for
-                        // "outer" resize increments, hence we set "inner" ones here.
-                        // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
-                        // This is consistent with X11 size hints behavior
-                        this.setContentResizeIncrements(size);
                     }
                 }
 
@@ -465,6 +466,10 @@ impl WinitWindow {
 
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
+        // XXX Send `Focused(false)` right after creating the window delegate, so we won't
+        // obscure the real focused events on the startup.
+        delegate.queue_event(WindowEvent::Focused(false));
+
         // Set fullscreen mode after we setup everything
         this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
@@ -483,8 +488,6 @@ impl WinitWindow {
         if attrs.maximized {
             this.set_maximized(attrs.maximized);
         }
-
-        delegate.queue_event(WindowEvent::Focused(false));
 
         Ok((this, delegate))
     }
@@ -648,7 +651,9 @@ impl WinitWindow {
     }
 
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        let increments = self.contentResizeIncrements();
+        let increments = self
+            .lock_shared_state("set_resize_increments")
+            .resize_increments;
         let (w, h) = (increments.width, increments.height);
         if w > 1.0 || h > 1.0 {
             Some(LogicalSize::new(w, h).to_physical(self.scale_factor()))
@@ -658,12 +663,21 @@ impl WinitWindow {
     }
 
     pub fn set_resize_increments(&self, increments: Option<Size>) {
-        let size = increments
+        // XXX the resize increments are only used during live resizes.
+        let mut shared_state_lock = self.lock_shared_state("set_resize_increments");
+        shared_state_lock.resize_increments = increments
             .map(|increments| {
                 let logical = increments.to_logical::<f64>(self.scale_factor());
                 NSSize::new(logical.width.max(1.0), logical.height.max(1.0))
             })
             .unwrap_or_else(|| NSSize::new(1.0, 1.0));
+    }
+
+    pub(crate) fn set_resize_increments_inner(&self, size: NSSize) {
+        // It was concluded (#2411) that there is never a use-case for
+        // "outer" resize increments, hence we set "inner" ones here.
+        // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
+        // This is consistent with X11 size hints behavior
         self.setContentResizeIncrements(size);
     }
 
@@ -1303,6 +1317,10 @@ impl WindowExtMacOS for WinitWindow {
             // Tell our window's state that we're in fullscreen
             shared_state_lock.is_simple_fullscreen = true;
 
+            // Drop shared state lock before calling app.setPresentationOptions, because
+            // it will call our windowDidChangeScreen listener which reacquires the lock
+            drop(shared_state_lock);
+
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
             let presentation_options =
                 NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
@@ -1327,11 +1345,17 @@ impl WindowExtMacOS for WinitWindow {
             self.set_style_mask_sync(new_mask);
             shared_state_lock.is_simple_fullscreen = false;
 
-            if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {
+            let save_presentation_opts = shared_state_lock.save_presentation_opts;
+            let frame = shared_state_lock.saved_standard_frame();
+
+            // Drop shared state lock before calling app.setPresentationOptions, because
+            // it will call our windowDidChangeScreen listener which reacquires the lock
+            drop(shared_state_lock);
+
+            if let Some(presentation_opts) = save_presentation_opts {
                 app.setPresentationOptions(presentation_opts);
             }
 
-            let frame = shared_state_lock.saved_standard_frame();
             self.setFrame_display(frame, true);
             self.setMovable(true);
 

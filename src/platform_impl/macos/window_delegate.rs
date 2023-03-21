@@ -3,7 +3,7 @@
 use std::ptr;
 
 use objc2::declare::{Ivar, IvarDrop};
-use objc2::foundation::{NSArray, NSObject, NSString};
+use objc2::foundation::{NSArray, NSObject, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::runtime::Object;
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
@@ -115,6 +115,23 @@ declare_class!(
             trace_scope!("windowDidResize:");
             // NOTE: WindowEvent::Resized is reported in frameDidChange.
             self.emit_move_event();
+        }
+
+        #[sel(windowWillStartLiveResize:)]
+        fn window_will_start_live_resize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowWillStartLiveResize:");
+
+            let increments = self
+                .window
+                .lock_shared_state("window_will_enter_fullscreen")
+                .resize_increments;
+            self.window.set_resize_increments_inner(increments);
+        }
+
+        #[sel(windowDidEndLiveResize:)]
+        fn window_did_end_live_resize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowDidEndLiveResize:");
+            self.window.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
         // This won't be triggered if the move was part of a resize.
@@ -390,6 +407,20 @@ declare_class!(
             drop(shared_state);
             if current_theme != Some(theme) {
                 self.queue_event(WindowEvent::ThemeChanged(theme));
+            }
+        }
+
+        #[sel(windowDidChangeScreen:)]
+        fn window_did_change_screen(&self, _: Option<&Object>) {
+            trace_scope!("windowDidChangeScreen:");
+            let is_simple_fullscreen = self
+                .window
+                .lock_shared_state("window_did_change_screen")
+                .is_simple_fullscreen;
+            if is_simple_fullscreen {
+                if let Some(screen) = self.window.screen() {
+                    self.window.setFrame_display(screen.frame(), true);
+                }
             }
         }
     }

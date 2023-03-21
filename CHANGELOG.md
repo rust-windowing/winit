@@ -8,7 +8,22 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Bump MSRV from `1.60` to `1.64`.
+
+# 0.28.3
+
+- Fix macOS memory leaks.
+
+# 0.28.2
+
 - Implement `HasRawDisplayHandle` for `EventLoop`.
+- On macOS, set resize increments only for live resizes.
+- On Wayland, fix rare crash on DPI change
+- Web: Added support for `Window::theme`.
+- On Wayland, fix rounding issues when doing resize.
+- On macOS, fix wrong focused state on startup.
+- On Windows, fix crash on setting taskbar when using Visual Studio debugger.
+- On macOS, resize simple fullscreen windows on windowDidChangeScreen events.
 
 # 0.28.1
 

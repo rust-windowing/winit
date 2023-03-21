@@ -128,6 +128,12 @@ impl Window {
                 let surface = event_loop_window_target
                     .env
                     .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
+                        // While I'm not sure how this could happen, we can safely ignore it
+                        // for now as a quickfix.
+                        if !surface.as_ref().is_alive() {
+                            return;
+                        }
+
                         let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
                         // Get the window that received the event.

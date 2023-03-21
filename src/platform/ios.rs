@@ -253,22 +253,16 @@ impl MonitorHandleExtIOS for MonitorHandle {
 }
 
 /// Valid orientations for a particular [`Window`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
+    #[default]
     LandscapeAndPortrait,
 
     Landscape,
 
     /// Excludes `PortraitUpsideDown` on iphone
     Portrait,
-}
-
-impl Default for ValidOrientations {
-    #[inline]
-    fn default() -> ValidOrientations {
-        ValidOrientations::LandscapeAndPortrait
-    }
 }
 
 /// The device [idiom].
