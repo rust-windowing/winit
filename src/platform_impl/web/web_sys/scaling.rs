@@ -64,9 +64,7 @@ impl ScaleChangeDetectorInternal {
             min_scale = current_scale - 0.0001, max_scale= current_scale + 0.0001,
         );
         let mql = MediaQueryListHandle::new(&media_query, closure);
-        if let Some(mql) = &mql {
-            assert!(mql.mql().matches());
-        }
+
         mql
     }
 
