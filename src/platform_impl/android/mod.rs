@@ -138,11 +138,22 @@ pub struct EventLoop<T: 'static> {
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
     running: bool,
+    ignore_volume_keys: bool,
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) android_app: Option<AndroidApp>,
+    pub(crate) ignore_volume_keys: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            android_app: Default::default(),
+            ignore_volume_keys: true,
+        }
+    }
 }
 
 fn sticky_exit_callback<T, F>(
@@ -192,6 +203,7 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
             running: false,
+            ignore_volume_keys: attributes.ignore_volume_keys,
         }
     }
 
@@ -396,11 +408,12 @@ impl<T: 'static> EventLoop<T> {
                 }
                 InputEvent::KeyEvent(key) => {  
                     match key.key_code() {
-                        // Flagg keys related to volume as unhandled. While winit does not have a way for applications
-                        // to configure what keys to flag as handled, this appears to be a good default until winit
-                        // can be configured.
-                        ndk::event::Keycode::VolumeUp | ndk::event::Keycode::VolumeDown | ndk::event::Keycode::VolumeMute => {
-                            input_status = InputStatus::Unhandled
+                        ndk::event::Keycode::VolumeUp |
+                        ndk::event::Keycode::VolumeDown |
+                        ndk::event::Keycode::VolumeMute => {
+                            if self.ignore_volume_keys {
+                                input_status = InputStatus::Unhandled
+                            }
                         },
                         _ => {
                             let state = match key.action() {

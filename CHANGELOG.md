@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
+- On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
 - **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
 - **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
 - On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
