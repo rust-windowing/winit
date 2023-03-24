@@ -2,8 +2,8 @@
 use std::fmt;
 
 use raw_window_handle::{
-    DisplayHandle, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle, HasWindowHandle,
-    RawDisplayHandle, RawWindowHandle, WindowHandle, WindowHandleError,
+    DisplayHandle, HandleError, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle,
+    HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 
 use crate::{
@@ -1349,10 +1349,10 @@ unsafe impl HasRawWindowHandle for Window {
 }
 
 impl HasWindowHandle for Window {
-    fn window_handle(&self) -> Result<WindowHandle<'_>, WindowHandleError> {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
         // See if we are active or not.
         #[cfg(not(any(android_platform, raw_window_handle_force_refcount)))]
-        let active = Some(ActiveHandle::new());
+        let active = Some(raw_window_handle::ActiveHandle::new());
 
         #[cfg(any(android_platform, raw_window_handle_force_refcount))]
         let active = self.window.active().handle();
@@ -1364,7 +1364,7 @@ impl HasWindowHandle for Window {
                 Ok(unsafe { WindowHandle::borrow_raw(self.raw_window_handle(), active) })
             }
 
-            None => Err(WindowHandleError::Inactive),
+            None => Err(HandleError::Inactive),
         }
     }
 }
@@ -1380,10 +1380,10 @@ unsafe impl HasRawDisplayHandle for Window {
 }
 
 impl HasDisplayHandle for Window {
-    fn display_handle(&self) -> DisplayHandle<'_> {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         // SAFETY: The display is active and the display handle is valid for the duration of this
         // object's lifetime.
-        unsafe { DisplayHandle::borrow_raw(self.raw_display_handle()) }
+        Ok(unsafe { DisplayHandle::borrow_raw(self.raw_display_handle()) })
     }
 }
 
