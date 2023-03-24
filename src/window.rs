@@ -2,8 +2,8 @@
 use std::fmt;
 
 use raw_window_handle::{
-    Active, DisplayHandle, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle,
-    HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
+    DisplayHandle, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle, HasWindowHandle,
+    RawDisplayHandle, RawWindowHandle, WindowHandle, WindowHandleError,
 };
 
 use crate::{
@@ -1349,16 +1349,23 @@ unsafe impl HasRawWindowHandle for Window {
 }
 
 impl HasWindowHandle for Window {
-    fn window_handle<'this, 'active>(
-        &'this self,
-        active: &'active Active<'_>,
-    ) -> WindowHandle<'this>
-    where
-        'active: 'this,
-    {
-        // SAFETY: The display is active and the window handle is valid for the duration of this
-        // object's lifetime.
-        unsafe { WindowHandle::borrow_raw(self.raw_window_handle(), active) }
+    fn window_handle(&self) -> Result<WindowHandle<'_>, WindowHandleError> {
+        // See if we are active or not.
+        #[cfg(not(any(android_platform, raw_window_handle_force_refcount)))]
+        let active = Some(ActiveHandle::new());
+
+        #[cfg(any(android_platform, raw_window_handle_force_refcount))]
+        let active = self.window.active().handle();
+
+        match active {
+            Some(active) => {
+                // SAFETY: The window is active and the window handle is valid for the duration of
+                // this object's lifetime.
+                Ok(unsafe { WindowHandle::borrow_raw(self.raw_window_handle(), active) })
+            }
+
+            None => Err(WindowHandleError::Inactive),
+        }
     }
 }
 
@@ -1373,31 +1380,10 @@ unsafe impl HasRawDisplayHandle for Window {
 }
 
 impl HasDisplayHandle for Window {
-    fn active(&self) -> Option<Active<'_>> {
-        #[cfg(not(android_platform))]
-        return Some(Active::new());
-
-        #[cfg(android_platform)]
-        {
-            if self.window.suspended() {
-                None
-            } else {
-                // SAFETY: The display is active.
-                Some(unsafe { Active::new_unchecked() })
-            }
-        }
-    }
-
-    fn display_handle<'this, 'active>(
-        &'this self,
-        active: &'active Active<'_>,
-    ) -> DisplayHandle<'this>
-    where
-        'active: 'this,
-    {
+    fn display_handle(&self) -> DisplayHandle<'_> {
         // SAFETY: The display is active and the display handle is valid for the duration of this
         // object's lifetime.
-        unsafe { DisplayHandle::borrow_raw(self.raw_display_handle(), active) }
+        unsafe { DisplayHandle::borrow_raw(self.raw_display_handle()) }
     }
 }
 

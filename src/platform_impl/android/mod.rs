@@ -16,7 +16,7 @@ use android_activity::{
 };
 use once_cell::sync::Lazy;
 use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+    Active, AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::platform_impl::Fullscreen;
@@ -340,7 +340,7 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
-                    suspended: Arc::new(AtomicBool::new(true)), // TODO: is this correct?
+                    active: Arc::new(Active::new()),
                     _marker: std::marker::PhantomData,
                 },
                 _marker: std::marker::PhantomData,
@@ -379,10 +379,11 @@ impl<T: 'static> EventLoop<T> {
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    self.window_target
-                        .p
-                        .suspended
-                        .store(false, Ordering::SeqCst);
+                    // SAFETY: The window is now active.
+                    unsafe {
+                        self.window_target.p.active.set_active();
+                    }
+
                     sticky_exit_callback(
                         event::Event::Resumed,
                         self.window_target(),
@@ -391,7 +392,11 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 MainEvent::TerminateWindow { .. } => {
-                    self.window_target.p.suspended.store(true, Ordering::SeqCst);
+                    // SAFETY: The window is now inactive.
+                    unsafe {
+                        self.window_target.p.active.set_inactive();
+                    }
+
                     sticky_exit_callback(
                         event::Event::Suspended,
                         self.window_target(),
@@ -827,7 +832,7 @@ impl<T> EventLoopProxy<T> {
 pub struct EventLoopWindowTarget<T: 'static> {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
-    suspended: Arc<AtomicBool>,
+    active: Arc<Active>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -844,10 +849,6 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Android(AndroidDisplayHandle::empty())
-    }
-
-    pub(crate) fn suspended(&self) -> bool {
-        self.suspended.load(Ordering::Acquire)
     }
 }
 
@@ -887,7 +888,7 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,
-    suspended: Arc<AtomicBool>,
+    active: Arc<Active>,
 }
 
 impl Window {
@@ -901,7 +902,7 @@ impl Window {
         Ok(Self {
             app: el.app.clone(),
             redraw_requester: el.redraw_requester.clone(),
-            suspended: el.suspended.clone(),
+            active: el.active.clone(),
         })
     }
 
@@ -1098,8 +1099,8 @@ impl Window {
         String::new()
     }
 
-    pub(crate) fn suspended(&self) -> bool {
-        self.suspended.load(Ordering::Acquire)
+    pub(crate) fn active(&self) -> &Active {
+        &self.active
     }
 }
 
