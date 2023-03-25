@@ -28,8 +28,11 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
+    sync::{
+        mpsc::{Receiver, Sender, TryRecvError},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -123,14 +126,14 @@ pub struct EventLoop<T: 'static> {
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: Sender<T>,
+    user_sender: Mutex<Sender<T>>,
     waker: Arc<Waker>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
-            user_sender: self.user_sender.clone(),
+            user_sender: Mutex::new(self.user_sender.lock().unwrap().clone()),
             waker: self.waker.clone(),
         }
     }
@@ -294,7 +297,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            user_sender: self.user_sender.clone(),
+            user_sender: Mutex::new(self.user_sender.clone()),
             waker: self.waker.clone(),
         }
     }
@@ -578,6 +581,8 @@ impl<T> EventLoopWindowTarget<T> {
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.user_sender
+            .lock()
+            .unwrap()
             .send(event)
             .map_err(|e| EventLoopClosed(e.0))
             .map(|_| self.waker.wake().unwrap())
