@@ -10,8 +10,11 @@ use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use js_sys::Promise;
 use smol_str::SmolStr;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
@@ -439,7 +442,30 @@ impl Common {
     }
 
     pub fn request_fullscreen(&self) {
-        *self.wants_fullscreen.borrow_mut() = true;
+        #[wasm_bindgen]
+        extern "C" {
+            type ElementExt;
+
+            #[wasm_bindgen(catch, method, js_name = requestFullscreen)]
+            fn request_fullscreen(this: &ElementExt) -> Result<JsValue, JsValue>;
+        }
+
+        let raw: &ElementExt = self.raw.unchecked_ref();
+
+        // This should return a `Promise`, but Safari v<16.4 is not up-to-date with the spec.
+        match raw.request_fullscreen() {
+            Ok(value) if !value.is_undefined() => {
+                let promise: Promise = value.unchecked_into();
+                let wants_fullscreen = self.wants_fullscreen.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    if JsFuture::from(promise).await.is_err() {
+                        *wants_fullscreen.borrow_mut() = true
+                    }
+                });
+            }
+            // We are on Safari v<16.4, let's try again on the next transient activation.
+            _ => *self.wants_fullscreen.borrow_mut() = true,
+        }
     }
 
     pub fn is_fullscreen(&self) -> bool {
