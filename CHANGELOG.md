@@ -55,6 +55,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, the canvas output bitmap size is no longer adjusted.
 - On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
 - On Web: fix position of touch events to be relative to the canvas.
+- On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
+  a transient activation.
 
 # 0.28.6
 
