@@ -8,7 +8,7 @@ use std::{
     panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
     process, ptr,
     rc::{Rc, Weak},
-    sync::mpsc,
+    sync::{mpsc, Mutex},
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -264,11 +264,12 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
 }
 
 pub struct EventLoopProxy<T> {
-    sender: mpsc::Sender<T>,
+    sender: Mutex<mpsc::Sender<T>>,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
@@ -280,7 +281,7 @@ impl<T> Drop for EventLoopProxy<T> {
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        EventLoopProxy::new(self.sender.clone())
+        EventLoopProxy::new(self.sender.lock().unwrap().clone())
     }
 }
 
@@ -310,12 +311,17 @@ impl<T> EventLoopProxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { sender, source }
+            EventLoopProxy {
+                sender: Mutex::new(sender),
+                source,
+            }
         }
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.sender
+            .lock()
+            .unwrap()
             .send(event)
             .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
