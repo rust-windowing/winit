@@ -33,6 +33,10 @@ deny = []
 skip = [
     { name = "nix" },           # differing version - as of 2023-03-02 whis can be solved with `cargo update && cargo update -p calloop --precise 0.10.2`
     { name = "redox_syscall" }, # https://gitlab.redox-os.org/redox-os/orbclient/-/issues/46
+    # https://github.com/rustwasm/wasm-bindgen/pull/3361
+    # https://github.com/sfackler/foreign-types/pull/22
+    # https://github.com/illicitonion/num_enum/issues/111
+    { name = "syn" },
 ]
 skip-tree = []
 
