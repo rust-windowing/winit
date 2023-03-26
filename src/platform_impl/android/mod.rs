@@ -5,7 +5,7 @@ use std::{
     hash::Hash,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, RwLock,
+        mpsc, Arc, Mutex, RwLock,
     },
     time::{Duration, Instant},
 };
@@ -788,21 +788,21 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
+            user_events_sender: Mutex::new(self.user_events_sender.clone()),
             waker: self.android_app.create_waker(),
         }
     }
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_events_sender: mpsc::Sender<T>,
+    user_events_sender: Mutex<mpsc::Sender<T>>,
     waker: AndroidAppWaker,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
+            user_events_sender: Mutex::new(self.user_events_sender.lock().unwrap().clone()),
             waker: self.waker.clone(),
         }
     }
@@ -811,6 +811,8 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
         self.user_events_sender
+            .lock()
+            .unwrap()
             .send(event)
             .map_err(|err| event_loop::EventLoopClosed(err.0))?;
         self.waker.wake();
