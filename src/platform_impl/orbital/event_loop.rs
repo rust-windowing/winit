@@ -648,20 +648,22 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            user_events_sender: self.window_target.p.user_events_sender.clone(),
+            user_events_sender: Mutex::new(self.window_target.p.user_events_sender.clone()),
             wake_socket: self.window_target.p.wake_socket.clone(),
         }
     }
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_events_sender: mpsc::Sender<T>,
+    user_events_sender: Mutex<mpsc::Sender<T>>,
     wake_socket: Arc<TimeSocket>,
 }
 
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
         self.user_events_sender
+            .lock()
+            .unwrap()
             .send(event)
             .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
 
@@ -674,7 +676,7 @@ impl<T> EventLoopProxy<T> {
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         Self {
-            user_events_sender: self.user_events_sender.clone(),
+            user_events_sender: Mutex::new(self.user_events_sender.lock().unwrap().clone()),
             wake_socket: self.wake_socket.clone(),
         }
     }
