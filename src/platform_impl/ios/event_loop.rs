@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
     ptr,
     sync::mpsc::{self, Receiver, Sender},
+    sync::Mutex,
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -153,15 +154,16 @@ impl<T: 'static> EventLoop<T> {
 }
 
 pub struct EventLoopProxy<T> {
-    sender: Sender<T>,
+    sender: Mutex<Sender<T>>,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.sender.clone())
+        EventLoopProxy::new(self.sender.lock().unwrap().clone())
     }
 }
 
@@ -200,12 +202,17 @@ impl<T> EventLoopProxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy { sender, source }
+            EventLoopProxy {
+                sender: Mutex::new(sender),
+                source,
+            }
         }
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.sender
+            .lock()
+            .unwrap()
             .send(event)
             .map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
