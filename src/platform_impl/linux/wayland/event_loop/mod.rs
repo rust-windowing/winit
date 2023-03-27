@@ -21,7 +21,10 @@ use sctk::WaylandSource;
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::event::{Event, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget,
+    OwnedDisplayHandle as RootOwnedDisplayHandle,
+};
 use crate::platform_impl::platform::sticky_exit_callback;
 use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
 
@@ -44,6 +47,9 @@ type WinitDispatcher = calloop::Dispatcher<'static, WaylandSource, WinitState>;
 pub struct EventLoopWindowTarget<T> {
     /// Wayland display.
     pub display: Display,
+
+    /// Display handle.
+    pub display_handle: RootOwnedDisplayHandle,
 
     /// Environment to handle object creation, etc.
     pub env: Environment<WinitEnv>,
@@ -80,6 +86,10 @@ impl<T> EventLoopWindowTarget<T> {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.display.get_display_ptr() as *mut _;
         RawDisplayHandle::Wayland(display_handle)
+    }
+
+    pub fn owned_display_handle(&self) -> &RootOwnedDisplayHandle {
+        &self.display_handle
     }
 }
 
@@ -183,6 +193,12 @@ impl<T: 'static> EventLoop<T> {
         // Create event loop window target.
         let event_loop_window_target = EventLoopWindowTarget {
             display: display.clone(),
+            display_handle: RootOwnedDisplayHandle {
+                p: super::super::OwnedDisplayHandle::Wayland(OwnedDisplayHandle {
+                    display: display.clone(),
+                }),
+                _marker: std::marker::PhantomData,
+            },
             env,
             state: RefCell::new(WinitState {
                 window_map,
@@ -598,6 +614,19 @@ impl<T: 'static> EventLoop<T> {
         self.event_loop
             .dispatch(timeout, state)
             .map_err(|error| error.into())
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    display: Display,
+}
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
     }
 }
 

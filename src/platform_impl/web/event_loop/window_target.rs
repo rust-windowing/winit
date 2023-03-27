@@ -28,6 +28,9 @@ impl<T> Clone for EventLoopWindowTarget<T> {
     }
 }
 
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
 impl<T> EventLoopWindowTarget<T> {
     pub fn new() -> Self {
         Self {
@@ -349,6 +352,19 @@ impl<T> EventLoopWindowTarget<T> {
         Some(MonitorHandle)
     }
 
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    }
+
+    pub fn owned_display_handle(&self) -> &crate::event_loop::OwnedDisplayHandle {
+        &crate::event_loop::OwnedDisplayHandle {
+            p: OwnedDisplayHandle,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Web(WebDisplayHandle::empty())
     }

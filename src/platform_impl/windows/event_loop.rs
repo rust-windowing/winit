@@ -186,6 +186,9 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { GetCurrentThreadId() };
@@ -334,8 +337,21 @@ impl<T> EventLoopWindowTarget<T> {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
 
+    pub fn owned_display_handle(&self) -> &crate::event_loop::OwnedDisplayHandle {
+        &crate::event_loop::OwnedDisplayHandle {
+            p: OwnedDisplayHandle,
+            _marker: PhantomData,
+        }
+    }
+
     pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, filter);
+    }
+}
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
 }
 

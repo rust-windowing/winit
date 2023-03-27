@@ -24,7 +24,10 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{
+        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget,
+        OwnedDisplayHandle as RootDisplayHandle,
+    },
     platform::macos::ActivationPolicy,
     platform_impl::platform::{
         app::WinitApplication,
@@ -91,6 +94,14 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
+
+    #[inline]
+    pub fn owned_display_handle(&self) -> &RootDisplayHandle {
+        &RootDisplayHandle {
+            p: OwnedDisplayHandle,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -100,6 +111,16 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn hide_other_applications(&self) {
         NSApp().hideOtherApplications(None)
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 

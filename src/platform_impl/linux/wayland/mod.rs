@@ -3,7 +3,7 @@
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 
 pub use crate::platform_impl::platform::WindowId;
-pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle};
 pub use output::{MonitorHandle, VideoMode};
 pub use window::Window;
 

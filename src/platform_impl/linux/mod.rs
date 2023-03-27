@@ -685,6 +685,14 @@ pub enum EventLoopProxy<T: 'static> {
     Wayland(wayland::EventLoopProxy<T>),
 }
 
+#[derive(Clone)]
+pub enum OwnedDisplayHandle {
+    #[cfg(x11_platform)]
+    X(x11::OwnedDisplayHandle),
+    #[cfg(wayland_platform)]
+    Wayland(wayland::OwnedDisplayHandle),
+}
+
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.clone(); as EventLoopProxy)
@@ -863,6 +871,21 @@ impl<T> EventLoopWindowTarget<T> {
         }
     }
 
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    }
+
+    pub fn owned_display_handle(&self) -> &crate::event_loop::OwnedDisplayHandle {
+        match self {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(evlp) => evlp.owned_display_handle(),
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(evlp) => evlp.owned_display_handle(),
+        }
+    }
+}
+
+impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
     }

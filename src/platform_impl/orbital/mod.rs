@@ -4,7 +4,7 @@ use std::str;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle};
 mod event_loop;
 
 pub use self::window::Window;

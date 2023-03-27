@@ -50,6 +50,17 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
+/// Target that provides a handle to the display powering the event loop.
+///
+/// This type allows one to take advantage of the display's capabilities, such as
+/// querying the display's resolution or DPI, without having to create a window. It
+/// implements `HasDisplayHandle`.
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    pub(crate) p: platform_impl::OwnedDisplayHandle,
+    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
+}
+
 /// Object that allows building the event loop.
 ///
 /// This is used to make specifying options that affect the whole application
@@ -375,6 +386,14 @@ impl<T> EventLoopWindowTarget<T> {
         #[cfg(any(x11_platform, wayland_platform, windows))]
         self.p.set_device_event_filter(_filter);
     }
+
+    /// Get an owned handle to the current display.
+    ///
+    /// This handle can be cheaply cloned and used, allowing one to fulfill the `HasDisplayHandle`
+    /// trait bound.
+    pub fn owned_display_handle(&self) -> &OwnedDisplayHandle {
+        self.p.owned_display_handle()
+    }
 }
 
 unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
@@ -385,6 +404,20 @@ unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
 }
 
 impl<T> HasDisplayHandle for EventLoopWindowTarget<T> {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: The display handle is valid for as long as the window target is.
+        Ok(unsafe { DisplayHandle::borrow_raw(self.raw_display_handle()) })
+    }
+}
+
+unsafe impl HasRawDisplayHandle for OwnedDisplayHandle {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.p.raw_display_handle()
+    }
+}
+
+impl HasDisplayHandle for OwnedDisplayHandle {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         // SAFETY: The display handle is valid for as long as the window target is.
         Ok(unsafe { DisplayHandle::borrow_raw(self.raw_display_handle()) })

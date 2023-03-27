@@ -81,7 +81,8 @@ use std::fmt;
 
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},

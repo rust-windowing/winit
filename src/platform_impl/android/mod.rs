@@ -850,6 +850,22 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Android(AndroidDisplayHandle::empty())
     }
+
+    pub fn owned_display_handle(&self) -> &event_loop::OwnedDisplayHandle {
+        &event_loop::OwnedDisplayHandle {
+            p: OwnedDisplayHandle,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

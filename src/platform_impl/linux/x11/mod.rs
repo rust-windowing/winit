@@ -49,6 +49,7 @@ use crate::{
     event::{Event, StartCause},
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+        OwnedDisplayHandle as RootODH,
     },
     platform_impl::{
         platform::{sticky_exit_callback, WindowId},
@@ -99,6 +100,11 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    xconn: Arc<XConnection>,
+}
+
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
@@ -109,6 +115,7 @@ pub struct EventLoopWindowTarget<T> {
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     device_event_filter: Cell<DeviceEventFilter>,
+    display_handle: RootODH,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -238,6 +245,12 @@ impl<T: 'static> EventLoop<T> {
             windows: Default::default(),
             _marker: ::std::marker::PhantomData,
             ime_sender,
+            display_handle: RootODH {
+                p: super::OwnedDisplayHandle::X(OwnedDisplayHandle {
+                    xconn: xconn.clone(),
+                }),
+                _marker: ::std::marker::PhantomData,
+            },
             xconn,
             wm_delete_window,
             net_wm_ping,
@@ -566,6 +579,20 @@ impl<T> EventLoopWindowTarget<T> {
             .queue();
     }
 
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xconn.display as *mut _;
+        display_handle.screen =
+            unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
+        RawDisplayHandle::Xlib(display_handle)
+    }
+
+    pub fn owned_display_handle(&self) -> &RootODH {
+        &self.display_handle
+    }
+}
+
+impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         let mut display_handle = XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
