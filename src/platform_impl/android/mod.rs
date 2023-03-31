@@ -392,17 +392,14 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 MainEvent::TerminateWindow { .. } => {
-                    // SAFETY: The window is now inactive.
-                    unsafe {
-                        self.window_target.p.active.set_inactive();
-                    }
-
                     sticky_exit_callback(
                         event::Event::Suspended,
                         self.window_target(),
                         control_flow,
                         callback,
                     );
+
+                    self.window_target.p.active.set_inactive();
                 }
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => *pending_redraw = true,
