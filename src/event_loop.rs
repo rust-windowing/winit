@@ -54,7 +54,61 @@ pub struct EventLoopWindowTarget<T: 'static> {
 ///
 /// This type allows one to take advantage of the display's capabilities, such as
 /// querying the display's resolution or DPI, without having to create a window. It
-/// implements `HasDisplayHandle`.
+/// implements [`HasDisplayHandle`].
+///
+/// The main reason why this type exists is to act as a persistent display handle
+/// in cases where the [`Window`] type is not available. Let's say that your graphics
+/// framework has a type `Display<T>`, where `T` has to implement [`HasDisplayHandle`]
+/// so that the graphics framework can query it for data and be sure that the display is
+/// still alive. Also assume that `Display<T>` is somewhat expensive to construct, so
+/// you cannot just create a new `Display<T>` every time you need to render.
+/// Therefore, you need a *persistent* handle to the display to pass in as `T`. This
+/// handle cannot be invalidated by the borrow checker during the lifetime of the
+/// program; otherwise, you would have to drop the `Display<T>` and recreate it
+/// every time you need to render, which would be very expensive.
+///
+/// The [`EventLoop`] type is either owned or borrowed mutably during event
+/// handling. Therefore, neither [`EventLoop`], `&EventLoop` or a [`DisplayHandle`]
+/// referencing an [`EventLoop`] can be used to provide a [`HasDisplayHandle`]
+/// implementation. On the other hand, the [`EventLoopWindowTarget`] type disappears
+/// between events so it can't be used as a persistent handle either. In certain
+/// cases, you can use a [`Window`]; however, for certain graphics APIs (like OpenGL)
+/// you need to be able to query the display before creating a window. In this case,
+/// you end up with a "chicken and egg" problem; you need a display handle to create
+/// a window, but you need a window to access the display handle.
+///
+/// ![A chicken](https://i.imgur.com/9a5K2nz.jpg)
+///
+/// <sub>Figure 1: A chicken, representing the window in the above metaphor. Note that
+/// there are no eggs. "[Chicken February 2009-1]" by [Joaquim Alves Gaspar] is licensed
+/// under [CC BY-SA 3.0].</sub>
+///
+/// The `OwnedDisplayHandle` type breaks this cycle by providing a persistent handle
+/// to the display. It is not tied to any lifetime constraints, so it can't be
+/// invalidated during event handling. It is also cheaply clonable, so you can
+/// more easily pass it around to other parts of your program. Therefore, it can
+/// be passed in as `T` to your graphics framework's `Display<T>` type without
+/// worrying about the borrow checker.
+///
+/// To create an `OwnedDisplayHandle`, use the [`EventLoopWindowTarget::owned_display_handle`]
+/// method.
+///
+/// ## Safety
+///
+/// The [`DisplayHandle`] returned by the `OwnedDisplayHandle` type is guaranteed to
+/// remain valid as long as the `OwnedDisplayHandle` is alive. The internal display
+/// handle is not immediately closed by the [`EventLoop`] being dropped as long as
+/// the `OwnedDisplayHandle` is still alive. On all platforms, the underlying display
+/// is either ref-counted or a ZST, so this is safe.
+///
+/// [Chicken February 2009-1]: https://commons.wikimedia.org/wiki/File:Chicken_February_2009-1.jpg
+/// [Joaquim Alves Gaspar]: https://commons.wikimedia.org/wiki/User:Alvesgaspar
+/// [CC BY-SA 3.0]: https://creativecommons.org/licenses/by-sa/3.0
+/// [`EventLoop`]: EventLoop
+/// [`Window`]: crate::window::Window
+/// [`DisplayHandle`]: raw_window_handle::DisplayHandle
+/// [`EventLoopWindowTarget`]: EventLoopWindowTarget
+/// [`HasDisplayHandle`]: raw_window_handle::HasDisplayHandle
 #[derive(Clone)]
 pub struct OwnedDisplayHandle {
     pub(crate) p: platform_impl::OwnedDisplayHandle,
@@ -389,8 +443,22 @@ impl<T> EventLoopWindowTarget<T> {
 
     /// Get an owned handle to the current display.
     ///
-    /// This handle can be cheaply cloned and used, allowing one to fulfill the `HasDisplayHandle`
+    /// This handle can be cheaply cloned and used, allowing one to fulfill the [`HasDisplayHandle`]
     /// trait bound.
+    ///
+    /// For more information, see documentation for [`OwnedDisplayHandle`] and the
+    /// [`HasDisplayHandle`] trait.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// use winit::event_loop::EventLoop;
+    ///
+    /// let event_loop = EventLoop::new();
+    /// let display_handle = event_loop.owned_display_handle();
+    /// ```
+    ///
+    /// [`HasDisplayHandle`]: raw_window_handle::HasDisplayHandle
     pub fn owned_display_handle(&self) -> &OwnedDisplayHandle {
         self.p.owned_display_handle()
     }
