@@ -1605,7 +1605,7 @@ impl UnownedWindow {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = XlibWindowHandle::empty();
         window_handle.window = self.xlib_window();
-        RawWindowHandle::Xlib(window_handle)
+        window_handle.into()
     }
 
     #[inline]
@@ -1613,7 +1613,7 @@ impl UnownedWindow {
         let mut display_handle = XlibDisplayHandle::empty();
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
     }
 
     #[inline]

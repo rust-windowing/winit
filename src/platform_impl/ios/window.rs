@@ -343,11 +343,11 @@ impl Inner {
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = Id::as_ptr(&self.view) as _;
         window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
-        RawWindowHandle::UiKit(window_handle)
+        window_handle.into()
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+        UiKitDisplayHandle::empty().into()
     }
 
     pub fn theme(&self) -> Option<Theme> {

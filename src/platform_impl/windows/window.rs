@@ -321,12 +321,12 @@ impl Window {
         let mut window_handle = Win32WindowHandle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
         window_handle.hinstance = self.hinstance() as *mut _;
-        RawWindowHandle::Win32(window_handle)
+        window_handle.into()
     }
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+        WindowsDisplayHandle::empty().into()
     }
 
     #[inline]

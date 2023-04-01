@@ -92,7 +92,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+        AppKitDisplayHandle::empty().into()
     }
 
     #[inline]
@@ -120,7 +120,7 @@ pub struct OwnedDisplayHandle;
 impl OwnedDisplayHandle {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+        AppKitDisplayHandle::empty().into()
     }
 }
 

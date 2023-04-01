@@ -1228,12 +1228,12 @@ impl WinitWindow {
         let mut window_handle = AppKitWindowHandle::empty();
         window_handle.ns_window = self.ns_window();
         window_handle.ns_view = self.ns_view();
-        RawWindowHandle::AppKit(window_handle)
+        window_handle.into()
     }
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+        AppKitDisplayHandle::empty().into()
     }
 
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {

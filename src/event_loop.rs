@@ -52,12 +52,11 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 /// Target that provides a handle to the display powering the event loop.
 ///
-/// This type allows one to take advantage of the display's capabilities, such as
-/// querying the display's resolution or DPI, without having to create a window. It
-/// implements [`HasDisplayHandle`].
+/// This type allows one to take advantage of the display's capabilities without
+/// having to create a window. It implements [`HasDisplayHandle`].
 ///
 /// The main reason why this type exists is to act as a persistent display handle
-/// in cases where the [`Window`] type is not available. Let's say that your graphics
+/// in cases where the [`Window`] is not created yet. Let's say that your graphics
 /// framework has a type `Display<T>`, where `T` has to implement [`HasDisplayHandle`]
 /// so that the graphics framework can query it for data and be sure that the display is
 /// still alive. Also assume that `Display<T>` is somewhat expensive to construct, so
@@ -77,33 +76,24 @@ pub struct EventLoopWindowTarget<T: 'static> {
 /// you end up with a "chicken and egg" problem; you need a display handle to create
 /// a window, but you need a window to access the display handle.
 ///
-/// ![A chicken](https://i.imgur.com/9a5K2nz.jpg)
-///
-/// <sub>Figure 1: A chicken, representing the window in the above metaphor. Note that
-/// there are no eggs. "[Chicken February 2009-1]" by [Joaquim Alves Gaspar] is licensed
-/// under [CC BY-SA 3.0].</sub>
-///
-/// The `OwnedDisplayHandle` type breaks this cycle by providing a persistent handle
+/// The [`OwnedDisplayHandle`] type breaks this cycle by providing a persistent handle
 /// to the display. It is not tied to any lifetime constraints, so it can't be
 /// invalidated during event handling. It is also cheaply clonable, so you can
 /// more easily pass it around to other parts of your program. Therefore, it can
 /// be passed in as `T` to your graphics framework's `Display<T>` type without
 /// worrying about the borrow checker.
 ///
-/// To create an `OwnedDisplayHandle`, use the [`EventLoopWindowTarget::owned_display_handle`]
+/// To create an [`OwnedDisplayHandle`], use the [`EventLoopWindowTarget::owned_display_handle`]
 /// method.
 ///
 /// ## Safety
 ///
-/// The [`DisplayHandle`] returned by the `OwnedDisplayHandle` type is guaranteed to
-/// remain valid as long as the `OwnedDisplayHandle` is alive. The internal display
+/// The [`DisplayHandle`] returned by the [`OwnedDisplayHandle`] type is guaranteed to
+/// remain valid as long as the [`OwnedDisplayHandle`] is alive. The internal display
 /// handle is not immediately closed by the [`EventLoop`] being dropped as long as
-/// the `OwnedDisplayHandle` is still alive. On all platforms, the underlying display
+/// the [`OwnedDisplayHandle`] is still alive. On all platforms, the underlying display
 /// is either ref-counted or a ZST, so this is safe.
 ///
-/// [Chicken February 2009-1]: https://commons.wikimedia.org/wiki/File:Chicken_February_2009-1.jpg
-/// [Joaquim Alves Gaspar]: https://commons.wikimedia.org/wiki/User:Alvesgaspar
-/// [CC BY-SA 3.0]: https://creativecommons.org/licenses/by-sa/3.0
 /// [`EventLoop`]: EventLoop
 /// [`Window`]: crate::window::Window
 /// [`DisplayHandle`]: raw_window_handle::DisplayHandle
@@ -112,7 +102,19 @@ pub struct EventLoopWindowTarget<T: 'static> {
 #[derive(Clone)]
 pub struct OwnedDisplayHandle {
     pub(crate) p: platform_impl::OwnedDisplayHandle,
-    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
+
+    /// Make sure that the display handle is !Send and !Sync.
+    ///
+    /// ```compile_fail
+    /// fn foo<T: Send>() {}
+    /// foo::<winit::event_loop::OwnedDisplayHandle>();
+    /// ```
+    ///
+    /// ```compile_fail
+    /// fn foo<T: Sync>() {}
+    /// foo::<winit::event_loop::OwnedDisplayHandle>();
+    /// ```
+    pub(crate) _marker: PhantomData<*mut ()>,
 }
 
 /// Object that allows building the event loop.

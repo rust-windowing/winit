@@ -664,14 +664,14 @@ impl Window {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = WaylandWindowHandle::empty();
         window_handle.surface = self.surface.as_ref().c_ptr() as *mut _;
-        RawWindowHandle::Wayland(window_handle)
+        window_handle.into()
     }
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.display.get_display_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        display_handle.into()
     }
 
     #[inline]

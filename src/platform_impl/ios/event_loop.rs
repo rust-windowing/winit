@@ -63,7 +63,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+        UiKitDisplayHandle::empty().into()
     }
 
     pub fn owned_display_handle(&self) -> &crate::event_loop::OwnedDisplayHandle {
@@ -79,7 +79,7 @@ pub struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+        UiKitDisplayHandle::empty().into()
     }
 }
 

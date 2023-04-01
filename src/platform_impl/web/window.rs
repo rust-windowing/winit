@@ -396,12 +396,12 @@ impl Window {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = WebWindowHandle::empty();
         window_handle.id = self.id.0;
-        RawWindowHandle::Web(window_handle)
+        window_handle.into()
     }
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+        WebDisplayHandle::empty().into()
     }
 
     #[inline]

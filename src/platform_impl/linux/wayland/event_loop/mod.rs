@@ -85,7 +85,7 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.display.get_display_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        display_handle.into()
     }
 
     pub fn owned_display_handle(&self) -> &RootOwnedDisplayHandle {
@@ -626,7 +626,7 @@ impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.display.get_display_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        display_handle.into()
     }
 }
 

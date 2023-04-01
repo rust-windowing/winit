@@ -584,7 +584,7 @@ impl<T> EventLoopWindowTarget<T> {
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen =
             unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
     }
 
     pub fn owned_display_handle(&self) -> &RootODH {
@@ -598,7 +598,7 @@ impl OwnedDisplayHandle {
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen =
             unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
     }
 }
 

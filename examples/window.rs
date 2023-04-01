@@ -1,5 +1,6 @@
 #![allow(clippy::single_match)]
 
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
@@ -17,9 +18,18 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, elwt, control_flow| {
         control_flow.set_wait();
         println!("{event:?}");
+
+        // Print the display handle.
+        println!("Display handle: {:?}", elwt.display_handle());
+
+        // Print the window handle.
+        match window.window_handle() {
+            Ok(handle) => println!("Window handle: {:?}", handle),
+            Err(_) => println!("Window handle: None"),
+        }
 
         match event {
             Event::WindowEvent {

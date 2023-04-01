@@ -845,7 +845,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+        AndroidDisplayHandle::empty().into()
     }
 
     pub fn owned_display_handle(&self) -> &event_loop::OwnedDisplayHandle {
@@ -861,7 +861,7 @@ pub struct OwnedDisplayHandle;
 
 impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+        AndroidDisplayHandle::empty().into()
     }
 }
 
@@ -1087,7 +1087,7 @@ impl Window {
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+        AndroidDisplayHandle::empty().into()
     }
 
     pub fn config(&self) -> ConfigurationRef {

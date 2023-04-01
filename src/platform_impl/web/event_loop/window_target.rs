@@ -353,7 +353,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+        WebDisplayHandle::empty().into()
     }
 
     pub fn owned_display_handle(&self) -> &crate::event_loop::OwnedDisplayHandle {
@@ -366,6 +366,6 @@ impl<T> EventLoopWindowTarget<T> {
 
 impl OwnedDisplayHandle {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+        WebDisplayHandle::empty().into()
     }
 }

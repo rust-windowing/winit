@@ -381,12 +381,12 @@ impl Window {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut handle = OrbitalWindowHandle::empty();
         handle.window = self.window_socket.fd as *mut _;
-        RawWindowHandle::Orbital(handle)
+        handle.into()
     }
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+        OrbitalDisplayHandle::empty().into()
     }
 
     #[inline]
