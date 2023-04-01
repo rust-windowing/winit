@@ -579,7 +579,7 @@ impl<T> EventLoopWindowTarget<T> {
             .queue();
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
         let mut display_handle = XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen =
