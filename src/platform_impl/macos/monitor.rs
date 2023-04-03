@@ -230,6 +230,10 @@ impl MonitorHandle {
                 return None;
             }
 
+            if time.time_value < 1 {
+                return None;
+            }
+
             Some((time.time_scale as i64 / time.time_value * 1000) as u32)
         }
     }
