@@ -230,11 +230,9 @@ impl MonitorHandle {
                 return None;
             }
 
-            if time.time_value < 1 {
-                return None;
-            }
-
-            Some((time.time_scale as i64 / time.time_value * 1000) as u32)
+            (time.time_scale as i64)
+                .checked_div(time.time_value)
+                .map(|v| (v * 1000) as u32)
         }
     }
 
