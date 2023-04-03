@@ -4,9 +4,8 @@ use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
 
-use crate::dpi::LogicalPosition;
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalPosition, LogicalSize},
     platform_impl::platform::{
         appkit::{NSScreen, NSWindow, NSWindowLevel, NSWindowStyleMask},
         ffi,
