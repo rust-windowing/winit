@@ -1165,8 +1165,7 @@ impl WinitWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        // TODO(madsmtm): Remove the need for this
-        unsafe { Id::from_shared(self.view()) }.set_ime_position(logical_spot);
+        util::set_ime_position_sync(self, logical_spot);
     }
 
     #[inline]
