@@ -40,6 +40,7 @@ pub(super) fn handle_touch(
                     phase: TouchPhase::Started,
                     location: position.to_physical(scale_factor),
                     force: None, // TODO
+                    pen_state: None,
                     id: id as u64,
                 }),
                 window_id,
@@ -78,6 +79,7 @@ pub(super) fn handle_touch(
                     phase: TouchPhase::Ended,
                     location,
                     force: None, // TODO
+                    pen_state: None,
                     id: id as u64,
                 }),
                 window_id,
@@ -108,6 +110,7 @@ pub(super) fn handle_touch(
                     phase: TouchPhase::Moved,
                     location,
                     force: None, // TODO
+                    pen_state: None,
                     id: id as u64,
                 }),
                 window_id,
@@ -133,6 +136,7 @@ pub(super) fn handle_touch(
                         phase: TouchPhase::Cancelled,
                         location,
                         force: None, // TODO
+                        pen_state: None,
                         id: touch_point.id as u64,
                     }),
                     window_id,

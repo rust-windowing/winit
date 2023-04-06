@@ -4,12 +4,13 @@ use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
-    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
+    DndState, GenericEventCookie, ImeReceiver, PenAtoms, ScrollOrientation, UnownedWindow,
+    ValuatorInfo, WindowId, XExtension,
 };
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
+use crate::event::{PenState, Touch};
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -39,15 +40,90 @@ pub(super) struct EventProcessor<T: 'static> {
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
     pub(super) is_composing: bool,
+    pub(super) pen_status: PenStatus,
+}
+
+#[derive(Default)]
+pub(super) struct PenStatus {
+    pub(super) pen_down: bool,
+    pub(super) barrel_down: bool,
+    pub(super) eraser_down: bool,
+}
+
+fn handle_pen_event<T: 'static, F>(
+    devices: &HashMap<DeviceId, Device>,
+    pen_status: &mut PenStatus,
+    xev: &ffi::XIDeviceEvent,
+    mut callback: F,
+) where
+    F: FnMut(Event<'_, T>),
+{
+    if let Some(Device { pen: Some(pen), .. }) = devices.get(&DeviceId(xev.sourceid)) {
+        let position = PhysicalPosition::new(xev.event_x, xev.event_y);
+        let value = xev.valuators.values;
+        let mask =
+            unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
+
+        let get_value = |vi: &ValuatorInfo| -> f64 {
+            match ffi::XIMaskIsSet(mask, vi.axis) {
+                true => unsafe { *value.offset(vi.axis as isize) },
+                _ => 0.,
+            }
+        };
+
+        let pressure =
+            (get_value(&pen.pressure) - pen.pressure.min) / (pen.pressure.max - pen.pressure.min);
+        let tilt_x = pen.tilt_x.as_ref().map(get_value).unwrap_or(0.);
+        let tilt_y = pen.tilt_y.as_ref().map(get_value).unwrap_or(0.);
+        let phase = match (pressure > 0., pen_status.pen_down) {
+            (true, false) => TouchPhase::Started,
+            (false, true) => TouchPhase::Ended,
+            _ => TouchPhase::Moved,
+        };
+
+        pen_status.pen_down = pressure > 0.;
+        let button_down = match xev.evtype {
+            ffi::XI_ButtonPress => Some(true),
+            ffi::XI_ButtonRelease => Some(false),
+            _ => None,
+        };
+        button_down.map(|down| match xev.detail as u32 {
+            ffi::Button2 => pen_status.eraser_down = down,
+            ffi::Button3 => pen_status.barrel_down = down,
+            _ => {}
+        });
+
+        let device_id = mkdid(xev.deviceid);
+        let window_id = mkwid(xev.event);
+
+        callback(Event::WindowEvent {
+            window_id,
+            event: WindowEvent::Touch(Touch {
+                device_id,
+                phase,
+                location: position,
+                id: 1000,
+                force: Some(crate::event::Force::Normalized(pressure)),
+                pen_state: Some(PenState {
+                    barrel: pen_status.barrel_down,
+                    eraser: pen_status.eraser_down,
+                    inverted: false,
+                    tilt: (tilt_x, tilt_y),
+                    rotation: 0.,
+                }),
+            }),
+        });
+    }
 }
 
 impl<T: 'static> EventProcessor<T> {
     pub(super) fn init_device(&self, device: c_int) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
+        let pen_atoms = PenAtoms::new(&wt.xconn);
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(info));
+                devices.insert(DeviceId(info.deviceid), Device::new(&pen_atoms, info));
             }
         }
     }
@@ -679,7 +755,6 @@ impl<T: 'static> EventProcessor<T> {
                     ElementState::{Pressed, Released},
                     MouseButton::{Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
-                    Touch,
                     WindowEvent::{
                         AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
                         MouseWheel,
@@ -698,6 +773,13 @@ impl<T: 'static> EventProcessor<T> {
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
                         update_modifiers!(modifiers, None);
+
+                        handle_pen_event(
+                            &self.devices.borrow(),
+                            &mut self.pen_status,
+                            xev,
+                            &mut callback,
+                        );
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -775,6 +857,13 @@ impl<T: 'static> EventProcessor<T> {
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
                         update_modifiers!(modifiers, None);
+
+                        handle_pen_event(
+                            &self.devices.borrow(),
+                            &mut self.pen_status,
+                            xev,
+                            &mut callback,
+                        );
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state_lock();
@@ -1069,6 +1158,7 @@ impl<T: 'static> EventProcessor<T> {
                                     phase,
                                     location,
                                     force: None, // TODO
+                                    pen_state: None,
                                     id,
                                 }),
                             })
