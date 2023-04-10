@@ -120,7 +120,7 @@ bitflags! {
 
         const MARKER_ACTIVATE = 1 << 21;
 
-        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
 
