@@ -105,6 +105,7 @@ static NUMPAD_KEYCODES: Lazy<HashSet<KeyCode>> = Lazy::new(|| {
 });
 
 bitflags! {
+    #[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
     pub struct WindowsModifiers : u8 {
         const SHIFT = 1 << 0;
         const CONTROL = 1 << 1;

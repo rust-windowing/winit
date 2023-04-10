@@ -50,7 +50,7 @@ serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde"]
 cfg_aliases = "0.1.1"
 
 [dependencies]
-bitflags = "1"
+bitflags = "2"
 cursor-icon = "1.0.0"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 log = "0.4"

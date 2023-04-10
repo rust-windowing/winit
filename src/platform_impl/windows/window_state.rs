@@ -71,6 +71,7 @@ pub struct MouseProperties {
 }
 
 bitflags! {
+    #[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
     pub struct CursorFlags: u8 {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
@@ -78,6 +79,7 @@ bitflags! {
     }
 }
 bitflags! {
+    #[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
     pub struct WindowFlags: u32 {
         const RESIZABLE         = 1 << 0;
         const MINIMIZABLE       = 1 << 1;

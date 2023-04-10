@@ -120,7 +120,7 @@ fn element_state(pressed: bool) -> event::ElementState {
 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
     struct KeyboardModifierState: u8 {
         const LSHIFT = 1 << 0;
         const RSHIFT = 1 << 1;
@@ -134,7 +134,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
     struct MouseButtonState: u8 {
         const LEFT = 1 << 0;
         const MIDDLE = 1 << 1;
