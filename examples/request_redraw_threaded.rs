@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     use std::{sync::Arc, thread, time};
 
     use simple_logger::SimpleLogger;
@@ -49,7 +49,7 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }
 
 #[cfg(wasm_platform)]
