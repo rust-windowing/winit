@@ -2,7 +2,8 @@ use std::{error, fmt};
 
 use crate::platform_impl;
 
-/// An error whose cause it outside Winit's control.
+// TODO: Rename
+/// An error that may be generated when requesting Winit state
 #[derive(Debug)]
 pub enum ExternalError {
     /// The operation is not supported by the backend.
@@ -23,6 +24,19 @@ pub struct OsError {
     line: u32,
     file: &'static str,
     error: platform_impl::OsError,
+}
+
+/// A general error that may occur while running the Winit event loop
+#[derive(Debug)]
+pub enum RunLoopError {
+    /// The operation is not supported by the backend.
+    NotSupported(NotSupportedError),
+    /// The OS cannot perform the operation.
+    Os(OsError),
+    /// The event loop can't be re-run while it's already running
+    AlreadyRunning,
+    /// Application has exit with an error status.
+    ExitFailure(i32),
 }
 
 impl NotSupportedError {
@@ -77,6 +91,18 @@ impl fmt::Display for NotSupportedError {
     }
 }
 
+impl fmt::Display for RunLoopError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            RunLoopError::AlreadyRunning => write!(f, "EventLoop is already running"),
+            RunLoopError::NotSupported(e) => e.fmt(f),
+            RunLoopError::Os(e) => e.fmt(f),
+            RunLoopError::ExitFailure(status) => write!(f, "Exit Failure: {status}"),
+        }
+    }
+}
+
 impl error::Error for OsError {}
 impl error::Error for ExternalError {}
 impl error::Error for NotSupportedError {}
+impl error::Error for RunLoopError {}
