@@ -526,17 +526,12 @@ impl<T: 'static> EventLoop<T> {
         self.pending_redraw = pending_redraw;
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: 'static
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let exit_code = match self.run_ondemand(event_handler) {
-            Err(RunLoopError::ExitFailure(code)) => code,
-            Err(_err) => 1,
-            Ok(_) => 0,
-        };
-        ::std::process::exit(exit_code);
+        self.run_ondemand(event_handler)
     }
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>

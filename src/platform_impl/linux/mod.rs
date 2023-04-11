@@ -830,11 +830,11 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run<F>(self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
+        self.run_ondemand(callback)
     }
 
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>

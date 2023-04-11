@@ -10,7 +10,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
@@ -64,5 +64,5 @@ In other words, the deltas indicate the direction in which to move the content (
             }
             _ => (),
         }
-    });
+    })
 }
