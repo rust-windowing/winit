@@ -11,7 +11,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
@@ -69,7 +69,7 @@ fn main() {
             }
         }
         _ => (),
-    });
+    })
 }
 
 fn name_windows(window_id: WindowId, switched: bool, window_1: &Window, window_2: &Window) {

@@ -1,9 +1,5 @@
 //! Demonstrates the use of startup notifications on Linux.
 
-fn main() {
-    example::main();
-}
-
 #[cfg(any(x11_platform, wayland_platform))]
 #[path = "./util/fill.rs"]
 mod fill;
@@ -21,7 +17,7 @@ mod example {
     };
     use winit::window::{Window, WindowBuilder, WindowId};
 
-    pub(super) fn main() {
+    pub(super) fn main() -> Result<(), impl std::error::Error> {
         // Create the event loop and get the activation token.
         let event_loop = EventLoop::new();
         let mut current_token = match event_loop.read_token_from_env() {
@@ -115,13 +111,16 @@ mod example {
             }
 
             flow.set_wait();
-        });
+        })
     }
 }
 
+#[cfg(any(x11_platform, wayland_platform))]
+fn main() -> Result<(), impl std::error::Error> {
+    example::main()
+}
+
 #[cfg(not(any(x11_platform, wayland_platform)))]
-mod example {
-    pub(super) fn main() {
-        println!("This example is only supported on X11 and Wayland platforms.");
-    }
+fn main() {
+    println!("This example is only supported on X11 and Wayland platforms.");
 }

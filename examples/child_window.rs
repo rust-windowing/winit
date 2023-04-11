@@ -3,7 +3,7 @@
 mod fill;
 
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
     use raw_window_handle::HasRawWindowHandle;

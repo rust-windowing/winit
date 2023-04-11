@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
@@ -52,7 +52,7 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }
 
 #[cfg(wasm_platform)]

@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    error::RunLoopError,
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow},
     keyboard::{
@@ -442,7 +443,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), RunLoopError>
     where
         F: 'static
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
@@ -688,7 +689,11 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
-        ::std::process::exit(code);
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(RunLoopError::ExitFailure(code))
+        }
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {

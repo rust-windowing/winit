@@ -27,7 +27,7 @@ enum Mode {
 const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
 const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
 
     println!("Press '1' to switch to Wait mode.");
@@ -122,5 +122,5 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }

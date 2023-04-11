@@ -6,7 +6,7 @@ use std::{
     mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe, RefUnwindSafe, UnwindSafe},
-    process, ptr,
+    ptr,
     rc::{Rc, Weak},
     sync::mpsc,
 };
@@ -192,16 +192,11 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
-        let exit_code = match self.run_ondemand(callback) {
-            Err(RunLoopError::ExitFailure(code)) => code,
-            Err(_err) => 1,
-            Ok(_) => 0,
-        };
-        process::exit(exit_code);
+        self.run_ondemand(callback)
     }
 
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
