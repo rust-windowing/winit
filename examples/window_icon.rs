@@ -12,7 +12,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
 
     // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
@@ -48,7 +48,7 @@ fn main() {
         } else if let Event::RedrawRequested(_) = event {
             fill::fill_window(&window);
         }
-    });
+    })
 }
 
 fn load_icon(path: &Path) -> Icon {

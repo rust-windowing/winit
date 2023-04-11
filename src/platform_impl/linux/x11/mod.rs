@@ -432,18 +432,6 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
-    where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow) + 'static,
-    {
-        let exit_code = match self.run_ondemand(callback) {
-            Err(RunLoopError::ExitFailure(code)) => code,
-            Err(_err) => 1,
-            Ok(_) => 0,
-        };
-        ::std::process::exit(exit_code)
-    }
-
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),

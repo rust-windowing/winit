@@ -18,7 +18,7 @@ mod fill;
 /// Prints the keyboard events characters received when option_is_alt is true versus false.
 /// A left mouse click will toggle option_is_alt.
 #[cfg(target_os = "macos")]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -66,7 +66,7 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }
 
 #[cfg(not(target_os = "macos"))]
