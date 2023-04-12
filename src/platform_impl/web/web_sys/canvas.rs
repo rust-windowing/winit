@@ -100,7 +100,7 @@ impl Canvas {
             on_fullscreen_change: None,
             on_dark_mode: None,
             mouse_handler: mouse_handler::MouseHandler::new(),
-            pointer_handler: has_pointer_event().then(|| pointer_handler::PointerHandler::new()),
+            pointer_handler: has_pointer_event().then(pointer_handler::PointerHandler::new),
         })
     }
 
