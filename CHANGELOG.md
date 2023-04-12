@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Web: Canvases will now have `user-select: none` to prevent double clicks from selecting text outside the canvas.
 - Web: Only use pointer events for touch typed events.
 - Web: Use mouse events for generic mouse button events.
+- On macOS, fixed potential panic when getting refresh rate.
 
 # 0.28.3
 
