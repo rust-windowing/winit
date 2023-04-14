@@ -12,9 +12,11 @@ use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelE
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ButtonsState: u16 {
-        const LEFT   = 0b001;
-        const RIGHT  = 0b010;
-        const MIDDLE = 0b100;
+        const LEFT   = 0b00001;
+        const RIGHT  = 0b00010;
+        const MIDDLE = 0b00100;
+        const BACK = 0b01000;
+        const FORWARD = 0b10000;
     }
 }
 
@@ -24,6 +26,8 @@ impl From<ButtonsState> for MouseButton {
             ButtonsState::LEFT => MouseButton::Left,
             ButtonsState::RIGHT => MouseButton::Right,
             ButtonsState::MIDDLE => MouseButton::Middle,
+            ButtonsState::BACK => MouseButton::Back,
+            ButtonsState::FORWARD => MouseButton::Forward,
             _ => MouseButton::Other(value.bits()),
         }
     }
@@ -35,6 +39,8 @@ impl From<MouseButton> for ButtonsState {
             MouseButton::Left => ButtonsState::LEFT,
             MouseButton::Right => ButtonsState::RIGHT,
             MouseButton::Middle => ButtonsState::MIDDLE,
+            MouseButton::Back => ButtonsState::BACK,
+            MouseButton::Forward => ButtonsState::FORWARD,
             MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
         }
     }
@@ -45,11 +51,14 @@ pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
 }
 
 pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+    // https://w3c.github.io/uievents/#dom-mouseevent-button
     match event.button() {
         -1 => None,
         0 => Some(MouseButton::Left),
         1 => Some(MouseButton::Middle),
         2 => Some(MouseButton::Right),
+        3 => Some(MouseButton::Back),
+        4 => Some(MouseButton::Forward),
         i => Some(MouseButton::Other(
             i.try_into()
                 .expect("unexpected negative mouse button value"),

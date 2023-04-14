@@ -1647,7 +1647,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_XBUTTONDOWN => {
             use crate::event::{
-                ElementState::Pressed, MouseButton::Other, WindowEvent::MouseInput,
+                ElementState::Pressed, MouseButton::Back, MouseButton::Forward, MouseButton::Other,
+                WindowEvent::MouseInput,
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
@@ -1660,7 +1661,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Pressed,
-                    button: Other(xbutton),
+                    button: match xbutton {
+                        1 => Back,
+                        2 => Forward,
+                        _ => Other(xbutton),
+                    },
                 },
             });
             result = ProcResult::Value(0);
@@ -1668,7 +1673,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_XBUTTONUP => {
             use crate::event::{
-                ElementState::Released, MouseButton::Other, WindowEvent::MouseInput,
+                ElementState::Released, MouseButton::Back, MouseButton::Forward,
+                MouseButton::Other, WindowEvent::MouseInput,
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
@@ -1681,7 +1687,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Released,
-                    button: Other(xbutton),
+                    button: match xbutton {
+                        1 => Back,
+                        2 => Forward,
+                        _ => Other(xbutton),
+                    },
                 },
             });
             result = ProcResult::Value(0);

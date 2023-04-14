@@ -1031,6 +1031,8 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         0 => MouseButton::Left,
         1 => MouseButton::Right,
         2 => MouseButton::Middle,
+        3 => MouseButton::Back,
+        4 => MouseButton::Forward,
         n => MouseButton::Other(n as u16),
     }
 }
