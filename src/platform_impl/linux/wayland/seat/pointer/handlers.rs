@@ -22,6 +22,8 @@ use super::{PointerData, WinitPointer};
 const BTN_LEFT: u32 = 0x110;
 const BTN_RIGHT: u32 = 0x111;
 const BTN_MIDDLE: u32 = 0x112;
+const BTN_SIDE: u32 = 0x113;
+const BTN_EXTRA: u32 = 0x114;
 const BTN_FORWARD: u32 = 0x115;
 const BTN_BACK: u32 = 0x116;
 
@@ -173,8 +175,8 @@ pub(super) fn handle_pointer(
                 BTN_LEFT => MouseButton::Left,
                 BTN_RIGHT => MouseButton::Right,
                 BTN_MIDDLE => MouseButton::Middle,
-                BTN_FORWARD => MouseButton::Forward,
-                BTN_BACK => MouseButton::Back,
+                BTN_BACK | BTN_SIDE => MouseButton::Back,
+                BTN_FORWARD | BTN_EXTRA => MouseButton::Forward,
                 button => MouseButton::Other(button as u16),
             };
 
