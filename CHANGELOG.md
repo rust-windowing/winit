@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On macOS, fixed potential panic when getting refresh rate.
+- On macOS, fix crash when calling `Window::set_ime_position` from another thread.
 
 # 0.28.3
 
