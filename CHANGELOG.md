@@ -85,6 +85,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
 - On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and
   `DeviceEvent::Key` support.
+- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events on Wayland, X11, Windows, macOS and Web.
 
 # 0.28.6
 
