@@ -64,7 +64,7 @@ pub enum Event<'a, T: 'static> {
         event: WindowEvent<'a>,
     },
 
-    /// Emitted when the OS sends an event to a device.
+    /// Emitted when the OS sends an event not associated with any particular window, but rather with a hardware device.
     DeviceEvent {
         device_id: DeviceId,
         event: DeviceEvent,
@@ -256,6 +256,13 @@ impl<T: Clone> Clone for Event<'static, T> {
 }
 
 impl<'a, T> Event<'a, T> {
+    /// Map this event into a type with a different `UserEvent` type.
+    ///
+    /// # Errors
+    ///
+    /// If event is a [`UserEvent`] variant then it cannot be mapped and `Err(self)` is returned.
+    ///
+    /// [`UserEvent`]: crate::event::Event::UserEvent
     pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
         match self {
