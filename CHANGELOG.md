@@ -8,6 +8,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Wayland, fix maximized startup not taking full size on GNOME.
+- On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
+- On Wayland, `Window::outer_size` now accounts for **client side** decorations.
+- On Wayland, fix window not checking that it actually got initial configure event.
+- On Wayland, fix maximized window creation and window geometry handling.
+- On Wayland, fix forward compatibility issues.
+- On Wayland, add `Window::drag_resize_window` method.
+- On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Bump MSRV from `1.60` to `1.64`.
 - On macOS, fixed potential panic when getting refresh rate.
 - On macOS, fix crash when calling `Window::set_ime_position` from another thread.
