@@ -1202,6 +1202,13 @@ pub enum ElementState {
 }
 
 /// Describes a button of a mouse controller.
+///
+/// ## Platform-specific
+///
+/// **macOS:** does not offically define `Back` and `Forward`, but supports 29 generic mouse buttons from 3..=31.
+/// `3` and `4` is commonly used for `Back` and `Forward` respectivly by driver vendor and applications such as browsers,
+/// this follows this convention. Not guaranteed to work with all hardware and configurations.
+/// **orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
