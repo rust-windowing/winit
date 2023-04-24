@@ -383,9 +383,20 @@ impl<T: 'static> EventLoop<T> {
                     callback,
                 );
             }
+
+            // Quickly dispatch all pending events to clear channels
+            this.event_loop
+                .dispatch(
+                    Some(Duration::ZERO),
+                    &mut get_xtarget(&this.target).state.borrow_mut(),
+                )
+                .ok();
+
             // Empty the redraw requests
             {
                 let mut windows = HashSet::new();
+
+                // Empty the channel.
 
                 while let Some(window_id) = get_xtarget(&this.target)
                     .state
