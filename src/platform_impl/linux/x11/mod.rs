@@ -19,22 +19,25 @@ pub use self::xdisplay::{XError, XNotSupported};
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::CStr,
     mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
+    os::unix::io::RawFd,
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
+use calloop::channel::{channel, Event as ChanResult, Sender};
+use calloop::generic::Generic;
+use calloop::EventLoop as Loop;
+
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use self::{
@@ -54,81 +57,46 @@ use crate::{
     window::WindowAttributes,
 };
 
-const X_TOKEN: Token = Token(0);
-const USER_REDRAW_TOKEN: Token = Token(1);
-
-struct WakeSender<T> {
-    sender: Sender<T>,
-    waker: Arc<Waker>,
-}
-
-struct PeekableReceiver<T> {
-    recv: Receiver<T>,
-    first: Option<T>,
-}
-
-impl<T> PeekableReceiver<T> {
-    pub fn from_recv(recv: Receiver<T>) -> Self {
-        Self { recv, first: None }
-    }
-    pub fn has_incoming(&mut self) -> bool {
-        if self.first.is_some() {
-            return true;
-        }
-
-        match self.recv.try_recv() {
-            Ok(v) => {
-                self.first = Some(v);
-                true
-            }
-            Err(TryRecvError::Empty) => false,
-            Err(TryRecvError::Disconnected) => {
-                warn!("Channel was disconnected when checking incoming");
-                false
-            }
-        }
-    }
-    pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
-        if let Some(first) = self.first.take() {
-            return Ok(first);
-        }
-        self.recv.try_recv()
-    }
-}
+type X11Source = Generic<RawFd>;
+//type X11Dispatcher = calloop::Dispatcher<'static, X11Source, EventLoopState>;
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
+    state: RefCell<EventLoopState<T>>,
     wm_delete_window: ffi::Atom,
     net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    redraw_sender: WakeSender<WindowId>,
+    redraw_sender: Sender<WindowId>,
     device_events: Cell<DeviceEvents>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
-    poll: Poll,
-    waker: Arc<Waker>,
+    event_loop: Loop<'static, EventLoopState<T>>,
     event_processor: EventProcessor<T>,
-    redraw_receiver: PeekableReceiver<WindowId>,
-    user_receiver: PeekableReceiver<T>, //waker.wake needs to be called whenever something gets sent
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
 }
 
+struct EventLoopState<T> {
+    /// Incoming user events.
+    user_events: VecDeque<T>,
+
+    /// Incoming redraw events.
+    redraw_events: VecDeque<WindowId>,
+}
+
 pub struct EventLoopProxy<T: 'static> {
     user_sender: Sender<T>,
-    waker: Arc<Waker>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
-            waker: self.waker.clone(),
         }
     }
 }
@@ -237,21 +205,48 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let poll = Poll::new().unwrap();
-        let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
+        // Create an event loop.
+        let event_loop =
+            Loop::<EventLoopState<T>>::try_new().expect("Failed to initialize the event loop");
 
-        poll.registry()
-            .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
-            .unwrap();
+        // Create the X11 event dispatcher.
+        let source = X11Source::new(xconn.x11_fd, calloop::Interest::READ, calloop::Mode::Edge);
+        let dispatcher =
+            calloop::Dispatcher::new(source, |_, _, _| Ok(calloop::PostAction::Continue));
 
-        let (user_sender, user_channel) = std::sync::mpsc::channel();
-        let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
+        let handle = event_loop.handle();
+        handle
+            .register_dispatcher(dispatcher.clone())
+            .expect("Failed to register the X11 event dispatcher");
+
+        let (user_sender, user_channel) = channel();
+        let (redraw_sender, redraw_channel) = channel();
+
+        // Register the channels with the event loop.
+        handle
+            .insert_source(user_channel, |ev, _, state| {
+                if let ChanResult::Msg(user) = ev {
+                    state.user_events.push_back(user);
+                }
+            })
+            .expect("Failed to register the user event channel with the event loop");
+        handle
+            .insert_source(redraw_channel, |ev, _, state| {
+                if let ChanResult::Msg(window_id) = ev {
+                    state.redraw_events.push_back(window_id);
+                }
+            })
+            .expect("Failed to register the redraw event channel with the event loop");
 
         let kb_state =
             KbdState::from_x11_xkb(unsafe { (xconn.xlib_xcb.XGetXCBConnection)(xconn.display) })
                 .unwrap();
 
         let window_target = EventLoopWindowTarget {
+            state: RefCell::new(EventLoopState {
+                user_events: VecDeque::new(),
+                redraw_events: VecDeque::new(),
+            }),
             ime,
             root,
             windows: Default::default(),
@@ -260,10 +255,7 @@ impl<T: 'static> EventLoop<T> {
             xconn,
             wm_delete_window,
             net_wm_ping,
-            redraw_sender: WakeSender {
-                sender: redraw_sender, // not used again so no clone
-                waker: waker.clone(),
-            },
+            redraw_sender,
             device_events: Default::default(),
         };
 
@@ -310,11 +302,8 @@ impl<T: 'static> EventLoop<T> {
         event_processor.init_device(ffi::XIAllDevices);
 
         EventLoop {
-            poll,
-            waker,
+            event_loop,
             event_processor,
-            redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
-            user_receiver: PeekableReceiver::from_recv(user_channel),
             user_sender,
             target,
         }
@@ -323,7 +312,6 @@ impl<T: 'static> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
-            waker: self.waker.clone(),
         }
     }
 
@@ -372,7 +360,12 @@ impl<T: 'static> EventLoop<T> {
 
             // Empty the user event buffer
             {
-                while let Ok(event) = this.user_receiver.try_recv() {
+                while let Some(event) = get_xtarget(&this.target)
+                    .state
+                    .borrow_mut()
+                    .user_events
+                    .pop_front()
+                {
                     sticky_exit_callback(
                         crate::event::Event::UserEvent(event),
                         &this.target,
@@ -394,7 +387,12 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut windows = HashSet::new();
 
-                while let Ok(window_id) = this.redraw_receiver.try_recv() {
+                while let Some(window_id) = get_xtarget(&this.target)
+                    .state
+                    .borrow_mut()
+                    .redraw_events
+                    .pop_front()
+                {
                     windows.insert(window_id);
                 }
 
@@ -464,7 +462,6 @@ impl<T: 'static> EventLoop<T> {
         }
 
         let mut control_flow = ControlFlow::default();
-        let mut events = Events::with_capacity(8);
         let mut cause = StartCause::Init;
 
         // run the initial loop iteration
@@ -475,16 +472,28 @@ impl<T: 'static> EventLoop<T> {
                 break code;
             }
             let has_pending = self.event_processor.poll()
-                || self.user_receiver.has_incoming()
-                || self.redraw_receiver.has_incoming();
+                || !get_xtarget(&self.target)
+                    .state
+                    .borrow()
+                    .user_events
+                    .is_empty()
+                || !get_xtarget(&self.target)
+                    .state
+                    .borrow()
+                    .redraw_events
+                    .is_empty();
             if !has_pending {
                 // Wait until
-                if let Err(e) = self.poll.poll(&mut events, iter_result.timeout) {
-                    if e.raw_os_error() != Some(libc::EINTR) {
-                        panic!("epoll returned an error: {e:?}");
-                    }
+                if let Err(error) = self
+                    .event_loop
+                    .dispatch(
+                        iter_result.timeout,
+                        &mut get_xtarget(&self.target).state.borrow_mut(),
+                    )
+                    .map_err(std::io::Error::from)
+                {
+                    break error.raw_os_error().unwrap_or(1);
                 }
-                events.clear();
 
                 if control_flow == ControlFlow::Wait {
                     // We don't go straight into executing the event loop iteration, we instead go
@@ -544,8 +553,7 @@ impl<T: 'static> EventLoop<T> {
                     control_flow,
                     &mut |event, window_target, control_flow| {
                         if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
-                            wt.redraw_sender.sender.send(wid).unwrap();
-                            wt.redraw_sender.waker.wake().unwrap();
+                            wt.redraw_sender.send(wid).unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -608,7 +616,6 @@ impl<T: 'static> EventLoopProxy<T> {
         self.user_sender
             .send(event)
             .map_err(|e| EventLoopClosed(e.0))
-            .map(|_| self.waker.wake().unwrap())
     }
 }
 
