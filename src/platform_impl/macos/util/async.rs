@@ -2,10 +2,10 @@ use std::ops::Deref;
 
 use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
-use objc2::rc::autoreleasepool;
+use objc2::rc::{autoreleasepool, Id};
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalPosition, LogicalSize},
     platform_impl::platform::{
         appkit::{NSScreen, NSWindow, NSWindowLevel, NSWindowStyleMask},
         ffi,
@@ -199,5 +199,13 @@ pub(crate) fn close_sync(window: &NSWindow) {
         autoreleasepool(move |_| {
             window.close();
         });
+    });
+}
+
+pub(crate) fn set_ime_position_sync(window: &WinitWindow, logical_spot: LogicalPosition<f64>) {
+    let window = MainThreadSafe(window);
+    run_on_main(move || {
+        // TODO(madsmtm): Remove the need for this
+        unsafe { Id::from_shared(window.view()) }.set_ime_position(logical_spot);
     });
 }

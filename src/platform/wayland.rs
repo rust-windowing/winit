@@ -1,5 +1,7 @@
 use std::os::raw;
 
+use sctk::reexports::client::Proxy;
+
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -39,7 +41,7 @@ impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.p {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
-                Some(p.display().get_display_ptr() as *mut _)
+                Some(p.connection.display().id().as_ptr() as *mut _)
             }
             #[cfg(x11_platform)]
             _ => None,
@@ -94,7 +96,7 @@ impl WindowExtWayland for Window {
     #[inline]
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.surface().id().as_ptr() as *mut _),
             #[cfg(x11_platform)]
             _ => None,
         }
@@ -103,7 +105,7 @@ impl WindowExtWayland for Window {
     #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.display().id().as_ptr() as *mut _),
             #[cfg(x11_platform)]
             _ => None,
         }
