@@ -55,8 +55,9 @@ enum ImeState {
     /// The IME events are disabled, so only `ReceivedCharacter` is being sent to the user.
     Disabled,
 
-    /// The IME events are enabled.
-    Enabled,
+    /// The ground state of enabled IME input. It means that both Preedit and regular keyboard
+    /// input could be start from it.
+    Ground,
 
     /// The IME is in preedit.
     Preedit,
@@ -325,7 +326,7 @@ declare_class!(
                 )
             };
 
-            // Update marked text
+            // Update marked text.
             *self.marked_text = marked_text;
 
             // Notify IME is active if application still doesn't know it.
@@ -334,10 +335,11 @@ declare_class!(
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
-            // Don't update self.state to preedit when we've just commited a string, since the following
-            // preedit string will be None anyway.
-            if self.state.ime_state != ImeState::Commited {
+            if self.hasMarkedText() {
                 self.state.ime_state = ImeState::Preedit;
+            } else {
+                // In case the preedit was cleared, set IME into the Ground state.
+                self.state.ime_state = ImeState::Ground;
             }
 
             // Empty string basically means that there's no preedit, so indicate that by sending
@@ -363,7 +365,7 @@ declare_class!(
             self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
                 // Leave the Preedit self.state
-                self.state.ime_state = ImeState::Enabled;
+                self.state.ime_state = ImeState::Ground;
             } else {
                 warn!("Expected to have IME enabled when receiving unmarkText");
             }
@@ -451,8 +453,8 @@ declare_class!(
             self.state.forward_key_to_app = true;
 
             if self.hasMarkedText() && self.state.ime_state == ImeState::Preedit {
-                // Leave preedit so that we also report the keyup for this key
-                self.state.ime_state = ImeState::Enabled;
+                // Leave preedit so that we also report the key-up for this key.
+                self.state.ime_state = ImeState::Ground;
             }
         }
     }
@@ -467,7 +469,6 @@ declare_class!(
                 self.state.input_source = input_source;
                 self.queue_event(WindowEvent::Ime(Ime::Disabled));
             }
-            let was_in_preedit = self.state.ime_state == ImeState::Preedit;
 
             // Get the characters from the event.
             let ev_mods = event_mods(event);
@@ -488,7 +489,6 @@ declare_class!(
             // we must send the `KeyboardInput` event during IME if it triggered
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
-            let mut text_commited = false;
             if self.state.ime_allowed {
                 let new_event = if ignore_alt_characters {
                     replace_event_chars(event, &characters)
@@ -503,21 +503,25 @@ declare_class!(
                 if self.state.ime_state == ImeState::Commited {
                     // Remove any marked text, so normal input can continue.
                     *self.marked_text = NSMutableAttributedString::new();
-                    self.state.ime_state = ImeState::Enabled;
-                    text_commited = true;
                 }
             }
-
-            let now_in_preedit = self.state.ime_state == ImeState::Preedit;
 
             let scancode = event.scancode() as u32;
             let virtual_keycode = retrieve_keycode(event);
 
             self.update_potentially_stale_modifiers(event);
 
-            let ime_related = was_in_preedit || now_in_preedit || text_commited;
+            let had_ime_input = match self.state.ime_state {
+                ImeState::Commited => {
+                    // Allow normal input after the commit.
+                    self.state.ime_state = ImeState::Ground;
+                    true
+                }
+                ImeState::Preedit => true,
+                _ => false,
+            };
 
-            if !ime_related || self.state.forward_key_to_app || !self.state.ime_allowed {
+            if !had_ime_input || self.state.forward_key_to_app {
                 #[allow(deprecated)]
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
@@ -544,8 +548,8 @@ declare_class!(
 
             self.update_potentially_stale_modifiers(event);
 
-            // We want to send keyboard input when we are not currently in preedit
-            if self.state.ime_state != ImeState::Preedit {
+            // We want to send keyboard input when we are currently in the ground state.
+            if self.state.ime_state == ImeState::Ground {
                 #[allow(deprecated)]
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
