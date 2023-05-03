@@ -170,12 +170,12 @@ impl Window {
                     use sctk::window::{Event, State};
 
                     let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                    let mut window_compositor_update = winit_state
+                    let window_compositor_update = winit_state
                         .window_compositor_updates
                         .get_mut(&window_id)
                         .unwrap();
 
-                    let mut window_user_requests = winit_state
+                    let window_user_requests = winit_state
                         .window_user_requests
                         .get_mut(&window_id)
                         .unwrap();
