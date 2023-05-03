@@ -103,7 +103,7 @@ impl TouchHandler for WinitState {
         let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
 
         // Remove the touch point.
-        let mut touch_point = match seat_state.touch_map.get_mut(&id) {
+        let touch_point = match seat_state.touch_map.get_mut(&id) {
             Some(touch_point) => touch_point,
             None => return,
         };

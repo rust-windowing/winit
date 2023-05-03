@@ -166,7 +166,7 @@ impl KeyboardHandler for WinitState {
         modifiers: Modifiers,
     ) {
         let modifiers = ModifiersState::from(modifiers);
-        let mut seat_state = self.seats.get_mut(&keyboard.seat().id()).unwrap();
+        let seat_state = self.seats.get_mut(&keyboard.seat().id()).unwrap();
         seat_state.modifiers = modifiers;
 
         // NOTE: part of the workaround from `fn enter`, see it above.
