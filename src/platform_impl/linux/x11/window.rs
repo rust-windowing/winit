@@ -384,7 +384,7 @@ impl UnownedWindow {
                     }
                 }
 
-                let mut shared_state = window.shared_state.get_mut().unwrap();
+                let shared_state = window.shared_state.get_mut().unwrap();
                 shared_state.min_inner_size = min_inner_size.map(Into::into);
                 shared_state.max_inner_size = max_inner_size.map(Into::into);
                 shared_state.resize_increments = window_attrs.resize_increments;
