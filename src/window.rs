@@ -1155,6 +1155,10 @@ impl Window {
     pub fn title(&self) -> String {
         self.window.title()
     }
+
+    pub fn set_inhibit_system_shortcuts(&self, inhibit: bool) {
+        self.window.set_inhibit_system_shortcuts(inhibit);
+    }
 }
 
 /// Cursor functions.

@@ -1629,4 +1629,8 @@ impl UnownedWindow {
     pub fn title(&self) -> String {
         String::new()
     }
+
+    pub fn set_inhibit_system_shortcuts(&self, inhibit: bool) {
+        // TODO
+    }
 }

@@ -614,6 +614,13 @@ impl Window {
     pub fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()
     }
+
+    pub fn set_inhibit_system_shortcuts(&self, inhibit: bool) {
+        self.window_state
+            .lock()
+            .unwrap()
+            .set_inhibit_system_shortcuts(inhibit);
+    }
 }
 
 impl Drop for Window {

@@ -17,6 +17,7 @@ use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
 
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::seat::pointer::ThemedPointer;
+use sctk::seat::shortcuts_inhibit::ShortcutsInhibitState;
 use sctk::shell::xdg::frame::{DecorationsFrame, FrameAction, FrameClick};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
@@ -70,6 +71,9 @@ pub struct WindowState {
 
     /// Pointer constraints to lock/confine pointer.
     pub pointer_constraints: Option<Arc<PointerConstraintsState>>,
+
+    shortcuts_inhibit_state: Arc<ShortcutsInhibitState>,
+    inhibit_system_shortcuts: bool,
 
     /// Queue handle.
     pub queue_handle: QueueHandle<WinitState>,
@@ -377,6 +381,7 @@ impl WindowState {
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
+        let shortcuts_inhibit_state = winit_state.shortcuts_inhibit_state.clone();
         let viewport = winit_state
             .viewporter_state
             .as_ref()
@@ -403,6 +408,8 @@ impl WindowState {
             max_inner_size: None,
             min_inner_size: MIN_WINDOW_SIZE,
             pointer_constraints,
+            shortcuts_inhibit_state,
+            inhibit_system_shortcuts: false,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
             scale_factor: 1.,
@@ -434,6 +441,7 @@ impl WindowState {
 
         let mode = self.cursor_grab_mode.user_grab_mode;
         let _ = self.set_cursor_grab_inner(mode);
+        self.set_inhibit_system_shortcuts(self.inhibit_system_shortcuts);
     }
 
     /// Pointer has left the top-level.
@@ -865,6 +873,22 @@ impl WindowState {
     #[inline]
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    pub fn set_inhibit_system_shortcuts(&mut self, inhibit: bool) {
+        // TODO: get seat not through pointer?
+        self.apply_on_poiner(|_, data| {
+            if inhibit {
+                data.inhibit_system_shortcuts(
+                    &self.shortcuts_inhibit_state,
+                    self.window.wl_surface(),
+                    &self.queue_handle,
+                );
+            } else {
+                data.uninhibit_system_shortcuts();
+            }
+        });
+        self.inhibit_system_shortcuts = true;
     }
 }
 

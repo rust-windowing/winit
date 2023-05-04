@@ -158,3 +158,6 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 members = [
     "run-wasm",
 ]
+
+[patch.crates-io]
+smithay-client-toolkit = { git = "https://github.com/ids1024/client-toolkit", branch = "shortcuts-inhibit" }

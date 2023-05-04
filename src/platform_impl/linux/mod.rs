@@ -622,6 +622,11 @@ impl Window {
     pub fn title(&self) -> String {
         x11_or_wayland!(match self; Window(window) => window.title())
     }
+
+    #[inline]
+    pub fn set_inhibit_system_shortcuts(&self, inhibit: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_inhibit_system_shortcuts(inhibit))
+    }
 }
 
 /// Hooks for X11 errors.
