@@ -547,63 +547,22 @@ impl WindowState {
             return;
         }
 
-        let cursors: &[&str] = match cursor_icon {
-            CursorIcon::Alias => &["link"],
-            CursorIcon::Arrow => &["arrow"],
-            CursorIcon::Cell => &["plus"],
-            CursorIcon::Copy => &["copy"],
-            CursorIcon::Crosshair => &["crosshair"],
-            CursorIcon::Default => &["left_ptr"],
-            CursorIcon::Hand => &["hand2", "hand1"],
-            CursorIcon::Help => &["question_arrow"],
-            CursorIcon::Move => &["move"],
-            CursorIcon::Grab => &["openhand", "grab"],
-            CursorIcon::Grabbing => &["closedhand", "grabbing"],
-            CursorIcon::Progress => &["progress"],
-            CursorIcon::AllScroll => &["all-scroll"],
-            CursorIcon::ContextMenu => &["context-menu"],
-
-            CursorIcon::NoDrop => &["no-drop", "circle"],
-            CursorIcon::NotAllowed => &["crossed_circle"],
-
-            // Resize cursors
-            CursorIcon::EResize => &["right_side"],
-            CursorIcon::NResize => &["top_side"],
-            CursorIcon::NeResize => &["top_right_corner"],
-            CursorIcon::NwResize => &["top_left_corner"],
-            CursorIcon::SResize => &["bottom_side"],
-            CursorIcon::SeResize => &["bottom_right_corner"],
-            CursorIcon::SwResize => &["bottom_left_corner"],
-            CursorIcon::WResize => &["left_side"],
-            CursorIcon::EwResize => &["h_double_arrow"],
-            CursorIcon::NsResize => &["v_double_arrow"],
-            CursorIcon::NwseResize => &["bd_double_arrow", "size_fdiag"],
-            CursorIcon::NeswResize => &["fd_double_arrow", "size_bdiag"],
-            CursorIcon::ColResize => &["split_h", "h_double_arrow"],
-            CursorIcon::RowResize => &["split_v", "v_double_arrow"],
-            CursorIcon::Text => &["text", "xterm"],
-            CursorIcon::VerticalText => &["vertical-text"],
-
-            CursorIcon::Wait => &["watch"],
-
-            CursorIcon::ZoomIn => &["zoom-in"],
-            CursorIcon::ZoomOut => &["zoom-out"],
-        };
-
         self.apply_on_poiner(|pointer, data| {
             let surface = data.cursor_surface();
             let scale_factor = surface.data::<SurfaceData>().unwrap().scale_factor();
 
-            for cursor in cursors {
-                if pointer
-                    .set_cursor(&self.connection, cursor, &self.shm, surface, scale_factor)
-                    .is_ok()
-                {
-                    return;
-                }
+            if pointer
+                .set_cursor(
+                    &self.connection,
+                    cursor_icon.name(),
+                    &self.shm,
+                    surface,
+                    scale_factor,
+                )
+                .is_err()
+            {
+                warn!("Failed to set cursor to {:?}", cursor_icon);
             }
-
-            warn!("Failed to set cursor to {:?}", cursor_icon);
         })
     }
 

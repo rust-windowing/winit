@@ -8,6 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
+- **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
+- **Breaking:** `CursorIcon::Arrow` was removed.
 - On macOS, fixed memory leak when getting monitor handle.
 - On Wayland, fix maximized startup not taking full size on GNOME.
 - On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.

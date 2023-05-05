@@ -44,12 +44,14 @@ wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 android-native-activity = ["android-activity/native-activity"]
 android-game-activity = ["android-activity/game-activity"]
+serde = ["dep:serde", "cursor-icon/serde"]
 
 [build-dependencies]
 cfg_aliases = "0.1.1"
 
 [dependencies]
 bitflags = "1"
+cursor-icon = "1.0.0"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 log = "0.4"
 mint = { version = "0.5.6", optional = true }
