@@ -53,7 +53,7 @@ use windows_sys::Win32::{
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NativeKey},
     platform::scancode::KeyCodeExtScancode,
-    platform_impl::{LOWORD, PRIMARYLANGID},
+    platform_impl::{loword, primarylangid},
 };
 
 pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
@@ -552,7 +552,7 @@ fn is_numpad_specific(vk: VIRTUAL_KEY) -> bool {
 }
 
 fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
-    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let primary_lang_id = primarylangid(loword(hkl as u32));
     let is_korean = primary_lang_id as u32 == LANG_KOREAN;
     let is_japanese = primary_lang_id as u32 == LANG_JAPANESE;
 
@@ -774,7 +774,7 @@ fn vkey_to_non_char_key(
     // List of the Web key names and their corresponding platform-native key names:
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
 
-    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let primary_lang_id = primarylangid(loword(hkl as u32));
     let is_korean = primary_lang_id as u32 == LANG_KOREAN;
     let is_japanese = primary_lang_id as u32 == LANG_JAPANESE;
 

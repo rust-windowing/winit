@@ -21,20 +21,6 @@ use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 
-// ---------------------------------------------
-// WINDOWS MACROS and constants
-#[inline]
-#[allow(non_snake_case)]
-pub fn PRIMARYLANGID(lgid: u16) -> u16 {
-    lgid & 0x3ff
-}
-#[inline]
-#[allow(non_snake_case)]
-pub fn LOWORD(dword: u32) -> u16 {
-    (dword & 0xffff) as u16
-}
-// ---------------------------------------------
-
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub owner: Option<HWND>,
@@ -148,7 +134,12 @@ const fn get_y_lparam(x: u32) -> i16 {
 }
 
 #[inline(always)]
-const fn loword(x: u32) -> u16 {
+pub(crate) const fn primarylangid(lgid: u16) -> u16 {
+    lgid & 0x3FF
+}
+
+#[inline(always)]
+pub(crate) const fn loword(x: u32) -> u16 {
     (x & 0xFFFF) as u16
 }
 

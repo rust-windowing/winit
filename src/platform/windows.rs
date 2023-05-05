@@ -11,7 +11,7 @@ use crate::{
     keyboard::{Key, KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
-    platform_impl::{WinIcon, LOWORD, PRIMARYLANGID},
+    platform_impl::{WinIcon, loword, primarylangid},
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -369,7 +369,7 @@ impl KeyCodeExtScancode for KeyCode {
 
         let hkl = unsafe { GetKeyboardLayout(0) };
 
-        let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+        let primary_lang_id = primarylangid(loword(hkl as u32));
         let is_korean = primary_lang_id as u32 == LANG_KOREAN;
 
         match self {
