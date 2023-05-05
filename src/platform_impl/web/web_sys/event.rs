@@ -108,14 +108,11 @@ fn cached_string<S: AsRef<str>>(string: S) -> &'static str {
 }
 
 pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
-    let location = event.location();
-    // As defined in the UIEvents specification
-    // https://w3c.github.io/uievents/#idl-keyboardevent
-    match location {
-        0 => KeyLocation::Standard,
-        1 => KeyLocation::Left,
-        2 => KeyLocation::Right,
-        3 => KeyLocation::Numpad,
+    match event.location() {
+        KeyboardEvent::DOM_KEY_LOCATION_LEFT => KeyLocation::Left,
+        KeyboardEvent::DOM_KEY_LOCATION_RIGHT => KeyLocation::Right,
+        KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
+        KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
         _ => KeyLocation::Standard,
     }
 }
@@ -131,13 +128,6 @@ pub fn keyboard_modifiers(key: &Key<'_>) -> ModifiersState {
         _ => ModifiersState::empty(),
     }
 }
-
-// pub fn codepoint(event: &KeyboardEvent) -> char {
-//     // `event.key()` always returns a non-empty `String`. Therefore, this should
-//     // never panic.
-//     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
-//     event.key().chars().next().unwrap()
-// }
 
 pub fn touch_position(event: &PointerEvent, _canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
     // TODO: Should this handle more, like `mouse_position_by_client` does?
