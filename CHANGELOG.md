@@ -17,6 +17,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Bump MSRV from `1.60` to `1.64`.
+- On macOS, fix `key_up` beind ignored when `Ime` is disabled.
 
 # 0.28.4
 
