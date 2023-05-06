@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.28.5
+
 - On macOS, fix `key_up` beind ignored when `Ime` is disabled.
 
 # 0.28.4
