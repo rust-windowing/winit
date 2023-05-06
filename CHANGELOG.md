@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, fix `key_up` beind ignored when `Ime` is disabled.
+
 # 0.28.4
 
 - On macOS, fix empty marked text blocking regular input.

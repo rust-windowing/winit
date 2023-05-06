@@ -549,7 +549,7 @@ declare_class!(
             self.update_potentially_stale_modifiers(event);
 
             // We want to send keyboard input when we are currently in the ground state.
-            if self.state.ime_state == ImeState::Ground {
+            if matches!(self.state.ime_state, ImeState::Ground | ImeState::Disabled) {
                 #[allow(deprecated)]
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
