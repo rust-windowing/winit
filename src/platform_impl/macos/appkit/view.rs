@@ -1,13 +1,8 @@
-use std::ffi::c_void;
-use std::num::NonZeroIsize;
-use std::ptr;
-
 use objc2::foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::{Id, Shared};
-use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow};
+use super::{NSCursor, NSResponder, NSTextInputContext, NSTrackingArea, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -68,23 +63,11 @@ extern_methods!(
         #[sel(setPostsFrameChangedNotifications:)]
         pub fn setPostsFrameChangedNotifications(&mut self, value: bool);
 
-        #[sel(removeTrackingRect:)]
-        pub fn removeTrackingRect(&self, tag: NSTrackingRectTag);
+        #[sel(addTrackingArea:)]
+        pub fn addTrackingArea(&self, area: &NSTrackingArea);
 
-        #[sel(addTrackingRect:owner:userData:assumeInside:)]
-        unsafe fn inner_addTrackingRect(
-            &self,
-            rect: NSRect,
-            owner: &Object,
-            user_data: *mut c_void,
-            assume_inside: bool,
-        ) -> Option<NSTrackingRectTag>;
-
-        pub fn add_tracking_rect(&self, rect: NSRect, assume_inside: bool) -> NSTrackingRectTag {
-            // SAFETY: The user data is NULL, so it is valid
-            unsafe { self.inner_addTrackingRect(rect, self, ptr::null_mut(), assume_inside) }
-                .expect("failed creating tracking rect")
-        }
+        #[sel(removeTrackingArea:)]
+        pub fn removeTrackingArea(&self, area: &NSTrackingArea);
 
         #[sel(addCursorRect:cursor:)]
         // NSCursor safe to take by shared reference since it is already immutable
@@ -94,6 +77,3 @@ extern_methods!(
         pub fn setHidden(&self, hidden: bool);
     }
 );
-
-/// <https://developer.apple.com/documentation/appkit/nstrackingrecttag?language=objc>
-pub type NSTrackingRectTag = NonZeroIsize; // NSInteger, but non-zero!

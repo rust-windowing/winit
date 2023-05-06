@@ -25,6 +25,7 @@ mod pasteboard;
 mod responder;
 mod screen;
 mod text_input_context;
+mod tracking_area;
 mod version;
 mod view;
 mod window;
@@ -50,8 +51,9 @@ pub(crate) use self::responder::NSResponder;
 #[allow(unused_imports)]
 pub(crate) use self::screen::{NSDeviceDescriptionKey, NSScreen};
 pub(crate) use self::text_input_context::NSTextInputContext;
+pub(crate) use self::tracking_area::{NSTrackingArea, NSTrackingAreaOptions};
 pub(crate) use self::version::NSAppKitVersion;
-pub(crate) use self::view::{NSTrackingRectTag, NSView};
+pub(crate) use self::view::NSView;
 pub(crate) use self::window::{
     NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
     NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTitleVisibility,

@@ -12,8 +12,8 @@ use objc2::runtime::{Object, Sel};
 use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
-    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,
-    NSView,
+    NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingArea,
+    NSTrackingAreaOptions, NSView,
 };
 use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::{
@@ -71,7 +71,7 @@ pub(super) struct ViewState {
     pub cursor_state: Mutex<CursorState>,
     ime_position: LogicalPosition<f64>,
     pub(super) modifiers: ModifiersState,
-    tracking_rect: Option<NSTrackingRectTag>,
+    tracking_area: Option<Id<NSTrackingArea, Shared>>,
     ime_state: ImeState,
     input_source: String,
 
@@ -162,7 +162,7 @@ declare_class!(
                     cursor_state: Default::default(),
                     ime_position: LogicalPosition::new(0.0, 0.0),
                     modifiers: Default::default(),
-                    tracking_rect: None,
+                    tracking_area: None,
                     ime_state: ImeState::Disabled,
                     input_source: String::new(),
                     ime_allowed: false,
@@ -202,32 +202,29 @@ declare_class!(
     }
 
     unsafe impl WinitView {
-        #[sel(viewDidMoveToWindow)]
-        fn view_did_move_to_window(&mut self) {
-            trace_scope!("viewDidMoveToWindow");
-            if let Some(tracking_rect) = self.state.tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
+        #[sel(updateTrackingAreas)]
+        fn update_tracking_areas(&mut self) {
+            if let Some(tracking_area) = self.state.tracking_area.take() {
+                self.removeTrackingArea(&tracking_area);
             }
-
             let rect = self.visibleRect();
-            let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
+            let tracking_area = self.init_and_add_tracking_area(
+                rect,
+                NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
+                    | NSTrackingAreaOptions::NSTrackingMouseMoved
+                    | NSTrackingAreaOptions::NSTrackingActiveInActiveApp,
+            );
+            self.state.tracking_area = Some(tracking_area);
         }
 
         #[sel(frameDidChange:)]
         fn frame_did_change(&mut self, _event: &NSEvent) {
             trace_scope!("frameDidChange:");
-            if let Some(tracking_rect) = self.state.tracking_rect.take() {
-                self.removeTrackingRect(tracking_rect);
-            }
-
-            let rect = self.visibleRect();
-            let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
             // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
+            let rect = self.visibleRect();
             let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
             let size = logical_size.to_physical::<u32>(self.scale_factor());
             self.queue_event(WindowEvent::Resized(size));
@@ -995,6 +992,18 @@ impl WinitView {
             position: logical_position.to_physical(self.scale_factor()),
             modifiers: event_mods(event),
         });
+    }
+
+    /// Initializes an NSTrackingArea and adds it to this NS/WinitView
+    fn init_and_add_tracking_area(
+        &self,
+        rect: NSRect,
+        options: NSTrackingAreaOptions,
+    ) -> Id<NSTrackingArea, Shared> {
+        let tracking_area = NSTrackingArea::initWithRect(rect, options, Some(self), None)
+            .expect("failed to create tracking area");
+        self.addTrackingArea(&tracking_area);
+        tracking_area
     }
 }
 
