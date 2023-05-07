@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::{thread, time};
 
 use simple_logger::SimpleLogger;
@@ -39,7 +41,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         use winit::event::{ElementState, StartCause, VirtualKeyCode};
-        println!("{:?}", event);
+        println!("{event:?}");
         match event {
             Event::NewEvents(start_cause) => {
                 wait_cancelled = match start_cause {
@@ -62,19 +64,19 @@ fn main() {
                 } => match virtual_code {
                     VirtualKeyCode::Key1 => {
                         mode = Mode::Wait;
-                        println!("\nmode: {:?}\n", mode);
+                        println!("\nmode: {mode:?}\n");
                     }
                     VirtualKeyCode::Key2 => {
                         mode = Mode::WaitUntil;
-                        println!("\nmode: {:?}\n", mode);
+                        println!("\nmode: {mode:?}\n");
                     }
                     VirtualKeyCode::Key3 => {
                         mode = Mode::Poll;
-                        println!("\nmode: {:?}\n", mode);
+                        println!("\nmode: {mode:?}\n");
                     }
                     VirtualKeyCode::R => {
                         request_redraw = !request_redraw;
-                        println!("\nrequest_redraw: {}\n", request_redraw);
+                        println!("\nrequest_redraw: {request_redraw}\n");
                     }
                     VirtualKeyCode::Escape => {
                         close_requested = true;

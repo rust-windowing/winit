@@ -12,8 +12,7 @@ use windows_sys::{
         Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK},
         System::{
             Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
-            Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE},
-            SystemServices::CF_HDROP,
+            Ole::{CF_HDROP, DROPEFFECT_COPY, DROPEFFECT_NONE},
         },
         UI::Shell::{DragFinish, DragQueryFileW, HDROP},
     },
@@ -80,7 +79,7 @@ impl FileDropHandler {
         let count = drop_handler.refcount.fetch_sub(1, Ordering::Release) - 1;
         if count == 0 {
             // Destroy the underlying data
-            Box::from_raw(drop_handler as *mut FileDropHandlerData);
+            drop(Box::from_raw(drop_handler as *mut FileDropHandlerData));
         }
         count as u32
     }
@@ -167,9 +166,9 @@ impl FileDropHandler {
         F: Fn(PathBuf),
     {
         let drop_format = FORMATETC {
-            cfFormat: CF_HDROP as u16,
+            cfFormat: CF_HDROP,
             ptd: ptr::null_mut(),
-            dwAspect: DVASPECT_CONTENT as u32,
+            dwAspect: DVASPECT_CONTENT,
             lindex: -1,
             tymed: TYMED_HGLOBAL as u32,
         };

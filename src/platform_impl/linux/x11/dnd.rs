@@ -11,8 +11,7 @@ use percent_encoding::percent_decode;
 use super::{ffi, util, XConnection, XError};
 
 #[derive(Debug)]
-pub struct DndAtoms {
-    pub aware: ffi::Atom,
+pub(crate) struct DndAtoms {
     pub enter: ffi::Atom,
     pub leave: ffi::Atom,
     pub drop: ffi::Atom,
@@ -29,7 +28,6 @@ pub struct DndAtoms {
 impl DndAtoms {
     pub fn new(xconn: &Arc<XConnection>) -> Result<Self, XError> {
         let names = [
-            b"XdndAware\0".as_ptr() as *mut c_char,
             b"XdndEnter\0".as_ptr() as *mut c_char,
             b"XdndLeave\0".as_ptr() as *mut c_char,
             b"XdndDrop\0".as_ptr() as *mut c_char,
@@ -44,18 +42,17 @@ impl DndAtoms {
         ];
         let atoms = unsafe { xconn.get_atoms(&names) }?;
         Ok(DndAtoms {
-            aware: atoms[0],
-            enter: atoms[1],
-            leave: atoms[2],
-            drop: atoms[3],
-            position: atoms[4],
-            status: atoms[5],
-            action_private: atoms[6],
-            selection: atoms[7],
-            finished: atoms[8],
-            type_list: atoms[9],
-            uri_list: atoms[10],
-            none: atoms[11],
+            enter: atoms[0],
+            leave: atoms[1],
+            drop: atoms[2],
+            position: atoms[3],
+            status: atoms[4],
+            action_private: atoms[5],
+            selection: atoms[6],
+            finished: atoms[7],
+            type_list: atoms[8],
+            uri_list: atoms[9],
+            none: atoms[10],
         })
     }
 }
@@ -87,7 +84,7 @@ impl From<io::Error> for DndDataParseError {
     }
 }
 
-pub struct Dnd {
+pub(crate) struct Dnd {
     xconn: Arc<XConnection>,
     pub atoms: DndAtoms,
     // Populated by XdndEnter event handler
@@ -188,7 +185,7 @@ impl Dnd {
             .get_property(window, self.atoms.selection, self.atoms.uri_list)
     }
 
-    pub fn parse_data(&self, data: &mut Vec<c_uchar>) -> Result<Vec<PathBuf>, DndDataParseError> {
+    pub fn parse_data(&self, data: &mut [c_uchar]) -> Result<Vec<PathBuf>, DndDataParseError> {
         if !data.is_empty() {
             let mut path_list = Vec::new();
             let decoded = percent_decode(data).decode_utf8()?.into_owned();

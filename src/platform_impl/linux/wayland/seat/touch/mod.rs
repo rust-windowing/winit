@@ -3,76 +3,197 @@
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
-use sctk::reexports::client::Attached;
+use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+
+use sctk::seat::touch::{TouchData, TouchHandler};
 
 use crate::dpi::LogicalPosition;
+use crate::event::{Touch, TouchPhase, WindowEvent};
 
-use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::state::WinitState;
+use crate::platform_impl::wayland::{self, DeviceId};
 
-mod handlers;
+impl TouchHandler for WinitState {
+    fn down(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        touch: &WlTouch,
+        _: u32,
+        _: u32,
+        surface: WlSurface,
+        id: i32,
+        position: (f64, f64),
+    ) {
+        let window_id = wayland::make_wid(&surface);
+        let scale_factor = match self.windows.get_mut().get(&window_id) {
+            Some(window) => window.lock().unwrap().scale_factor(),
+            None => return,
+        };
 
-/// Wrapper around touch to handle release.
-pub struct Touch {
-    /// Proxy to touch.
-    touch: WlTouch,
-}
+        let location = LogicalPosition::<f64>::from(position);
 
-impl Touch {
-    pub fn new(seat: &Attached<WlSeat>) -> Self {
-        let touch = seat.get_touch();
-        let mut inner = TouchInner::new();
+        let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
 
-        touch.quick_assign(move |_, event, mut dispatch_data| {
-            let winit_state = dispatch_data.get::<WinitState>().unwrap();
-            handlers::handle_touch(event, &mut inner, winit_state);
-        });
+        // Update the state of the point.
+        seat_state
+            .touch_map
+            .insert(id, TouchPoint { surface, location });
 
-        Self {
-            touch: touch.detach(),
+        self.events_sink.push_window_event(
+            WindowEvent::Touch(Touch {
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                    DeviceId,
+                )),
+                phase: TouchPhase::Started,
+                location: location.to_physical(scale_factor),
+                force: None,
+                id: id as u64,
+            }),
+            window_id,
+        );
+    }
+
+    fn up(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        touch: &WlTouch,
+        _: u32,
+        _: u32,
+        id: i32,
+    ) {
+        let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
+
+        // Remove the touch point.
+        let touch_point = match seat_state.touch_map.remove(&id) {
+            Some(touch_point) => touch_point,
+            None => return,
+        };
+
+        let window_id = wayland::make_wid(&touch_point.surface);
+        let scale_factor = match self.windows.get_mut().get(&window_id) {
+            Some(window) => window.lock().unwrap().scale_factor(),
+            None => return,
+        };
+
+        self.events_sink.push_window_event(
+            WindowEvent::Touch(Touch {
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                    DeviceId,
+                )),
+                phase: TouchPhase::Ended,
+                location: touch_point.location.to_physical(scale_factor),
+                force: None,
+                id: id as u64,
+            }),
+            window_id,
+        );
+    }
+
+    fn motion(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        touch: &WlTouch,
+        _: u32,
+        id: i32,
+        position: (f64, f64),
+    ) {
+        let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
+
+        // Remove the touch point.
+        let touch_point = match seat_state.touch_map.get_mut(&id) {
+            Some(touch_point) => touch_point,
+            None => return,
+        };
+
+        let window_id = wayland::make_wid(&touch_point.surface);
+        let scale_factor = match self.windows.get_mut().get(&window_id) {
+            Some(window) => window.lock().unwrap().scale_factor(),
+            None => return,
+        };
+
+        touch_point.location = LogicalPosition::<f64>::from(position);
+
+        self.events_sink.push_window_event(
+            WindowEvent::Touch(Touch {
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                    DeviceId,
+                )),
+                phase: TouchPhase::Cancelled,
+                location: touch_point.location.to_physical(scale_factor),
+                force: None,
+                id: id as u64,
+            }),
+            window_id,
+        );
+    }
+
+    fn cancel(&mut self, _: &Connection, _: &QueueHandle<Self>, touch: &WlTouch) {
+        let seat_state = self.seats.get_mut(&touch.seat().id()).unwrap();
+
+        for (id, touch_point) in seat_state.touch_map.drain() {
+            let window_id = wayland::make_wid(&touch_point.surface);
+            let scale_factor = match self.windows.get_mut().get(&window_id) {
+                Some(window) => window.lock().unwrap().scale_factor(),
+                None => return,
+            };
+
+            let location = touch_point.location.to_physical(scale_factor);
+
+            self.events_sink.push_window_event(
+                WindowEvent::Touch(Touch {
+                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                        DeviceId,
+                    )),
+                    phase: TouchPhase::Cancelled,
+                    location,
+                    force: None,
+                    id: id as u64,
+                }),
+                window_id,
+            );
         }
+    }
+
+    fn shape(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &WlTouch,
+        _: i32,
+        _: f64,
+        _: f64,
+    ) {
+        // Blank.
+    }
+
+    fn orientation(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlTouch, _: i32, _: f64) {
+        // Blank.
     }
 }
 
-impl Drop for Touch {
-    fn drop(&mut self) {
-        if self.touch.as_ref().version() >= 3 {
-            self.touch.release();
-        }
+/// The state of the touch point.
+#[derive(Debug)]
+pub struct TouchPoint {
+    /// The surface on which the point is present.
+    pub surface: WlSurface,
+
+    /// The location of the point on the surface.
+    pub location: LogicalPosition<f64>,
+}
+
+pub trait TouchDataExt {
+    fn seat(&self) -> &WlSeat;
+}
+
+impl TouchDataExt for WlTouch {
+    fn seat(&self) -> &WlSeat {
+        self.data::<TouchData>()
+            .expect("failed to get touch data.")
+            .seat()
     }
 }
 
-/// The data used by touch handlers.
-pub(super) struct TouchInner {
-    /// Current touch points.
-    touch_points: Vec<TouchPoint>,
-}
-
-impl TouchInner {
-    fn new() -> Self {
-        Self {
-            touch_points: Vec::new(),
-        }
-    }
-}
-
-/// Location of touch press.
-pub(super) struct TouchPoint {
-    /// A surface where the touch point is located.
-    surface: WlSurface,
-
-    /// Location of the touch point.
-    position: LogicalPosition<f64>,
-
-    /// Id.
-    id: i32,
-}
-
-impl TouchPoint {
-    pub fn new(surface: WlSurface, position: LogicalPosition<f64>, id: i32) -> Self {
-        Self {
-            surface,
-            position,
-            id,
-        }
-    }
-}
+sctk::delegate_touch!(WinitState);

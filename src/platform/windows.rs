@@ -1,5 +1,3 @@
-#![cfg(target_os = "windows")]
-
 use std::{ffi::c_void, path::Path};
 
 use crate::{
@@ -7,8 +5,8 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    platform_impl::{Parent, WinIcon},
-    window::{BadIcon, Icon, Theme, Window, WindowBuilder},
+    platform_impl::WinIcon,
+    window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
 /// Window Handle type used by Win32 API
@@ -138,11 +136,13 @@ pub trait WindowExtWindows {
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
-    /// Returns the current window theme.
-    fn theme(&self) -> Theme;
-
     /// Whether to show or hide the window icon in the taskbar.
     fn set_skip_taskbar(&self, skip: bool);
+
+    /// Shows or hides the background drop shadow for undecorated windows.
+    ///
+    /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
+    fn set_undecorated_shadow(&self, shadow: bool);
 }
 
 impl WindowExtWindows for Window {
@@ -167,26 +167,20 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn theme(&self) -> Theme {
-        self.window.theme()
+    fn set_skip_taskbar(&self, skip: bool) {
+        self.window.set_skip_taskbar(skip)
     }
 
     #[inline]
-    fn set_skip_taskbar(&self, skip: bool) {
-        self.window.set_skip_taskbar(skip)
+    fn set_undecorated_shadow(&self, shadow: bool) {
+        self.window.set_undecorated_shadow(shadow)
     }
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExtWindows {
-    /// Sets a parent to the window to be created.
-    ///
-    /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
-    ///
-    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
-    fn with_parent_window(self, parent: HWND) -> WindowBuilder;
-
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
+    /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
@@ -224,23 +218,20 @@ pub trait WindowBuilderExtWindows {
     /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
 
-    /// Forces a theme or uses the system settings if `None` was provided.
-    fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
-
     /// Whether show or hide the window icon in the taskbar.
     fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
+
+    /// Shows or hides the background drop shadow for undecorated windows.
+    ///
+    /// The shadow is hidden by default.
+    /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
+    fn with_undecorated_shadow(self, shadow: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
-    fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Parent::ChildOf(parent);
-        self
-    }
-
-    #[inline]
     fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Parent::OwnedBy(parent);
+        self.platform_specific.owner = Some(parent);
         self
     }
 
@@ -269,14 +260,14 @@ impl WindowBuilderExtWindows for WindowBuilder {
     }
 
     #[inline]
-    fn with_theme(mut self, theme: Option<Theme>) -> WindowBuilder {
-        self.platform_specific.preferred_theme = theme;
+    fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
+        self.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
-    fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
-        self.platform_specific.skip_taskbar = skip;
+    fn with_undecorated_shadow(mut self, shadow: bool) -> WindowBuilder {
+        self.platform_specific.decoration_shadow = shadow;
         self
     }
 }

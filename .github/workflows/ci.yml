@@ -17,12 +17,44 @@ jobs:
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
 
-  Tests:
+  cargo-deny:
+    name: cargo-deny
+
+    # TODO: remove this matrix when https://github.com/EmbarkStudios/cargo-deny/issues/324 is resolved
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [stable, nightly]
         platform:
+          - aarch64-apple-ios
+          - aarch64-linux-android
+          - i686-pc-windows-gnu
+          - i686-pc-windows-msvc
+          - i686-unknown-linux-gnu
+          - wasm32-unknown-unknown
+          - x86_64-apple-darwin
+          - x86_64-apple-ios
+          - x86_64-pc-windows-gnu
+          - x86_64-pc-windows-msvc
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-redox
+
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        command: check
+        log-level: error
+        arguments: --all-features --target ${{ matrix.platform }}
+
+  tests:
+    name: Tests
+    strategy:
+      fail-fast: false
+      matrix:
+        rust_version: ['1.64.0', stable, nightly]
+        platform:
+          # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
           - { target: i686-pc-windows-msvc,     os: windows-latest,  }
           - { target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
@@ -31,8 +63,8 @@ jobs:
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: x11 }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: "wayland,wayland-dlopen" }
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: "kms,kms-ext" }
-          - { target: aarch64-linux-android,    os: ubuntu-latest,  cmd: 'apk --' }
+          - { target: aarch64-linux-android,    os: ubuntu-latest, options: -p winit, cmd: 'apk --', features: "android-native-activity" }
+          - { target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { target: x86_64-apple-darwin,      os: macos-latest,    }
           - { target: x86_64-apple-ios,         os: macos-latest,    }
           - { target: aarch64-apple-ios,        os: macos-latest,    }
@@ -43,10 +75,12 @@ jobs:
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
+      PKG_CONFIG_ALLOW_CROSS: 1
       RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}
+      RUSTDOCFLAGS: -Dwarnings
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -62,96 +96,60 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
-    - name: Update TZ
-      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'x86_64')
-      run: sudo apt-get install -qqy libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
-    - name: Setup cross linux toolchain
-      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: |
-        case "${{ matrix.platform.target }}" in
-          i686-*) SYSTEM_ARCH=i386 ;;
-          arm*) SYSTEM_ARCH=armhf ;;
-          aarch64*) SYSTEM_ARCH=arm64 ;;
-        esac
-        GCC_TARGET=$(printf "${{ matrix.platform.target }}" | sed 's/-unknown-/-/' | sed 's/arm[^-]*/arm/g')
-        ENV_TARGET=$(printf "${{ matrix.platform.target }}" | tr '-' '_')
-        ENV_TARGET_UC=$(printf "${ENV_TARGET}" | tr '[[:lower:]]' '[[:upper:]]')
-        sudo rm -f /etc/apt/sources.list.d/*.list
-        case "${{ matrix.platform.target }}" in
-          arm* | aarch64*)
-        sudo tee /etc/apt/sources.list << EOF
-        deb [arch=i386,amd64] http://archive.ubuntu.com/ubuntu/ focal main universe
-        deb [arch=i386,amd64] http://archive.ubuntu.com/ubuntu/ focal-updates main universe
-        deb [arch=i386,amd64] http://security.ubuntu.com/ubuntu/ focal-security main universe
-        deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports/ focal main universe
-        deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates main universe
-        deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security main universe
-        EOF
-            ;;
-        esac
-        sudo dpkg --add-architecture ${SYSTEM_ARCH}
-        dpkg --print-foreign-architectures
-        sudo apt-get update -qqy
-        sudo apt-get dist-upgrade -qqy --fix-broken
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes gcc-${GCC_TARGET} pkg-config-${GCC_TARGET} meson ninja-build
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes libinput-dev:${SYSTEM_ARCH} libudev-dev:${SYSTEM_ARCH} libxkbcommon-dev:${SYSTEM_ARCH} gcc-multilib
-        echo "CARGO_TARGET_${ENV_TARGET_UC}_LINKER=${GCC_TARGET}-gcc" >> $GITHUB_ENV
-        echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-        echo "PKG_CONFIG_${ENV_TARGET}=${GCC_TARGET}-pkg-config" >> $GITHUB_ENV
-        echo "PKG_CONFIG=${GCC_TARGET}-pkg-config" >> $GITHUB_ENV
-        echo "BINDGEN_EXTRA_CLANG_ARGS=\"-L/usr/lib/${GCC_TARGET} -L/lib/${GCC_TARGET}\"" >> $GITHUB_ENV
+        components: clippy
 
-    - name: Install Build Deps
+    - name: Install Linux dependencies
       if: (matrix.platform.os == 'ubuntu-latest')
-      run: |
-        sudo apt-get update -qqy
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes curl gcc pkg-config libclang-dev dpkg-dev
-    - name: Build libseat
-      if: (matrix.platform.os == 'ubuntu-latest') && !contains(matrix.platform.target, 'android')
-      run: |
-        wget https://git.sr.ht/~kennylevinsen/seatd/archive/0.5.0.tar.gz -O libseat-source.tar.gz
-        tar xf libseat-source.tar.gz
-        cd seatd-0.5.0
-        meson -Dbuiltin=enabled -Dserver=disabled -Dexamples=disabled -Dman-pages=disabled build .
-        ninja -C build
-        sudo meson install -C build
-
+      run: sudo apt-get update && sudo apt-get install pkg-config libxkbcommon-dev
+    - name: Install GCC Multilib
+      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
+      run: sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install g++-multilib gcc-multilib libxkbcommon-dev:i386
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
 
     - name: Check documentation
       shell: bash
-      if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
-    - name: Build
+    - name: Build crate
       shell: bash
       run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build tests
       shell: bash
+      if: >
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.64.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
     - name: Run tests
       shell: bash
-      if: (
+      if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.64.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
-
-    - name: Build with serde enabled
+    - name: Lint with clippy
       shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+      if: (matrix.rust_version == 'stable') && !contains(matrix.platform.options, '--no-default-features')
+      run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build tests with serde enabled
       shell: bash
+      if: >
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.64.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
-      if: (
+      if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
-        !contains(matrix.platform.target, 'wasm32'))
+        !contains(matrix.platform.target, 'wasm32') &&
+        !contains(matrix.platform.target, 'redox') &&
+        matrix.rust_version != '1.64.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES

@@ -11,28 +11,27 @@ use std::{
     sync::mpsc,
 };
 
-use cocoa::{
-    appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+use core_foundation::base::{CFIndex, CFRelease};
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
+    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc::rc::autoreleasepool;
+use objc2::foundation::is_main_thread;
+use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::{msg_send_id, ClassType};
+use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
+use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
+    platform_impl::platform::{
+        app::WinitApplication,
+        app_delegate::ApplicationDelegate,
+        app_state::{AppState, Callback},
+        monitor::{self, MonitorHandle},
+        observer::setup_control_flow_observers,
     },
 };
 
@@ -83,30 +82,31 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 
 impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn hide_application(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hide: 0] }
+        NSApp().hide(None)
     }
 
     pub(crate) fn hide_other_applications(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hideOtherApplications: 0] }
+        NSApp().hideOtherApplications(None)
     }
 }
 
 pub struct EventLoop<T: 'static> {
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
-    _delegate: IdRef,
+    _delegate: Id<ApplicationDelegate, Shared>,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -120,10 +120,11 @@ pub struct EventLoop<T: 'static> {
     _callback: Option<Rc<Callback<T>>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
+    pub(crate) activate_ignoring_other_apps: bool,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -131,36 +132,40 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             activation_policy: Default::default(), // Regular
             default_menu: true,
+            activate_ignoring_other_apps: true,
         }
     }
 }
 
 impl<T> EventLoop<T> {
     pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
-        let delegate = unsafe {
-            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
-            if is_main_thread == NO {
-                panic!("On macOS, `EventLoop` must be created on the main thread!");
-            }
+        if !is_main_thread() {
+            panic!("On macOS, `EventLoop` must be created on the main thread!");
+        }
 
-            // This must be done before `NSApp()` (equivalent to sending
-            // `sharedApplication`) is called anywhere else, or we'll end up
-            // with the wrong `NSApplication` class and the wrong thread could
-            // be marked as main.
-            let app: id = msg_send![APP_CLASS.0, sharedApplication];
+        // This must be done before `NSApp()` (equivalent to sending
+        // `sharedApplication`) is called anywhere else, or we'll end up
+        // with the wrong `NSApplication` class and the wrong thread could
+        // be marked as main.
+        let app: Id<WinitApplication, Shared> =
+            unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
 
-            let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
-
-            let mut aux_state = get_aux_state_mut(&**delegate);
-            aux_state.activation_policy = attributes.activation_policy;
-            aux_state.default_menu = attributes.default_menu;
-
-            autoreleasepool(|| {
-                let _: () = msg_send![app, setDelegate:*delegate];
-            });
-
-            delegate
+        use NSApplicationActivationPolicy::*;
+        let activation_policy = match attributes.activation_policy {
+            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
+        let delegate = ApplicationDelegate::new(
+            activation_policy,
+            attributes.default_menu,
+            attributes.activate_ignoring_other_apps,
+        );
+
+        autoreleasepool(|_| {
+            app.setDelegate(&delegate);
+        });
+
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
@@ -203,17 +208,16 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|_| {
             let app = NSApp();
-            assert_ne!(app, nil);
 
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
-            mem::drop(callback);
+            drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let () = msg_send![app, run];
+            unsafe { app.run() };
 
             if let Some(panic) = self.panic_info.take() {
                 drop(self._callback.take());
@@ -229,24 +233,6 @@ impl<T> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy::new(self.window_target.p.sender.clone())
     }
-}
-
-#[inline]
-pub unsafe fn post_dummy_event(target: id) {
-    let event_class = class!(NSEvent);
-    let dummy_event: id = msg_send![
-        event_class,
-        otherEventWithType: NSApplicationDefined
-        location: NSPoint::new(0.0, 0.0)
-        modifierFlags: NSEventModifierFlags::empty()
-        timestamp: 0 as NSTimeInterval
-        windowNumber: 0 as NSInteger
-        context: nil
-        subtype: NSEventSubtype::NSWindowExposedEventType
-        data1: 0 as NSInteger
-        data2: 0 as NSInteger
-    ];
-    let () = msg_send![target, postEvent: dummy_event atStart: YES];
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -267,15 +253,11 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 let panic_info = panic_info.upgrade().unwrap();
                 panic_info.set_panic(e);
             }
-            unsafe {
-                let app_class = class!(NSApplication);
-                let app: id = msg_send![app_class, sharedApplication];
-                let () = msg_send![app, stop: nil];
-
-                // Posting a dummy event to get `stop` to take effect immediately.
-                // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-                post_dummy_event(app);
-            }
+            let app = NSApp();
+            app.stop(None);
+            // Posting a dummy event to get `stop` to take effect immediately.
+            // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
+            app.postEvent_atStart(&NSEvent::dummy(), true);
             None
         }
     }
@@ -306,13 +288,23 @@ impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
+            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
-            let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = Some(event_loop_proxy_handler);
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: event_loop_proxy_handler,
+            };
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);

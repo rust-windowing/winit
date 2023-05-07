@@ -1,24 +1,26 @@
-use std::{collections::HashMap, mem, ptr, sync::Arc};
+use std::{collections::HashMap, mem, sync::Arc};
 
 use super::{ffi, XConnection, XError};
 
-use super::{context::ImeContext, input_method::PotentialInputMethods};
+use super::{
+    context::ImeContext,
+    input_method::{InputMethod, PotentialInputMethods},
+};
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
-pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
+pub(crate) unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     (xconn.xlib.XCloseIM)(im);
     xconn.check_errors()
 }
 
-pub unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), XError> {
+pub(crate) unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), XError> {
     (xconn.xlib.XDestroyIC)(ic);
     xconn.check_errors()
 }
 
-pub struct ImeInner {
+pub(crate) struct ImeInner {
     pub xconn: Arc<XConnection>,
-    // WARNING: this is initially null!
-    pub im: ffi::XIM,
+    pub im: Option<InputMethod>,
     pub potential_input_methods: PotentialInputMethods,
     pub contexts: HashMap<ffi::Window, Option<ImeContext>>,
     // WARNING: this is initially zeroed!
@@ -31,14 +33,14 @@ pub struct ImeInner {
 }
 
 impl ImeInner {
-    pub fn new(
+    pub(crate) fn new(
         xconn: Arc<XConnection>,
         potential_input_methods: PotentialInputMethods,
         event_sender: ImeEventSender,
     ) -> Self {
         ImeInner {
             xconn,
-            im: ptr::null_mut(),
+            im: None,
             potential_input_methods,
             contexts: HashMap::new(),
             destroy_callback: unsafe { mem::zeroed() },
@@ -49,8 +51,8 @@ impl ImeInner {
     }
 
     pub unsafe fn close_im_if_necessary(&self) -> Result<bool, XError> {
-        if !self.is_destroyed {
-            close_im(&self.xconn, self.im).map(|_| true)
+        if !self.is_destroyed && self.im.is_some() {
+            close_im(&self.xconn, self.im.as_ref().unwrap().im).map(|_| true)
         } else {
             Ok(false)
         }

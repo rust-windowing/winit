@@ -4,6 +4,7 @@ use super::{
     ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
+use crate::platform_impl::platform::x11::monitor;
 use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
@@ -45,9 +46,8 @@ impl XConnection {
         if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
             let name: &str = "Xft.dpi:\t";
             for pair in res.split('\n') {
-                if pair.starts_with(&name) {
-                    let res = &pair[name.len()..];
-                    return f64::from_str(res).ok();
+                if let Some(stripped) = pair.strip_prefix(name) {
+                    return f64::from_str(stripped).ok();
                 }
             }
         }
@@ -80,18 +80,13 @@ impl XConnection {
             // XRROutputInfo contains an array of mode ids that correspond to
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
-            .map(|x| {
-                let refresh_rate = if x.dotClock > 0 && x.hTotal > 0 && x.vTotal > 0 {
-                    x.dotClock as u64 * 1000 / (x.hTotal as u64 * x.vTotal as u64)
-                } else {
-                    0
-                };
-
+            .map(|mode| {
                 VideoMode {
-                    size: (x.width, x.height),
-                    refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
+                    size: (mode.width, mode.height),
+                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
+                        .unwrap_or(0),
                     bit_depth: bit_depth as u16,
-                    native_mode: x.id,
+                    native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
                     monitor: None,
@@ -122,8 +117,7 @@ impl XConnection {
                     EnvVarDPI::NotSet
                 } else {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        var
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{var}`"
                     );
                 }
             },
@@ -131,17 +125,13 @@ impl XConnection {
 
         let scale_factor = match dpi_env {
             EnvVarDPI::Randr => calc_dpi_factor(
-                ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
+                ((*crtc).width, (*crtc).height),
+                ((*output_info).mm_width as _, (*output_info).mm_height as _),
             ),
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        dpi_override,
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{dpi_override}`",
                     );
                 }
                 dpi_override
@@ -151,11 +141,8 @@ impl XConnection {
                     dpi / 96.
                 } else {
                     calc_dpi_factor(
-                        ((*crtc).width as u32, (*crtc).height as u32),
-                        (
-                            (*output_info).mm_width as u64,
-                            (*output_info).mm_height as u64,
-                        ),
+                        ((*crtc).width, (*crtc).height),
+                        ((*output_info).mm_width as _, (*output_info).mm_height as _),
                     )
                 }
             }
@@ -164,7 +151,9 @@ impl XConnection {
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, scale_factor, modes))
     }
-    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+
+    #[must_use]
+    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Option<()> {
         unsafe {
             let mut major = 0;
             let mut minor = 0;
@@ -195,12 +184,13 @@ impl XConnection {
             (self.xrandr.XRRFreeScreenResources)(resources);
 
             if status == Success as i32 {
-                Ok(())
+                Some(())
             } else {
-                Err(())
+                None
             }
         }
     }
+
     pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
         unsafe {
             let mut major = 0;

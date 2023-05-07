@@ -1,5 +1,4 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MonitorHandle;
@@ -17,6 +16,10 @@ impl MonitorHandle {
         None
     }
 
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        None
+    }
+
     pub fn size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
             width: 0,
@@ -24,7 +27,7 @@ impl MonitorHandle {
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         std::iter::empty()
     }
 }
@@ -41,13 +44,11 @@ impl VideoMode {
         unimplemented!();
     }
 
-    pub fn refresh_rate(&self) -> u16 {
-        32
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        32000
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: MonitorHandle,
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 }

@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
@@ -17,7 +19,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
-        println!("{:?}", event);
+        println!("{event:?}");
 
         match event {
             Event::WindowEvent {

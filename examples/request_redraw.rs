@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, WindowEvent},
@@ -15,7 +17,7 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        println!("{:?}", event);
+        println!("{event:?}");
 
         control_flow.set_wait();
 

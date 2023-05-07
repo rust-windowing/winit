@@ -1,12 +1,14 @@
-use std::mem::transmute;
+use std::ffi::CStr;
 use std::os::raw::c_short;
-use std::ptr;
 use std::sync::Arc;
+use std::{mem, ptr};
+
+use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
+
+use crate::platform_impl::platform::x11::ime::input_method::{Style, XIMStyle};
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 use super::{ffi, util, XConnection, XError};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
-use std::ffi::CStr;
-use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 /// IME creation error.
 #[derive(Debug)]
@@ -65,12 +67,10 @@ extern "C" fn preedit_done_callback(
         .expect("failed to send preedit end event");
 }
 
-fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
-    let mut byte_pos = 0;
-    for i in 0..pos {
-        byte_pos += text[i].len_utf8();
-    }
-    byte_pos
+fn calc_byte_position(text: &[char], pos: usize) -> usize {
+    text.iter()
+        .take(pos)
+        .fold(0, |byte_pos, text| byte_pos + text.len_utf8())
 }
 
 /// Preedit text information to be drawn inline by the client.
@@ -103,7 +103,14 @@ extern "C" fn preedit_draw_callback(
         if xim_text.encoding_is_wchar > 0 {
             return;
         }
-        let new_text = unsafe { CStr::from_ptr(xim_text.string.multi_byte) };
+
+        let new_text = unsafe { xim_text.string.multi_byte };
+
+        if new_text.is_null() {
+            return;
+        }
+
+        let new_text = unsafe { CStr::from_ptr(new_text) };
 
         String::from(new_text.to_str().expect("Invalid UTF-8 String from IME"))
             .chars()
@@ -158,7 +165,7 @@ struct PreeditCallbacks {
 impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
-            transmute(preedit_start_callback as usize)
+            mem::transmute(preedit_start_callback as usize)
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
         let caret_callback = create_xim_callback(client_data, preedit_caret_callback);
@@ -185,21 +192,21 @@ struct ImeContextClientData {
 // still exists on the server. Since `ImeInner` has that awareness, destruction must be handled
 // through `ImeInner`.
 pub struct ImeContext {
-    pub(super) ic: ffi::XIC,
-    pub(super) ic_spot: ffi::XPoint,
-    pub(super) is_allowed: bool,
+    pub(crate) ic: ffi::XIC,
+    pub(crate) ic_spot: ffi::XPoint,
+    pub(crate) style: Style,
     // Since the data is passed shared between X11 XIM callbacks, but couldn't be direclty free from
     // there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
 }
 
 impl ImeContext {
-    pub unsafe fn new(
+    pub(crate) unsafe fn new(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: Style,
         window: ffi::Window,
         ic_spot: Option<ffi::XPoint>,
-        is_allowed: bool,
         event_sender: ImeEventSender,
     ) -> Result<Self, ImeContextCreationError> {
         let client_data = Box::into_raw(Box::new(ImeContextClientData {
@@ -209,12 +216,18 @@ impl ImeContext {
             cursor_pos: 0,
         }));
 
-        let ic = if is_allowed {
-            ImeContext::create_ic(xconn, im, window, client_data as ffi::XPointer)
-                .ok_or(ImeContextCreationError::Null)?
-        } else {
-            ImeContext::create_none_ic(xconn, im, window).ok_or(ImeContextCreationError::Null)?
-        };
+        let ic = match style as _ {
+            Style::Preedit(style) => ImeContext::create_preedit_ic(
+                xconn,
+                im,
+                style,
+                window,
+                client_data as ffi::XPointer,
+            ),
+            Style::Nothing(style) => ImeContext::create_nothing_ic(xconn, im, style, window),
+            Style::None(style) => ImeContext::create_none_ic(xconn, im, style, window),
+        }
+        .ok_or(ImeContextCreationError::Null)?;
 
         xconn
             .check_errors()
@@ -223,7 +236,7 @@ impl ImeContext {
         let mut context = ImeContext {
             ic,
             ic_spot: ffi::XPoint { x: 0, y: 0 },
-            is_allowed,
+            style,
             _client_data: Box::from_raw(client_data),
         };
 
@@ -238,23 +251,25 @@ impl ImeContext {
     unsafe fn create_none_ic(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
         let ic = (xconn.xlib.XCreateIC)(
             im,
             ffi::XNInputStyle_0.as_ptr() as *const _,
-            ffi::XIMPreeditNone | ffi::XIMStatusNone,
+            style,
             ffi::XNClientWindow_0.as_ptr() as *const _,
             window,
             ptr::null_mut::<()>(),
         );
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
-    unsafe fn create_ic(
+    unsafe fn create_preedit_ic(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: XIMStyle,
         window: ffi::Window,
         client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
@@ -276,48 +291,54 @@ impl ImeContext {
         )
         .expect("XVaCreateNestedList returned NULL");
 
-        let ic = {
-            let ic = (xconn.xlib.XCreateIC)(
-                im,
-                ffi::XNInputStyle_0.as_ptr() as *const _,
-                ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
-                ffi::XNClientWindow_0.as_ptr() as *const _,
-                window,
-                ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-                preedit_attr.ptr,
-                ptr::null_mut::<()>(),
-            );
+        let ic = (xconn.xlib.XCreateIC)(
+            im,
+            ffi::XNInputStyle_0.as_ptr() as *const _,
+            style,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ffi::XNPreeditAttributes_0.as_ptr() as *const _,
+            preedit_attr.ptr,
+            ptr::null_mut::<()>(),
+        );
 
-            // If we've failed to create IC with preedit callbacks fallback to normal one.
-            if ic.is_null() {
-                (xconn.xlib.XCreateIC)(
-                    im,
-                    ffi::XNInputStyle_0.as_ptr() as *const _,
-                    ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
-                    ffi::XNClientWindow_0.as_ptr() as *const _,
-                    window,
-                    ptr::null_mut::<()>(),
-                )
-            } else {
-                ic
-            }
-        };
-
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
-    pub fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
+    unsafe fn create_nothing_ic(
+        xconn: &Arc<XConnection>,
+        im: ffi::XIM,
+        style: XIMStyle,
+        window: ffi::Window,
+    ) -> Option<ffi::XIC> {
+        let ic = (xconn.xlib.XCreateIC)(
+            im,
+            ffi::XNInputStyle_0.as_ptr() as *const _,
+            style,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ptr::null_mut::<()>(),
+        );
+
+        (!ic.is_null()).then_some(ic)
+    }
+
+    pub(crate) fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
         unsafe {
             (xconn.xlib.XSetICFocus)(self.ic);
         }
         xconn.check_errors()
     }
 
-    pub fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
+    pub(crate) fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
         unsafe {
             (xconn.xlib.XUnsetICFocus)(self.ic);
         }
         xconn.check_errors()
+    }
+
+    pub fn is_allowed(&self) -> bool {
+        !matches!(self.style, Style::None(_))
     }
 
     // Set the spot for preedit text. Setting spot isn't working with libX11 when preedit callbacks
@@ -325,8 +346,8 @@ impl ImeContext {
     // window and couldn't be changed.
     //
     // For me see: https://bugs.freedesktop.org/show_bug.cgi?id=1580.
-    pub fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
-        if !self.is_allowed || self.ic_spot.x == x && self.ic_spot.y == y {
+    pub(crate) fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
+        if !self.is_allowed() || self.ic_spot.x == x && self.ic_spot.y == y {
             return;
         }
 

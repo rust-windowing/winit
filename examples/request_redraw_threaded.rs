@@ -1,4 +1,6 @@
-#[cfg(not(target_arch = "wasm32"))]
+#![allow(clippy::single_match)]
+
+#[cfg(not(wasm_platform))]
 fn main() {
     use std::{thread, time};
 
@@ -23,15 +25,15 @@ fn main() {
     });
 
     event_loop.run(move |event, _, control_flow| {
-        println!("{:?}", event);
+        println!("{event:?}");
 
         control_flow.set_wait();
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
-                _ => (),
-            },
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => control_flow.set_exit(),
             Event::RedrawRequested(_) => {
                 println!("\nredrawing!\n");
             }
@@ -40,7 +42,7 @@ fn main() {
     });
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 fn main() {
     unimplemented!() // `Window` can't be sent between threads
 }

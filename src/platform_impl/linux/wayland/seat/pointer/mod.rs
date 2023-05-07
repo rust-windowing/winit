@@ -1,265 +1,491 @@
-//! All pointer related handling.
+//! The pointer events.
 
-use std::cell::{Cell, RefCell};
-use std::rc::{Rc, Weak};
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
+use sctk::reexports::client::delegate_dispatch;
 use sctk::reexports::client::protocol::wl_pointer::WlPointer;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::Attached;
-use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
-use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
-use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::{ZwpPointerConstraintsV1, Lifetime};
-use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
+use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
+use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
+use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
+use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
+use sctk::reexports::client::globals::{BindError, GlobalList};
 
-use sctk::seat::pointer::{ThemeManager, ThemedPointer};
-use sctk::window::{FallbackFrame, Window};
+use sctk::compositor::SurfaceData;
+use sctk::globals::GlobalData;
+use sctk::seat::pointer::{PointerData, PointerDataExt};
+use sctk::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
+use sctk::seat::SeatState;
+use sctk::shell::xdg::frame::FrameClick;
 
-use crate::event::ModifiersState;
-use crate::platform_impl::wayland::event_loop::WinitState;
-use crate::window::CursorIcon;
+use crate::dpi::{LogicalPosition, PhysicalPosition};
+use crate::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 
-mod data;
-mod handlers;
+use crate::platform_impl::wayland::state::WinitState;
+use crate::platform_impl::wayland::{self, DeviceId, WindowId};
 
-use data::PointerData;
+pub mod relative_pointer;
 
-/// A proxy to Wayland pointer, which serves requests from a `WindowHandle`.
-pub struct WinitPointer {
-    pointer: ThemedPointer,
+impl PointerHandler for WinitState {
+    fn pointer_frame(
+        &mut self,
+        connection: &Connection,
+        _: &QueueHandle<Self>,
+        pointer: &WlPointer,
+        events: &[PointerEvent],
+    ) {
+        let seat = pointer.winit_data().seat();
+        let seat_state = self.seats.get(&seat.id()).unwrap();
+        let modifiers = seat_state.modifiers;
 
-    /// Create confined pointers.
-    pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
+        let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
 
-    /// Cursor to handle confine requests.
-    confined_pointer: Weak<RefCell<Option<ZwpConfinedPointerV1>>>,
+        for event in events {
+            let surface = &event.surface;
 
-    /// Latest observed serial in pointer events.
-    /// used by Window::start_interactive_move()
-    latest_serial: Rc<Cell<u32>>,
-    /// Latest observed serial in pointer enter events.
-    /// used by Window::set_cursor()
-    latest_enter_serial: Rc<Cell<u32>>,
+            // The parent surface.
+            let parent_surface = match event.surface.data::<SurfaceData>() {
+                Some(data) => data.parent_surface().unwrap_or(surface),
+                None => continue,
+            };
 
-    /// Seat.
-    seat: WlSeat,
-}
+            let window_id = wayland::make_wid(parent_surface);
 
-impl PartialEq for WinitPointer {
-    fn eq(&self, other: &Self) -> bool {
-        *self.pointer == *other.pointer
-    }
-}
+            // Ensure that window exists.
+            let mut window = match self.windows.get_mut().get_mut(&window_id) {
+                Some(window) => window.lock().unwrap(),
+                None => continue,
+            };
 
-impl Eq for WinitPointer {}
+            let scale_factor = window.scale_factor();
+            let position: PhysicalPosition<f64> =
+                LogicalPosition::new(event.position.0, event.position.1).to_physical(scale_factor);
 
-impl WinitPointer {
-    /// Set the cursor icon.
-    ///
-    /// Providing `None` will hide the cursor.
-    pub fn set_cursor(&self, cursor_icon: Option<CursorIcon>) {
-        let cursor_icon = match cursor_icon {
-            Some(cursor_icon) => cursor_icon,
-            None => {
-                // Hide the cursor.
-                // WlPointer::set_cursor() expects the serial of the last *enter*
-                // event (compare to to start_interactive_move()).
-                (*self.pointer).set_cursor(self.latest_enter_serial.get(), None, 0, 0);
-                return;
-            }
-        };
+            match event.kind {
+                // Pointer movements on decorations.
+                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. }
+                    if parent_surface != surface =>
+                {
+                    if let Some(icon) =
+                        window.frame_point_moved(surface, event.position.0, event.position.1)
+                    {
+                        if let Some(pointer) = seat_state.pointer.as_ref() {
+                            let surface = pointer
+                                .pointer()
+                                .data::<WinitPointerData>()
+                                .unwrap()
+                                .cursor_surface();
+                            let scale_factor =
+                                surface.data::<SurfaceData>().unwrap().scale_factor();
 
-        let cursors: &[&str] = match cursor_icon {
-            CursorIcon::Alias => &["link"],
-            CursorIcon::Arrow => &["arrow"],
-            CursorIcon::Cell => &["plus"],
-            CursorIcon::Copy => &["copy"],
-            CursorIcon::Crosshair => &["crosshair"],
-            CursorIcon::Default => &["left_ptr"],
-            CursorIcon::Hand => &["hand2", "hand1"],
-            CursorIcon::Help => &["question_arrow"],
-            CursorIcon::Move => &["move"],
-            CursorIcon::Grab => &["openhand", "grab"],
-            CursorIcon::Grabbing => &["closedhand", "grabbing"],
-            CursorIcon::Progress => &["progress"],
-            CursorIcon::AllScroll => &["all-scroll"],
-            CursorIcon::ContextMenu => &["context-menu"],
+                            let _ = pointer.set_cursor(
+                                connection,
+                                icon,
+                                self.shm.wl_shm(),
+                                surface,
+                                scale_factor,
+                            );
+                        }
+                    }
+                }
+                PointerEventKind::Leave { .. } if parent_surface != surface => {
+                    window.frame_point_left();
+                }
+                ref kind @ PointerEventKind::Press { button, serial, .. }
+                | ref kind @ PointerEventKind::Release { button, serial, .. }
+                    if parent_surface != surface =>
+                {
+                    let click = match wayland_button_to_winit(button) {
+                        MouseButton::Left => FrameClick::Normal,
+                        MouseButton::Right => FrameClick::Alternate,
+                        _ => continue,
+                    };
+                    let pressed = matches!(kind, PointerEventKind::Press { .. });
 
-            CursorIcon::NoDrop => &["no-drop", "circle"],
-            CursorIcon::NotAllowed => &["crossed_circle"],
+                    // Emulate click on the frame.
+                    window.frame_click(
+                        click,
+                        pressed,
+                        seat,
+                        serial,
+                        window_id,
+                        &mut self.window_compositor_updates,
+                    );
+                }
+                // Regular events on the main surface.
+                PointerEventKind::Enter { .. } => {
+                    self.events_sink
+                        .push_window_event(WindowEvent::CursorEntered { device_id }, window_id);
 
-            // Resize cursors
-            CursorIcon::EResize => &["right_side"],
-            CursorIcon::NResize => &["top_side"],
-            CursorIcon::NeResize => &["top_right_corner"],
-            CursorIcon::NwResize => &["top_left_corner"],
-            CursorIcon::SResize => &["bottom_side"],
-            CursorIcon::SeResize => &["bottom_right_corner"],
-            CursorIcon::SwResize => &["bottom_left_corner"],
-            CursorIcon::WResize => &["left_side"],
-            CursorIcon::EwResize => &["h_double_arrow"],
-            CursorIcon::NsResize => &["v_double_arrow"],
-            CursorIcon::NwseResize => &["bd_double_arrow", "size_fdiag"],
-            CursorIcon::NeswResize => &["fd_double_arrow", "size_bdiag"],
-            CursorIcon::ColResize => &["split_h", "h_double_arrow"],
-            CursorIcon::RowResize => &["split_v", "v_double_arrow"],
-            CursorIcon::Text => &["text", "xterm"],
-            CursorIcon::VerticalText => &["vertical-text"],
+                    if let Some(pointer) = seat_state.pointer.as_ref().map(Arc::downgrade) {
+                        window.pointer_entered(pointer);
+                    }
 
-            CursorIcon::Wait => &["watch"],
+                    // Set the currently focused surface.
+                    pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
 
-            CursorIcon::ZoomIn => &["zoom-in"],
-            CursorIcon::ZoomOut => &["zoom-out"],
-        };
+                    self.events_sink.push_window_event(
+                        WindowEvent::CursorMoved {
+                            device_id,
+                            position,
+                            modifiers,
+                        },
+                        window_id,
+                    );
+                }
+                PointerEventKind::Leave { .. } => {
+                    if let Some(pointer) = seat_state.pointer.as_ref().map(Arc::downgrade) {
+                        window.pointer_left(pointer);
+                    }
 
-        let serial = Some(self.latest_enter_serial.get());
-        for cursor in cursors {
-            if self.pointer.set_cursor(cursor, serial).is_ok() {
-                return;
+                    // Remove the active surface.
+                    pointer.winit_data().inner.lock().unwrap().surface = None;
+
+                    self.events_sink
+                        .push_window_event(WindowEvent::CursorLeft { device_id }, window_id);
+                }
+                PointerEventKind::Motion { .. } => {
+                    self.events_sink.push_window_event(
+                        WindowEvent::CursorMoved {
+                            device_id,
+                            position,
+                            modifiers,
+                        },
+                        window_id,
+                    );
+                }
+                ref kind @ PointerEventKind::Press { button, serial, .. }
+                | ref kind @ PointerEventKind::Release { button, serial, .. } => {
+                    // Update the last button serial.
+                    pointer
+                        .winit_data()
+                        .inner
+                        .lock()
+                        .unwrap()
+                        .latest_button_serial = serial;
+
+                    let button = wayland_button_to_winit(button);
+                    let state = if matches!(kind, PointerEventKind::Press { .. }) {
+                        ElementState::Pressed
+                    } else {
+                        ElementState::Released
+                    };
+                    self.events_sink.push_window_event(
+                        WindowEvent::MouseInput {
+                            device_id,
+                            state,
+                            button,
+                            modifiers,
+                        },
+                        window_id,
+                    );
+                }
+                PointerEventKind::Axis {
+                    horizontal,
+                    vertical,
+                    ..
+                } => {
+                    // Get the current phase.
+                    let mut pointer_data = pointer.winit_data().inner.lock().unwrap();
+
+                    let has_discrete_scroll = horizontal.discrete != 0 || vertical.discrete != 0;
+
+                    // Figure out what to do about start/ended phases here.
+                    //
+                    // Figure out how to deal with `Started`. Also the `Ended` is not guaranteed
+                    // to be sent for mouse wheels.
+                    let phase = if horizontal.stop || vertical.stop {
+                        TouchPhase::Ended
+                    } else {
+                        match pointer_data.phase {
+                            // Descrete scroll only results in moved events.
+                            _ if has_discrete_scroll => TouchPhase::Moved,
+                            TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
+                            _ => TouchPhase::Started,
+                        }
+                    };
+
+                    // Update the phase.
+                    pointer_data.phase = phase;
+
+                    // Mice events have both pixel and discrete delta's at the same time. So prefer
+                    // the descrite values if they are present.
+                    let delta = if has_discrete_scroll {
+                        // XXX Wayland sign convention is the inverse of winit.
+                        MouseScrollDelta::LineDelta(
+                            (-horizontal.discrete) as f32,
+                            (-vertical.discrete) as f32,
+                        )
+                    } else {
+                        // XXX Wayland sign convention is the inverse of winit.
+                        MouseScrollDelta::PixelDelta(
+                            LogicalPosition::new(-horizontal.absolute, -vertical.absolute)
+                                .to_physical(scale_factor),
+                        )
+                    };
+
+                    self.events_sink.push_window_event(
+                        WindowEvent::MouseWheel {
+                            device_id,
+                            delta,
+                            phase,
+                            modifiers,
+                        },
+                        window_id,
+                    )
+                }
             }
         }
-        warn!("Failed to set cursor to {:?}", cursor_icon);
+    }
+}
+
+#[derive(Debug)]
+pub struct WinitPointerData {
+    /// The surface associated with this pointer, which is used for icons.
+    cursor_surface: WlSurface,
+
+    /// The inner winit data associated with the pointer.
+    inner: Mutex<WinitPointerDataInner>,
+
+    /// The data required by the sctk.
+    sctk_data: PointerData,
+}
+
+impl WinitPointerData {
+    pub fn new(seat: WlSeat, surface: WlSurface) -> Self {
+        Self {
+            cursor_surface: surface,
+            inner: Mutex::new(WinitPointerDataInner::default()),
+            sctk_data: PointerData::new(seat),
+        }
     }
 
-    /// Confine the pointer to a surface.
-    pub fn confine(&self, surface: &WlSurface) {
-        let pointer_constraints = match &self.pointer_constraints {
-            Some(pointer_constraints) => pointer_constraints,
-            None => return,
-        };
+    pub fn lock_pointer(
+        &self,
+        pointer_constraints: &PointerConstraintsState,
+        surface: &WlSurface,
+        pointer: &WlPointer,
+        queue_handle: &QueueHandle<WinitState>,
+    ) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.locked_pointer.is_none() {
+            inner.locked_pointer = Some(pointer_constraints.lock_pointer(
+                surface,
+                pointer,
+                None,
+                Lifetime::Persistent,
+                queue_handle,
+                GlobalData,
+            ));
+        }
+    }
 
-        let confined_pointer = match self.confined_pointer.upgrade() {
-            Some(confined_pointer) => confined_pointer,
-            // A pointer is gone.
-            None => return,
-        };
+    pub fn unlock_pointer(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(locked_pointer) = inner.locked_pointer.take() {
+            locked_pointer.destroy();
+        }
+    }
 
-        *confined_pointer.borrow_mut() = Some(init_confined_pointer(
-            pointer_constraints,
+    pub fn confine_pointer(
+        &self,
+        pointer_constraints: &PointerConstraintsState,
+        surface: &WlSurface,
+        pointer: &WlPointer,
+        queue_handle: &QueueHandle<WinitState>,
+    ) {
+        self.inner.lock().unwrap().confined_pointer = Some(pointer_constraints.confine_pointer(
             surface,
-            &*self.pointer,
+            pointer,
+            None,
+            Lifetime::Persistent,
+            queue_handle,
+            GlobalData,
         ));
     }
 
-    /// Tries to unconfine the pointer if the current pointer is confined.
-    pub fn unconfine(&self) {
-        let confined_pointer = match self.confined_pointer.upgrade() {
-            Some(confined_pointer) => confined_pointer,
-            // A pointer is gone.
-            None => return,
-        };
-
-        let mut confined_pointer = confined_pointer.borrow_mut();
-
-        if let Some(confined_pointer) = confined_pointer.take() {
+    pub fn unconfine_pointer(&self) {
+        let inner = self.inner.lock().unwrap();
+        if let Some(confined_pointer) = inner.confined_pointer.as_ref() {
             confined_pointer.destroy();
         }
     }
 
-    pub fn drag_window(&self, window: &Window<FallbackFrame>) {
-        // WlPointer::setart_interactive_move() expects the last serial of *any*
-        // pointer event (compare to set_cursor()).
-        window.start_interactive_move(&self.seat, self.latest_serial.get());
+    /// Seat associated with this pointer.
+    pub fn seat(&self) -> &WlSeat {
+        self.sctk_data.seat()
     }
-}
 
-/// A pointer wrapper for easy releasing and managing pointers.
-pub(super) struct Pointers {
-    /// A pointer itself.
-    pointer: ThemedPointer,
+    /// The WlSurface used to set cursor theme.
+    pub fn cursor_surface(&self) -> &WlSurface {
+        &self.cursor_surface
+    }
 
-    /// A relative pointer handler.
-    relative_pointer: Option<ZwpRelativePointerV1>,
+    /// Active window.
+    pub fn focused_window(&self) -> Option<WindowId> {
+        self.inner.lock().unwrap().surface
+    }
 
-    /// Confined pointer.
-    confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,
-}
+    /// Last button serial.
+    pub fn latest_button_serial(&self) -> u32 {
+        self.inner.lock().unwrap().latest_button_serial
+    }
 
-impl Pointers {
-    pub(super) fn new(
-        seat: &Attached<WlSeat>,
-        theme_manager: &ThemeManager,
-        relative_pointer_manager: &Option<Attached<ZwpRelativePointerManagerV1>>,
-        pointer_constraints: &Option<Attached<ZwpPointerConstraintsV1>>,
-        modifiers_state: Rc<RefCell<ModifiersState>>,
-    ) -> Self {
-        let confined_pointer = Rc::new(RefCell::new(None));
-        let pointer_data = Rc::new(RefCell::new(PointerData::new(
-            confined_pointer.clone(),
-            pointer_constraints.clone(),
-            modifiers_state,
-        )));
-        let pointer_seat = seat.detach();
-        let pointer = theme_manager.theme_pointer_with_impl(
-            seat,
-            move |event, pointer, mut dispatch_data| {
-                let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                handlers::handle_pointer(
-                    pointer,
-                    event,
-                    &pointer_data,
-                    winit_state,
-                    pointer_seat.clone(),
-                );
-            },
-        );
+    /// Last enter serial.
+    pub fn latest_enter_serial(&self) -> u32 {
+        self.sctk_data.latest_enter_serial().unwrap_or_default()
+    }
 
-        // Setup relative_pointer if it's available.
-        let relative_pointer = relative_pointer_manager
-            .as_ref()
-            .map(|relative_pointer_manager| {
-                init_relative_pointer(relative_pointer_manager, &*pointer)
-            });
-
-        Self {
-            pointer,
-            relative_pointer,
-            confined_pointer,
+    pub fn set_locked_cursor_position(&self, surface_x: f64, surface_y: f64) {
+        let inner = self.inner.lock().unwrap();
+        if let Some(locked_pointer) = inner.locked_pointer.as_ref() {
+            locked_pointer.set_cursor_position_hint(surface_x, surface_y);
         }
     }
 }
 
-impl Drop for Pointers {
+impl Drop for WinitPointerData {
     fn drop(&mut self) {
-        // Drop relative pointer.
-        if let Some(relative_pointer) = self.relative_pointer.take() {
-            relative_pointer.destroy();
+        self.cursor_surface.destroy();
+    }
+}
+
+impl PointerDataExt for WinitPointerData {
+    fn pointer_data(&self) -> &PointerData {
+        &self.sctk_data
+    }
+}
+
+#[derive(Debug)]
+pub struct WinitPointerDataInner {
+    /// The associated locked pointer.
+    locked_pointer: Option<ZwpLockedPointerV1>,
+
+    /// The associated confined pointer.
+    confined_pointer: Option<ZwpConfinedPointerV1>,
+
+    /// Serial of the last button event.
+    latest_button_serial: u32,
+
+    /// Currently focused window.
+    surface: Option<WindowId>,
+
+    /// Current axis phase.
+    phase: TouchPhase,
+}
+
+impl Drop for WinitPointerDataInner {
+    fn drop(&mut self) {
+        if let Some(locked_pointer) = self.locked_pointer.take() {
+            locked_pointer.destroy();
         }
 
-        // Drop confined pointer.
-        if let Some(confined_pointer) = self.confined_pointer.borrow_mut().take() {
+        if let Some(confined_pointer) = self.confined_pointer.take() {
             confined_pointer.destroy();
-        }
-
-        // Drop the pointer itself in case it's possible.
-        if self.pointer.as_ref().version() >= 3 {
-            self.pointer.release();
         }
     }
 }
 
-pub(super) fn init_relative_pointer(
-    relative_pointer_manager: &ZwpRelativePointerManagerV1,
-    pointer: &WlPointer,
-) -> ZwpRelativePointerV1 {
-    let relative_pointer = relative_pointer_manager.get_relative_pointer(&*pointer);
-    relative_pointer.quick_assign(move |_, event, mut dispatch_data| {
-        let winit_state = dispatch_data.get::<WinitState>().unwrap();
-        handlers::handle_relative_pointer(event, winit_state);
-    });
-
-    relative_pointer.detach()
+impl Default for WinitPointerDataInner {
+    fn default() -> Self {
+        Self {
+            surface: None,
+            locked_pointer: None,
+            confined_pointer: None,
+            latest_button_serial: 0,
+            phase: TouchPhase::Ended,
+        }
+    }
 }
 
-pub(super) fn init_confined_pointer(
-    pointer_constraints: &Attached<ZwpPointerConstraintsV1>,
-    surface: &WlSurface,
-    pointer: &WlPointer,
-) -> ZwpConfinedPointerV1 {
-    let confined_pointer =
-        pointer_constraints.confine_pointer(surface, pointer, None, Lifetime::Persistent);
+/// Convert the Wayland button into winit.
+fn wayland_button_to_winit(button: u32) -> MouseButton {
+    // These values are comming from <linux/input-event-codes.h>.
+    const BTN_LEFT: u32 = 0x110;
+    const BTN_RIGHT: u32 = 0x111;
+    const BTN_MIDDLE: u32 = 0x112;
 
-    confined_pointer.quick_assign(move |_, _, _| {});
-
-    confined_pointer.detach()
+    match button {
+        BTN_LEFT => MouseButton::Left,
+        BTN_RIGHT => MouseButton::Right,
+        BTN_MIDDLE => MouseButton::Middle,
+        button => MouseButton::Other(button as u16),
+    }
 }
+
+pub trait WinitPointerDataExt {
+    fn winit_data(&self) -> &WinitPointerData;
+}
+
+impl WinitPointerDataExt for WlPointer {
+    fn winit_data(&self) -> &WinitPointerData {
+        self.data::<WinitPointerData>()
+            .expect("failed to get pointer data.")
+    }
+}
+
+pub struct PointerConstraintsState {
+    pointer_constraints: ZwpPointerConstraintsV1,
+}
+
+impl PointerConstraintsState {
+    pub fn new(
+        globals: &GlobalList,
+        queue_handle: &QueueHandle<WinitState>,
+    ) -> Result<Self, BindError> {
+        let pointer_constraints = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        Ok(Self {
+            pointer_constraints,
+        })
+    }
+}
+
+impl Deref for PointerConstraintsState {
+    type Target = ZwpPointerConstraintsV1;
+    fn deref(&self) -> &Self::Target {
+        &self.pointer_constraints
+    }
+}
+
+impl Dispatch<ZwpPointerConstraintsV1, GlobalData, WinitState> for PointerConstraintsState {
+    fn event(
+        _state: &mut WinitState,
+        _proxy: &ZwpPointerConstraintsV1,
+        _event: <ZwpPointerConstraintsV1 as wayland_client::Proxy>::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpLockedPointerV1, GlobalData, WinitState> for PointerConstraintsState {
+    fn event(
+        _state: &mut WinitState,
+        _proxy: &ZwpLockedPointerV1,
+        _event: <ZwpLockedPointerV1 as wayland_client::Proxy>::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwpConfinedPointerV1, GlobalData, WinitState> for PointerConstraintsState {
+    fn event(
+        _state: &mut WinitState,
+        _proxy: &ZwpConfinedPointerV1,
+        _event: <ZwpConfinedPointerV1 as wayland_client::Proxy>::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+    }
+}
+
+delegate_dispatch!(WinitState: [ WlPointer: WinitPointerData] => SeatState);
+delegate_dispatch!(WinitState: [ZwpPointerConstraintsV1: GlobalData] => PointerConstraintsState);
+delegate_dispatch!(WinitState: [ZwpLockedPointerV1: GlobalData] => PointerConstraintsState);
+delegate_dispatch!(WinitState: [ZwpConfinedPointerV1: GlobalData] => PointerConstraintsState);

@@ -13,7 +13,7 @@ pub(crate) struct Pixel {
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
 #[derive(Debug)]
-/// An error produced when using `Icon::from_rgba` with invalid arguments.
+/// An error produced when using [`Icon::from_rgba`] with invalid arguments.
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.
@@ -34,8 +34,7 @@ impl fmt::Display for BadIcon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
-                "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
-                byte_count,
+                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
             ),
             BadIcon::DimensionsVsPixelCount {
                 width,
@@ -43,10 +42,9 @@ impl fmt::Display for BadIcon {
                 width_x_height,
                 pixel_count,
             } => write!(f,
-                "The specified dimensions ({:?}x{:?}) don't match the number of pixels supplied by the `rgba` argument ({:?}). For those dimensions, the expected pixel count is {:?}.",
-                width, height, pixel_count, width_x_height,
+                "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}.",
             ),
-            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {:?}", e),
+            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {e:?}"),
         }
     }
 }
@@ -73,10 +71,6 @@ mod constructors {
     use super::*;
 
     impl RgbaIcon {
-        /// Creates an `Icon` from 32bpp RGBA data.
-        ///
-        /// The length of `rgba` must be divisible by 4, and `width * height` must equal
-        /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
         pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
             if rgba.len() % PIXEL_SIZE != 0 {
                 return Err(BadIcon::ByteCountNotDivisibleBy4 {
@@ -123,7 +117,7 @@ impl fmt::Debug for Icon {
 }
 
 impl Icon {
-    /// Creates an `Icon` from 32bpp RGBA data.
+    /// Creates an icon from 32bpp RGBA data.
     ///
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.

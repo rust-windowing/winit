@@ -17,8 +17,9 @@ use self::{
     callbacks::*,
     context::ImeContext,
     inner::{close_im, ImeInner},
-    input_method::PotentialInputMethods,
+    input_method::{PotentialInputMethods, Style},
 };
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImeEvent {
@@ -44,12 +45,13 @@ pub enum ImeRequest {
 }
 
 #[derive(Debug)]
-pub enum ImeCreationError {
-    OpenFailure(PotentialInputMethods),
+pub(crate) enum ImeCreationError {
+    // Boxed to prevent large error type
+    OpenFailure(Box<PotentialInputMethods>),
     SetDestroyCallbackFailed(XError),
 }
 
-pub struct Ime {
+pub(crate) struct Ime {
     xconn: Arc<XConnection>,
     // The actual meat of this struct is boxed away, since it needs to have a fixed location in
     // memory so we can pass a pointer to it around.
@@ -87,19 +89,21 @@ impl Ime {
 
         let is_fallback = input_method.is_fallback();
         if let Some(input_method) = input_method.ok() {
-            inner.im = input_method.im;
             inner.is_fallback = is_fallback;
             unsafe {
-                let result = set_destroy_callback(&xconn, input_method.im, &*inner)
+                let result = set_destroy_callback(&xconn, input_method.im, &inner)
                     .map_err(ImeCreationError::SetDestroyCallbackFailed);
                 if result.is_err() {
                     let _ = close_im(&xconn, input_method.im);
                 }
                 result?;
             }
+            inner.im = Some(input_method);
             Ok(Ime { xconn, inner })
         } else {
-            Err(ImeCreationError::OpenFailure(inner.potential_input_methods))
+            Err(ImeCreationError::OpenFailure(Box::new(
+                inner.potential_input_methods,
+            )))
         }
     }
 
@@ -120,11 +124,35 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
-            let event = if with_preedit {
-                ImeEvent::Enabled
+            let im = self.inner.im.as_ref().unwrap();
+            let style = if with_preedit {
+                im.preedit_style
             } else {
-                // There's no IME without preedit.
+                im.none_style
+            };
+
+            let context = unsafe {
+                ImeContext::new(
+                    &self.inner.xconn,
+                    im.im,
+                    style,
+                    window,
+                    None,
+                    self.inner.event_sender.clone(),
+                )?
+            };
+
+            // Check the state on the context, since it could fail to enable or disable preedit.
+            let event = if matches!(style, Style::None(_)) {
+                if with_preedit {
+                    debug!("failed to create IME context with preedit support.")
+                }
                 ImeEvent::Disabled
+            } else {
+                if !with_preedit {
+                    debug!("failed to create IME context without preedit support.")
+                }
+                ImeEvent::Enabled
             };
 
             self.inner
@@ -132,17 +160,9 @@ impl Ime {
                 .send((window, event))
                 .expect("Failed to send enabled event");
 
-            Some(unsafe {
-                ImeContext::new(
-                    &self.inner.xconn,
-                    self.inner.im,
-                    window,
-                    None,
-                    with_preedit,
-                    self.inner.event_sender.clone(),
-                )
-            }?)
+            Some(context)
         };
+
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())
     }
@@ -151,7 +171,7 @@ impl Ime {
         if self.is_destroyed() {
             return None;
         }
-        if let Some(&Some(ref context)) = self.inner.contexts.get(&window) {
+        if let Some(Some(context)) = self.inner.contexts.get(&window) {
             Some(context.ic)
         } else {
             None
@@ -206,7 +226,7 @@ impl Ime {
         }
 
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            if allowed == context.is_allowed {
+            if allowed == context.is_allowed() {
                 return;
             }
         }

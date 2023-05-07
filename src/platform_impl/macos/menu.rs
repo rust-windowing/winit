@@ -1,115 +1,98 @@
-use super::util::IdRef;
-use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
-use cocoa::base::{nil, selector};
-use cocoa::foundation::{NSProcessInfo, NSString};
-use objc::{
-    rc::autoreleasepool,
-    runtime::{Object, Sel},
-};
+use objc2::foundation::{NSProcessInfo, NSString};
+use objc2::rc::{Id, Shared};
+use objc2::runtime::Sel;
+use objc2::{ns_string, sel};
+
+use super::appkit::{NSApp, NSEventModifierFlags, NSMenu, NSMenuItem};
 
 struct KeyEquivalent<'a> {
-    key: &'a str,
+    key: &'a NSString,
     masks: Option<NSEventModifierFlags>,
 }
 
 pub fn initialize() {
-    autoreleasepool(|| unsafe {
-        let menubar = IdRef::new(NSMenu::new(nil));
-        let app_menu_item = IdRef::new(NSMenuItem::new(nil));
-        menubar.addItem_(*app_menu_item);
-        let app = NSApp();
-        app.setMainMenu_(*menubar);
+    let menubar = NSMenu::new();
+    let app_menu_item = NSMenuItem::new();
+    menubar.addItem(&app_menu_item);
 
-        let app_menu = NSMenu::new(nil);
-        let process_name = NSProcessInfo::processInfo(nil).processName();
+    let app_menu = NSMenu::new();
+    let process_name = NSProcessInfo::process_info().process_name();
 
-        // About menu item
-        let about_item_prefix = NSString::alloc(nil).init_str("About ");
-        let about_item_title = about_item_prefix.stringByAppendingString_(process_name);
-        let about_item = menu_item(
-            about_item_title,
-            selector("orderFrontStandardAboutPanel:"),
-            None,
-        );
+    // About menu item
+    let about_item_title = ns_string!("About ").concat(&process_name);
+    let about_item = menu_item(&about_item_title, sel!(orderFrontStandardAboutPanel:), None);
 
-        // Seperator menu item
-        let sep_first = NSMenuItem::separatorItem(nil);
+    // Seperator menu item
+    let sep_first = NSMenuItem::separatorItem();
 
-        // Hide application menu item
-        let hide_item_prefix = NSString::alloc(nil).init_str("Hide ");
-        let hide_item_title = hide_item_prefix.stringByAppendingString_(process_name);
-        let hide_item = menu_item(
-            hide_item_title,
-            selector("hide:"),
-            Some(KeyEquivalent {
-                key: "h",
-                masks: None,
-            }),
-        );
+    // Hide application menu item
+    let hide_item_title = ns_string!("Hide ").concat(&process_name);
+    let hide_item = menu_item(
+        &hide_item_title,
+        sel!(hide:),
+        Some(KeyEquivalent {
+            key: ns_string!("h"),
+            masks: None,
+        }),
+    );
 
-        // Hide other applications menu item
-        let hide_others_item_title = NSString::alloc(nil).init_str("Hide Others");
-        let hide_others_item = menu_item(
-            hide_others_item_title,
-            selector("hideOtherApplications:"),
-            Some(KeyEquivalent {
-                key: "h",
-                masks: Some(
-                    NSEventModifierFlags::NSAlternateKeyMask
-                        | NSEventModifierFlags::NSCommandKeyMask,
-                ),
-            }),
-        );
+    // Hide other applications menu item
+    let hide_others_item_title = ns_string!("Hide Others");
+    let hide_others_item = menu_item(
+        hide_others_item_title,
+        sel!(hideOtherApplications:),
+        Some(KeyEquivalent {
+            key: ns_string!("h"),
+            masks: Some(
+                NSEventModifierFlags::NSAlternateKeyMask | NSEventModifierFlags::NSCommandKeyMask,
+            ),
+        }),
+    );
 
-        // Show applications menu item
-        let show_all_item_title = NSString::alloc(nil).init_str("Show All");
-        let show_all_item = menu_item(
-            show_all_item_title,
-            selector("unhideAllApplications:"),
-            None,
-        );
+    // Show applications menu item
+    let show_all_item_title = ns_string!("Show All");
+    let show_all_item = menu_item(show_all_item_title, sel!(unhideAllApplications:), None);
 
-        // Seperator menu item
-        let sep = NSMenuItem::separatorItem(nil);
+    // Seperator menu item
+    let sep = NSMenuItem::separatorItem();
 
-        // Quit application menu item
-        let quit_item_prefix = NSString::alloc(nil).init_str("Quit ");
-        let quit_item_title = quit_item_prefix.stringByAppendingString_(process_name);
-        let quit_item = menu_item(
-            quit_item_title,
-            selector("terminate:"),
-            Some(KeyEquivalent {
-                key: "q",
-                masks: None,
-            }),
-        );
+    // Quit application menu item
+    let quit_item_title = ns_string!("Quit ").concat(&process_name);
+    let quit_item = menu_item(
+        &quit_item_title,
+        sel!(terminate:),
+        Some(KeyEquivalent {
+            key: ns_string!("q"),
+            masks: None,
+        }),
+    );
 
-        app_menu.addItem_(about_item);
-        app_menu.addItem_(sep_first);
-        app_menu.addItem_(hide_item);
-        app_menu.addItem_(hide_others_item);
-        app_menu.addItem_(show_all_item);
-        app_menu.addItem_(sep);
-        app_menu.addItem_(quit_item);
-        app_menu_item.setSubmenu_(app_menu);
-    });
+    app_menu.addItem(&about_item);
+    app_menu.addItem(&sep_first);
+    app_menu.addItem(&hide_item);
+    app_menu.addItem(&hide_others_item);
+    app_menu.addItem(&show_all_item);
+    app_menu.addItem(&sep);
+    app_menu.addItem(&quit_item);
+    app_menu_item.setSubmenu(&app_menu);
+
+    let app = NSApp();
+    app.setMainMenu(&menubar);
 }
 
 fn menu_item(
-    title: *mut Object,
+    title: &NSString,
     selector: Sel,
     key_equivalent: Option<KeyEquivalent<'_>>,
-) -> *mut Object {
-    unsafe {
-        let (key, masks) = match key_equivalent {
-            Some(ke) => (NSString::alloc(nil).init_str(ke.key), ke.masks),
-            None => (NSString::alloc(nil).init_str(""), None),
-        };
-        let item = NSMenuItem::alloc(nil).initWithTitle_action_keyEquivalent_(title, selector, key);
-        if let Some(masks) = masks {
-            item.setKeyEquivalentModifierMask_(masks)
-        }
-
-        item
+) -> Id<NSMenuItem, Shared> {
+    let (key, masks) = match key_equivalent {
+        Some(ke) => (ke.key, ke.masks),
+        None => (ns_string!(""), None),
+    };
+    let item = NSMenuItem::newWithTitle(title, selector, key);
+    if let Some(masks) = masks {
+        item.setKeyEquivalentModifierMask(masks)
     }
+
+    item
 }

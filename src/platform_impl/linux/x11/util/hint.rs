@@ -23,7 +23,7 @@ impl From<bool> for StateOperation {
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowType {
     /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
@@ -61,13 +61,8 @@ pub enum WindowType {
     /// This property is typically used on override-redirect windows.
     Dnd,
     /// This is a normal, top-level window.
+    #[default]
     Normal,
-}
-
-impl Default for WindowType {
-    fn default() -> Self {
-        WindowType::Normal
-    }
 }
 
 impl WindowType {
@@ -173,13 +168,19 @@ impl MotifHints {
     }
 }
 
+impl Default for MotifHints {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MwmHints {
     fn as_slice(&self) -> &[c_ulong] {
         unsafe { slice::from_raw_parts(self as *const _ as *const c_ulong, 5) }
     }
 }
 
-pub struct NormalHints<'a> {
+pub(crate) struct NormalHints<'a> {
     size_hints: XSmartPointer<'a, ffi::XSizeHints>,
 }
 
@@ -190,12 +191,13 @@ impl<'a> NormalHints<'a> {
         }
     }
 
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        if has_flag(self.size_hints.flags, ffi::PPosition) {
-            Some((self.size_hints.x as i32, self.size_hints.y as i32))
-        } else {
-            None
-        }
+    pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
+        has_flag(self.size_hints.flags, ffi::PResizeInc).then_some({
+            (
+                self.size_hints.width_inc as u32,
+                self.size_hints.height_inc as u32,
+            )
+        })
     }
 
     pub fn set_position(&mut self, position: Option<(i32, i32)>) {
@@ -317,7 +319,7 @@ impl XConnection {
         let mut hints = MotifHints::new();
 
         if let Ok(props) = self.get_property::<c_ulong>(window, motif_hints, motif_hints) {
-            hints.hints.flags = props.get(0).cloned().unwrap_or(0);
+            hints.hints.flags = props.first().cloned().unwrap_or(0);
             hints.hints.functions = props.get(1).cloned().unwrap_or(0);
             hints.hints.decorations = props.get(2).cloned().unwrap_or(0);
             hints.hints.input_mode = props.get(3).cloned().unwrap_or(0) as c_long;

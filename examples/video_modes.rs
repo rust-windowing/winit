@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::event_loop::EventLoop;
 
@@ -15,6 +17,6 @@ fn main() {
     println!("Listing available video modes:");
 
     for mode in monitor.video_modes() {
-        println!("{}", mode);
+        println!("{mode}");
     }
 }

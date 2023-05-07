@@ -9,20 +9,27 @@ use std::{
     time::Instant,
 };
 
-use objc::runtime::{BOOL, YES};
+use core_foundation::base::CFRelease;
+use core_foundation::date::CFAbsoluteTimeGetCurrent;
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
+    CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+};
+use objc2::foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
+use objc2::rc::{Id, Shared};
+use objc2::runtime::Object;
+use objc2::{msg_send, sel};
+use once_cell::sync::Lazy;
 
+use super::uikit::UIView;
+use super::view::WinitUIWindow;
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{
-            id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
-            CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
-            NSOperatingSystemVersion, NSUInteger,
-        },
+        ffi::NSOperatingSystemVersion,
     },
     window::WindowId as RootWindowId,
 };
@@ -52,11 +59,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event<'static, Never> {
     fn is_redraw(&self) -> bool {
-        if let Event::RedrawRequested(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Event::RedrawRequested(_))
     }
 }
 
@@ -65,25 +68,25 @@ impl Event<'static, Never> {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     NotLaunched {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     Launching {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
         queued_events: Vec<EventWrapper>,
         queued_event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     ProcessingEvents {
         event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
         active_control_flow: ControlFlow,
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<id>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
     },
     ProcessingRedraws {
         event_handler: Box<dyn EventHandler>,
@@ -104,28 +107,6 @@ struct AppState {
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
-}
-
-impl Drop for AppState {
-    fn drop(&mut self) {
-        match self.state_mut() {
-            &mut AppStateImpl::NotLaunched {
-                ref mut queued_windows,
-                ..
-            }
-            | &mut AppStateImpl::Launching {
-                ref mut queued_windows,
-                ..
-            } => {
-                for &mut window in queued_windows {
-                    unsafe {
-                        let () = msg_send![window, release];
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 impl AppState {
@@ -200,10 +181,10 @@ impl AppState {
     }
 
     fn has_launched(&self) -> bool {
-        match self.state() {
-            &AppStateImpl::NotLaunched { .. } | &AppStateImpl::Launching { .. } => false,
-            _ => true,
-        }
+        !matches!(
+            self.state(),
+            AppStateImpl::NotLaunched { .. } | AppStateImpl::Launching { .. }
+        )
     }
 
     fn will_launch_transition(&mut self, queued_event_handler: Box<dyn EventHandler>) {
@@ -223,7 +204,9 @@ impl AppState {
         });
     }
 
-    fn did_finish_launching_transition(&mut self) -> (Vec<id>, Vec<EventWrapper>) {
+    fn did_finish_launching_transition(
+        &mut self,
+    ) -> (Vec<Id<WinitUIWindow, Shared>>, Vec<EventWrapper>) {
         let (windows, events, event_handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
@@ -380,7 +363,7 @@ impl AppState {
         }
     }
 
-    fn main_events_cleared_transition(&mut self) -> HashSet<id> {
+    fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow, Shared>> {
         let (event_handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
             AppStateImpl::ProcessingEvents {
                 event_handler,
@@ -473,20 +456,13 @@ impl AppState {
 
 // requires main thread and window is a UIWindow
 // retains window
-pub unsafe fn set_key_window(window: id) {
-    bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
-        "set_key_window called with an incorrect type"
-    );
+pub(crate) unsafe fn set_key_window(window: &Id<WinitUIWindow, Shared>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
             ref mut queued_windows,
             ..
-        } => return queued_windows.push(msg_send![window, retain]),
+        } => return queued_windows.push(window.clone()),
         &mut AppStateImpl::ProcessingEvents { .. }
         | &mut AppStateImpl::InUserCallback { .. }
         | &mut AppStateImpl::ProcessingRedraws { .. } => {}
@@ -498,19 +474,12 @@ pub unsafe fn set_key_window(window: id) {
         }
     }
     drop(this);
-    msg_send![window, makeKeyAndVisible]
+    window.makeKeyAndVisible();
 }
 
 // requires main thread and window is a UIWindow
 // retains window
-pub unsafe fn queue_gl_or_metal_redraw(window: id) {
-    bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
-        "set_key_window called with an incorrect type"
-    );
+pub(crate) unsafe fn queue_gl_or_metal_redraw(window: Id<WinitUIWindow, Shared>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
@@ -528,7 +497,9 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
         | &mut AppStateImpl::InUserCallback {
             ref mut queued_gpu_redraws,
             ..
-        } => drop(queued_gpu_redraws.insert(window)),
+        } => {
+            let _ = queued_gpu_redraws.insert(window);
+        }
         s @ &mut AppStateImpl::ProcessingRedraws { .. }
         | s @ &mut AppStateImpl::Waiting { .. }
         | s @ &mut AppStateImpl::PollFinished { .. } => bug!("unexpected state {:?}", s),
@@ -536,7 +507,6 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
             panic!("Attempt to create a `Window` after the app has terminated")
         }
     }
-    drop(this);
 }
 
 // requires main thread
@@ -548,7 +518,7 @@ pub unsafe fn will_launch(queued_event_handler: Box<dyn EventHandler>) {
 pub unsafe fn did_finish_launching() {
     let mut this = AppState::get_mut();
     let windows = match this.state_mut() {
-        AppStateImpl::Launching { queued_windows, .. } => mem::replace(queued_windows, Vec::new()),
+        AppStateImpl::Launching { queued_windows, .. } => mem::take(queued_windows),
         s => bug!("unexpected state {:?}", s),
     };
 
@@ -563,30 +533,25 @@ pub unsafe fn did_finish_launching() {
     drop(this);
 
     for window in windows {
-        let count: NSUInteger = msg_send![window, retainCount];
-        // make sure the window is still referenced
-        if count > 1 {
-            // Do a little screen dance here to account for windows being created before
-            // `UIApplicationMain` is called. This fixes visual issues such as being
-            // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
-            // gotta reset the `rootViewController`.
-            //
-            // relevant iOS log:
-            // ```
-            // [ApplicationLifecycle] Windows were created before application initialzation
-            // completed. This may result in incorrect visual appearance.
-            // ```
-            let screen: id = msg_send![window, screen];
-            let _: id = msg_send![screen, retain];
-            let () = msg_send![window, setScreen:0 as id];
-            let () = msg_send![window, setScreen: screen];
-            let () = msg_send![screen, release];
-            let controller: id = msg_send![window, rootViewController];
-            let () = msg_send![window, setRootViewController:ptr::null::<()>()];
-            let () = msg_send![window, setRootViewController: controller];
-            let () = msg_send![window, makeKeyAndVisible];
-        }
-        let () = msg_send![window, release];
+        // Do a little screen dance here to account for windows being created before
+        // `UIApplicationMain` is called. This fixes visual issues such as being
+        // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
+        // gotta reset the `rootViewController`.
+        //
+        // relevant iOS log:
+        // ```
+        // [ApplicationLifecycle] Windows were created before application initialzation
+        // completed. This may result in incorrect visual appearance.
+        // ```
+        let screen = window.screen();
+        let _: () = msg_send![&window, setScreen: ptr::null::<Object>()];
+        window.setScreen(&screen);
+
+        let controller = window.rootViewController();
+        window.setRootViewController(None);
+        window.setRootViewController(controller.as_deref());
+
+        window.makeKeyAndVisible();
     }
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
@@ -600,12 +565,7 @@ pub unsafe fn did_finish_launching() {
     // the above window dance hack, could possibly trigger new windows to be created.
     // we can just set those windows up normally, as they were created after didFinishLaunching
     for window in windows {
-        let count: NSUInteger = msg_send![window, retainCount];
-        // make sure the window is still referenced
-        if count > 1 {
-            let () = msg_send![window, makeKeyAndVisible];
-        }
-        let () = msg_send![window, release];
+        window.makeKeyAndVisible();
     }
 }
 
@@ -623,12 +583,12 @@ pub unsafe fn handle_wakeup_transition() {
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_event(event: EventWrapper) {
+pub(crate) unsafe fn handle_nonuser_event(event: EventWrapper) {
     handle_nonuser_events(std::iter::once(event))
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events: I) {
+pub(crate) unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events: I) {
     let mut this = AppState::get_mut();
     let (mut event_handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
@@ -670,7 +630,7 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
             &mut AppStateImpl::InUserCallback {
                 ref mut queued_events,
                 queued_gpu_redraws: _,
-            } => mem::replace(queued_events, Vec::new()),
+            } => mem::take(queued_events),
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
@@ -751,7 +711,7 @@ unsafe fn handle_user_events() {
             &mut AppStateImpl::InUserCallback {
                 ref mut queued_events,
                 queued_gpu_redraws: _,
-            } => mem::replace(queued_events, Vec::new()),
+            } => mem::take(queued_events),
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
@@ -793,7 +753,7 @@ pub unsafe fn handle_main_events_cleared() {
         return;
     }
     match this.state_mut() {
-        &mut AppStateImpl::ProcessingEvents { .. } => {}
+        AppStateImpl::ProcessingEvents { .. } => {}
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
     drop(this);
@@ -806,9 +766,7 @@ pub unsafe fn handle_main_events_cleared() {
     let mut redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| {
-            EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.into())))
-        })
+        .map(|window| EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.id()))))
         .collect();
 
     redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
@@ -841,13 +799,13 @@ fn handle_event_proxy(
         EventProxy::DpiChangedProxy {
             suggested_size,
             scale_factor,
-            window_id,
+            window,
         } => handle_hidpi_proxy(
             event_handler,
             control_flow,
             suggested_size,
             scale_factor,
-            window_id,
+            window,
         ),
     }
 }
@@ -857,39 +815,34 @@ fn handle_hidpi_proxy(
     mut control_flow: ControlFlow,
     suggested_size: LogicalSize<f64>,
     scale_factor: f64,
-    window_id: id,
+    window: Id<WinitUIWindow, Shared>,
 ) {
     let mut size = suggested_size.to_physical(scale_factor);
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
-        window_id: RootWindowId(window_id.into()),
+        window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             new_inner_size,
         },
     };
     event_handler.handle_nonuser_event(event, &mut control_flow);
-    let (view, screen_frame) = get_view_and_screen_frame(window_id);
+    let (view, screen_frame) = get_view_and_screen_frame(&window);
     let physical_size = *new_inner_size;
     let logical_size = physical_size.to_logical(scale_factor);
-    let size = CGSize::new(logical_size);
+    let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-    unsafe {
-        let () = msg_send![view, setFrame: new_frame];
-    }
+    view.setFrame(new_frame);
 }
 
-fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
-    unsafe {
-        let view_controller: id = msg_send![window_id, rootViewController];
-        let view: id = msg_send![view_controller, view];
-        let bounds: CGRect = msg_send![window_id, bounds];
-        let screen: id = msg_send![window_id, screen];
-        let screen_space: id = msg_send![screen, coordinateSpace];
-        let screen_frame: CGRect =
-            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
-        (view, screen_frame)
-    }
+fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Id<UIView, Shared>, CGRect) {
+    let view_controller = window.rootViewController().unwrap();
+    let view = view_controller.view().unwrap();
+    let bounds = window.bounds();
+    let screen = window.screen();
+    let screen_space = screen.coordinateSpace();
+    let screen_frame = window.convertRect_toCoordinateSpace(bounds, &screen_space);
+    (view, screen_frame)
 }
 
 struct EventLoopWaker {
@@ -990,20 +943,20 @@ macro_rules! os_capabilities {
 }
 
 os_capabilities! {
-    /// https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc>
     #[allow(unused)] // error message unused
     safe_area_err_msg: "-[UIView safeAreaInsets]",
     safe_area: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc>
     home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
     home_indicator_hidden: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc>
     defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
     defer_system_gestures: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc>
     maximum_frames_per_second_err_msg: "-[UIScreen maximumFramesPerSecond]",
     maximum_frames_per_second: 10-3,
-    /// https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc>
     #[allow(unused)] // error message unused
     force_touch_err_msg: "-[UITouch force]",
     force_touch: 9-0,
@@ -1016,29 +969,24 @@ impl NSOperatingSystemVersion {
 }
 
 pub fn os_capabilities() -> OSCapabilities {
-    lazy_static! {
-        static ref OS_CAPABILITIES: OSCapabilities = {
-            let version: NSOperatingSystemVersion = unsafe {
-                let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
-                let atleast_ios_8: BOOL = msg_send![
-                    process_info,
-                    respondsToSelector: sel!(operatingSystemVersion)
-                ];
-                // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
-                // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
-                // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
-                // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
-                // has been tested to not even run on macOS 10.15 - Xcode 8 might?
-                //
-                // The minimum required iOS version is likely to grow in the future.
-                assert!(
-                    atleast_ios_8 == YES,
-                    "`winit` requires iOS version 8 or greater"
-                );
-                msg_send![process_info, operatingSystemVersion]
-            };
-            version.into()
+    static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
+        let version: NSOperatingSystemVersion = unsafe {
+            let process_info = NSProcessInfo::process_info();
+            let atleast_ios_8: bool = msg_send![
+                &process_info,
+                respondsToSelector: sel!(operatingSystemVersion)
+            ];
+            // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
+            // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
+            // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
+            // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
+            // has been tested to not even run on macOS 10.15 - Xcode 8 might?
+            //
+            // The minimum required iOS version is likely to grow in the future.
+            assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
+            msg_send![&process_info, operatingSystemVersion]
         };
-    }
+        version.into()
+    });
     OS_CAPABILITIES.clone()
 }

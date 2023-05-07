@@ -1,23 +1,23 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(wayland_platform)]
+
+//! Winit's Wayland backend.
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
+use sctk::reexports::client::Proxy;
 
+pub use crate::platform_impl::platform::WindowId;
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use output::{MonitorHandle, VideoMode};
 pub use window::Window;
 
-mod env;
 mod event_loop;
 mod output;
 mod seat;
+mod state;
+mod types;
 mod window;
 
+/// Dummy device id, since Wayland doesn't have device events.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
@@ -27,16 +27,8 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
+/// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId(surface.as_ref().c_ptr() as usize)
+    WindowId(surface.id().as_ptr() as u64)
 }

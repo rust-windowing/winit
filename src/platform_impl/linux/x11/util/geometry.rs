@@ -98,7 +98,7 @@ pub struct LogicalFrameExtents {
     pub bottom: f64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameExtentsHeuristicPath {
     Supported,
     UnsupportedNested,
@@ -129,12 +129,12 @@ impl FrameExtentsHeuristic {
             width.saturating_add(
                 self.frame_extents
                     .left
-                    .saturating_add(self.frame_extents.right) as u32,
+                    .saturating_add(self.frame_extents.right) as _,
             ),
             height.saturating_add(
                 self.frame_extents
                     .top
-                    .saturating_add(self.frame_extents.bottom) as u32,
+                    .saturating_add(self.frame_extents.bottom) as _,
             ),
         )
     }
@@ -370,8 +370,12 @@ impl XConnection {
             let top = offset_y;
             let bottom = diff_y.saturating_sub(offset_y);
 
-            let frame_extents =
-                FrameExtents::new(left.into(), right.into(), top.into(), bottom.into());
+            let frame_extents = FrameExtents::new(
+                left as c_ulong,
+                right as c_ulong,
+                top as c_ulong,
+                bottom as c_ulong,
+            );
             FrameExtentsHeuristic {
                 frame_extents,
                 heuristic_path: UnsupportedNested,
@@ -379,7 +383,7 @@ impl XConnection {
         } else {
             // This is the case for xmonad and dwm, AKA the only WMs tested that supplied a
             // border value. This is convenient, since we can use it to get an accurate frame.
-            let frame_extents = FrameExtents::from_border(border.into());
+            let frame_extents = FrameExtents::from_border(border as c_ulong);
             FrameExtentsHeuristic {
                 frame_extents,
                 heuristic_path: UnsupportedBordered,

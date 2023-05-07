@@ -8,7 +8,7 @@ use super::{
     input_method::PotentialInputMethods,
 };
 
-pub unsafe fn xim_set_callback(
+pub(crate) unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
     xim: ffi::XIM,
     field: *const c_char,
@@ -26,7 +26,7 @@ pub unsafe fn xim_set_callback(
 // * This is called per locale modifier, not per input method opened with that locale modifier.
 // * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt
 //   input contexts would always silently fail to use the input method.
-pub unsafe fn set_instantiate_callback(
+pub(crate) unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
@@ -41,7 +41,7 @@ pub unsafe fn set_instantiate_callback(
     xconn.check_errors()
 }
 
-pub unsafe fn unset_instantiate_callback(
+pub(crate) unsafe fn unset_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
@@ -56,7 +56,7 @@ pub unsafe fn unset_instantiate_callback(
     xconn.check_errors()
 }
 
-pub unsafe fn set_destroy_callback(
+pub(crate) unsafe fn set_destroy_callback(
     xconn: &Arc<XConnection>,
     im: ffi::XIM,
     inner: &ImeInner,
@@ -72,7 +72,8 @@ pub unsafe fn set_destroy_callback(
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
 enum ReplaceImError {
-    MethodOpenFailed(PotentialInputMethods),
+    // Boxed to prevent large error type
+    MethodOpenFailed(Box<PotentialInputMethods>),
     ContextCreationFailed(ImeContextCreationError),
     SetDestroyCallbackFailed(XError),
 }
@@ -88,7 +89,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
         let is_fallback = new_im.is_fallback();
         (
             new_im.ok().ok_or_else(|| {
-                ReplaceImError::MethodOpenFailed((*inner).potential_input_methods.clone())
+                ReplaceImError::MethodOpenFailed(Box::new((*inner).potential_input_methods.clone()))
             })?,
             is_fallback,
         )
@@ -108,17 +109,28 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
+
+        // Check if the IME was allowed on that context.
         let is_allowed = old_context
             .as_ref()
-            .map(|old_context| old_context.is_allowed)
+            .map(|old_context| old_context.is_allowed())
             .unwrap_or_default();
+
+        // We can't use the style from the old context here, since it may change on reload, so
+        // pick style from the new XIM based on the old state.
+        let style = if is_allowed {
+            new_im.preedit_style
+        } else {
+            new_im.none_style
+        };
+
         let new_context = {
             let result = ImeContext::new(
                 xconn,
                 new_im.im,
+                style,
                 *window,
                 spot,
-                is_allowed,
                 (*inner).event_sender.clone(),
             );
             if result.is_err() {
@@ -132,7 +144,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     // If we've made it this far, everything succeeded.
     let _ = (*inner).destroy_all_contexts_if_necessary();
     let _ = (*inner).close_im_if_necessary();
-    (*inner).im = new_im.im;
+    (*inner).im = Some(new_im);
     (*inner).contexts = new_contexts;
     (*inner).is_destroyed = false;
     (*inner).is_fallback = is_fallback;
@@ -156,7 +168,7 @@ pub unsafe extern "C" fn xim_instantiate_callback(
             Err(err) => {
                 if (*inner).is_destroyed {
                     // We have no usable input methods!
-                    panic!("Failed to reopen input method: {:?}", err);
+                    panic!("Failed to reopen input method: {err:?}");
                 }
             }
         }
@@ -183,7 +195,7 @@ pub unsafe extern "C" fn xim_destroy_callback(
                 Ok(()) => (*inner).is_fallback = true,
                 Err(err) => {
                     // We have no usable input methods!
-                    panic!("Failed to open fallback input method: {:?}", err);
+                    panic!("Failed to open fallback input method: {err:?}");
                 }
             }
         }

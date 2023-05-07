@@ -65,13 +65,12 @@ impl ScaleChangeDetectorInternal {
         );
         let mql = MediaQueryListHandle::new(&media_query, closure);
         if let Some(mql) = &mql {
-            assert_eq!(mql.mql().matches(), true);
+            assert!(mql.mql().matches());
         }
         mql
     }
 
-    fn handler(&mut self, event: MediaQueryListEvent) {
-        assert_eq!(event.matches(), false);
+    fn handler(&mut self, _event: MediaQueryListEvent) {
         let mql = self
             .mql
             .take()

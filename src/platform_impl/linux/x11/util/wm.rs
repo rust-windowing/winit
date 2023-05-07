@@ -1,19 +1,31 @@
-use parking_lot::Mutex;
+use std::sync::Mutex;
+
+use once_cell::sync::Lazy;
 
 use super::*;
 
+// https://specifications.freedesktop.org/wm-spec/latest/ar01s04.html#idm46075117309248
+pub const MOVERESIZE_TOPLEFT: isize = 0;
+pub const MOVERESIZE_TOP: isize = 1;
+pub const MOVERESIZE_TOPRIGHT: isize = 2;
+pub const MOVERESIZE_RIGHT: isize = 3;
+pub const MOVERESIZE_BOTTOMRIGHT: isize = 4;
+pub const MOVERESIZE_BOTTOM: isize = 5;
+pub const MOVERESIZE_BOTTOMLEFT: isize = 6;
+pub const MOVERESIZE_LEFT: isize = 7;
+pub const MOVERESIZE_MOVE: isize = 8;
+
 // This info is global to the window manager.
-lazy_static! {
-    static ref SUPPORTED_HINTS: Mutex<Vec<ffi::Atom>> = Mutex::new(Vec::with_capacity(0));
-    static ref WM_NAME: Mutex<Option<String>> = Mutex::new(None);
-}
+static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
+    Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
+static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 pub fn hint_is_supported(hint: ffi::Atom) -> bool {
-    (*SUPPORTED_HINTS.lock()).contains(&hint)
+    (*SUPPORTED_HINTS.lock().unwrap()).contains(&hint)
 }
 
 pub fn wm_name_is_one_of(names: &[&str]) -> bool {
-    if let Some(ref name) = *WM_NAME.lock() {
+    if let Some(ref name) = *WM_NAME.lock().unwrap() {
         names.contains(&name.as_str())
     } else {
         false
@@ -22,8 +34,8 @@ pub fn wm_name_is_one_of(names: &[&str]) -> bool {
 
 impl XConnection {
     pub fn update_cached_wm_info(&self, root: ffi::Window) {
-        *SUPPORTED_HINTS.lock() = self.get_supported_hints(root);
-        *WM_NAME.lock() = self.get_wm_name(root);
+        *SUPPORTED_HINTS.lock().unwrap() = self.get_supported_hints(root);
+        *WM_NAME.lock().unwrap() = self.get_wm_name(root);
     }
 
     fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {
@@ -60,7 +72,7 @@ impl XConnection {
         let root_window_wm_check = {
             let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
             wm_check?
         };
@@ -70,7 +82,7 @@ impl XConnection {
         let child_window_wm_check = {
             let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
             wm_check?
         };
