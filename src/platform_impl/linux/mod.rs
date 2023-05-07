@@ -133,9 +133,9 @@ pub enum OsError {
     XMisc(&'static str),
     #[cfg(wayland_platform)]
     WaylandMisc(&'static str),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     KmsError(String),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     KmsMisc(&'static str),
 }
 
@@ -148,9 +148,9 @@ impl fmt::Display for OsError {
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(wayland_platform)]
             OsError::WaylandMisc(e) => _f.pad(e),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             OsError::KmsError(ref e) => _f.pad(e),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             OsError::KmsMisc(e) => _f.pad(e),
         }
     }
@@ -161,7 +161,7 @@ pub(crate) enum Window {
     X(x11::Window),
     #[cfg(wayland_platform)]
     Wayland(wayland::Window),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::Window),
 }
 
@@ -192,7 +192,7 @@ pub enum DeviceId {
     X(x11::DeviceId),
     #[cfg(wayland_platform)]
     Wayland(wayland::DeviceId),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::DeviceId),
 }
 
@@ -202,7 +202,7 @@ impl DeviceId {
         return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(wayland_platform), x11_platform))]
         return DeviceId::X(x11::DeviceId::dummy());
-        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kms"))]
+        #[cfg(all(not(all(wayland_platform, x11_platform)), drm_platform))]
         return DeviceId::Kms(kms::DeviceId::dummy());
     }
 }
@@ -213,7 +213,7 @@ pub enum MonitorHandle {
     X(x11::MonitorHandle),
     #[cfg(wayland_platform)]
     Wayland(wayland::MonitorHandle),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::MonitorHandle),
 }
 
@@ -233,7 +233,7 @@ macro_rules! x11_or_wayland_or_drm {
             $enum::X($($c1)*) => $enum2::X($x),
             #[cfg(wayland_platform)]
             $enum::Wayland($($c1)*) => $enum2::Wayland($x),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             $enum::Kms($($c1)*) => $enum2::Kms($x)
         }
     };
@@ -292,7 +292,7 @@ pub enum VideoMode {
     X(x11::VideoMode),
     #[cfg(wayland_platform)]
     Wayland(wayland::VideoMode),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::VideoMode),
 }
 
@@ -334,7 +334,7 @@ impl Window {
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             EventLoopWindowTarget::Kms(ref window_target) => {
                 kms::Window::new(window_target, attribs, pl_attribs).map(Window::Kms)
             }
@@ -530,7 +530,7 @@ impl Window {
             Window::X(ref w) => w.set_window_level(_level),
             #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(_) => (),
         }
     }
@@ -542,7 +542,7 @@ impl Window {
             Window::X(ref w) => w.set_window_icon(_window_icon),
             #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(_) => (),
         }
     }
@@ -569,7 +569,7 @@ impl Window {
             Window::X(ref w) => w.focus_window(),
             #[cfg(wayland_platform)]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(_) => (),
         }
     }
@@ -602,7 +602,7 @@ impl Window {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
                 Some(current_monitor)
             }
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(ref window) => {
                 let current_monitor = MonitorHandle::Kms(window.current_monitor()?);
                 Some(RootMonitorHandle {
@@ -627,7 +627,7 @@ impl Window {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(ref window) => window
                 .available_monitors()
                 .into_iter()
@@ -646,7 +646,7 @@ impl Window {
             }
             #[cfg(wayland_platform)]
             Window::Wayland(ref window) => window.primary_monitor(),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             Window::Kms(ref window) => window.primary_monitor(),
         }
     }
@@ -733,7 +733,7 @@ pub enum EventLoop<T: 'static> {
     Wayland(Box<wayland::EventLoop<T>>),
     #[cfg(x11_platform)]
     X(x11::EventLoop<T>),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::EventLoop<T>),
 }
 
@@ -742,7 +742,7 @@ pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     #[cfg(wayland_platform)]
     Wayland(wayland::EventLoopProxy<T>),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::EventLoopProxy<T>),
 }
 
@@ -775,7 +775,7 @@ impl<T: 'static> EventLoop<T> {
             return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
         }
 
-        #[cfg(feature = "kms")]
+        #[cfg(drm_platform)]
         if attributes.forced_backend == Some(Backend::Kms) {
             // TODO: Propagate
             return EventLoop::new_drm_any_thread().expect("failed to open drm connection");
@@ -799,10 +799,10 @@ impl<T: 'static> EventLoop<T> {
                     panic!("wayland feature is not enabled");
                 }
                 "drm" | "kms" | "gbm" | "tty" => {
-                    #[cfg(feature = "kms")]
+                    #[cfg(drm_platform)]
                     return EventLoop::new_drm_any_thread()
                         .expect("Failed to initialize drm backend");
-                    #[cfg(not(feature = "kms"))]
+                    #[cfg(not(drm_platform))]
                     panic!("kms feature is not enabled");
                 }
                 _ => panic!(
@@ -856,7 +856,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
     }
 
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     fn new_drm_any_thread() -> Result<EventLoop<T>, RootOsError> {
         kms::EventLoop::new().map(EventLoop::Kms)
     }
@@ -895,7 +895,7 @@ pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     #[cfg(x11_platform)]
     X(x11::EventLoopWindowTarget<T>),
-    #[cfg(feature = "kms")]
+    #[cfg(drm_platform)]
     Kms(kms::EventLoopWindowTarget<T>),
 }
 
@@ -926,7 +926,7 @@ impl<T> EventLoopWindowTarget<T> {
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             EventLoopWindowTarget::Kms(ref evlp) => evlp
                 .available_monitors()
                 .into_iter()
@@ -945,7 +945,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
                 Some(primary_monitor)
             }
-            #[cfg(feature = "kms")]
+            #[cfg(drm_platform)]
             EventLoopWindowTarget::Kms(ref evlp) => evlp.primary_monitor(),
         }
     }

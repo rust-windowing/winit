@@ -684,7 +684,7 @@ impl<T: 'static> EventLoop<T> {
     fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
             platform_impl::EventLoopWindowTarget::Kms(window_target) => window_target,
-            #[cfg(any(feature = "x11", feature = "wayland"))]
+            #[cfg(any(x11_platform, wayland_platform))]
             _ => unreachable!(),
         };
 
@@ -699,7 +699,7 @@ impl<T: 'static> EventLoop<T> {
             platform_impl::EventLoopWindowTarget::Kms(window_target) => {
                 &mut window_target.event_sink
             }
-            #[cfg(any(feature = "x11", feature = "wayland"))]
+            #[cfg(any(x11_platform, wayland_platform))]
             _ => unreachable!(),
         };
 
