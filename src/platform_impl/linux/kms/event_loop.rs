@@ -24,25 +24,13 @@ use crate::{
     monitor::MonitorHandle,
     platform::unix::Card,
     platform_impl::{self, platform::sticky_exit_callback, OsError},
-    window::WindowId,
 };
 
 use super::{
     input::{Interface, LibinputInputBackend},
+    window::winid,
     MODE,
 };
-
-macro_rules! to_platform_impl {
-    ($p:ident, $params:expr) => {
-        $p(platform_impl::$p::Kms($params))
-    };
-}
-
-macro_rules! window_id {
-    () => {
-        to_platform_impl!(WindowId, super::WindowId)
-    };
-}
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
@@ -406,6 +394,7 @@ impl<T: 'static> EventLoop<T> {
             .map_err(|e| os_error!(OsError::KmsError(format!("could not list planes: {}", e))))?;
 
         let p_plane = find_plane(planes, res, crtc, &drm);
+        let window_id = winid();
 
         let (disp_width, disp_height) = mode.size();
 
@@ -438,7 +427,7 @@ impl<T: 'static> EventLoop<T> {
             .insert_source(
                 event_loop_awakener_source,
                 move |_event, _metadata, data| {
-                    data.push(Event::RedrawRequested(window_id!()));
+                    data.push(Event::RedrawRequested(window_id));
                 },
             )
             .unwrap();
@@ -514,7 +503,7 @@ impl<T: 'static> EventLoop<T> {
         );
 
         callback(
-            Event::RedrawRequested(window_id!()),
+            Event::RedrawRequested(winid()),
             &self.window_target,
             &mut control_flow,
         );

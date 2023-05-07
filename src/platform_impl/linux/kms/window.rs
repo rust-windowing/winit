@@ -15,7 +15,7 @@ use crate::{
     monitor::{MonitorHandle, VideoMode},
     platform::unix::Card,
     platform_impl,
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId},
 };
 
 pub struct Window {
@@ -61,6 +61,11 @@ macro_rules! add_property {
             $property,
         );
     };
+}
+
+pub(crate) fn winid() -> WindowId {
+    // there is only one window
+    0.into()
 }
 
 impl Window {
@@ -195,9 +200,10 @@ impl Window {
             card: event_loop_window_target.device.clone(),
         })
     }
+
     #[inline]
-    pub fn id(&self) -> super::WindowId {
-        super::WindowId
+    pub fn id(&self) -> platform_impl::WindowId {
+        winid().0
     }
 
     #[inline]

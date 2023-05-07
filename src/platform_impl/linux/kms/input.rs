@@ -6,7 +6,6 @@ use crate::{
         MouseScrollDelta, Touch, TouchPhase, WindowEvent,
     },
     platform_impl::{self, xkb_keymap},
-    window::WindowId,
 };
 use input::{
     event::{
@@ -34,7 +33,7 @@ use calloop::{
 };
 use xkbcommon::xkb;
 
-use super::event_loop::EventSink;
+use super::{event_loop::EventSink, window::winid};
 
 pub const REPEAT_RATE: u64 = 25;
 pub const REPEAT_DELAY: u64 = 600;
@@ -42,12 +41,6 @@ pub const REPEAT_DELAY: u64 = 600;
 macro_rules! to_platform_impl {
     ($p:ident, $params:expr) => {
         $p(platform_impl::$p::Kms($params))
-    };
-}
-
-macro_rules! window_id {
-    () => {
-        to_platform_impl!(WindowId, super::WindowId)
     };
 }
 
@@ -182,7 +175,7 @@ macro_rules! handle_touch_event {
         match $ev {
             input::event::TouchEvent::Up(e) => $callback(
                 Event::WindowEvent {
-                    window_id: window_id!(),
+                    window_id: winid(),
                     event: WindowEvent::Touch(Touch {
                         device_id: device_id!(),
                         phase: TouchPhase::Ended,
@@ -199,7 +192,7 @@ macro_rules! handle_touch_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::Touch(Touch {
                             device_id: device_id!(),
                             phase: TouchPhase::Started,
@@ -217,7 +210,7 @@ macro_rules! handle_touch_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::Touch(Touch {
                             device_id: device_id!(),
                             phase: TouchPhase::Moved,
@@ -231,7 +224,7 @@ macro_rules! handle_touch_event {
             }
             input::event::TouchEvent::Cancel(e) => $callback(
                 Event::WindowEvent {
-                    window_id: window_id!(),
+                    window_id: winid(),
                     event: WindowEvent::Touch(Touch {
                         device_id: device_id!(),
                         phase: TouchPhase::Cancelled,
@@ -244,7 +237,7 @@ macro_rules! handle_touch_event {
             ),
             input::event::TouchEvent::Frame(_) => $callback(
                 Event::WindowEvent {
-                    window_id: window_id!(),
+                    window_id: winid(),
                     event: WindowEvent::Touch(Touch {
                         device_id: device_id!(),
                         phase: TouchPhase::Ended,
@@ -265,7 +258,7 @@ macro_rules! handle_tablet_tool_event {
         match $ev {
             input::event::TabletToolEvent::Tip(e) => $callback(
                 Event::WindowEvent {
-                    window_id: window_id!(),
+                    window_id: winid(),
                     event: WindowEvent::Touch(Touch {
                         device_id: device_id!(),
                         phase: match e.tip_state() {
@@ -289,7 +282,7 @@ macro_rules! handle_tablet_tool_event {
             input::event::TabletToolEvent::Button(e) => {
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::MouseInput {
                             device_id: device_id!(),
                             state: match e.button_state() {
@@ -340,7 +333,7 @@ macro_rules! handle_pointer_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::CursorMoved {
                             device_id: device_id!(),
                             position: *lock,
@@ -364,7 +357,7 @@ macro_rules! handle_pointer_event {
             input::event::PointerEvent::Button(e) => {
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::MouseInput {
                             device_id: device_id!(),
                             state: match e.button_state() {
@@ -402,7 +395,7 @@ macro_rules! handle_pointer_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::MouseWheel {
                             device_id: device_id!(),
                             delta: MouseScrollDelta::LineDelta(
@@ -430,7 +423,7 @@ macro_rules! handle_pointer_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::MouseWheel {
                             device_id: device_id!(),
                             delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(
@@ -462,7 +455,7 @@ macro_rules! handle_pointer_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::CursorMoved {
                             device_id: device_id!(),
                             position: *lock,
@@ -547,7 +540,7 @@ macro_rules! handle_keyboard_event {
 
         $callback(
             Event::WindowEvent {
-                window_id: window_id!(),
+                window_id: winid(),
                 event: WindowEvent::KeyboardInput {
                     device_id: device_id!(),
                     input,
@@ -565,7 +558,7 @@ macro_rules! handle_keyboard_event {
                     if let Some(c) = $self.xkb_compose.utf8().and_then(|f| f.chars().next()) {
                         $callback(
                             Event::WindowEvent {
-                                window_id: window_id!(),
+                                window_id: winid(),
                                 event: WindowEvent::ReceivedCharacter(c),
                             },
                             &mut (),
@@ -585,7 +578,7 @@ macro_rules! handle_keyboard_event {
                     if let Some(c) = ch {
                         $callback(
                             Event::WindowEvent {
-                                window_id: window_id!(),
+                                window_id: winid(),
                                 event: WindowEvent::ReceivedCharacter(c),
                             },
                             &mut (),
@@ -604,7 +597,7 @@ macro_rules! handle_keyboard_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::ModifiersChanged($self.modifiers),
                     },
                     &mut (),
@@ -619,7 +612,7 @@ macro_rules! handle_keyboard_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::ModifiersChanged($self.modifiers),
                     },
                     &mut (),
@@ -634,7 +627,7 @@ macro_rules! handle_keyboard_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::ModifiersChanged($self.modifiers),
                     },
                     &mut (),
@@ -649,7 +642,7 @@ macro_rules! handle_keyboard_event {
 
                 $callback(
                     Event::WindowEvent {
-                        window_id: window_id!(),
+                        window_id: winid(),
                         event: WindowEvent::ModifiersChanged($self.modifiers),
                     },
                     &mut (),
@@ -660,7 +653,7 @@ macro_rules! handle_keyboard_event {
                 if $self.modifiers.is_empty() {
                     $callback(
                         Event::WindowEvent {
-                            window_id: window_id!(),
+                            window_id: winid(),
                             event: WindowEvent::CloseRequested,
                         },
                         &mut (),
