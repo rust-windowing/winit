@@ -903,7 +903,7 @@ impl<T> EventLoopWindowTarget<T> {
         match *self {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(_) => true,
-            #[cfg(x11_platform)]
+            #[cfg(any(x11_platform, drm_platform))]
             _ => false,
         }
     }
