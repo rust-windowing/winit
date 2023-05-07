@@ -576,9 +576,9 @@ impl Window {
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(x11_platform)]
-            Window::X(ref w) => w.request_user_attention(request_type),
+            Window::X(ref w) => w.request_user_attention(_request_type),
             #[cfg(wayland_platform)]
-            Window::Wayland(ref w) => w.request_user_attention(request_type),
+            Window::Wayland(ref w) => w.request_user_attention(_request_type),
             #[cfg(drm_platform)]
             Window::Kms(_) => (),
         }
