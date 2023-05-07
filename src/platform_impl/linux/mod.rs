@@ -605,9 +605,7 @@ impl Window {
             #[cfg(drm_platform)]
             Window::Kms(ref window) => {
                 let current_monitor = MonitorHandle::Kms(window.current_monitor()?);
-                Some(RootMonitorHandle {
-                    inner: current_monitor,
-                })
+                Some(current_monitor)
             }
         }
     }

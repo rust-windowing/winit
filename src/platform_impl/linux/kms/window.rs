@@ -12,9 +12,8 @@ use crate::error;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
-    monitor::{MonitorHandle, VideoMode},
     platform::unix::Card,
-    platform_impl,
+    platform_impl::{self, MonitorHandle, VideoMode},
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId},
 };
 
@@ -384,9 +383,11 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<super::MonitorHandle> {
+        let mode = (*MODE.lock())?;
         Some(super::MonitorHandle {
             connector: self.connector.clone(),
-            name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
+            mode,
+            name: mode.name().to_string_lossy().into_owned(),
         })
     }
 
@@ -400,6 +401,7 @@ impl Window {
                 .iter()
                 .map(|f| super::MonitorHandle {
                     connector: self.card.get_connector(*f).unwrap(),
+                    mode,
                     name: mode.name().to_string_lossy().into_owned(),
                 })
                 .collect()
@@ -418,11 +420,11 @@ impl Window {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
-                connector: self.connector.clone(),
-                name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
-            }),
-        })
+        let mode = (*MODE.lock())?;
+        Some(MonitorHandle::Kms(super::MonitorHandle {
+            connector: self.connector.clone(),
+            mode,
+            name: mode.name().to_string_lossy().into_owned(),
+        }))
     }
 }

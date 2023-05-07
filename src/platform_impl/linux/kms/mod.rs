@@ -3,7 +3,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 pub mod event_loop;
 pub mod input;
 pub mod window;
-use crate::{monitor, platform_impl};
+use crate::platform_impl;
 pub use drm::SystemError;
 use drm::{
     control::{Device as ControlDevice, *},
@@ -55,6 +55,7 @@ impl DeviceId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonitorHandle {
     connector: connector::Info,
+    mode: Mode,
     name: String,
 }
 
@@ -89,7 +90,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        let size = self.connector.modes()[0].size();
+        let size = self.mode.size();
         PhysicalSize::new(size.0 as u32, size.1 as u32)
     }
 
@@ -99,19 +100,24 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        Some(self.mode.vrefresh() * 1000)
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         1.0
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = platform_impl::VideoMode> {
         let modes = self.connector.modes().to_vec();
         let monitor = self.connector.clone();
-        modes.into_iter().map(move |f| monitor::VideoMode {
-            video_mode: platform_impl::VideoMode::Kms(VideoMode {
+        modes.into_iter().map(move |f| {
+            platform_impl::VideoMode::Kms(VideoMode {
                 mode: f,
                 connector: monitor.clone(),
-            }),
+            })
         })
     }
 }
@@ -135,18 +141,17 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        self.mode.vrefresh() as u16
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.mode.vrefresh() * 1000
     }
 
     #[inline]
-    pub fn monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(MonitorHandle {
-                connector: self.connector.clone(),
-                name: self.mode.name().to_string_lossy().into_owned(),
-            }),
-        }
+    pub fn monitor(&self) -> platform_impl::MonitorHandle {
+        platform_impl::MonitorHandle::Kms(MonitorHandle {
+            connector: self.connector.clone(),
+            mode: self.mode,
+            name: self.mode.name().to_string_lossy().into_owned(),
+        })
     }
 }
 

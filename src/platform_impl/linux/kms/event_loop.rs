@@ -21,9 +21,8 @@ use crate::{
     dpi::PhysicalPosition,
     event::{Event, StartCause},
     event_loop::{self, ControlFlow, EventLoopClosed},
-    monitor::MonitorHandle,
     platform::unix::Card,
-    platform_impl::{self, platform::sticky_exit_callback, OsError},
+    platform_impl::{self, platform::sticky_exit_callback, MonitorHandle, OsError},
 };
 
 use super::{
@@ -66,12 +65,12 @@ pub struct EventLoopWindowTarget<T> {
 impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
-                connector: self.connector.clone(),
-                name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
-            }),
-        })
+        let mode = (*MODE.lock())?;
+        Some(MonitorHandle::Kms(super::MonitorHandle {
+            connector: self.connector.clone(),
+            mode,
+            name: mode.name().to_string_lossy().into_owned(),
+        }))
     }
 
     #[inline]
@@ -84,6 +83,7 @@ impl<T> EventLoopWindowTarget<T> {
                 .iter()
                 .map(|f| super::MonitorHandle {
                     connector: self.device.get_connector(*f).unwrap(),
+                    mode,
                     name: mode.name().to_string_lossy().into_owned(),
                 })
                 .collect()
