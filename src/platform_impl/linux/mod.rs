@@ -360,7 +360,7 @@ impl Window {
 
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_transparent(transparent));
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_transparent(transparent));
     }
 
     #[inline]
@@ -415,12 +415,12 @@ impl Window {
 
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        x11_or_wayland!(match self; Window(w) => w.resize_increments())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.resize_increments())
     }
 
     #[inline]
     pub fn set_resize_increments(&self, increments: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_resize_increments(increments))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_resize_increments(increments))
     }
 
     #[inline]
@@ -435,12 +435,12 @@ impl Window {
 
     #[inline]
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
-        x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_enabled_buttons(buttons))
     }
 
     #[inline]
     pub fn enabled_buttons(&self) -> WindowButtons {
-        x11_or_wayland!(match self; Window(w) => w.enabled_buttons())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.enabled_buttons())
     }
 
     #[inline]
@@ -559,7 +559,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_purpose(&self, purpose: ImePurpose) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_ime_purpose(purpose))
     }
 
     #[inline]
@@ -961,7 +961,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+        x11_or_wayland_or_drm!(match self; Self(evlp) => evlp.raw_display_handle())
     }
 }
 

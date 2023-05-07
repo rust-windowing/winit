@@ -12,7 +12,10 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
     platform_impl::{self, Fullscreen, MonitorHandle, VideoMode},
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId},
+    window::{
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, WindowAttributes,
+        WindowButtons, WindowId,
+    },
 };
 
 pub struct Window {
@@ -207,6 +210,14 @@ impl Window {
     pub fn set_title(&self, _title: &str) {}
 
     #[inline]
+    pub fn title(&self) -> String {
+        String::new()
+    }
+
+    #[inline]
+    pub fn set_transparent(&self, _transparent: bool) {}
+
+    #[inline]
     pub fn set_visible(&self, _visible: bool) {}
 
     #[inline]
@@ -248,6 +259,16 @@ impl Window {
     pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {}
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`set_resize_increments` is not implemented for DRM");
+    }
+
+    #[inline]
     pub fn set_resizable(&self, _resizable: bool) {}
 
     #[inline]
@@ -256,10 +277,26 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enabled_buttons(&self, _buttons: WindowButtons) {}
+
+    #[inline]
+    pub fn enabled_buttons(&self) -> WindowButtons {
+        WindowButtons::all()
+    }
+
+    #[inline]
+    pub fn set_theme(&self, _theme: Option<Theme>) {}
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
+
+    #[inline]
     pub fn set_cursor_icon(&self, _cursor: CursorIcon) {}
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, _mode: CursorGrabMode) -> Result<(), ExternalError> {
         Ok(())
     }
 
@@ -268,6 +305,14 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn drag_resize_window(
+        &self,
+        _direction: ResizeDirection,
+    ) -> Result<(), error::ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -297,6 +342,11 @@ impl Window {
 
     #[inline]
     pub fn set_minimized(&self, _minimized: bool) {}
+
+    #[inline]
+    pub fn is_minimized(&self) -> Option<bool> {
+        None
+    }
 
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
@@ -371,6 +421,9 @@ impl Window {
     pub fn set_ime_allowed(&self, _allowed: bool) {}
 
     #[inline]
+    pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    #[inline]
     pub fn request_redraw(&self) {
         self.ping.ping();
     }
@@ -426,5 +479,10 @@ impl Window {
             mode,
             name: mode.name().to_string_lossy().into_owned(),
         }))
+    }
+
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        false
     }
 }
