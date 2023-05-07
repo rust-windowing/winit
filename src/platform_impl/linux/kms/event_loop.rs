@@ -23,14 +23,13 @@ use crate::{
     dpi::PhysicalPosition,
     event::{Event, StartCause},
     event_loop::{self, ControlFlow, EventLoopClosed},
-    platform::unix::Card,
     platform_impl::{self, platform::sticky_exit_callback, MonitorHandle, OsError},
 };
 
 use super::{
     input::{Interface, LibinputInputBackend},
     window::winid,
-    MODE,
+    Card, MODE,
 };
 
 /// An event loop's sink to deliver events from the Wayland event callbacks

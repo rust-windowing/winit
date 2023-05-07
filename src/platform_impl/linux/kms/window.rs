@@ -1,11 +1,8 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd, sync::Arc};
 
-use super::MODE;
+use super::{Card, MODE};
 use drm::control::*;
 use parking_lot::Mutex;
-
-#[cfg(feature = "wayland")]
-use sctk::reexports::calloop;
 
 use raw_window_handle::{DrmDisplayHandle, RawDisplayHandle, RawWindowHandle};
 
@@ -14,7 +11,6 @@ use crate::error;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
-    platform::unix::Card,
     platform_impl::{self, MonitorHandle, VideoMode},
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId},
 };
