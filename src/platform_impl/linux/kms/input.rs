@@ -28,8 +28,13 @@ use std::{
     time::Duration,
 };
 
-use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
+use calloop::{
+    timer::TimeoutAction, EventSource, Interest, LoopHandle, Mode, Poll, PostAction, Readiness,
+    RegistrationToken, Token, TokenFactory,
+};
 use xkbcommon::xkb;
+
+use super::event_loop::EventSink;
 
 pub const REPEAT_RATE: u64 = 25;
 pub const REPEAT_DELAY: u64 = 600;
@@ -108,7 +113,8 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: Arc<Mutex<PhysicalPosition<f64>>>,
-    timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
+    ev_handle: calloop::LoopHandle<'static, EventSink>,
+    current_repeat: Option<RegistrationToken>,
 }
 
 impl LibinputInputBackend {
@@ -117,7 +123,7 @@ impl LibinputInputBackend {
     pub fn new(
         context: input::Libinput,
         screen_size: (u32, u32),
-        timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
+        ev_handle: calloop::LoopHandle<'static, EventSink>,
         xkb_ctx: xkb::State,
         xkb_keymap: xkb::Keymap,
         xkb_compose: xkb::compose::State,
@@ -130,7 +136,8 @@ impl LibinputInputBackend {
             modifiers: ModifiersState::empty(),
             cursor_positon,
             screen_size,
-            timer_handle,
+            ev_handle,
+            current_repeat: None,
             xkb_ctx,
             xkb_keymap,
             xkb_compose,
@@ -470,6 +477,37 @@ macro_rules! handle_pointer_event {
     };
 }
 
+// This is used so that when you hold down a key, the same `KeyboardInput` event will be
+// repeated until the key is released or another key is pressed down
+fn repeat_keyboard_event(
+    event: (KeyboardInput, Option<char>),
+    loop_handle: &LoopHandle<'static, EventSink>,
+) -> calloop::Result<RegistrationToken> {
+    let timer = calloop::timer::Timer::immediate();
+    let window_id = winid();
+    loop_handle
+        .insert_source(timer, move |_, _, data| {
+            data.push(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(platform_impl::DeviceId::Kms(super::DeviceId)),
+                    input: event.0,
+                    is_synthetic: false,
+                },
+            });
+
+            if let Some(c) = event.1 {
+                data.push(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::ReceivedCharacter(c),
+                });
+            }
+
+            TimeoutAction::ToDuration(Duration::from_millis(REPEAT_RATE))
+        })
+        .map_err(Into::into)
+}
+
 macro_rules! handle_keyboard_event {
     ($self:expr,$ev:expr,$callback:expr) => {{
         let state = match $ev.key_state() {
@@ -503,7 +541,9 @@ macro_rules! handle_keyboard_event {
             modifiers: $self.modifiers,
         };
 
-        $self.timer_handle.cancel_all_timeouts();
+        if let Some(repeat) = $self.current_repeat.take() {
+            $self.ev_handle.remove(repeat);
+        }
 
         $callback(
             Event::WindowEvent {
@@ -538,9 +578,8 @@ macro_rules! handle_keyboard_event {
                     let ch = $self.xkb_ctx.key_get_utf8(key_offset).chars().next();
 
                     if should_repeat {
-                        $self
-                            .timer_handle
-                            .add_timeout(Duration::from_millis(REPEAT_DELAY), (input, ch));
+                        $self.current_repeat =
+                            Some(repeat_keyboard_event((input, ch), &$self.ev_handle)?);
                     }
 
                     if let Some(c) = ch {

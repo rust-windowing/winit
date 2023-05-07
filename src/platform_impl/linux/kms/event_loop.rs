@@ -15,14 +15,11 @@ use xkbcommon::xkb;
 
 use drm::control::*;
 
-#[cfg(feature = "wayland")]
-use sctk::reexports::calloop;
-
 use crate::error;
 
 use crate::{
     dpi::PhysicalPosition,
-    event::{DeviceId, Event, KeyboardInput, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::{self, ControlFlow, EventLoopClosed},
     monitor::MonitorHandle,
     platform::unix::Card,
@@ -31,7 +28,7 @@ use crate::{
 };
 
 use super::{
-    input::{Interface, LibinputInputBackend, REPEAT_RATE},
+    input::{Interface, LibinputInputBackend},
     MODE,
 };
 
@@ -49,7 +46,7 @@ macro_rules! window_id {
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
-type EventSink = Vec<Event<'static, ()>>;
+pub type EventSink = Vec<Event<'static, ()>>;
 
 pub struct EventLoopWindowTarget<T> {
     /// Drm Connector
@@ -446,40 +443,6 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
-        // This is used so that when you hold down a key, the same `KeyboardInput` event will be
-        // repeated until the key is released or another key is pressed down
-        let repeat_handler = calloop::timer::Timer::new().unwrap();
-
-        let repeat_handle = repeat_handler.handle();
-
-        let repeat_loop: calloop::Dispatcher<
-            'static,
-            calloop::timer::Timer<(KeyboardInput, Option<char>)>,
-            EventSink,
-        > = calloop::Dispatcher::new(
-            repeat_handler,
-            move |event, metadata, data: &mut EventSink| {
-                data.push(Event::WindowEvent {
-                    window_id: window_id!(),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DeviceId(platform_impl::DeviceId::Kms(super::DeviceId)),
-                        input: event.0,
-                        is_synthetic: false,
-                    },
-                });
-
-                if let Some(c) = event.1 {
-                    data.push(Event::WindowEvent {
-                        window_id: window_id!(),
-                        event: WindowEvent::ReceivedCharacter(c),
-                    });
-                }
-
-                // Repeat the key with the same key event as was input from the LibinputInterface
-                metadata.add_timeout(Duration::from_millis(REPEAT_RATE), event);
-            },
-        );
-
         // It is an Arc<Mutex<>> so that windows can change the cursor position
         let cursor_arc = Arc::new(Mutex::new(PhysicalPosition::new(0.0, 0.0)));
 
@@ -487,7 +450,7 @@ impl<T: 'static> EventLoop<T> {
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
-            repeat_handle,
+            event_loop.handle(),
             state,
             keymap,
             xkb_compose,
@@ -504,7 +467,6 @@ impl<T: 'static> EventLoop<T> {
             );
 
         handle.register_dispatcher(input_loop).unwrap();
-        handle.register_dispatcher(repeat_loop).unwrap();
 
         let window_target = event_loop::EventLoopWindowTarget {
             p: platform_impl::EventLoopWindowTarget::Kms(EventLoopWindowTarget {
