@@ -1,8 +1,10 @@
 use parking_lot::Mutex;
+use raw_window_handle::{DrmDisplayHandle, RawDisplayHandle};
 use std::{
     cell::RefCell,
     collections::VecDeque,
     marker::PhantomData,
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{mpsc::SendError, Arc},
@@ -90,6 +92,13 @@ impl<T> EventLoopWindowTarget<T> {
         } else {
             VecDeque::new()
         }
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut dh = DrmDisplayHandle::empty();
+        dh.fd = self.device.as_raw_fd();
+        dh.into()
     }
 }
 

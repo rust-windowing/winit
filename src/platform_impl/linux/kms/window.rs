@@ -7,6 +7,8 @@ use parking_lot::Mutex;
 #[cfg(feature = "wayland")]
 use sctk::reexports::calloop;
 
+use raw_window_handle::{DrmDisplayHandle, RawDisplayHandle, RawWindowHandle};
+
 use crate::error;
 
 use crate::{
@@ -411,11 +413,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> raw_window_handle::DrmHandle {
-        let mut rwh = raw_window_handle::DrmHandle::empty();
-        rwh.fd = self.card.as_raw_fd();
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut rwh = raw_window_handle::DrmWindowHandle::empty();
         rwh.plane = self.plane.into();
-        rwh
+        rwh.into()
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut dh = DrmDisplayHandle::empty();
+        dh.fd = self.card.as_raw_fd();
+        dh.into()
     }
 
     #[inline]
