@@ -108,7 +108,7 @@ pub struct LibinputInputBackend {
     xkb_ctx: xkb::State,
     xkb_keymap: xkb::Keymap,
     xkb_compose: xkb::compose::State,
-    token: Token,
+    token: Option<Token>,
     touch_location: PhysicalPosition<f64>,
     screen_size: (u32, u32),
     modifiers: ModifiersState,
@@ -131,7 +131,7 @@ impl LibinputInputBackend {
     ) -> Self {
         LibinputInputBackend {
             context,
-            token: Token::invalid(),
+            token: None,
             touch_location: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
             cursor_positon,
@@ -676,17 +676,18 @@ impl EventSource for LibinputInputBackend {
     type Event = Event<'static, ()>;
     type Metadata = ();
     type Ret = ();
+    type Error = calloop::Error;
 
     fn process_events<F>(
         &mut self,
         _: Readiness,
         token: Token,
         mut callback: F,
-    ) -> std::io::Result<PostAction>
+    ) -> calloop::Result<PostAction>
     where
         F: FnMut(Self::Event, &mut ()) -> Self::Ret,
     {
-        if token == self.token {
+        if self.token.filter(|t| *t == token).is_some() {
             self.context.dispatch()?;
 
             for event in &mut self.context {
@@ -703,18 +704,20 @@ impl EventSource for LibinputInputBackend {
         Ok(PostAction::Continue)
     }
 
-    fn register(&mut self, poll: &mut Poll, factory: &mut TokenFactory) -> std::io::Result<()> {
-        self.token = factory.token();
-        poll.register(self.as_raw_fd(), Interest::READ, Mode::Level, self.token)
+    fn register(&mut self, poll: &mut Poll, factory: &mut TokenFactory) -> calloop::Result<()> {
+        let token = factory.token();
+        self.token = Some(token);
+        poll.register(self.as_raw_fd(), Interest::READ, Mode::Level, token)
     }
 
-    fn reregister(&mut self, poll: &mut Poll, factory: &mut TokenFactory) -> std::io::Result<()> {
-        self.token = factory.token();
-        poll.reregister(self.as_raw_fd(), Interest::READ, Mode::Level, self.token)
+    fn reregister(&mut self, poll: &mut Poll, factory: &mut TokenFactory) -> calloop::Result<()> {
+        let token = factory.token();
+        self.token = Some(token);
+        poll.reregister(self.as_raw_fd(), Interest::READ, Mode::Level, token)
     }
 
-    fn unregister(&mut self, poll: &mut Poll) -> std::io::Result<()> {
-        self.token = Token::invalid();
+    fn unregister(&mut self, poll: &mut Poll) -> calloop::Result<()> {
+        self.token = None;
         poll.unregister(self.as_raw_fd())
     }
 }

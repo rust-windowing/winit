@@ -526,7 +526,7 @@ impl<T: 'static> EventLoop<T> {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);
                     if let Err(error) = self.loop_dispatch(Some(timeout)) {
-                        break error.raw_os_error().unwrap_or(1);
+                        break exit_code(error);
                     }
 
                     callback(
@@ -537,7 +537,7 @@ impl<T: 'static> EventLoop<T> {
                 }
                 ControlFlow::Wait => {
                     if let Err(error) = self.loop_dispatch(None) {
-                        break error.raw_os_error().unwrap_or(1);
+                        break exit_code(error);
                     }
 
                     callback(
@@ -560,7 +560,7 @@ impl<T: 'static> EventLoop<T> {
                     };
 
                     if let Err(error) = self.loop_dispatch(Some(duration)) {
-                        break error.raw_os_error().unwrap_or(1);
+                        break exit_code(error);
                     }
 
                     let now = Instant::now();
@@ -656,7 +656,7 @@ impl<T: 'static> EventLoop<T> {
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(
         &mut self,
         timeout: D,
-    ) -> std::io::Result<()> {
+    ) -> calloop::Result<()> {
         let state = match &mut self.window_target.p {
             platform_impl::EventLoopWindowTarget::Kms(window_target) => {
                 &mut window_target.event_sink
@@ -667,6 +667,15 @@ impl<T: 'static> EventLoop<T> {
 
         self.event_loop.dispatch(timeout, state)
     }
+}
+
+fn exit_code(err: calloop::Error) -> i32 {
+    if let calloop::Error::IoError(io_err) = err {
+        if let Some(raw_os) = io_err.raw_os_error() {
+            return raw_os;
+        }
+    }
+    1
 }
 
 /// A handle that can be sent across the threads and used to wake up the `EventLoop`.
