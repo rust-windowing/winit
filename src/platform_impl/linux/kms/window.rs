@@ -11,7 +11,7 @@ use crate::error;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
-    platform_impl::{self, MonitorHandle, VideoMode},
+    platform_impl::{self, Fullscreen, MonitorHandle, VideoMode},
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId},
 };
 
@@ -299,27 +299,23 @@ impl Window {
     pub fn set_minimized(&self, _minimized: bool) {}
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
-        Some(Fullscreen::Exclusive(VideoMode {
-            video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
-                mode: MODE.lock().expect("mode is not initialized"),
-                connector: self.connector.clone(),
-            }),
-        }))
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        Some(Fullscreen::Exclusive(VideoMode::Kms(super::VideoMode {
+            mode: MODE.lock().expect("mode is not initialized"),
+            connector: self.connector.clone(),
+        })))
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         if let Some(Fullscreen::Exclusive(fullscreen)) = monitor {
             let modes = self.connector.modes().to_vec();
             let connector = self.connector.clone();
             if let Some(mo) = modes.into_iter().find(move |&f| {
-                VideoMode {
-                    video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
-                        mode: f,
-                        connector: connector.clone(),
-                    }),
-                } == fullscreen
+                VideoMode::Kms(super::VideoMode {
+                    mode: f,
+                    connector: connector.clone(),
+                }) == fullscreen
             }) {
                 let mut atomic_req = atomic::AtomicModeReq::new();
                 let blob = self.card.create_property_blob(&mo).unwrap();
