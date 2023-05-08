@@ -39,21 +39,25 @@ extern_methods!(
         }
 
         pub fn display_id(&self) -> u32 {
-            let device_description = self.deviceDescription();
+            let key = ns_string!("NSScreenNumber");
 
-            // Retrieve the CGDirectDisplayID associated with this screen
-            //
-            // SAFETY: The value from @"NSScreenNumber" in deviceDescription is guaranteed
-            // to be an NSNumber. See documentation for `deviceDescription` for details:
-            // <https://developer.apple.com/documentation/appkit/nsscreen/1388360-devicedescription?language=objc>
-            let obj = device_description
-                .get(ns_string!("NSScreenNumber"))
-                .expect("failed getting screen display id from device description");
-            let obj: *const Object = obj;
-            let obj: *const NSNumber = obj.cast();
-            let obj: &NSNumber = unsafe { &*obj };
+            objc2::rc::autoreleasepool(|_| {
+                let device_description = self.deviceDescription();
 
-            obj.as_u32()
+                // Retrieve the CGDirectDisplayID associated with this screen
+                //
+                // SAFETY: The value from @"NSScreenNumber" in deviceDescription is guaranteed
+                // to be an NSNumber. See documentation for `deviceDescription` for details:
+                // <https://developer.apple.com/documentation/appkit/nsscreen/1388360-devicedescription?language=objc>
+                let obj = device_description
+                    .get(key)
+                    .expect("failed getting screen display id from device description");
+                let obj: *const Object = obj;
+                let obj: *const NSNumber = obj.cast();
+                let obj: &NSNumber = unsafe { &*obj };
+
+                obj.as_u32()
+            })
         }
 
         #[sel(backingScaleFactor)]
