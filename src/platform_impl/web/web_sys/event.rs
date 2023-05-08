@@ -95,8 +95,6 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
     }
 }
 
-// TODO: What should be done about `KeyboardEvent.isComposing`?
-
 pub fn keyboard_modifiers(key: &Key) -> ModifiersState {
     match key {
         Key::Shift => ModifiersState::SHIFT,

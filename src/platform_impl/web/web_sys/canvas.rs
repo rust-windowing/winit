@@ -13,7 +13,7 @@ use std::rc::Rc;
 use smol_str::SmolStr;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AddEventListenerOptions, CompositionEvent, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
 };
 
@@ -29,7 +29,6 @@ pub struct Canvas {
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
-    on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
@@ -89,7 +88,6 @@ impl Canvas {
             on_focus: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
-            on_composition_end: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
