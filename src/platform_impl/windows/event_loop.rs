@@ -2026,7 +2026,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             match set_cursor_to {
                 Some(cursor) => {
-                    let cursor = LoadCursorW(0, cursor.to_windows_cursor());
+                    let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
                     SetCursor(cursor);
                     0
                 }

@@ -54,8 +54,7 @@ fn main() {
 const CURSORS: &[CursorIcon] = &[
     CursorIcon::Default,
     CursorIcon::Crosshair,
-    CursorIcon::Hand,
-    CursorIcon::Arrow,
+    CursorIcon::Pointer,
     CursorIcon::Move,
     CursorIcon::Text,
     CursorIcon::Wait,

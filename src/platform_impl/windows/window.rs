@@ -333,7 +333,7 @@ impl Window {
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window_state_lock().mouse.cursor = cursor;
         self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = LoadCursorW(0, cursor.to_windows_cursor());
+            let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
             SetCursor(cursor);
         });
     }

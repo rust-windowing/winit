@@ -164,32 +164,30 @@ pub fn get_instance_handle() -> HINSTANCE {
     unsafe { &__ImageBase as *const _ as _ }
 }
 
-impl CursorIcon {
-    pub(crate) fn to_windows_cursor(self) -> PCWSTR {
-        match self {
-            CursorIcon::Arrow | CursorIcon::Default => IDC_ARROW,
-            CursorIcon::Hand => IDC_HAND,
-            CursorIcon::Crosshair => IDC_CROSS,
-            CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
-            CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
-            CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-                IDC_SIZEALL
-            }
-            CursorIcon::EResize
-            | CursorIcon::WResize
-            | CursorIcon::EwResize
-            | CursorIcon::ColResize => IDC_SIZEWE,
-            CursorIcon::NResize
-            | CursorIcon::SResize
-            | CursorIcon::NsResize
-            | CursorIcon::RowResize => IDC_SIZENS,
-            CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
-            CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
-            CursorIcon::Wait => IDC_WAIT,
-            CursorIcon::Progress => IDC_APPSTARTING,
-            CursorIcon::Help => IDC_HELP,
-            _ => IDC_ARROW, // use arrow for the missing cases.
+pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
+    match cursor {
+        CursorIcon::Default => IDC_ARROW,
+        CursorIcon::Pointer => IDC_HAND,
+        CursorIcon::Crosshair => IDC_CROSS,
+        CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
+        CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
+        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
+            IDC_SIZEALL
         }
+        CursorIcon::EResize
+        | CursorIcon::WResize
+        | CursorIcon::EwResize
+        | CursorIcon::ColResize => IDC_SIZEWE,
+        CursorIcon::NResize
+        | CursorIcon::SResize
+        | CursorIcon::NsResize
+        | CursorIcon::RowResize => IDC_SIZENS,
+        CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
+        CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
+        CursorIcon::Wait => IDC_WAIT,
+        CursorIcon::Progress => IDC_APPSTARTING,
+        CursorIcon::Help => IDC_HELP,
+        _ => IDC_ARROW, // use arrow for the missing cases.
     }
 }
 
