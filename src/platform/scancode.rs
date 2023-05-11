@@ -5,6 +5,10 @@
 
 use crate::keyboard::KeyCode;
 
+/// Additional methods for the [`KeyCode`] type that allow the user to access the platform-specific
+/// scancode.
+/// 
+/// [`KeyCode`]: crate::keyboard::KeyCode
 pub trait KeyCodeExtScancode {
     /// The raw value of the platform-specific physical key identifier.
     ///
