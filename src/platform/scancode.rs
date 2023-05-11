@@ -1,11 +1,8 @@
 #![cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform
 ))]
 
 // TODO: Maybe merge this with `modifier_supplement` if the two are indeed supported on the same
