@@ -50,7 +50,7 @@ impl Default for CursorState {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum ImeState {
     /// The IME events are disabled, so only `ReceivedCharacter` is being sent to the user.
     Disabled,
@@ -481,6 +481,7 @@ declare_class!(
                 && !ev_mods.logo();
 
             let characters = get_characters(event, ignore_alt_characters);
+            let old_ime_state = self.state.ime_state;
             self.state.forward_key_to_app = false;
 
             // The `interpretKeyEvents` function might call
@@ -518,7 +519,8 @@ declare_class!(
                     true
                 }
                 ImeState::Preedit => true,
-                _ => false,
+                // `key_down` could result in preedit clear, so compare old and current state.
+                _ => old_ime_state != self.state.ime_state,
             };
 
             if !had_ime_input || self.state.forward_key_to_app {
