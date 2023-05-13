@@ -21,6 +21,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Bump MSRV from `1.60` to `1.64`.
+- On macOS, fix `Backspace` being emitted when clearing preedit with it.
 
 # 0.28.5
 
