@@ -8,6 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, fixed memory leak when getting monitor handle.
+- On macOS, fix `Backspace` being emitted when clearing preedit with it.
+
 # 0.28.5
 
 - On macOS, fix `key_up` beind ignored when `Ime` is disabled.
