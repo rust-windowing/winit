@@ -1,18 +1,14 @@
-#![cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform))]
 
 // TODO: Maybe merge this with `modifier_supplement` if the two are indeed supported on the same
 // set of platforms
 
 use crate::keyboard::KeyCode;
 
+/// Additional methods for the [`KeyCode`] type that allow the user to access the platform-specific
+/// scancode.
+/// 
+/// [`KeyCode`]: crate::keyboard::KeyCode
 pub trait KeyCodeExtScancode {
     /// The raw value of the platform-specific physical key identifier.
     ///
