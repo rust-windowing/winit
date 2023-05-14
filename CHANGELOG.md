@@ -11,7 +11,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
 - **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
 - **Breaking:** `CursorIcon::Arrow` was removed.
-- On macOS, fixed memory leak when getting monitor handle.
 - On Wayland, fix maximized startup not taking full size on GNOME.
 - On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
 - On Wayland, `Window::outer_size` now accounts for **client side** decorations.
@@ -21,6 +20,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Bump MSRV from `1.60` to `1.64`.
+
+# 0.28.6
+
+- On macOS, fixed memory leak when getting monitor handle.
 - On macOS, fix `Backspace` being emitted when clearing preedit with it.
 
 # 0.28.5
