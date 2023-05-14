@@ -1,9 +1,4 @@
-#![cfg(any(
-    windows_platform,
-    macos_platform,
-    x11_platform,
-    wayland_platform
-))]
+#![cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform))]
 
 // TODO: Maybe merge this with `modifier_supplement` if the two are indeed supported on the same
 // set of platforms

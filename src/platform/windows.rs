@@ -11,7 +11,7 @@ use crate::{
     keyboard::{Key, KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
-    platform_impl::{WinIcon, loword, primarylangid},
+    platform_impl::{loword, primarylangid, WinIcon},
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 

@@ -535,7 +535,6 @@ declare_class!(
                 _ => false,
             };
 
-
             if !had_ime_input || self.state.forward_key_to_app {
                 let in_ime = self.is_ime_enabled();
                 let key_event = create_key_event(&alt_aware_event, true, is_repeat, in_ime, None);
