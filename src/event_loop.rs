@@ -298,7 +298,7 @@ impl<T> EventLoop<T> {
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, event_handler: F) -> i32
     where
         F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {

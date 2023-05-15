@@ -238,12 +238,13 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, event_handler: F) -> i32
     where
         F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
+        // ::std::process::exit(exit_code);
+        exit_code
     }
 
     pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
