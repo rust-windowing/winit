@@ -19,6 +19,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix forward compatibility issues.
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
+- Implement `PartialOrd` and `Ord` on types in the `dpi` module.
 - Bump MSRV from `1.60` to `1.64`.
 
 # 0.28.6
