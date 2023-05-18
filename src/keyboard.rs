@@ -1571,8 +1571,8 @@ impl Key {
     /// use winit::keyboard::Key;
     ///
     /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
-    /// assert_eq!(Key::Enter, Some("/r"));
-    /// assert_eq!(Key::F20, None);
+    /// assert_eq!(Key::Enter.to_text(), Some("\r"));
+    /// assert_eq!(Key::F20.to_text(), None);
     /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
