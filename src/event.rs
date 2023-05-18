@@ -930,10 +930,39 @@ pub struct KeyEvent {
     /// See also: `text_with_all_modifiers()`
     pub text: Option<SmolStr>,
 
+    /// Contains the location of this key on the keyboard.
+    ///
+    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift" key
+    /// appears on the left side of the QWERTY keyboard as well as the right side. However, both keys
+    /// have the same symbolic value. Another example of this phenomenon is the "1" key, which appears
+    /// both above the "Q" key and as the "Keypad 1" key.
+    ///
+    /// This field allows the user to differentiate between keys like this that have the same symbolic
+    /// value but different locations on the keyboard.
+    ///
+    /// See the [`KeyLocation`] type for more details.
+    ///
+    /// [`KeyLocation`]: crate::keyboard::KeyLocation
     pub location: keyboard::KeyLocation,
+
+    /// Whether the key is being pressed or released.
+    ///
+    /// See the [`ElementState`] type for more details.
     pub state: ElementState,
+
+    /// Whether or not this key is a key repeat event.
+    ///
+    /// On some systems, holding down a key for some period of time causes that key to be repeated
+    /// as though it were being pressed and released repeatedly. This field is `true` if and only if
+    /// this event is the result of one of those repeats.
     pub repeat: bool,
 
+    /// Platform-specific key event information.
+    ///
+    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with all
+    /// modifiers applied.
+    ///
+    /// On Android, iOS, Redox and Web, this type is a no-op.
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
 

@@ -289,7 +289,7 @@ impl std::fmt::Debug for NativeKey {
 /// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
 ///   "SuperRight" here.
 /// - The key that the specification calls "Super" is reported as `Unidentified` here.
-/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+/// - The `Unidentified` variant here, can still identify a key through it's `NativeKeyCode`.
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
@@ -1563,6 +1563,17 @@ impl Key<SmolStr> {
 }
 
 impl Key {
+    /// Convert a key to its approximate textual equivalent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winit::keyboard::Key;
+    ///
+    /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
+    /// assert_eq!(Key::Enter, Some("/r"));
+    /// assert_eq!(Key::F20, None);
+    /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
             Key::Character(ch) => Some(ch.as_str()),
@@ -1576,11 +1587,72 @@ impl Key {
     }
 }
 
+/// The location of the key on the keyboard.
+///
+/// Certain physical keys on the keyboard can have the same value, but are in different locations.
+/// For instance, the Shift key can be on the left or right side of the keyboard, or the number
+/// keys can be above the letters or on the numpad. This enum allows the user to differentiate
+/// them.
+///
+/// See the documentation for the [`location`] field on the [`KeyEvent`] struct for more information.
+///
+/// [`location`]: ../event/struct.KeyEvent.html#structfield.location
+/// [`KeyEvent`]: crate::event::KeyEvent
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyLocation {
+    /// The key is in its "normal" location on the keyboard.
+    ///
+    /// For instance, the "1" key above the "Q" key on a QWERTY keyboard will use this location. This
+    /// invariant is also returned when the location of the key cannot be identified.
+    ///
+    /// ![Standard 1 key](https://i.imgur.com/TGjUpSC.png)
+    ///
+    /// <sub>
+    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
+    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
+    ///    is released into the public domain.
+    /// </sub>
     Standard,
+
+    /// The key is on the left side of the keyboard.
+    ///
+    /// For instance, the left Shift key below the Caps Lock key on a QWERTY keyboard will use this
+    /// location.
+    ///
+    /// ![Left Shift key](https://i.imgur.com/NPvY2lJ.png)
+    ///
+    /// <sub>
+    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
+    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
+    ///    is released into the public domain.
+    /// </sub>
     Left,
+
+    /// The key is on the right side of the keyboard.
+    ///
+    /// For instance, the right Shift key below the Enter key on a QWERTY keyboard will use this
+    /// location.
+    ///
+    /// ![Right Shift key](https://i.imgur.com/92U6MkD.png)
+    ///
+    /// <sub>
+    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
+    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
+    ///    is released into the public domain.
+    /// </sub>
     Right,
+
+    /// The key is on the numpad.
+    ///
+    /// For instance, the "1" key on the numpad will use this location.
+    ///
+    /// ![Numpad 1 key](https://i.imgur.com/HH5Xr42.png)
+    ///
+    /// <sub>
+    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
+    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
+    ///    is released into the public domain.
+    /// </sub>
     Numpad,
 }
