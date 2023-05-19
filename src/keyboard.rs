@@ -1606,12 +1606,14 @@ pub enum KeyLocation {
     /// For instance, the "1" key above the "Q" key on a QWERTY keyboard will use this location. This
     /// invariant is also returned when the location of the key cannot be identified.
     ///
-    /// ![Standard 1 key](https://i.imgur.com/TGjUpSC.png)
+    /// ![Standard 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/images/keyboard_standard_1_key.svg)
     ///
     /// <sub>
-    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
-    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
-    ///    is released into the public domain.
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/images/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
     /// </sub>
     Standard,
 
@@ -1620,12 +1622,14 @@ pub enum KeyLocation {
     /// For instance, the left Shift key below the Caps Lock key on a QWERTY keyboard will use this
     /// location.
     ///
-    /// ![Left Shift key](https://i.imgur.com/NPvY2lJ.png)
+    /// ![Left Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/images/keyboard_left_shift_key.svg)
     ///
     /// <sub>
-    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
-    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
-    ///    is released into the public domain.
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/images/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
     /// </sub>
     Left,
 
@@ -1634,12 +1638,14 @@ pub enum KeyLocation {
     /// For instance, the right Shift key below the Enter key on a QWERTY keyboard will use this
     /// location.
     ///
-    /// ![Right Shift key](https://i.imgur.com/92U6MkD.png)
+    /// ![Right Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/images/keyboard_right_shift_key.svg)
     ///
     /// <sub>
-    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
-    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
-    ///    is released into the public domain.
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/images/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
     /// </sub>
     Right,
 
@@ -1647,12 +1653,14 @@ pub enum KeyLocation {
     ///
     /// For instance, the "1" key on the numpad will use this location.
     ///
-    /// ![Numpad 1 key](https://i.imgur.com/HH5Xr42.png)
+    /// ![Numpad 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/images/keyboard_numpad_1_key.svg)
     ///
     /// <sub>
-    ///    "<a href="https://commons.wikimedia.org/wiki/File:Computer_keyboard_US.svg">Computer Keyboard US</a>"
-    ///    by <a href="https://commons.wikimedia.org/wiki/User:Incnis_Mrsi">Incnis Mrsi</a> is licensed under
-    ///    is released into the public domain.
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/images/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
     /// </sub>
     Numpad,
 }
