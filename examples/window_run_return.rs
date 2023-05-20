@@ -19,10 +19,14 @@ fn main() {
         platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
+
+    #[path = "util/fill.rs"]
+    mod fill;
+
     let mut event_loop = EventLoop::new();
 
     SimpleLogger::new().init().unwrap();
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
@@ -47,6 +51,9 @@ fn main() {
                 }
                 Event::MainEventsCleared => {
                     control_flow.set_exit();
+                }
+                Event::RedrawRequested(_) => {
+                    fill::fill_window(&window);
                 }
                 _ => (),
             }

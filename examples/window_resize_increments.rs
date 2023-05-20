@@ -8,6 +8,9 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -52,6 +55,9 @@ fn main() {
                 window.set_resize_increments(new_increments);
             }
             Event::MainEventsCleared => window.request_redraw(),
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         }
     });
