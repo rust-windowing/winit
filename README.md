@@ -73,10 +73,6 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 Note that windows don't appear on Wayland until you draw/present to them.
 
-`winit` doesn't do drawing, try the examples in [`glutin`] instead.
-
-[`glutin`]: https://github.com/rust-windowing/glutin
-
 #### WebAssembly
 
 To run the web example: `cargo run-wasm --example web`
