@@ -356,38 +356,17 @@ fn key_input(
 
     let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
 
-    let mut kevent = if repeat {
-        keyboard_state.xkb_state.process_key_repeat_event(keycode)
-    } else {
-        keyboard_state.xkb_state.process_key_event(keycode, state)
-    };
-
-    let physical_key = kevent.keycode();
-    let (logical_key, location) = kevent.key();
-    let text = kevent.text();
-    let (key_without_modifiers, _) = kevent.key_without_modifiers();
-    let text_with_all_modifiers = kevent.text_with_all_modifiers();
-
     let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+    let event = keyboard_state
+        .xkb_state
+        .process_key_event(keycode, state, repeat);
 
-    let platform_specific = crate::platform_impl::KeyEventExtra {
-        key_without_modifiers,
-        text_with_all_modifiers,
-    };
-
-    let event = WindowEvent::KeyboardInput {
-        device_id,
-        event: crate::event::KeyEvent {
-            physical_key,
-            logical_key,
-            text,
-            location,
-            state,
-            repeat,
-            platform_specific,
+    event_sink.push_window_event(
+        WindowEvent::KeyboardInput {
+            device_id,
+            event,
+            is_synthetic: false,
         },
-        is_synthetic: false,
-    };
-
-    event_sink.push_window_event(event, window_id)
+        window_id,
+    );
 }

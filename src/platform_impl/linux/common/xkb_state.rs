@@ -6,21 +6,18 @@ use std::os::unix::ffi::OsStringExt;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(feature = "wayland")]
-use memmap2::MmapOptions;
-#[cfg(feature = "wayland")]
-use wayland_backend::io_lifetimes::OwnedFd;
-
-#[cfg(feature = "x11")]
-use x11_dl::xlib_xcb::xcb_connection_t;
-#[cfg(feature = "x11")]
-use xkbcommon_dl::x11::XKBCOMMON_X11_HANDLE as XKBXH;
-
 use smol_str::SmolStr;
 use xkbcommon_dl::{
     self as ffi, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH, XKBCOMMON_HANDLE as XKBH,
 };
+#[cfg(feature = "wayland")]
+use {memmap2::MmapOptions, wayland_backend::io_lifetimes::OwnedFd};
+#[cfg(feature = "x11")]
+use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::XKBCOMMON_X11_HANDLE as XKBXH};
 
+use crate::event::KeyEvent;
+use crate::platform_impl::common::keymap;
+use crate::platform_impl::KeyEventExtra;
 use crate::{
     event::ElementState,
     keyboard::{Key, KeyCode, KeyLocation},
@@ -29,7 +26,7 @@ use crate::{
 // TODO: Wire this up without using a static `AtomicBool`.
 static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
 
-#[inline]
+#[inline(always)]
 pub fn reset_dead_keys() {
     RESET_DEAD_KEYS.store(true, Ordering::SeqCst);
 }
@@ -48,63 +45,6 @@ pub struct KbdState {
     #[cfg(feature = "x11")]
     pub core_keyboard_id: i32,
     scratch_buffer: Vec<u8>,
-}
-
-/// Represents the current state of the keyboard modifiers
-///
-/// Each field of this struct represents a modifier and is `true` if this modifier is active.
-///
-/// For some modifiers, this means that the key is currently pressed, others are toggled
-/// (like caps lock).
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ModifiersState {
-    /// The "control" key
-    pub ctrl: bool,
-    /// The "alt" key
-    pub alt: bool,
-    /// The "shift" key
-    pub shift: bool,
-    /// The "Caps lock" key
-    pub caps_lock: bool,
-    /// The "logo" key
-    ///
-    /// Also known as the "windows" key on most keyboards
-    pub logo: bool,
-    /// The "Num lock" key
-    pub num_lock: bool,
-}
-
-impl ModifiersState {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn update_with(&mut self, state: *mut ffi::xkb_state) {
-        let mod_name_is_active = |mod_name: &[u8]| unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                mod_name.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.ctrl = mod_name_is_active(ffi::XKB_MOD_NAME_CTRL);
-        self.alt = mod_name_is_active(ffi::XKB_MOD_NAME_ALT);
-        self.shift = mod_name_is_active(ffi::XKB_MOD_NAME_SHIFT);
-        self.caps_lock = mod_name_is_active(ffi::XKB_MOD_NAME_CAPS);
-        self.logo = mod_name_is_active(ffi::XKB_MOD_NAME_LOGO);
-        self.num_lock = mod_name_is_active(ffi::XKB_MOD_NAME_NUM);
-    }
-}
-
-impl From<ModifiersState> for crate::keyboard::ModifiersState {
-    fn from(mods: ModifiersState) -> crate::keyboard::ModifiersState {
-        let mut to_mods = crate::keyboard::ModifiersState::empty();
-        to_mods.set(crate::keyboard::ModifiersState::SHIFT, mods.shift);
-        to_mods.set(crate::keyboard::ModifiersState::CONTROL, mods.ctrl);
-        to_mods.set(crate::keyboard::ModifiersState::ALT, mods.alt);
-        to_mods.set(crate::keyboard::ModifiersState::SUPER, mods.logo);
-        to_mods
-    }
 }
 
 impl KbdState {
@@ -273,9 +213,7 @@ impl KbdState {
 
         Ok(me)
     }
-}
 
-impl KbdState {
     #[cfg(feature = "x11")]
     pub fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<Self, Error> {
         let mut me = Self::new()?;
@@ -413,9 +351,7 @@ impl KbdState {
         let state = (XKBH.xkb_state_new)(keymap);
         self.post_init(state, keymap);
     }
-}
 
-impl KbdState {
     #[cfg(feature = "wayland")]
     pub fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
         unsafe { (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1 }
@@ -430,45 +366,35 @@ impl KbdState {
     pub fn mods_state(&self) -> ModifiersState {
         self.mods_state
     }
-}
 
-impl Drop for KbdState {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.xkb_compose_state.is_null() {
-                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
-            }
-            if !self.xkb_compose_state_2.is_null() {
-                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state_2);
-            }
-            if !self.xkb_compose_table.is_null() {
-                (XKBCH.xkb_compose_table_unref)(self.xkb_compose_table);
-            }
-            if !self.xkb_state.is_null() {
-                (XKBH.xkb_state_unref)(self.xkb_state);
-            }
-            if !self.xkb_keymap.is_null() {
-                (XKBH.xkb_keymap_unref)(self.xkb_keymap);
-            }
-            (XKBH.xkb_context_unref)(self.xkb_context);
+    pub fn process_key_event(
+        &mut self,
+        keycode: u32,
+        state: ElementState,
+        repeat: bool,
+    ) -> KeyEvent {
+        let mut event =
+            KeyEventResults::new(self, keycode, !repeat && state == ElementState::Pressed);
+        let physical_key = event.keycode();
+        let (logical_key, location) = event.key();
+        let text = event.text();
+        let (key_without_modifiers, _) = event.key_without_modifiers();
+        let text_with_all_modifiers = event.text_with_all_modifiers();
+
+        let platform_specific = KeyEventExtra {
+            key_without_modifiers,
+            text_with_all_modifiers,
+        };
+
+        KeyEvent {
+            physical_key,
+            logical_key,
+            text,
+            location,
+            state,
+            repeat,
+            platform_specific,
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum Error {
-    /// libxkbcommon is not available
-    XKBNotFound,
-}
-
-impl KbdState {
-    pub fn process_key_event(&mut self, keycode: u32, state: ElementState) -> KeyEventResults<'_> {
-        KeyEventResults::new(self, keycode, state == ElementState::Pressed)
-    }
-
-    #[cfg(feature = "wayland")]
-    pub fn process_key_repeat_event(&mut self, keycode: u32) -> KeyEventResults<'_> {
-        KeyEventResults::new(self, keycode, false)
     }
 
     fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<SmolStr> {
@@ -501,14 +427,30 @@ impl KbdState {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-enum XkbCompose {
-    Accepted(ffi::xkb_compose_status),
-    Ignored,
-    Uninitialized,
+impl Drop for KbdState {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.xkb_compose_state.is_null() {
+                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
+            }
+            if !self.xkb_compose_state_2.is_null() {
+                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state_2);
+            }
+            if !self.xkb_compose_table.is_null() {
+                (XKBCH.xkb_compose_table_unref)(self.xkb_compose_table);
+            }
+            if !self.xkb_state.is_null() {
+                (XKBH.xkb_state_unref)(self.xkb_state);
+            }
+            if !self.xkb_keymap.is_null() {
+                (XKBH.xkb_keymap_unref)(self.xkb_keymap);
+            }
+            (XKBH.xkb_context_unref)(self.xkb_context);
+        }
+    }
 }
 
-pub struct KeyEventResults<'a> {
+struct KeyEventResults<'a> {
     state: &'a mut KbdState,
     keycode: u32,
     keysym: u32,
@@ -540,8 +482,8 @@ impl<'a> KeyEventResults<'a> {
         }
     }
 
-    pub fn keycode(&mut self) -> KeyCode {
-        super::keymap::raw_keycode_to_keycode(self.keycode)
+    fn keycode(&mut self) -> KeyCode {
+        keymap::raw_keycode_to_keycode(self.keycode)
     }
 
     pub fn key(&mut self) -> (Key, KeyLocation) {
@@ -644,6 +586,76 @@ impl<'a> KeyEventResults<'a> {
             Err(())
         }
     }
+}
+
+/// Represents the current state of the keyboard modifiers
+///
+/// Each field of this struct represents a modifier and is `true` if this modifier is active.
+///
+/// For some modifiers, this means that the key is currently pressed, others are toggled
+/// (like caps lock).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ModifiersState {
+    /// The "control" key
+    pub ctrl: bool,
+    /// The "alt" key
+    pub alt: bool,
+    /// The "shift" key
+    pub shift: bool,
+    /// The "Caps lock" key
+    pub caps_lock: bool,
+    /// The "logo" key
+    ///
+    /// Also known as the "windows" key on most keyboards
+    pub logo: bool,
+    /// The "Num lock" key
+    pub num_lock: bool,
+}
+
+impl ModifiersState {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn update_with(&mut self, state: *mut ffi::xkb_state) {
+        let mod_name_is_active = |mod_name: &[u8]| unsafe {
+            (XKBH.xkb_state_mod_name_is_active)(
+                state,
+                mod_name.as_ptr() as *const c_char,
+                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+            ) > 0
+        };
+        self.ctrl = mod_name_is_active(ffi::XKB_MOD_NAME_CTRL);
+        self.alt = mod_name_is_active(ffi::XKB_MOD_NAME_ALT);
+        self.shift = mod_name_is_active(ffi::XKB_MOD_NAME_SHIFT);
+        self.caps_lock = mod_name_is_active(ffi::XKB_MOD_NAME_CAPS);
+        self.logo = mod_name_is_active(ffi::XKB_MOD_NAME_LOGO);
+        self.num_lock = mod_name_is_active(ffi::XKB_MOD_NAME_NUM);
+    }
+}
+
+impl From<ModifiersState> for crate::keyboard::ModifiersState {
+    fn from(mods: ModifiersState) -> crate::keyboard::ModifiersState {
+        let mut to_mods = crate::keyboard::ModifiersState::empty();
+        to_mods.set(crate::keyboard::ModifiersState::SHIFT, mods.shift);
+        to_mods.set(crate::keyboard::ModifiersState::CONTROL, mods.ctrl);
+        to_mods.set(crate::keyboard::ModifiersState::ALT, mods.alt);
+        to_mods.set(crate::keyboard::ModifiersState::SUPER, mods.logo);
+        to_mods
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    /// libxkbcommon is not available
+    XKBNotFound,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum XkbCompose {
+    Accepted(ffi::xkb_compose_status),
+    Ignored,
+    Uninitialized,
 }
 
 // Note: This is track_caller so we can have more informative line numbers when logging

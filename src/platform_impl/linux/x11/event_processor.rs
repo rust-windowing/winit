@@ -10,15 +10,10 @@ use super::{
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{
-        DeviceEvent, ElementState, Event, Ime, KeyEvent, RawKeyEvent, TouchPhase, WindowEvent,
-    },
+    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
     keyboard::ModifiersState,
-    platform_impl::platform::{
-        common::{keymap, xkb_state::KbdState},
-        KeyEventExtra,
-    },
+    platform_impl::platform::common::{keymap, xkb_state::KbdState},
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
@@ -1064,30 +1059,14 @@ impl<T: 'static> EventProcessor<T> {
                             let device_id = mkdid(xkev.deviceid);
                             let keycode = xkev.detail as u32;
 
-                            let mut ker = self.kb_state.process_key_event(keycode, state);
-                            let physical_key = ker.keycode();
-                            let (logical_key, location) = ker.key();
-                            let text = ker.text();
-                            let (key_without_modifiers, _) = ker.key_without_modifiers();
-                            let text_with_all_modifiers = ker.text_with_all_modifiers();
                             let repeat = xkev.flags & ffi::XIKeyRepeat == ffi::XIKeyRepeat;
+                            let event = self.kb_state.process_key_event(keycode, state, repeat);
 
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::KeyboardInput {
                                     device_id,
-                                    event: KeyEvent {
-                                        physical_key,
-                                        logical_key,
-                                        text,
-                                        location,
-                                        state,
-                                        repeat,
-                                        platform_specific: KeyEventExtra {
-                                            key_without_modifiers,
-                                            text_with_all_modifiers,
-                                        },
-                                    },
+                                    event,
                                     is_synthetic: false,
                                 },
                             });
@@ -1333,30 +1312,12 @@ impl<T: 'static> EventProcessor<T> {
             .filter(|k| *k >= KEYCODE_OFFSET)
         {
             let keycode = keycode as u32;
-
-            let mut ker = kb_state.process_key_event(keycode, state);
-            let physical_key = ker.keycode();
-            let (logical_key, location) = ker.key();
-            let text = ker.text();
-            let (key_without_modifiers, _) = ker.key_without_modifiers();
-            let text_with_all_modifiers = ker.text_with_all_modifiers();
-
+            let event = kb_state.process_key_event(keycode, state, false);
             callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id,
-                    event: KeyEvent {
-                        physical_key,
-                        logical_key,
-                        text,
-                        location,
-                        state,
-                        repeat: false,
-                        platform_specific: KeyEventExtra {
-                            key_without_modifiers,
-                            text_with_all_modifiers,
-                        },
-                    },
+                    event,
                     is_synthetic: true,
                 },
             });
