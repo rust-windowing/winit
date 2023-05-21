@@ -279,7 +279,7 @@ impl<T: 'static> EventLoop<T> {
             }) => {
                 if scancode != 0 {
                     let code = convert_scancode(scancode);
-                    event_state.key(code.clone(), pressed);
+                    event_state.key(code, pressed);
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
                         event: event::WindowEvent::KeyboardInput {
