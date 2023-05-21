@@ -7,10 +7,9 @@ use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "wayland")]
-use std::fs::File;
-
-#[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
+#[cfg(feature = "wayland")]
+use wayland_backend::io_lifetimes::OwnedFd;
 
 #[cfg(feature = "x11")]
 use x11_dl::xlib_xcb::xcb_connection_t;
@@ -31,11 +30,12 @@ use crate::{
 static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
 
 #[inline]
-pub(crate) fn reset_dead_keys() {
+pub fn reset_dead_keys() {
     RESET_DEAD_KEYS.store(true, Ordering::SeqCst);
 }
 
-pub(crate) struct KbdState {
+#[derive(Debug)]
+pub struct KbdState {
     #[cfg(feature = "x11")]
     xcb_connection: *mut xcb_connection_t,
     xkb_context: *mut ffi::xkb_context,
@@ -45,10 +45,8 @@ pub(crate) struct KbdState {
     xkb_compose_state: *mut ffi::xkb_compose_state,
     xkb_compose_state_2: *mut ffi::xkb_compose_state,
     mods_state: ModifiersState,
-    #[cfg(feature = "wayland")]
-    locked: bool,
     #[cfg(feature = "x11")]
-    pub(crate) core_keyboard_id: i32,
+    pub core_keyboard_id: i32,
     scratch_buffer: Vec<u8>,
 }
 
@@ -110,7 +108,7 @@ impl From<ModifiersState> for crate::keyboard::ModifiersState {
 }
 
 impl KbdState {
-    pub(crate) fn update_modifiers(
+    pub fn update_modifiers(
         &mut self,
         mods_depressed: u32,
         mods_latched: u32,
@@ -139,14 +137,14 @@ impl KbdState {
         }
     }
 
-    pub(crate) fn get_one_sym_raw(&mut self, keycode: u32) -> u32 {
+    pub fn get_one_sym_raw(&mut self, keycode: u32) -> u32 {
         if !self.ready() {
             return 0;
         }
         unsafe { (XKBH.xkb_state_key_get_one_sym)(self.xkb_state, keycode) }
     }
 
-    pub(crate) fn get_utf8_raw(&mut self, keycode: u32) -> Option<SmolStr> {
+    pub fn get_utf8_raw(&mut self, keycode: u32) -> Option<SmolStr> {
         if !self.ready() {
             return None;
         }
@@ -245,7 +243,7 @@ impl KbdState {
         byte_slice_to_smol_str(&self.scratch_buffer)
     }
 
-    pub(crate) fn new() -> Result<Self, Error> {
+    pub fn new() -> Result<Self, Error> {
         if ffi::XKBCOMMON_OPTION.as_ref().is_none() {
             return Err(Error::XKBNotFound);
         }
@@ -266,8 +264,6 @@ impl KbdState {
             xkb_compose_state: ptr::null_mut(),
             xkb_compose_state_2: ptr::null_mut(),
             mods_state: ModifiersState::new(),
-            #[cfg(feature = "wayland")]
-            locked: false,
             #[cfg(feature = "x11")]
             core_keyboard_id: 0,
             scratch_buffer: Vec::new(),
@@ -281,7 +277,7 @@ impl KbdState {
 
 impl KbdState {
     #[cfg(feature = "x11")]
-    pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<Self, Error> {
+    pub fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<Self, Error> {
         let mut me = Self::new()?;
         me.xcb_connection = connection;
 
@@ -367,7 +363,7 @@ impl KbdState {
     }
 
     #[cfg(feature = "x11")]
-    pub(crate) unsafe fn init_with_x11_keymap(&mut self) {
+    pub unsafe fn init_with_x11_keymap(&mut self) {
         if !self.xkb_keymap.is_null() {
             self.de_init();
         }
@@ -393,12 +389,15 @@ impl KbdState {
     }
 
     #[cfg(feature = "wayland")]
-    pub(crate) unsafe fn init_with_fd(&mut self, fd: File, size: usize) {
+    pub unsafe fn init_with_fd(&mut self, fd: OwnedFd, size: usize) {
         if !self.xkb_keymap.is_null() {
             self.de_init();
         }
 
-        let map = MmapOptions::new().len(size).map(&fd).unwrap();
+        let map = MmapOptions::new()
+            .len(size)
+            .map_copy_read_only(&fd)
+            .unwrap();
 
         let keymap = (XKBH.xkb_keymap_new_from_string)(
             self.xkb_context,
@@ -418,23 +417,17 @@ impl KbdState {
 
 impl KbdState {
     #[cfg(feature = "wayland")]
-    pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
-        (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1
+    pub fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
+        unsafe { (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1 }
     }
 
     #[inline]
-    pub(crate) fn ready(&self) -> bool {
+    pub fn ready(&self) -> bool {
         !self.xkb_state.is_null()
     }
 
     #[inline]
-    #[cfg(feature = "wayland")]
-    pub(crate) fn locked(&self) -> bool {
-        self.locked
-    }
-
-    #[inline]
-    pub(crate) fn mods_state(&self) -> ModifiersState {
+    pub fn mods_state(&self) -> ModifiersState {
         self.mods_state
     }
 }
@@ -515,7 +508,7 @@ enum XkbCompose {
     Uninitialized,
 }
 
-pub(crate) struct KeyEventResults<'a> {
+pub struct KeyEventResults<'a> {
     state: &'a mut KbdState,
     keycode: u32,
     keysym: u32,
