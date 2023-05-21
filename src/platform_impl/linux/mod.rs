@@ -45,13 +45,11 @@ use crate::{
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
+pub mod common;
 #[cfg(wayland_platform)]
 pub mod wayland;
 #[cfg(x11_platform)]
 pub mod x11;
-
-#[cfg(any(feature = "x11", feature = "wayland"))]
-pub mod common;
 
 /// Environment variable specifying which backend should be used on unix platform.
 ///
