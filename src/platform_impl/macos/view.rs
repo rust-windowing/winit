@@ -21,7 +21,6 @@ use super::{
     appkit::{NSApp, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTrackingRectTag, NSView},
     event::{code_to_key, code_to_location},
 };
-use crate::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -136,16 +135,6 @@ pub(super) struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: bool,
-}
-
-fn get_characters(event: &NSEvent, ignore_modifiers: bool) -> String {
-    if ignore_modifiers {
-        event.charactersIgnoringModifiers()
-    } else {
-        event.characters()
-    }
-    .expect("expected characters to be non-null")
-    .to_string()
 }
 
 declare_class!(
@@ -487,23 +476,6 @@ declare_class!(
             }
 
             // Get the characters from the event.
-            let ev_mods = event_mods(event);
-            let ignore_alt_characters = match self.window().option_as_alt() {
-                OptionAsAlt::OnlyLeft if event.lalt_pressed() => true,
-                OptionAsAlt::OnlyRight if event.ralt_pressed() => true,
-                OptionAsAlt::Both if ev_mods.alt_key() => true,
-                _ => false,
-            } && !ev_mods.control_key()
-                && !ev_mods.super_key();
-
-            let characters = get_characters(event, ignore_alt_characters);
-            let is_repeat = event.is_a_repeat();
-
-            let alt_aware_event = if ignore_alt_characters {
-                replace_event_chars(event, &characters)
-            } else {
-                event.copy()
-            };
             let old_ime_state = self.state.ime_state;
             self.state.forward_key_to_app = false;
 
@@ -514,7 +486,7 @@ declare_class!(
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
             if self.state.ime_allowed {
-                let events_for_nsview = NSArray::from_slice(&[alt_aware_event.clone()]);
+                let events_for_nsview = NSArray::from_slice(&[event.copy()]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
                 // If the text was commited we must treat the next keyboard event as IME related.
@@ -538,8 +510,7 @@ declare_class!(
             };
 
             if !had_ime_input || self.state.forward_key_to_app {
-                let in_ime = self.is_ime_enabled();
-                let key_event = create_key_event(&alt_aware_event, true, is_repeat, in_ime, None);
+                let key_event = create_key_event(event, true, event.is_a_repeat(), None);
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
                     event: key_event,
@@ -558,7 +529,7 @@ declare_class!(
             if matches!(self.state.ime_state, ImeState::Ground | ImeState::Disabled) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
-                    event: create_key_event(event, false, false, false, None),
+                    event: create_key_event(event, false, false, None),
                     is_synthetic: false,
                 });
             }
@@ -604,7 +575,7 @@ declare_class!(
                 .expect("could not find current event");
 
             self.update_modifiers(&event, false);
-            let event = create_key_event(&event, true, event.is_a_repeat(), false, None);
+            let event = create_key_event(&event, true, event.is_a_repeat(), None);
 
             self.queue_event(WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
@@ -917,11 +888,11 @@ impl WinitView {
             let keycode = KeyCode::from_scancode(scancode as u32);
 
             // We'll correct the `is_press` later.
-            let mut event = create_key_event(ns_event, false, false, false, Some(keycode.clone()));
+            let mut event = create_key_event(ns_event, false, false, Some(keycode));
 
-            let key = code_to_key(keycode.clone(), scancode);
+            let key = code_to_key(keycode, scancode);
             let event_modifier = key_to_modifier(&key);
-            event.physical_key = keycode.clone();
+            event.physical_key = keycode;
             event.logical_key = key.clone();
             event.location = code_to_location(keycode);
             let location_mask = ModLocationMask::from_location(event.location);
@@ -1061,22 +1032,4 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         2 => MouseButton::Middle,
         n => MouseButton::Other(n as u16),
     }
-}
-
-fn replace_event_chars(event: &NSEvent, characters: &str) -> Id<NSEvent, Shared> {
-    let ns_chars = NSString::from_str(characters);
-    let chars_ignoring_mods = event.charactersIgnoringModifiers().unwrap();
-
-    NSEvent::keyEventWithType(
-        event.type_(),
-        event.locationInWindow(),
-        event.modifierFlags(),
-        event.timestamp(),
-        event.window_number(),
-        None,
-        &ns_chars,
-        &chars_ignoring_mods,
-        event.is_a_repeat(),
-        event.key_code(),
-    )
 }

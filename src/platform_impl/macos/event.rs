@@ -123,77 +123,75 @@ fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     Key::Character(SmolStr::new(string))
 }
 
+/// Create `KeyEvent` for the given `NSEvent`.
+///
+/// This function shouldn't be called when the IME input is in process.
 pub(crate) fn create_key_event(
     ns_event: &NSEvent,
     is_press: bool,
     is_repeat: bool,
-    in_ime: bool,
     key_override: Option<KeyCode>,
 ) -> KeyEvent {
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
     let scancode = ns_event.key_code();
-    let mut physical_key = key_override
-        .clone()
-        .unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
+    let mut physical_key = key_override.unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
 
-    let text_with_all_modifiers: Option<SmolStr> = {
-        if key_override.is_some() {
+    let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
+        None
+    } else {
+        let characters = ns_event
+            .characters()
+            .map(|s| s.to_string())
+            .unwrap_or_else(String::new);
+        if characters.is_empty() {
             None
         } else {
-            let characters = ns_event
-                .characters()
-                .map(|s| s.to_string())
-                .unwrap_or_else(String::new);
-            if characters.is_empty() {
-                None
-            } else {
-                if matches!(physical_key, KeyCode::Unidentified(_)) {
-                    // The key may be one of the funky function keys
-                    physical_key = extra_function_key_to_code(scancode, &characters);
-                }
-                Some(SmolStr::new(characters))
+            if matches!(physical_key, KeyCode::Unidentified(_)) {
+                // The key may be one of the funky function keys
+                physical_key = extra_function_key_to_code(scancode, &characters);
             }
+            Some(SmolStr::new(characters))
         }
     };
-    let key_from_code = code_to_key(physical_key.clone(), scancode);
-    let logical_key;
-    let key_without_modifiers;
-    if !matches!(key_from_code, Key::Unidentified(_)) {
-        logical_key = key_from_code.clone();
-        key_without_modifiers = key_from_code;
-    } else {
-        //println!("Couldn't get key from code: {:?}", physical_key);
-        key_without_modifiers = get_modifierless_char(scancode);
+
+    let key_from_code = code_to_key(physical_key, scancode);
+    let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
+        let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = NSEvent::modifierFlags(ns_event);
         let has_ctrl = modifiers.contains(NSEventModifierFlags::NSControlKeyMask);
 
-        match text_with_all_modifiers.as_ref() {
-            Some(text) if !has_ctrl => {
-                // Only checking for ctrl here, not checking for alt because we DO want to
-                // include its effect in the key. For example if -on the Germay layout- one
-                // presses alt+8, the logical key should be "{"
-                // Also not checking if this is a release event because then this issue would
-                // still affect the key release.
-                logical_key = Key::Character(text.clone());
-            }
+        let logical_key = match text_with_all_modifiers.as_ref() {
+            // Only checking for ctrl here, not checking for alt because we DO want to
+            // include its effect in the key. For example if -on the Germay layout- one
+            // presses alt+8, the logical key should be "{"
+            // Also not checking if this is a release event because then this issue would
+            // still affect the key release.
+            Some(text) if !has_ctrl => Key::Character(text.clone()),
             _ => {
                 let modifierless_chars = match key_without_modifiers.as_ref() {
                     Key::Character(ch) => ch,
                     _ => "",
                 };
-                logical_key = get_logical_key_char(ns_event, modifierless_chars);
+                get_logical_key_char(ns_event, modifierless_chars)
             }
-        }
-    }
-    let text = if in_ime || !is_press {
-        None
+        };
+
+        (logical_key, key_without_modifiers)
     } else {
-        logical_key.to_text().map(SmolStr::new)
+        (key_from_code.clone(), key_from_code)
     };
-    let location = code_to_location(physical_key.clone());
+
+    let text = if is_press {
+        logical_key.to_text().map(SmolStr::new)
+    } else {
+        None
+    };
+
+    let location = code_to_location(physical_key);
+
     KeyEvent {
         location,
         logical_key,

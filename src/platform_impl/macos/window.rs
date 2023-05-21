@@ -21,7 +21,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::WindowEvent,
     icon::Icon,
-    platform::macos::{OptionAsAlt, WindowExtMacOS},
+    platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         appkit::NSWindowOrderingMode,
@@ -85,7 +85,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
-    pub option_as_alt: OptionAsAlt,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -101,7 +100,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
-            option_as_alt: Default::default(),
         }
     }
 }
@@ -162,9 +160,6 @@ pub struct SharedState {
 
     /// The current resize incerments for the window content.
     pub(crate) resize_increments: NSSize,
-
-    /// The state of the `Option` as `Alt`.
-    pub(crate) option_as_alt: OptionAsAlt,
 }
 
 impl SharedState {
@@ -373,8 +368,6 @@ impl WinitWindow {
                 if attrs.position.is_none() {
                     this.center();
                 }
-
-                this.set_option_as_alt(pl_attrs.option_as_alt);
 
                 Id::into_shared(this)
             })
@@ -1382,16 +1375,6 @@ impl WindowExtMacOS for WinitWindow {
 
     fn set_document_edited(&self, edited: bool) {
         self.setDocumentEdited(edited)
-    }
-
-    fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.option_as_alt = option_as_alt;
-    }
-
-    fn option_as_alt(&self) -> OptionAsAlt {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.option_as_alt
     }
 }
 
