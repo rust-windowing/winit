@@ -1605,22 +1605,62 @@ pub enum KeyLocation {
     ///
     /// For instance, the "1" key above the "Q" key on a QWERTY keyboard will use this location. This
     /// invariant is also returned when the location of the key cannot be identified.
+    ///
+    /// ![Standard 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_standard_1_key.svg)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
     Standard,
 
     /// The key is on the left side of the keyboard.
     ///
     /// For instance, the left Shift key below the Caps Lock key on a QWERTY keyboard will use this
     /// location.
+    ///
+    /// ![Left Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_left_shift_key.svg)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
     Left,
 
     /// The key is on the right side of the keyboard.
     ///
     /// For instance, the right Shift key below the Enter key on a QWERTY keyboard will use this
     /// location.
+    ///
+    /// ![Right Shift key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_right_shift_key.svg)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
     Right,
 
     /// The key is on the numpad.
     ///
     /// For instance, the "1" key on the numpad will use this location.
+    ///
+    /// ![Numpad 1 key](https://raw.githubusercontent.com/rust-windowing/winit/master/docs/res/keyboard_numpad_1_key.svg)
+    ///
+    /// <sub>
+    ///   For image attribution, see the
+    ///   <a href="https://github.com/rust-windowing/winit/blob/master/docs/res/ATTRIBUTION.md">
+    ///     ATTRIBUTION.md
+    ///   </a>
+    ///   file.
+    /// </sub>
     Numpad,
 }
