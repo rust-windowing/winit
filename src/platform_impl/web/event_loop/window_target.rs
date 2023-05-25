@@ -121,7 +121,7 @@ impl<T> EventLoopWindowTarget<T> {
                     modifiers.set(active_modifiers);
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(id),
-                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
                     })
                 } else {
                     None
@@ -159,7 +159,7 @@ impl<T> EventLoopWindowTarget<T> {
                     modifiers.set(active_modifiers);
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(id),
-                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
                     })
                 } else {
                     None
@@ -211,13 +211,12 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let runner_touch = self.runner.clone();
         canvas.on_cursor_move(
-            move |pointer_id, position, delta, modifiers| {
+            move |pointer_id, position, delta| {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::CursorMoved {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         position,
-                        modifiers,
                     },
                 });
                 runner.send_event(Event::DeviceEvent {
@@ -245,7 +244,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let runner_touch = self.runner.clone();
         canvas.on_mouse_press(
-            move |pointer_id, position, button, modifiers| {
+            move |pointer_id, position, button| {
                 *has_focus.borrow_mut() = true;
 
                 // A mouse down event may come in without any prior CursorMoved events,
@@ -261,7 +260,6 @@ impl<T> EventLoopWindowTarget<T> {
                         event: WindowEvent::CursorMoved {
                             device_id: RootDeviceId(DeviceId(pointer_id)),
                             position,
-                            modifiers,
                         },
                     }))
                     .chain(std::iter::once(Event::WindowEvent {
@@ -270,7 +268,6 @@ impl<T> EventLoopWindowTarget<T> {
                             device_id: RootDeviceId(DeviceId(pointer_id)),
                             state: ElementState::Pressed,
                             button,
-                            modifiers,
                         },
                     })),
                 );
@@ -292,14 +289,13 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let runner_touch = self.runner.clone();
         canvas.on_mouse_release(
-            move |pointer_id, button, modifiers| {
+            move |pointer_id, button| {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseInput {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         state: ElementState::Released,
                         button,
-                        modifiers,
                     },
                 });
             },
@@ -319,14 +315,13 @@ impl<T> EventLoopWindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(
-            move |pointer_id, delta, modifiers| {
+            move |pointer_id, delta| {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseWheel {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         delta,
                         phase: TouchPhase::Moved,
-                        modifiers,
                     },
                 });
             },

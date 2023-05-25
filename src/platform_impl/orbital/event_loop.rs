@@ -12,9 +12,11 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
-    event::{self, Ime, StartCause},
+    event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow},
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKey, NativeKeyCode},
+    keyboard::{
+        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
+    },
     window::WindowId as RootWindowId,
 };
 
@@ -186,33 +188,78 @@ impl EventState {
         None
     }
 
-    fn modifiers(&self) -> ModifiersState {
-        let mut modifiers = ModifiersState::empty();
+    fn modifiers(&self) -> Modifiers {
+        let mut state = ModifiersState::empty();
+        let mut pressed_mods = ModifiersKeys::empty();
+
         if self
             .keyboard
             .intersects(KeyboardModifierState::LSHIFT | KeyboardModifierState::RSHIFT)
         {
-            modifiers |= ModifiersState::SHIFT;
+            state |= ModifiersState::SHIFT;
         }
+
+        pressed_mods.set(
+            ModifiersKeys::LSHIFT,
+            self.keyboard.contains(KeyboardModifierState::LSHIFT),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RSHIFT,
+            self.keyboard.contains(KeyboardModifierState::RSHIFT),
+        );
+
         if self
             .keyboard
             .intersects(KeyboardModifierState::LCTRL | KeyboardModifierState::RCTRL)
         {
-            modifiers |= ModifiersState::CONTROL;
+            state |= ModifiersState::CONTROL;
         }
+
+        pressed_mods.set(
+            ModifiersKeys::LCONTROL,
+            self.keyboard.contains(KeyboardModifierState::LCTRL),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RCONTROL,
+            self.keyboard.contains(KeyboardModifierState::RCTRL),
+        );
+
         if self
             .keyboard
             .intersects(KeyboardModifierState::LALT | KeyboardModifierState::RALT)
         {
-            modifiers |= ModifiersState::ALT;
+            state |= ModifiersState::ALT;
         }
+
+        pressed_mods.set(
+            ModifiersKeys::LALT,
+            self.keyboard.contains(KeyboardModifierState::LALT),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RALT,
+            self.keyboard.contains(KeyboardModifierState::RALT),
+        );
+
         if self
             .keyboard
             .intersects(KeyboardModifierState::LSUPER | KeyboardModifierState::RSUPER)
         {
-            modifiers |= ModifiersState::SUPER
+            state |= ModifiersState::SUPER
         }
-        modifiers
+
+        pressed_mods.set(
+            ModifiersKeys::LSUPER,
+            self.keyboard.contains(KeyboardModifierState::LSUPER),
+        );
+        pressed_mods.set(
+            ModifiersKeys::RSUPER,
+            self.keyboard.contains(KeyboardModifierState::RSUPER),
+        );
+
+        Modifiers {
+            state,
+            pressed_mods,
+        }
     }
 }
 
@@ -279,6 +326,7 @@ impl<T: 'static> EventLoop<T> {
             }) => {
                 if scancode != 0 {
                     let code = convert_scancode(scancode);
+                    let modifiers_before = event_state.keyboard;
                     event_state.key(code, pressed);
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
@@ -297,6 +345,14 @@ impl<T: 'static> EventLoop<T> {
                             is_synthetic: false,
                         },
                     });
+
+                    // If the state of the modifiers has changed, send the event.
+                    if modifiers_before != event_state.keyboard {
+                        event_handler(event::Event::WindowEvent {
+                            window_id: RootWindowId(window_id),
+                            event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
+                        })
+                    }
                 }
             }
             EventOption::TextInput(TextInputEvent { character }) => {
@@ -315,7 +371,6 @@ impl<T: 'static> EventLoop<T> {
                     event: event::WindowEvent::CursorMoved {
                         device_id: event::DeviceId(DeviceId),
                         position: (x, y).into(),
-                        modifiers: event_state.modifiers(),
                     },
                 });
             }
@@ -331,7 +386,6 @@ impl<T: 'static> EventLoop<T> {
                             device_id: event::DeviceId(DeviceId),
                             state,
                             button,
-                            modifiers: event_state.modifiers(),
                         },
                     });
                 }
@@ -343,7 +397,6 @@ impl<T: 'static> EventLoop<T> {
                         device_id: event::DeviceId(DeviceId),
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                         phase: event::TouchPhase::Moved,
-                        modifiers: event_state.modifiers(),
                     },
                 });
             }

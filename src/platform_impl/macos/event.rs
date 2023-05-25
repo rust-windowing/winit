@@ -11,8 +11,10 @@ use super::appkit::{NSEvent, NSEventModifierFlags};
 use super::window::WinitWindow;
 use crate::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent},
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKey, NativeKeyCode},
+    event::{ElementState, Event, KeyEvent, Modifiers},
+    keyboard::{
+        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
+    },
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     platform_impl::platform::{
         ffi,
@@ -315,26 +317,47 @@ pub fn extra_function_key_to_code(scancode: u16, string: &str) -> KeyCode {
     }
 }
 
-pub(super) fn event_mods(event: &NSEvent) -> ModifiersState {
+pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     let flags = event.modifierFlags();
-    let mut m = ModifiersState::empty();
-    m.set(
+    let mut state = ModifiersState::empty();
+    let mut pressed_mods = ModifiersKeys::empty();
+
+    state.set(
         ModifiersState::SHIFT,
         flags.contains(NSEventModifierFlags::NSShiftKeyMask),
     );
-    m.set(
+
+    pressed_mods.set(ModifiersKeys::LSHIFT, event.lshift_pressed());
+    pressed_mods.set(ModifiersKeys::RSHIFT, event.rshift_pressed());
+
+    state.set(
         ModifiersState::CONTROL,
         flags.contains(NSEventModifierFlags::NSControlKeyMask),
     );
-    m.set(
+
+    pressed_mods.set(ModifiersKeys::LCONTROL, event.lctrl_pressed());
+    pressed_mods.set(ModifiersKeys::RCONTROL, event.rctrl_pressed());
+
+    state.set(
         ModifiersState::ALT,
         flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
     );
-    m.set(
+
+    pressed_mods.set(ModifiersKeys::LALT, event.lalt_pressed());
+    pressed_mods.set(ModifiersKeys::RALT, event.ralt_pressed());
+
+    state.set(
         ModifiersState::SUPER,
         flags.contains(NSEventModifierFlags::NSCommandKeyMask),
     );
-    m
+
+    pressed_mods.set(ModifiersKeys::LSUPER, event.lcmd_pressed());
+    pressed_mods.set(ModifiersKeys::RSUPER, event.rcmd_pressed());
+
+    Modifiers {
+        state,
+        pressed_mods,
+    }
 }
 
 impl KeyCodeExtScancode for KeyCode {

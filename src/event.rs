@@ -42,7 +42,7 @@ use std::path::PathBuf;
 use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    keyboard::{self, ModifiersState},
+    keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -391,12 +391,7 @@ pub enum WindowEvent<'a> {
     },
 
     /// The keyboard modifiers have changed.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
+    ModifiersChanged(Modifiers),
 
     /// An event from an input method.
     ///
@@ -415,8 +410,6 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// The cursor has entered the window.
@@ -430,8 +423,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// An mouse button press has been received.
@@ -439,8 +430,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// Touchpad magnification event with two-finger pinch gesture.
@@ -576,15 +565,12 @@ impl Clone for WindowEvent<'static> {
             },
             Ime(preedit_state) => Ime(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => CursorMoved {
                 device_id: *device_id,
                 position: *position,
-                modifiers: *modifiers,
             },
             CursorEntered { device_id } => CursorEntered {
                 device_id: *device_id,
@@ -592,29 +578,23 @@ impl Clone for WindowEvent<'static> {
             CursorLeft { device_id } => CursorLeft {
                 device_id: *device_id,
             },
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => MouseWheel {
                 device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
-                modifiers: *modifiers,
             },
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => MouseInput {
                 device_id: *device_id,
                 state: *state,
                 button: *button,
-                modifiers: *modifiers,
             },
             TouchpadMagnify {
                 device_id,
@@ -686,43 +666,34 @@ impl<'a> WindowEvent<'a> {
                 event,
                 is_synthetic,
             }),
-            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            ModifiersChanged(modifers) => Some(ModifiersChanged(modifers)),
             Ime(event) => Some(Ime(event)),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => Some(CursorMoved {
                 device_id,
                 position,
-                modifiers,
             }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => Some(MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             }),
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => Some(MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             }),
             TouchpadMagnify {
                 device_id,
@@ -964,6 +935,105 @@ pub struct KeyEvent {
     ///
     /// On Android, iOS, Redox and Web, this type is a no-op.
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
+}
+
+/// Describes keyboard modifiers event.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Modifiers {
+    pub(crate) state: ModifiersState,
+
+    // NOTE: Currently pressed modifiers keys.
+    //
+    // The field providing a metadata, it shouldn't be used as a source of truth.
+    pub(crate) pressed_mods: ModifiersKeys,
+}
+
+impl Modifiers {
+    /// The state of the modifiers.
+    pub fn state(&self) -> ModifiersState {
+        self.state
+    }
+
+    /// The state of the left shift key.
+    pub fn lshift_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::LSHIFT) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the right shift key.
+    pub fn rshift_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::RSHIFT) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the left alt key.
+    pub fn lalt_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::LALT) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the right alt key.
+    pub fn ralt_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::RALT) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the left control key.
+    pub fn lcontrol_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::LCONTROL) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the right control key.
+    pub fn rcontrol_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::RCONTROL) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the left super key.
+    pub fn lsuper_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::LSUPER) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+
+    /// The state of the right super key.
+    pub fn rsuper_state(&self) -> ModifiersKeyState {
+        if self.pressed_mods.contains(ModifiersKeys::RSUPER) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+}
+
+impl From<ModifiersState> for Modifiers {
+    fn from(value: ModifiersState) -> Self {
+        Self {
+            state: value,
+            pressed_mods: Default::default(),
+        }
+    }
 }
 
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.

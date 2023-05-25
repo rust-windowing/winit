@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Remove all deprecated `modifiers` fields.
 - **Breaking:** Overhaul keyboard input handling.
   - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
     - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
@@ -32,9 +33,9 @@ And please only add new entries to the top of this list, right below the `# Unre
     portable) interpretations of a given key-press.
   - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
     `KeyCode`.
-  - `ModifiersState` doesn't directly expose the bitflags state anymore.
-  - `ModifiersState` now provides a way to check whether left or right modifier was pressed.
   - Remove `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
+  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
+- On Orbital, fix `ModifiersChanged` not being sent.
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
 - **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
 - **Breaking:** `CursorIcon::Arrow` was removed.

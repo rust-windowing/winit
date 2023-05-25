@@ -599,8 +599,6 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let modifiers = self.kb_state.mods_state().into();
-
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
                         } else {
@@ -613,7 +611,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Left,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button2 => callback(Event::WindowEvent {
@@ -622,7 +619,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Middle,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button3 => callback(Event::WindowEvent {
@@ -631,7 +627,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Right,
-                                    modifiers,
                                 },
                             }),
 
@@ -652,7 +647,6 @@ impl<T: 'static> EventProcessor<T> {
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
-                                            modifiers,
                                         },
                                     });
                                 }
@@ -664,7 +658,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Other(x as u16),
-                                    modifiers,
                                 },
                             }),
                         }
@@ -674,8 +667,6 @@ impl<T: 'static> EventProcessor<T> {
                         let device_id = mkdid(xev.deviceid);
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
-
-                        let modifiers = self.kb_state.mods_state().into();
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state_lock();
@@ -689,7 +680,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         } else if cursor_moved.is_none() {
@@ -736,7 +726,6 @@ impl<T: 'static> EventProcessor<T> {
                                                     }
                                                 },
                                                 phase: TouchPhase::Moved,
-                                                modifiers,
                                             },
                                         });
                                     } else {
@@ -790,25 +779,11 @@ impl<T: 'static> EventProcessor<T> {
 
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            // The mods field on this event isn't actually populated, so query the
-                            // pointer device. In the future, we can likely remove this round-trip by
-                            // relying on `Xkb` for modifier values.
-                            //
-                            // This needs to only be done after confirming the window still exists,
-                            // since otherwise we risk getting a `BadWindow` error if the window was
-                            // dropped with queued events.
-                            let modifiers = wt
-                                .xconn
-                                .query_pointer(xev.event, xev.deviceid)
-                                .expect("Failed to query pointer device")
-                                .get_modifier_state();
-
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         }
@@ -836,8 +811,6 @@ impl<T: 'static> EventProcessor<T> {
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        let modifiers = self.kb_state.mods_state().into();
-
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
 
@@ -858,7 +831,7 @@ impl<T: 'static> EventProcessor<T> {
                             if let Some(modifiers) = self.pending_mod_change.take() {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::ModifiersChanged(modifiers),
+                                    event: WindowEvent::ModifiersChanged(modifiers.into()),
                                 });
                             }
 
@@ -876,7 +849,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id: mkdid(pointer_id),
                                     position,
-                                    modifiers,
                                 },
                             });
 
@@ -917,7 +889,9 @@ impl<T: 'static> EventProcessor<T> {
 
                             callback(Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::ModifiersChanged(ModifiersState::empty()),
+                                event: WindowEvent::ModifiersChanged(
+                                    ModifiersState::empty().into(),
+                                ),
                             });
 
                             if let Some(window) = self.with_window(xev.event, Arc::clone) {
@@ -942,7 +916,6 @@ impl<T: 'static> EventProcessor<T> {
                         };
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
-                            let modifiers = self.kb_state.mods_state().into();
                             let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // Mouse cursor position changes when touch events are received.
@@ -954,7 +927,6 @@ impl<T: 'static> EventProcessor<T> {
                                     event: WindowEvent::CursorMoved {
                                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                                         position: location.cast(),
-                                        modifiers,
                                     },
                                 });
                             }
@@ -1164,7 +1136,9 @@ impl<T: 'static> EventProcessor<T> {
                                 if let Some(window) = self.active_window {
                                     callback(Event::WindowEvent {
                                         window_id: mkwid(window),
-                                        event: WindowEvent::ModifiersChanged(new_mods.into()),
+                                        event: WindowEvent::ModifiersChanged(
+                                            Into::<ModifiersState>::into(new_mods).into(),
+                                        ),
                                     });
                                 } else {
                                     self.pending_mod_change = Some(new_mods.into());

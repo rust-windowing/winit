@@ -240,7 +240,7 @@ impl Canvas {
 
     pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(i32, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -253,7 +253,7 @@ impl Canvas {
 
     pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -270,7 +270,7 @@ impl Canvas {
         touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -292,7 +292,7 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(i32, MouseScrollDelta),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             if prevent_default {
@@ -300,7 +300,7 @@ impl Canvas {
             }
 
             if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta, event::mouse_modifiers(&event));
+                handler(0, delta);
             }
         }));
     }

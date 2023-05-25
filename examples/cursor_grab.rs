@@ -56,7 +56,7 @@ fn main() {
                         println!("error: {err}");
                     }
                 }
-                WindowEvent::ModifiersChanged(m) => modifiers = m,
+                WindowEvent::ModifiersChanged(new) => modifiers = new.state(),
                 _ => (),
             },
             Event::DeviceEvent { event, .. } => match event {

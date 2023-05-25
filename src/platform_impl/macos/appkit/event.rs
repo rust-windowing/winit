@@ -136,6 +136,26 @@ extern_methods!(
             unsafe { msg_send_id![self, charactersIgnoringModifiers] }
         }
 
+        pub fn lshift_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICELSHIFTKEYMASK != 0
+        }
+
+        pub fn rshift_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICERSHIFTKEYMASK != 0
+        }
+
+        pub fn lctrl_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICELCTLKEYMASK != 0
+        }
+
+        pub fn rctrl_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICERCTLKEYMASK != 0
+        }
+
         pub fn lalt_pressed(&self) -> bool {
             let raw_modifiers = self.modifierFlags().bits() as u32;
             raw_modifiers & NX_DEVICELALTKEYMASK != 0
@@ -144,6 +164,16 @@ extern_methods!(
         pub fn ralt_pressed(&self) -> bool {
             let raw_modifiers = self.modifierFlags().bits() as u32;
             raw_modifiers & NX_DEVICERALTKEYMASK != 0
+        }
+
+        pub fn lcmd_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICELCMDKEYMASK != 0
+        }
+
+        pub fn rcmd_pressed(&self) -> bool {
+            let raw_modifiers = self.modifierFlags().bits() as u32;
+            raw_modifiers & NX_DEVICERCMDKEYMASK != 0
         }
     }
 );
@@ -154,8 +184,14 @@ unsafe impl NSCopying for NSEvent {
 }
 
 // The values are from the https://github.com/apple-oss-distributions/IOHIDFamily/blob/19666c840a6d896468416ff0007040a10b7b46b8/IOHIDSystem/IOKit/hidsystem/IOLLEvent.h#L258-L259
+const NX_DEVICELCTLKEYMASK: u32 = 0x00000001;
+const NX_DEVICELSHIFTKEYMASK: u32 = 0x00000002;
+const NX_DEVICERSHIFTKEYMASK: u32 = 0x00000004;
+const NX_DEVICELCMDKEYMASK: u32 = 0x00000008;
+const NX_DEVICERCMDKEYMASK: u32 = 0x00000010;
 const NX_DEVICELALTKEYMASK: u32 = 0x00000020;
 const NX_DEVICERALTKEYMASK: u32 = 0x00000040;
+const NX_DEVICERCTLKEYMASK: u32 = 0x00002000;
 
 bitflags! {
     pub struct NSEventModifierFlags: NSUInteger {

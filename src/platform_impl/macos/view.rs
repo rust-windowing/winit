@@ -24,8 +24,8 @@ use super::{
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
-        DeviceEvent, ElementState, Event, Ime, MouseButton, MouseScrollDelta, TouchPhase,
-        WindowEvent,
+        DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
+        TouchPhase, WindowEvent,
     },
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
     platform::scancode::KeyCodeExtScancode,
@@ -120,7 +120,7 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 pub(super) struct ViewState {
     pub cursor_state: Mutex<CursorState>,
     ime_position: LogicalPosition<f64>,
-    pub(super) modifiers: ModifiersState,
+    pub(super) modifiers: Modifiers,
     phys_modifiers: HashMap<Key, ModLocationMask>,
     tracking_rect: Option<NSTrackingRectTag>,
     // phys_modifiers: HashSet<KeyCode>,
@@ -710,7 +710,6 @@ declare_class!(
                 device_id: DEVICE_ID,
                 delta,
                 phase,
-                modifiers: event_mods(event),
             });
         }
 
@@ -903,7 +902,7 @@ impl WinitView {
                 .entry(key)
                 .or_insert(ModLocationMask::empty());
 
-            let is_active = current_modifiers.contains(event_modifier);
+            let is_active = current_modifiers.state().contains(event_modifier);
             let mut events = VecDeque::with_capacity(2);
 
             // There is no API for getting whether the button was pressed or released
@@ -986,7 +985,6 @@ impl WinitView {
             device_id: DEVICE_ID,
             state: button_state,
             button,
-            modifiers: event_mods(event),
         });
     }
 
@@ -1016,7 +1014,6 @@ impl WinitView {
         self.queue_event(WindowEvent::CursorMoved {
             device_id: DEVICE_ID,
             position: logical_position.to_physical(self.scale_factor()),
-            modifiers: event_mods(event),
         });
     }
 }

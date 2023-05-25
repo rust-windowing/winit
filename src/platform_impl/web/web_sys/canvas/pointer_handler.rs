@@ -2,7 +2,6 @@ use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{Force, MouseButton};
-use crate::keyboard::ModifiersState;
 
 use web_sys::PointerEvent;
 
@@ -72,7 +71,7 @@ impl PointerHandler {
         mut mouse_handler: M,
         mut touch_handler: T,
     ) where
-        M: 'static + FnMut(i32, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -87,11 +86,7 @@ impl PointerHandler {
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
-                    mouse_handler(
-                        event.pointer_id(),
-                        event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
-                    );
+                    mouse_handler(event.pointer_id(), event::mouse_button(&event));
                 }
             },
         ));
@@ -103,7 +98,7 @@ impl PointerHandler {
         mut mouse_handler: M,
         mut touch_handler: T,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -122,7 +117,6 @@ impl PointerHandler {
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::super::scale_factor()),
                         event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
                     );
 
                     // Error is swallowed here since the error would occur every time the mouse is
@@ -141,7 +135,7 @@ impl PointerHandler {
         mut touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -164,7 +158,6 @@ impl PointerHandler {
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::super::scale_factor()),
                         event::mouse_delta(&event).to_physical(super::super::scale_factor()),
-                        event::mouse_modifiers(&event),
                     );
                 }
             },

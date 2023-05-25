@@ -864,7 +864,7 @@ unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
 
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
-fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) -> ModifiersState {
+fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     use crate::event::WindowEvent::ModifiersChanged;
 
     let modifiers = {
@@ -882,11 +882,10 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) -> ModifiersState
         unsafe {
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: ModifiersChanged(modifiers),
+                event: ModifiersChanged(modifiers.into()),
             });
         }
     }
-    modifiers
 }
 
 unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
@@ -906,7 +905,7 @@ unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
     userdata.send_event(Event::WindowEvent {
         window_id: RootWindowId(WindowId(window)),
-        event: ModifiersChanged(ModifiersState::empty()),
+        event: ModifiersChanged(ModifiersState::empty().into()),
     });
 
     userdata.send_event(Event::WindowEvent {
@@ -1438,14 +1437,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 w.mouse.last_position = Some(position);
             }
             if cursor_moved {
-                let modifiers = update_modifiers(window, userdata);
+                update_modifiers(window, userdata);
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: CursorMoved {
                         device_id: DEVICE_ID,
                         position,
-                        modifiers,
                     },
                 });
             }
@@ -1479,7 +1477,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let value = value as i32;
             let value = value as f32 / WHEEL_DELTA as f32;
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1487,7 +1485,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(0.0, value),
                     phase: TouchPhase::Moved,
-                    modifiers,
                 },
             });
 
@@ -1501,7 +1498,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let value = value as i32;
             let value = -value as f32 / WHEEL_DELTA as f32; // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1509,7 +1506,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(value, 0.0),
                     phase: TouchPhase::Moved,
-                    modifiers,
                 },
             });
 
@@ -1535,7 +1531,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             capture_mouse(window, &mut userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1543,7 +1539,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Left,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1556,7 +1551,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             release_mouse(userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1564,7 +1559,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Left,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1577,7 +1571,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             capture_mouse(window, &mut userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1585,7 +1579,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Right,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1598,7 +1591,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             release_mouse(userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1606,7 +1599,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Right,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1619,7 +1611,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             capture_mouse(window, &mut userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1627,7 +1619,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Middle,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1640,7 +1631,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             release_mouse(userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1648,7 +1639,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Middle,
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1662,7 +1652,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             capture_mouse(window, &mut userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1670,7 +1660,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Other(xbutton),
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);
@@ -1684,7 +1673,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             release_mouse(userdata.window_state_lock());
 
-            let modifiers = update_modifiers(window, userdata);
+            update_modifiers(window, userdata);
 
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1692,7 +1681,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Other(xbutton),
-                    modifiers,
                 },
             });
             result = ProcResult::Value(0);

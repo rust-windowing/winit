@@ -2,7 +2,6 @@ use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::MouseButton;
-use crate::keyboard::ModifiersState;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -76,7 +75,7 @@ impl MouseHandler {
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         let on_mouse_leave_handler = self.on_mouse_leave_handler.clone();
         let mouse_capture_state = self.mouse_capture_state.clone();
@@ -100,11 +99,7 @@ impl MouseHandler {
                     MouseCaptureState::Captured => {}
                 }
                 event.stop_propagation();
-                handler(
-                    0,
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
+                handler(0, event::mouse_button(&event));
                 if event
                     .target()
                     .map_or(false, |target| target != EventTarget::from(canvas))
@@ -127,7 +122,7 @@ impl MouseHandler {
 
     pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
@@ -156,7 +151,6 @@ impl MouseHandler {
                     0,
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
                     event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
                 );
             },
         ));
@@ -164,7 +158,7 @@ impl MouseHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
@@ -199,7 +193,6 @@ impl MouseHandler {
                             0,
                             mouse_pos.to_physical(super::super::scale_factor()),
                             mouse_delta.to_physical(super::super::scale_factor()),
-                            event::mouse_modifiers(&event),
                         );
                     }
                 }

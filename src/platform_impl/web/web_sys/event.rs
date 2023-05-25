@@ -15,15 +15,6 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     }
 }
 
-pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CONTROL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::SUPER, event.meta_key());
-    m
-}
-
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,

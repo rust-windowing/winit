@@ -171,9 +171,11 @@ declare_class!(
             let mut view = unsafe { Id::from_shared(self.window.view()) };
 
             // Both update the state and emit a ModifiersChanged event.
-            if !view.state.modifiers.is_empty() {
-                view.state.modifiers = ModifiersState::empty();
-                self.queue_event(WindowEvent::ModifiersChanged(view.state.modifiers));
+            if !view.state.modifiers.state().is_empty() {
+                view.state.modifiers = ModifiersState::empty().into();
+                self.queue_event(WindowEvent::ModifiersChanged(
+                    ModifiersState::empty().into(),
+                ));
             }
 
             self.queue_event(WindowEvent::Focused(false));

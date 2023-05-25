@@ -53,8 +53,8 @@ fn main() {
                             );
                         }
                     }
-                    WindowEvent::ModifiersChanged(mod_state) => {
-                        modifiers = mod_state;
+                    WindowEvent::ModifiersChanged(new) => {
+                        modifiers = new.state();
                     }
                     WindowEvent::KeyboardInput {
                         event:
