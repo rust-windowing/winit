@@ -690,12 +690,16 @@ impl WindowState {
     pub fn set_cursor_visible(&mut self, cursor_visible: bool) {
         self.cursor_visible = cursor_visible;
 
-        for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
-            let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
+        if self.cursor_visible {
+            self.set_cursor(self.cursor_icon);
+        } else {
+            for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
+                let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
 
-            pointer
-                .pointer()
-                .set_cursor(latest_enter_serial, None, 0, 0);
+                pointer
+                    .pointer()
+                    .set_cursor(latest_enter_serial, None, 0, 0);
+            }
         }
     }
 
