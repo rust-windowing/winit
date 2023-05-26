@@ -181,12 +181,7 @@ impl Canvas {
                     event.prevent_default();
                 }
                 let key = event::key(&event);
-                let mut modifiers = event::keyboard_modifiers(&key);
-                // This makes sure that if a modifier key is released, we still account for other
-                // modifiers being pressed. E.g. releasing left Shift but still holding right Shift.
-                if !modifiers.is_empty() && event.get_modifier_state(&event.key()) {
-                    modifiers = ModifiersState::empty();
-                }
+                let modifiers = event::keyboard_modifiers(&event);
                 handler(
                     event::key_code(&event),
                     key,
@@ -210,7 +205,7 @@ impl Canvas {
                     event.prevent_default();
                 }
                 let key = event::key(&event);
-                let modifiers = event::keyboard_modifiers(&key);
+                let modifiers = event::keyboard_modifiers(&event);
                 handler(
                     event::key_code(&event),
                     key,
@@ -225,7 +220,7 @@ impl Canvas {
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(i32, ModifiersState),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
@@ -235,7 +230,7 @@ impl Canvas {
 
     pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(i32, ModifiersState),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
@@ -245,7 +240,7 @@ impl Canvas {
 
     pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(i32, MouseButton),
+        M: 'static + FnMut(i32, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -258,7 +253,7 @@ impl Canvas {
 
     pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -275,7 +270,7 @@ impl Canvas {
         touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
@@ -297,7 +292,7 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta),
+        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             if prevent_default {
@@ -305,7 +300,8 @@ impl Canvas {
             }
 
             if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta);
+                let modifiers = event::mouse_modifiers(&event);
+                handler(0, delta, modifiers);
             }
         }));
     }

@@ -11,7 +11,7 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, Web
 
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
-use std::cell::{Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -23,7 +23,7 @@ pub struct Window {
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
-    has_focus: Rc<RefCell<bool>>,
+    has_focus: Rc<Cell<bool>>,
 }
 
 impl Window {
@@ -43,7 +43,7 @@ impl Window {
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        let has_focus = Rc::new(RefCell::new(false));
+        let has_focus = Rc::new(Cell::new(false));
         target.register(&canvas, id, prevent_default, has_focus.clone());
 
         let runner = target.runner.clone();
@@ -388,7 +388,7 @@ impl Window {
 
     #[inline]
     pub fn has_focus(&self) -> bool {
-        *self.has_focus.borrow()
+        self.has_focus.get()
     }
 
     pub fn title(&self) -> String {

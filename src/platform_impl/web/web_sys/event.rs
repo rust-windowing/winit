@@ -89,14 +89,42 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
     }
 }
 
-pub fn keyboard_modifiers(key: &Key) -> ModifiersState {
-    match key {
-        Key::Shift => ModifiersState::SHIFT,
-        Key::Control => ModifiersState::CONTROL,
-        Key::Alt => ModifiersState::ALT,
-        Key::Super => ModifiersState::SUPER,
-        _ => ModifiersState::empty(),
+pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
+    let mut state = ModifiersState::empty();
+
+    if event.shift_key() {
+        state |= ModifiersState::SHIFT;
     }
+    if event.ctrl_key() {
+        state |= ModifiersState::CONTROL;
+    }
+    if event.alt_key() {
+        state |= ModifiersState::ALT;
+    }
+    if event.meta_key() {
+        state |= ModifiersState::SUPER;
+    }
+
+    state
+}
+
+pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
+    let mut state = ModifiersState::empty();
+
+    if event.shift_key() {
+        state |= ModifiersState::SHIFT;
+    }
+    if event.ctrl_key() {
+        state |= ModifiersState::CONTROL;
+    }
+    if event.alt_key() {
+        state |= ModifiersState::ALT;
+    }
+    if event.meta_key() {
+        state |= ModifiersState::SUPER;
+    }
+
+    state
 }
 
 pub fn touch_position(event: &PointerEvent, _canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
