@@ -181,7 +181,12 @@ impl Canvas {
                     event.prevent_default();
                 }
                 let key = event::key(&event);
-                let modifiers = event::keyboard_modifiers(&key);
+                let mut modifiers = event::keyboard_modifiers(&key);
+                // This makes sure that if a modifier key is released, we still account for other
+                // modifiers being pressed. E.g. releasing left Shift but still holding right Shift.
+                if !modifiers.is_empty() && event.get_modifier_state(&event.key()) {
+                    modifiers = ModifiersState::empty();
+                }
                 handler(
                     event::key_code(&event),
                     key,
