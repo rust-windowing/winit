@@ -198,6 +198,7 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
                 if keyboard_state.repeat_info != RepeatInfo::Disable
                     && keyboard_state.xkb_state.key_repeats(key)
+                    && Some(key) == keyboard_state.current_repeat
                 {
                     keyboard_state.current_repeat = None;
                 }
