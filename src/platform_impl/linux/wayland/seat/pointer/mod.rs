@@ -38,7 +38,6 @@ impl PointerHandler for WinitState {
     ) {
         let seat = pointer.winit_data().seat();
         let seat_state = self.seats.get(&seat.id()).unwrap();
-        let modifiers = seat_state.modifiers;
 
         let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
 
@@ -130,7 +129,6 @@ impl PointerHandler for WinitState {
                         WindowEvent::CursorMoved {
                             device_id,
                             position,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -151,7 +149,6 @@ impl PointerHandler for WinitState {
                         WindowEvent::CursorMoved {
                             device_id,
                             position,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -177,7 +174,6 @@ impl PointerHandler for WinitState {
                             device_id,
                             state,
                             button,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -231,7 +227,6 @@ impl PointerHandler for WinitState {
                             device_id,
                             delta,
                             phase,
-                            modifiers,
                         },
                         window_id,
                     )

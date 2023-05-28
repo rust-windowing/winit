@@ -251,3 +251,6 @@ impl VideoMode {
         self.monitor.clone()
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyEventExtra {}

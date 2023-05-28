@@ -5,7 +5,7 @@ fn main() {
     use raw_window_handle::HasRawWindowHandle;
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
-        event::{ElementState, Event, KeyboardInput, WindowEvent},
+        event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
         window::{Window, WindowBuilder, WindowId},
     };
@@ -59,8 +59,8 @@ fn main() {
                     println!("cursor entered in the window {window_id:?}");
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
+                    event:
+                        KeyEvent {
                             state: ElementState::Pressed,
                             ..
                         },

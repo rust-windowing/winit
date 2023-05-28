@@ -20,6 +20,7 @@
 mod device;
 mod error;
 mod event_loop;
+mod keyboard;
 mod monitor;
 mod window;
 
@@ -34,6 +35,7 @@ pub(crate) use self::event_loop::{
 pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
+pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
