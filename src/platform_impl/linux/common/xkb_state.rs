@@ -120,11 +120,6 @@ impl KbdState {
         self.compose_status(self.xkb_compose_state)
     }
 
-    #[allow(dead_code)]
-    fn compose_status_2(&mut self) -> Option<ffi::xkb_compose_status> {
-        self.compose_status(self.xkb_compose_state_2)
-    }
-
     fn compose_status(
         &mut self,
         xkb_compose_state: *mut ffi::xkb_compose_state,

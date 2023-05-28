@@ -956,70 +956,46 @@ impl Modifiers {
 
     /// The state of the left shift key.
     pub fn lshift_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::LSHIFT) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::LSHIFT)
     }
 
     /// The state of the right shift key.
     pub fn rshift_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::RSHIFT) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::RSHIFT)
     }
 
     /// The state of the left alt key.
     pub fn lalt_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::LALT) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::LALT)
     }
 
     /// The state of the right alt key.
     pub fn ralt_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::RALT) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::RALT)
     }
 
     /// The state of the left control key.
     pub fn lcontrol_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::LCONTROL) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::LCONTROL)
     }
 
     /// The state of the right control key.
     pub fn rcontrol_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::RCONTROL) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::RCONTROL)
     }
 
     /// The state of the left super key.
     pub fn lsuper_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::LSUPER) {
-            ModifiersKeyState::Pressed
-        } else {
-            ModifiersKeyState::Unknown
-        }
+        self.mod_state(ModifiersKeys::LSUPER)
     }
 
     /// The state of the right super key.
     pub fn rsuper_state(&self) -> ModifiersKeyState {
-        if self.pressed_mods.contains(ModifiersKeys::RSUPER) {
+        self.mod_state(ModifiersKeys::RSUPER)
+    }
+
+    fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {
+        if self.pressed_mods.contains(modifier) {
             ModifiersKeyState::Pressed
         } else {
             ModifiersKeyState::Unknown

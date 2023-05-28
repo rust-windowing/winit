@@ -1614,6 +1614,14 @@ pub enum ModifiersKeyState {
     Unknown,
 }
 
+// NOTE: the exact modifier key is not used to represent modifiers state in the
+// first place due to a fact that modifiers state could be changed without any
+// key being pressed and on some platforms like Wayland/X11 which key resulted
+// in modifiers change is hidden, also, not that it really matters.
+//
+// The reason this API is even exposed is mostly to provide a way for users
+// to treat modifiers differently based on their position, which is required
+// on macOS due to their AltGr/Option situation.
 bitflags! {
     #[derive(Default)]
     pub(crate) struct ModifiersKeys: u8 {
