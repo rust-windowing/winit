@@ -287,7 +287,6 @@ impl<T: 'static> EventLoop<T> {
             xi2ext,
             xkbext,
             kb_state,
-            pending_mod_change: Default::default(),
             num_touch: 0,
             first_touch: None,
             active_window: None,

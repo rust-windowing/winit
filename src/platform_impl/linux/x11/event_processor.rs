@@ -29,7 +29,6 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) xkbext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbdState,
-    pub(super) pending_mod_change: Option<ModifiersState>,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
     pub(super) first_touch: Option<u64>,
@@ -828,7 +827,9 @@ impl<T: 'static> EventProcessor<T> {
                                 event: Focused(true),
                             });
 
-                            if let Some(modifiers) = self.pending_mod_change.take() {
+                            let modifiers: crate::keyboard::ModifiersState =
+                                self.kb_state.mods_state().into();
+                            if !modifiers.is_empty() {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::ModifiersChanged(modifiers.into()),
@@ -1140,8 +1141,6 @@ impl<T: 'static> EventProcessor<T> {
                                             Into::<ModifiersState>::into(new_mods).into(),
                                         ),
                                     });
-                                } else {
-                                    self.pending_mod_change = Some(new_mods.into());
                                 }
                             }
                         }
