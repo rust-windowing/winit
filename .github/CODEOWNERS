@@ -28,8 +28,8 @@
 /src/platform_impl/macos            @madsmtm
 
 # Web (no maintainer)
-/src/platform/web.rs
-/src/platform_impl/web
+/src/platform/web.rs                @daxpedda
+/src/platform_impl/web              @daxpedda
 
 # Windows
 /src/platform/windows.rs            @msiglreith
