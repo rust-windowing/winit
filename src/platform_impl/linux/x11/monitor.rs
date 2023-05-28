@@ -6,10 +6,10 @@ use once_cell::sync::Lazy;
 
 use super::{
     ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
+        self, RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
         RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRModeInfo, XRRScreenResources,
     },
-    util, XConnection, XError,
+    util, X11Error, XConnection,
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -241,13 +241,13 @@ impl XConnection {
             let mut minor = 0;
             (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let root = self.default_root().root;
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root as ffi::Window)
             } else {
                 // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
                 // Upon failure, `resources` will be null.
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
+                (self.xrandr.XRRGetScreenResources)(self.display, root as ffi::Window)
             };
 
             if resources.is_null() {
@@ -256,7 +256,7 @@ impl XConnection {
 
             let mut has_primary = false;
 
-            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
+            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root as ffi::Window);
             let mut available = Vec::with_capacity((*resources).ncrtc as usize);
 
             for crtc_index in 0..(*resources).ncrtc {
@@ -311,7 +311,7 @@ impl XConnection {
             .unwrap_or_else(MonitorHandle::dummy)
     }
 
-    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
+    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, X11Error> {
         let has_xrandr = unsafe {
             let mut major = 0;
             let mut minor = 0;

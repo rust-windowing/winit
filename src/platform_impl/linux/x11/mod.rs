@@ -1,5 +1,6 @@
 #![cfg(x11_platform)]
 
+mod atoms;
 mod dnd;
 mod event_processor;
 pub mod ffi;
@@ -25,10 +26,13 @@ use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet, VecDeque},
     ffi::CStr,
+    fmt,
     mem::{self, MaybeUninit},
     ops::Deref,
-    os::raw::*,
-    os::unix::io::RawFd,
+    os::{
+        raw::*,
+        unix::io::{AsRawFd, RawFd},
+    },
     ptr,
     rc::Rc,
     slice,
@@ -37,7 +41,19 @@ use std::{
 };
 
 use libc::{self, setlocale, LC_CTYPE};
+
+use atoms::*;
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
+
+use x11rb::protocol::{
+    xinput,
+    xproto::{self, ConnectionExt},
+};
+use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::{
+    errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
+    xcb_ffi::ReplyOrIdError,
+};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -60,10 +76,10 @@ type X11Source = Generic<RawFd>;
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
-    wm_delete_window: ffi::Atom,
-    net_wm_ping: ffi::Atom,
+    wm_delete_window: xproto::Atom,
+    net_wm_ping: xproto::Atom,
     ime_sender: ImeSender,
-    root: ffi::Window,
+    root: xproto::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: Sender<WindowId>,
@@ -106,11 +122,11 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
-        let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
+        let root = xconn.default_root().root;
+        let atoms = xconn.atoms();
 
-        let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
-
-        let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
+        let wm_delete_window = atoms[WM_DELETE_WINDOW];
+        let net_wm_ping = atoms[_NET_WM_PING];
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -149,7 +165,7 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let randr_event_offset = xconn
-            .select_xrandr_input(root)
+            .select_xrandr_input(root as ffi::Window)
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
@@ -223,7 +239,11 @@ impl<T: 'static> EventLoop<T> {
         let handle = event_loop.handle();
 
         // Create the X11 event dispatcher.
-        let source = X11Source::new(xconn.x11_fd, calloop::Interest::READ, calloop::Mode::Level);
+        let source = X11Source::new(
+            xconn.xcb_connection().as_raw_fd(),
+            calloop::Interest::READ,
+            calloop::Mode::Level,
+        );
         handle
             .insert_source(source, |_, _, _| Ok(calloop::PostAction::Continue))
             .expect("Failed to register the X11 event dispatcher");
@@ -254,8 +274,7 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to register the redraw event channel with the event loop");
 
         let kb_state =
-            KbdState::from_x11_xkb(unsafe { (xconn.xlib_xcb.XGetXCBConnection)(xconn.display) })
-                .unwrap();
+            KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
         let window_target = EventLoopWindowTarget {
             ime,
@@ -299,8 +318,13 @@ impl<T: 'static> EventLoop<T> {
         // (The request buffer is flushed during `init_device`)
         get_xtarget(&target)
             .xconn
-            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
+            .select_xinput_events(
+                root,
+                ffi::XIAllDevices as _,
+                x11rb::protocol::xinput::XIEventMask::HIERARCHY,
+            )
+            .expect("Failed to register for XInput2 device hotplug events")
+            .ignore_error();
 
         get_xtarget(&target)
             .xconn
@@ -308,8 +332,7 @@ impl<T: 'static> EventLoop<T> {
                 0x100, // Use the "core keyboard device"
                 ffi::XkbNewKeyboardNotifyMask | ffi::XkbStateNotifyMask,
             )
-            .unwrap()
-            .queue();
+            .unwrap();
 
         event_processor.init_device(ffi::XIAllDevices);
 
@@ -592,25 +615,25 @@ impl<T> EventLoopWindowTarget<T> {
         let device_events = self.device_events.get() == DeviceEvents::Always
             || (focus && self.device_events.get() == DeviceEvents::WhenFocused);
 
-        let mut mask = 0;
+        let mut mask = xinput::XIEventMask::from(0u32);
         if device_events {
-            mask = ffi::XI_RawMotionMask
-                | ffi::XI_RawButtonPressMask
-                | ffi::XI_RawButtonReleaseMask
-                | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
+            mask = xinput::XIEventMask::RAW_MOTION
+                | xinput::XIEventMask::RAW_BUTTON_PRESS
+                | xinput::XIEventMask::RAW_BUTTON_RELEASE
+                | xinput::XIEventMask::RAW_KEY_PRESS
+                | xinput::XIEventMask::RAW_KEY_RELEASE;
         }
 
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllMasterDevices, mask)
-            .queue();
+            .select_xinput_events(self.root, ffi::XIAllMasterDevices as _, mask)
+            .expect("Failed to update device event filter")
+            .ignore_error();
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         let mut display_handle = XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
-        display_handle.screen =
-            unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
+        display_handle.screen = self.xconn.default_screen_index() as c_int;
         RawDisplayHandle::Xlib(display_handle)
     }
 }
@@ -702,11 +725,130 @@ impl Drop for Window {
     fn drop(&mut self) {
         let window = self.deref();
         let xconn = &window.xconn;
-        unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0 as ffi::Window);
-            // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
+
+        if let Ok(c) = xconn
+            .xcb_connection()
+            .destroy_window(window.id().0 as xproto::Window)
+        {
+            c.ignore_error();
         }
+    }
+}
+
+/// Generic sum error type for X11 errors.
+#[derive(Debug)]
+pub enum X11Error {
+    /// An error from the Xlib library.
+    Xlib(XError),
+
+    /// An error that occurred while trying to connect to the X server.
+    Connect(ConnectError),
+
+    /// An error that occurred over the connection medium.
+    Connection(ConnectionError),
+
+    /// An error that occurred logically on the X11 end.
+    X11(LogicalError),
+
+    /// The XID range has been exhausted.
+    XidsExhausted(IdsExhausted),
+
+    /// Got `null` from an Xlib function without a reason.
+    UnexpectedNull(&'static str),
+}
+
+impl fmt::Display for X11Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            X11Error::Xlib(e) => write!(f, "Xlib error: {}", e),
+            X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
+            X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
+            X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
+            X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
+            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
+        }
+    }
+}
+
+impl std::error::Error for X11Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            X11Error::Xlib(e) => Some(e),
+            X11Error::Connect(e) => Some(e),
+            X11Error::Connection(e) => Some(e),
+            X11Error::XidsExhausted(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<XError> for X11Error {
+    fn from(e: XError) -> Self {
+        X11Error::Xlib(e)
+    }
+}
+
+impl From<ConnectError> for X11Error {
+    fn from(e: ConnectError) -> Self {
+        X11Error::Connect(e)
+    }
+}
+
+impl From<ConnectionError> for X11Error {
+    fn from(e: ConnectionError) -> Self {
+        X11Error::Connection(e)
+    }
+}
+
+impl From<LogicalError> for X11Error {
+    fn from(e: LogicalError) -> Self {
+        X11Error::X11(e)
+    }
+}
+
+impl From<ReplyError> for X11Error {
+    fn from(value: ReplyError) -> Self {
+        match value {
+            ReplyError::ConnectionError(e) => e.into(),
+            ReplyError::X11Error(e) => e.into(),
+        }
+    }
+}
+
+impl From<ime::ImeContextCreationError> for X11Error {
+    fn from(value: ime::ImeContextCreationError) -> Self {
+        match value {
+            ime::ImeContextCreationError::XError(e) => e.into(),
+            ime::ImeContextCreationError::Null => Self::UnexpectedNull("XOpenIM"),
+        }
+    }
+}
+
+impl From<ReplyOrIdError> for X11Error {
+    fn from(value: ReplyOrIdError) -> Self {
+        match value {
+            ReplyOrIdError::ConnectionError(e) => e.into(),
+            ReplyOrIdError::X11Error(e) => e.into(),
+            ReplyOrIdError::IdsExhausted => Self::XidsExhausted(IdsExhausted),
+        }
+    }
+}
+
+/// The underlying x11rb connection that we are using.
+type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
+
+/// Type alias for a void cookie.
+type VoidCookie<'a> = x11rb::cookie::VoidCookie<'a, X11rbConnection>;
+
+/// Extension trait for `Result<VoidCookie, E>`.
+trait CookieResultExt {
+    /// Unwrap the send error and ignore the result.
+    fn expect_then_ignore_error(self, msg: &str);
+}
+
+impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
+    fn expect_then_ignore_error(self, msg: &str) {
+        self.expect(msg).ignore_error()
     }
 }
 
@@ -745,7 +887,7 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> crate::window::WindowId {
+fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
