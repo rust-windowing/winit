@@ -119,6 +119,7 @@ sctk-adwaita = { version = "0.6.0", default_features = false, optional = true }
 wayland-client = { version = "0.30.0", optional = true }
 wayland-backend = { version = "0.1.0", default_features = false, features = ["client_system"], optional = true }
 wayland-protocols = { version = "0.30.0", features = [ "staging"], optional = true }
+calloop = "0.10.5"
 x11-dl = { version = "2.18.5", optional = true }
 xkbcommon-dl = "0.3.0"
 memmap2 = { version = "0.5.0", optional = true }

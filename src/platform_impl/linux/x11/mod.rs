@@ -58,7 +58,6 @@ use crate::{
 };
 
 type X11Source = Generic<RawFd>;
-//type X11Dispatcher = calloop::Dispatcher<'static, X11Source, EventLoopState>;
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
