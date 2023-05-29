@@ -17,6 +17,11 @@ pub(crate) use self::{
 
 pub use self::xdisplay::{XError, XNotSupported};
 
+use calloop::channel::{channel, Channel, Event as ChanResult, Sender};
+use calloop::generic::Generic;
+use calloop::Dispatcher;
+use calloop::EventLoop as Loop;
+
 use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet, VecDeque},
@@ -33,11 +38,6 @@ use std::{
 };
 
 use libc::{self, setlocale, LC_CTYPE};
-
-use calloop::channel::{channel, Event as ChanResult, Sender};
-use calloop::generic::Generic;
-use calloop::EventLoop as Loop;
-
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use self::{
@@ -61,7 +61,6 @@ type X11Source = Generic<RawFd>;
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
-    state: RefCell<EventLoopState<T>>,
     wm_delete_window: ffi::Atom,
     net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
@@ -78,6 +77,12 @@ pub struct EventLoop<T: 'static> {
     event_processor: EventProcessor<T>,
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
+
+    /// The current state of the event loop.
+    state: EventLoopState<T>,
+
+    /// Dispatcher for redraw events.
+    redraw_dispatcher: Dispatcher<'static, Channel<WindowId>, EventLoopState<T>>,
 }
 
 struct EventLoopState<T> {
@@ -209,17 +214,24 @@ impl<T: 'static> EventLoop<T> {
             Loop::<EventLoopState<T>>::try_new().expect("Failed to initialize the event loop");
 
         // Create the X11 event dispatcher.
-        let source = X11Source::new(xconn.x11_fd, calloop::Interest::READ, calloop::Mode::Edge);
-        let dispatcher =
-            calloop::Dispatcher::new(source, |_, _, _| Ok(calloop::PostAction::Continue));
+        let source = X11Source::new(xconn.x11_fd, calloop::Interest::READ, calloop::Mode::Level);
 
         let handle = event_loop.handle();
         handle
-            .register_dispatcher(dispatcher.clone())
+            .insert_source(source, |_, _, _| Ok(calloop::PostAction::Continue))
             .expect("Failed to register the X11 event dispatcher");
 
         let (user_sender, user_channel) = channel();
         let (redraw_sender, redraw_channel) = channel();
+
+        // Create a dispatcher for the redraw channel such that we can dispatch it independent of the
+        // event loop.
+        let redraw_dispatcher =
+            Dispatcher::<_, EventLoopState<T>>::new(redraw_channel, |ev, _, state| {
+                if let ChanResult::Msg(window_id) = ev {
+                    state.redraw_events.push_back(window_id);
+                }
+            });
 
         // Register the channels with the event loop.
         handle
@@ -230,11 +242,7 @@ impl<T: 'static> EventLoop<T> {
             })
             .expect("Failed to register the user event channel with the event loop");
         handle
-            .insert_source(redraw_channel, |ev, _, state| {
-                if let ChanResult::Msg(window_id) = ev {
-                    state.redraw_events.push_back(window_id);
-                }
-            })
+            .register_dispatcher(redraw_dispatcher.clone())
             .expect("Failed to register the redraw event channel with the event loop");
 
         let kb_state =
@@ -242,10 +250,6 @@ impl<T: 'static> EventLoop<T> {
                 .unwrap();
 
         let window_target = EventLoopWindowTarget {
-            state: RefCell::new(EventLoopState {
-                user_events: VecDeque::new(),
-                redraw_events: VecDeque::new(),
-            }),
             ime,
             root,
             windows: Default::default(),
@@ -305,6 +309,11 @@ impl<T: 'static> EventLoop<T> {
             event_processor,
             user_sender,
             target,
+            redraw_dispatcher,
+            state: EventLoopState {
+                user_events: VecDeque::new(),
+                redraw_events: VecDeque::new(),
+            },
         }
     }
 
@@ -359,12 +368,7 @@ impl<T: 'static> EventLoop<T> {
 
             // Empty the user event buffer
             {
-                while let Some(event) = get_xtarget(&this.target)
-                    .state
-                    .borrow_mut()
-                    .user_events
-                    .pop_front()
-                {
+                while let Some(event) = this.state.user_events.pop_front() {
                     sticky_exit_callback(
                         crate::event::Event::UserEvent(event),
                         &this.target,
@@ -383,13 +387,10 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            // Quickly dispatch all pending events to clear channels
-            this.event_loop
-                .dispatch(
-                    Some(Duration::ZERO),
-                    &mut get_xtarget(&this.target).state.borrow_mut(),
-                )
-                .ok();
+            // Quickly dispatch all redraw events to avoid buffering them.
+            while let Ok(event) = this.redraw_dispatcher.as_source_mut().try_recv() {
+                this.state.redraw_events.push_back(event);
+            }
 
             // Empty the redraw requests
             {
@@ -397,12 +398,7 @@ impl<T: 'static> EventLoop<T> {
 
                 // Empty the channel.
 
-                while let Some(window_id) = get_xtarget(&this.target)
-                    .state
-                    .borrow_mut()
-                    .redraw_events
-                    .pop_front()
-                {
+                while let Some(window_id) = this.state.redraw_events.pop_front() {
                     windows.insert(window_id);
                 }
 
@@ -482,24 +478,13 @@ impl<T: 'static> EventLoop<T> {
                 break code;
             }
             let has_pending = self.event_processor.poll()
-                || !get_xtarget(&self.target)
-                    .state
-                    .borrow()
-                    .user_events
-                    .is_empty()
-                || !get_xtarget(&self.target)
-                    .state
-                    .borrow()
-                    .redraw_events
-                    .is_empty();
+                || !self.state.user_events.is_empty()
+                || !self.state.redraw_events.is_empty();
             if !has_pending {
                 // Wait until
                 if let Err(error) = self
                     .event_loop
-                    .dispatch(
-                        iter_result.timeout,
-                        &mut get_xtarget(&self.target).state.borrow_mut(),
-                    )
+                    .dispatch(iter_result.timeout, &mut self.state)
                     .map_err(std::io::Error::from)
                 {
                     break error.raw_os_error().unwrap_or(1);
