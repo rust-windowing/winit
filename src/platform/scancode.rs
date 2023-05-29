@@ -1,9 +1,8 @@
 #![cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform))]
 
-// TODO: Maybe merge this with `modifier_supplement` if the two are indeed supported on the same
-// set of platforms
-
 use crate::keyboard::KeyCode;
+
+// TODO: Describe what this value contains for each platform
 
 /// Additional methods for the [`KeyCode`] type that allow the user to access the platform-specific
 /// scancode.
@@ -16,13 +15,16 @@ pub trait KeyCodeExtScancode {
     ///
     /// ## Platform-specific
     /// - **Windows:** A 16bit extended scancode
-    /// - **Wayland/X11**: A 32-bit X11-style keycode.
-    // TODO: Describe what this value contains for each platform
+    /// - **Wayland/X11**: A 32-bit linux scancode, which is X11/Wayland keycode subtracted by 8.
     fn to_scancode(self) -> Option<u32>;
 
     /// Constructs a `KeyCode` from a platform-specific physical key identifier.
     ///
     /// Note that this conversion may be lossy, i.e. converting the returned `KeyCode` back
     /// using `to_scancode` might not yield the original value.
+    ///
+    /// ## Platform-specific
+    /// - **Wayland/X11**: A 32-bit linux scancode. When building from X11/Wayland keycode subtract
+    ///                    `8` to get the value you wanted.
     fn from_scancode(scancode: u32) -> KeyCode;
 }
