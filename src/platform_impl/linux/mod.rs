@@ -656,11 +656,11 @@ impl KeyEventExtModifierSupplement for KeyEvent {
 
 impl KeyCodeExtScancode for KeyCode {
     fn from_scancode(scancode: u32) -> KeyCode {
-        common::keymap::raw_keycode_to_keycode(scancode)
+        common::keymap::scancode_to_keycode(scancode)
     }
 
     fn to_scancode(self) -> Option<u32> {
-        common::keymap::keycode_to_raw(self)
+        common::keymap::keycode_to_scancode(self)
     }
 }
 

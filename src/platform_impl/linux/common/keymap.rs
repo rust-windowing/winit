@@ -6,7 +6,13 @@ use crate::keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode};
 ///
 /// X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses.
 pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
-    let rawkey = keycode - 8;
+    scancode_to_keycode(keycode.saturating_sub(8))
+}
+
+/// Map the linux scancode to Keycode.
+///
+/// Both X11 and Wayland use keys with `+ 8` offset to linux scancode.
+pub fn scancode_to_keycode(scancode: u32) -> KeyCode {
     // The keycode values are taken from linux/include/uapi/linux/input-event-codes.h, as
     // libxkbcommon's documentation seems to suggest that the keycode values we're interested in
     // are defined by the Linux kernel. If Winit programs end up being run on other Unix-likes,
@@ -15,7 +21,7 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
     // Some of the keycodes are likely superfluous for our purposes, and some are ones which are
     // difficult to test the correctness of, or discover the purpose of. Because of this, they've
     // either been commented out here, or not included at all.
-    match rawkey {
+    match scancode {
         0 => KeyCode::Unidentified(NativeKeyCode::Xkb(0)),
         1 => KeyCode::Escape,
         2 => KeyCode::Digit1,
@@ -259,11 +265,11 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
         // 246 => KeyCode::WWAN,
         // 247 => KeyCode::RFKILL,
         // 248 => KeyCode::KEY_MICMUTE,
-        _ => KeyCode::Unidentified(NativeKeyCode::Xkb(rawkey)),
+        _ => KeyCode::Unidentified(NativeKeyCode::Xkb(scancode)),
     }
 }
 
-pub fn keycode_to_raw(keycode: KeyCode) -> Option<u32> {
+pub fn keycode_to_scancode(keycode: KeyCode) -> Option<u32> {
     match keycode {
         KeyCode::Unidentified(NativeKeyCode::Unidentified) => Some(240),
         KeyCode::Unidentified(NativeKeyCode::Xkb(raw)) => Some(raw),
@@ -405,7 +411,6 @@ pub fn keycode_to_raw(keycode: KeyCode) -> Option<u32> {
         KeyCode::F24 => Some(194),
         _ => None,
     }
-    .map(|raw| raw + 8)
 }
 
 pub fn keysym_to_key(keysym: u32) -> Key {
