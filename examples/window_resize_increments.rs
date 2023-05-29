@@ -2,8 +2,9 @@ use log::debug;
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::WindowBuilder,
 };
 
@@ -31,9 +32,9 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(VirtualKeyCode::Space),
+                        event:
+                            KeyEvent {
+                                logical_key: Key::Space,
                                 state: ElementState::Released,
                                 ..
                             },

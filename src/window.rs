@@ -547,6 +547,22 @@ impl Window {
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
+
+    /// Reset the dead key state of the keyboard.
+    ///
+    /// This is useful when a dead key is bound to trigger an action. Then
+    /// this function can be called to reset the dead key state so that
+    /// follow-up text input won't be affected by the dead key.
+    ///
+    /// ## Platform-specific
+    /// - **Web, macOS:** Does nothing
+    // ---------------------------
+    // Developers' Note: If this cannot be implemented on every desktop platform
+    // at least, then this function should be provided through a platform specific
+    // extension trait
+    pub fn reset_dead_keys(&self) {
+        self.window.reset_dead_keys();
+    }
 }
 
 /// Position and size functions.
@@ -1033,14 +1049,12 @@ impl Window {
     /// Sets whether the window should get IME events
     ///
     /// When IME is allowed, the window will receive [`Ime`] events, and during the
-    /// preedit phase the window will NOT get [`KeyboardInput`] or
-    /// [`ReceivedCharacter`] events. The window should allow IME while it is
-    /// expecting text input.
+    /// preedit phase the window will NOT get [`KeyboardInput`] events. The window
+    /// should allow IME while it is expecting text input.
     ///
     /// When IME is not allowed, the window won't receive [`Ime`] events, and will
-    /// receive [`KeyboardInput`] events for every keypress instead. Without
-    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
-    /// certain keyboard input. Not allowing IME is useful for games for example.
+    /// receive [`KeyboardInput`] events for every keypress instead. Not allowing
+    /// IME is useful for games for example.
     ///
     /// IME is **not** allowed by default.
     ///
@@ -1051,7 +1065,6 @@ impl Window {
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
-    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         self.window.set_ime_allowed(allowed);

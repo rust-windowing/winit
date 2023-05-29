@@ -1,4 +1,4 @@
-use std::{iter::Enumerate, ptr, slice::Iter};
+use std::{iter::Enumerate, slice::Iter};
 
 use super::*;
 
@@ -62,20 +62,6 @@ impl Iterator for KeymapIter<'_> {
 }
 
 impl XConnection {
-    pub fn keycode_to_keysym(&self, keycode: ffi::KeyCode) -> ffi::KeySym {
-        unsafe { (self.xlib.XKeycodeToKeysym)(self.display, keycode, 0) }
-    }
-
-    pub fn lookup_keysym(&self, xkev: &mut ffi::XKeyEvent) -> ffi::KeySym {
-        let mut keysym = 0;
-
-        unsafe {
-            (self.xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
-        }
-
-        keysym
-    }
-
     pub fn query_keymap(&self) -> Keymap {
         let mut keys = [0; 32];
 

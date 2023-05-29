@@ -2,6 +2,7 @@
 
 use std::{
     collections::VecDeque,
+    convert::TryInto,
     hash::Hash,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{InputEvent, KeyAction, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
@@ -19,182 +20,22 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
+#[cfg(feature = "android-native-activity")]
+use ndk_sys::AKeyEvent_getKeyCode;
+
 use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
-    event::{self, StartCause, VirtualKeyCode},
+    event::{self, StartCause},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
+    keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode},
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
     },
 };
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
-
-fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
-    match keycode {
-        Keycode::A => Some(VirtualKeyCode::A),
-        Keycode::B => Some(VirtualKeyCode::B),
-        Keycode::C => Some(VirtualKeyCode::C),
-        Keycode::D => Some(VirtualKeyCode::D),
-        Keycode::E => Some(VirtualKeyCode::E),
-        Keycode::F => Some(VirtualKeyCode::F),
-        Keycode::G => Some(VirtualKeyCode::G),
-        Keycode::H => Some(VirtualKeyCode::H),
-        Keycode::I => Some(VirtualKeyCode::I),
-        Keycode::J => Some(VirtualKeyCode::J),
-        Keycode::K => Some(VirtualKeyCode::K),
-        Keycode::L => Some(VirtualKeyCode::L),
-        Keycode::M => Some(VirtualKeyCode::M),
-        Keycode::N => Some(VirtualKeyCode::N),
-        Keycode::O => Some(VirtualKeyCode::O),
-        Keycode::P => Some(VirtualKeyCode::P),
-        Keycode::Q => Some(VirtualKeyCode::Q),
-        Keycode::R => Some(VirtualKeyCode::R),
-        Keycode::S => Some(VirtualKeyCode::S),
-        Keycode::T => Some(VirtualKeyCode::T),
-        Keycode::U => Some(VirtualKeyCode::U),
-        Keycode::V => Some(VirtualKeyCode::V),
-        Keycode::W => Some(VirtualKeyCode::W),
-        Keycode::X => Some(VirtualKeyCode::X),
-        Keycode::Y => Some(VirtualKeyCode::Y),
-        Keycode::Z => Some(VirtualKeyCode::Z),
-
-        Keycode::Keycode0 => Some(VirtualKeyCode::Key0),
-        Keycode::Keycode1 => Some(VirtualKeyCode::Key1),
-        Keycode::Keycode2 => Some(VirtualKeyCode::Key2),
-        Keycode::Keycode3 => Some(VirtualKeyCode::Key3),
-        Keycode::Keycode4 => Some(VirtualKeyCode::Key4),
-        Keycode::Keycode5 => Some(VirtualKeyCode::Key5),
-        Keycode::Keycode6 => Some(VirtualKeyCode::Key6),
-        Keycode::Keycode7 => Some(VirtualKeyCode::Key7),
-        Keycode::Keycode8 => Some(VirtualKeyCode::Key8),
-        Keycode::Keycode9 => Some(VirtualKeyCode::Key9),
-
-        Keycode::Numpad0 => Some(VirtualKeyCode::Numpad0),
-        Keycode::Numpad1 => Some(VirtualKeyCode::Numpad1),
-        Keycode::Numpad2 => Some(VirtualKeyCode::Numpad2),
-        Keycode::Numpad3 => Some(VirtualKeyCode::Numpad3),
-        Keycode::Numpad4 => Some(VirtualKeyCode::Numpad4),
-        Keycode::Numpad5 => Some(VirtualKeyCode::Numpad5),
-        Keycode::Numpad6 => Some(VirtualKeyCode::Numpad6),
-        Keycode::Numpad7 => Some(VirtualKeyCode::Numpad7),
-        Keycode::Numpad8 => Some(VirtualKeyCode::Numpad8),
-        Keycode::Numpad9 => Some(VirtualKeyCode::Numpad9),
-
-        Keycode::NumpadAdd => Some(VirtualKeyCode::NumpadAdd),
-        Keycode::NumpadSubtract => Some(VirtualKeyCode::NumpadSubtract),
-        Keycode::NumpadMultiply => Some(VirtualKeyCode::NumpadMultiply),
-        Keycode::NumpadDivide => Some(VirtualKeyCode::NumpadDivide),
-        Keycode::NumpadEnter => Some(VirtualKeyCode::NumpadEnter),
-        Keycode::NumpadEquals => Some(VirtualKeyCode::NumpadEquals),
-        Keycode::NumpadComma => Some(VirtualKeyCode::NumpadComma),
-        Keycode::NumpadDot => Some(VirtualKeyCode::NumpadDecimal),
-        Keycode::NumLock => Some(VirtualKeyCode::Numlock),
-
-        Keycode::DpadLeft => Some(VirtualKeyCode::Left),
-        Keycode::DpadRight => Some(VirtualKeyCode::Right),
-        Keycode::DpadUp => Some(VirtualKeyCode::Up),
-        Keycode::DpadDown => Some(VirtualKeyCode::Down),
-
-        Keycode::F1 => Some(VirtualKeyCode::F1),
-        Keycode::F2 => Some(VirtualKeyCode::F2),
-        Keycode::F3 => Some(VirtualKeyCode::F3),
-        Keycode::F4 => Some(VirtualKeyCode::F4),
-        Keycode::F5 => Some(VirtualKeyCode::F5),
-        Keycode::F6 => Some(VirtualKeyCode::F6),
-        Keycode::F7 => Some(VirtualKeyCode::F7),
-        Keycode::F8 => Some(VirtualKeyCode::F8),
-        Keycode::F9 => Some(VirtualKeyCode::F9),
-        Keycode::F10 => Some(VirtualKeyCode::F10),
-        Keycode::F11 => Some(VirtualKeyCode::F11),
-        Keycode::F12 => Some(VirtualKeyCode::F12),
-
-        Keycode::Space => Some(VirtualKeyCode::Space),
-        Keycode::Escape => Some(VirtualKeyCode::Escape),
-        Keycode::Enter => Some(VirtualKeyCode::Return), // not on the Numpad
-        Keycode::Tab => Some(VirtualKeyCode::Tab),
-
-        Keycode::PageUp => Some(VirtualKeyCode::PageUp),
-        Keycode::PageDown => Some(VirtualKeyCode::PageDown),
-        Keycode::MoveHome => Some(VirtualKeyCode::Home),
-        Keycode::MoveEnd => Some(VirtualKeyCode::End),
-        Keycode::Insert => Some(VirtualKeyCode::Insert),
-
-        Keycode::Del => Some(VirtualKeyCode::Back), // Backspace (above Enter)
-        Keycode::ForwardDel => Some(VirtualKeyCode::Delete), // Delete (below Insert)
-
-        Keycode::Copy => Some(VirtualKeyCode::Copy),
-        Keycode::Paste => Some(VirtualKeyCode::Paste),
-        Keycode::Cut => Some(VirtualKeyCode::Cut),
-
-        Keycode::VolumeUp => Some(VirtualKeyCode::VolumeUp),
-        Keycode::VolumeDown => Some(VirtualKeyCode::VolumeDown),
-        Keycode::VolumeMute => Some(VirtualKeyCode::Mute), // ???
-        Keycode::Mute => Some(VirtualKeyCode::Mute),       // ???
-        Keycode::MediaPlayPause => Some(VirtualKeyCode::PlayPause),
-        Keycode::MediaStop => Some(VirtualKeyCode::MediaStop), // ??? simple "Stop"?
-        Keycode::MediaNext => Some(VirtualKeyCode::NextTrack),
-        Keycode::MediaPrevious => Some(VirtualKeyCode::PrevTrack),
-
-        Keycode::Plus => Some(VirtualKeyCode::Plus),
-        Keycode::Minus => Some(VirtualKeyCode::Minus),
-        Keycode::Equals => Some(VirtualKeyCode::Equals),
-        Keycode::Semicolon => Some(VirtualKeyCode::Semicolon),
-        Keycode::Slash => Some(VirtualKeyCode::Slash),
-        Keycode::Backslash => Some(VirtualKeyCode::Backslash),
-        Keycode::Comma => Some(VirtualKeyCode::Comma),
-        Keycode::Period => Some(VirtualKeyCode::Period),
-        Keycode::Apostrophe => Some(VirtualKeyCode::Apostrophe),
-        Keycode::Grave => Some(VirtualKeyCode::Grave),
-        Keycode::At => Some(VirtualKeyCode::At),
-
-        // TODO: Maybe mapping this to Snapshot makes more sense? See: "PrtScr/SysRq"
-        Keycode::Sysrq => Some(VirtualKeyCode::Sysrq),
-        // These are usually the same (Pause/Break)
-        Keycode::Break => Some(VirtualKeyCode::Pause),
-        // These are exactly the same
-        Keycode::ScrollLock => Some(VirtualKeyCode::Scroll),
-
-        Keycode::Yen => Some(VirtualKeyCode::Yen),
-        Keycode::Kana => Some(VirtualKeyCode::Kana),
-
-        Keycode::CtrlLeft => Some(VirtualKeyCode::LControl),
-        Keycode::CtrlRight => Some(VirtualKeyCode::RControl),
-
-        Keycode::ShiftLeft => Some(VirtualKeyCode::LShift),
-        Keycode::ShiftRight => Some(VirtualKeyCode::RShift),
-
-        Keycode::AltLeft => Some(VirtualKeyCode::LAlt),
-        Keycode::AltRight => Some(VirtualKeyCode::RAlt),
-
-        // Different names for the same keys
-        Keycode::MetaLeft => Some(VirtualKeyCode::LWin),
-        Keycode::MetaRight => Some(VirtualKeyCode::RWin),
-
-        Keycode::LeftBracket => Some(VirtualKeyCode::LBracket),
-        Keycode::RightBracket => Some(VirtualKeyCode::RBracket),
-
-        Keycode::Power => Some(VirtualKeyCode::Power),
-        Keycode::Sleep => Some(VirtualKeyCode::Sleep), // what about SoftSleep?
-        Keycode::Wakeup => Some(VirtualKeyCode::Wake),
-
-        Keycode::NavigateNext => Some(VirtualKeyCode::NavigateForward),
-        Keycode::NavigatePrevious => Some(VirtualKeyCode::NavigateBackward),
-
-        Keycode::Calculator => Some(VirtualKeyCode::Calculator),
-        Keycode::Explorer => Some(VirtualKeyCode::MyComputer), // "close enough"
-        Keycode::Envelope => Some(VirtualKeyCode::Mail),       // "close enough"
-
-        Keycode::Star => Some(VirtualKeyCode::Asterisk), // ???
-        Keycode::AllApps => Some(VirtualKeyCode::Apps),  // ???
-        Keycode::AppSwitch => Some(VirtualKeyCode::Apps), // ???
-        Keycode::Refresh => Some(VirtualKeyCode::WebRefresh), // ???
-
-        _ => None,
-    }
-}
 
 struct PeekableReceiver<T> {
     recv: mpsc::Receiver<T>,
@@ -286,6 +127,9 @@ impl RedrawRequester {
         }
     }
 }
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
     android_app: AndroidApp,
@@ -551,25 +395,48 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 InputEvent::KeyEvent(key) => {
-                    let device_id = event::DeviceId(DeviceId);
-
                     let state = match key.action() {
                         KeyAction::Down => event::ElementState::Pressed,
                         KeyAction::Up => event::ElementState::Released,
                         _ => event::ElementState::Released,
                     };
-                    #[allow(deprecated)]
+
+                    #[cfg(feature = "android-native-activity")]
+                    let (keycode_u32, scancode_u32) = unsafe {
+                        // We abuse the fact that `android_activity`'s `KeyEvent` is `repr(transparent)`
+                        let event = (key as *const android_activity::input::KeyEvent<'_>).cast::<ndk::event::KeyEvent>();
+                        // We use the unsafe function directly because we want to forward the
+                        // keycode value even if it doesn't have a variant defined in the ndk
+                        // crate.
+                        (
+                            AKeyEvent_getKeyCode((*event).ptr().as_ptr()) as u32,
+                            (*event).scan_code() as u32
+                        )
+                    };
+                    #[cfg(feature = "android-game-activity")]
+                    let (keycode_u32, scancode_u32) = (key.keyCode as u32, key.scanCode as u32);
+                    let keycode = keycode_u32
+                        .try_into()
+                        .unwrap_or(ndk::event::Keycode::Unknown);
+                    let physical_key = KeyCode::Unidentified(
+                        NativeKeyCode::Android(scancode_u32),
+                    );
+                    let native = NativeKey::Android(keycode_u32);
+                    let logical_key = keycode_to_logical(keycode, native);
+                    // TODO: maybe use getUnicodeChar to get the logical key
+
                     let event = event::Event::WindowEvent {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::KeyboardInput {
-                            device_id,
-                            input: event::KeyboardInput {
-                                scancode: key.scan_code() as u32,
+                            device_id: event::DeviceId(DeviceId),
+                            event: event::KeyEvent {
                                 state,
-                                virtual_keycode: ndk_keycode_to_virtualkeycode(
-                                    key.key_code(),
-                                ),
-                                modifiers: event::ModifiersState::default(),
+                                physical_key,
+                                logical_key,
+                                location: keycode_to_location(keycode),
+                                repeat: key.repeat_count() > 0,
+                                text: None,
+                                platform_specific: KeyEventExtra {},
                             },
                             is_synthetic: false,
                         },
@@ -578,7 +445,7 @@ impl<T: 'static> EventLoop<T> {
                         event,
                         self.window_target(),
                         control_flow,
-                        callback
+                        callback,
                     );
                 }
                 _ => {
@@ -1084,6 +951,8 @@ impl Window {
     pub fn title(&self) -> String {
         String::new()
     }
+
+    pub fn reset_dead_keys(&self) {}
 }
 
 #[derive(Default, Clone, Debug)]
@@ -1183,5 +1052,379 @@ impl VideoMode {
 
     pub fn monitor(&self) -> MonitorHandle {
         self.monitor.clone()
+    }
+}
+
+fn keycode_to_logical(keycode: ndk::event::Keycode, native: NativeKey) -> Key {
+    use ndk::event::Keycode::*;
+
+    // The android `Keycode` is sort-of layout dependent. More specifically
+    // if I press the Z key using a US layout, then I get KEYCODE_Z,
+    // but if I press the same key after switching to a HUN layout, I get
+    // KEYCODE_Y.
+    //
+    // To prevents us from using this value to determine the `physical_key`
+    // (also know as winit's `KeyCode`)
+    //
+    // Unfortunately the documentation says that the scancode values
+    // "are not reliable and vary from device to device". Which seems to mean
+    // that there's no way to reliably get the physical_key on android.
+
+    match keycode {
+        Unknown => Key::Unidentified(native),
+
+        // Can be added on demand
+        SoftLeft => Key::Unidentified(native),
+        SoftRight => Key::Unidentified(native),
+
+        // Using `BrowserHome` instead of `GoHome` according to
+        // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+        Home => Key::BrowserHome,
+        Back => Key::BrowserBack,
+        Call => Key::Call,
+        Endcall => Key::EndCall,
+
+        //-------------------------------------------------------------------------------
+        // Reporting unidentified, because the specific character is layout dependent.
+        // (I'm not sure though)
+        Keycode0 => Key::Unidentified(native),
+        Keycode1 => Key::Unidentified(native),
+        Keycode2 => Key::Unidentified(native),
+        Keycode3 => Key::Unidentified(native),
+        Keycode4 => Key::Unidentified(native),
+        Keycode5 => Key::Unidentified(native),
+        Keycode6 => Key::Unidentified(native),
+        Keycode7 => Key::Unidentified(native),
+        Keycode8 => Key::Unidentified(native),
+        Keycode9 => Key::Unidentified(native),
+        Star => Key::Unidentified(native),
+        Pound => Key::Unidentified(native),
+        A => Key::Unidentified(native),
+        B => Key::Unidentified(native),
+        C => Key::Unidentified(native),
+        D => Key::Unidentified(native),
+        E => Key::Unidentified(native),
+        F => Key::Unidentified(native),
+        G => Key::Unidentified(native),
+        H => Key::Unidentified(native),
+        I => Key::Unidentified(native),
+        J => Key::Unidentified(native),
+        K => Key::Unidentified(native),
+        L => Key::Unidentified(native),
+        M => Key::Unidentified(native),
+        N => Key::Unidentified(native),
+        O => Key::Unidentified(native),
+        P => Key::Unidentified(native),
+        Q => Key::Unidentified(native),
+        R => Key::Unidentified(native),
+        S => Key::Unidentified(native),
+        T => Key::Unidentified(native),
+        U => Key::Unidentified(native),
+        V => Key::Unidentified(native),
+        W => Key::Unidentified(native),
+        X => Key::Unidentified(native),
+        Y => Key::Unidentified(native),
+        Z => Key::Unidentified(native),
+        Comma => Key::Unidentified(native),
+        Period => Key::Unidentified(native),
+        Grave => Key::Unidentified(native),
+        Minus => Key::Unidentified(native),
+        Equals => Key::Unidentified(native),
+        LeftBracket => Key::Unidentified(native),
+        RightBracket => Key::Unidentified(native),
+        Backslash => Key::Unidentified(native),
+        Semicolon => Key::Unidentified(native),
+        Apostrophe => Key::Unidentified(native),
+        Slash => Key::Unidentified(native),
+        At => Key::Unidentified(native),
+        Plus => Key::Unidentified(native),
+        //-------------------------------------------------------------------------------
+        DpadUp => Key::ArrowUp,
+        DpadDown => Key::ArrowDown,
+        DpadLeft => Key::ArrowLeft,
+        DpadRight => Key::ArrowRight,
+        DpadCenter => Key::Enter,
+
+        VolumeUp => Key::AudioVolumeUp,
+        VolumeDown => Key::AudioVolumeDown,
+        Power => Key::Power,
+        Camera => Key::Camera,
+        Clear => Key::Clear,
+
+        AltLeft => Key::Alt,
+        AltRight => Key::Alt,
+        ShiftLeft => Key::Shift,
+        ShiftRight => Key::Shift,
+        Tab => Key::Tab,
+        Space => Key::Space,
+        Sym => Key::Symbol,
+        Explorer => Key::LaunchWebBrowser,
+        Envelope => Key::LaunchMail,
+        Enter => Key::Enter,
+        Del => Key::Backspace,
+
+        // According to https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_NUM
+        Num => Key::Alt,
+
+        Headsethook => Key::HeadsetHook,
+        Focus => Key::CameraFocus,
+
+        Menu => Key::Unidentified(native),
+
+        Notification => Key::Notification,
+        Search => Key::BrowserSearch,
+        MediaPlayPause => Key::MediaPlayPause,
+        MediaStop => Key::MediaStop,
+        MediaNext => Key::MediaTrackNext,
+        MediaPrevious => Key::MediaTrackPrevious,
+        MediaRewind => Key::MediaRewind,
+        MediaFastForward => Key::MediaFastForward,
+        Mute => Key::MicrophoneVolumeMute,
+        PageUp => Key::PageUp,
+        PageDown => Key::PageDown,
+        Pictsymbols => Key::Unidentified(native),
+        SwitchCharset => Key::Unidentified(native),
+
+        // -----------------------------------------------------------------
+        // Gamepad events should be exposed through a separate API, not
+        // keyboard events
+        ButtonA => Key::Unidentified(native),
+        ButtonB => Key::Unidentified(native),
+        ButtonC => Key::Unidentified(native),
+        ButtonX => Key::Unidentified(native),
+        ButtonY => Key::Unidentified(native),
+        ButtonZ => Key::Unidentified(native),
+        ButtonL1 => Key::Unidentified(native),
+        ButtonR1 => Key::Unidentified(native),
+        ButtonL2 => Key::Unidentified(native),
+        ButtonR2 => Key::Unidentified(native),
+        ButtonThumbl => Key::Unidentified(native),
+        ButtonThumbr => Key::Unidentified(native),
+        ButtonStart => Key::Unidentified(native),
+        ButtonSelect => Key::Unidentified(native),
+        ButtonMode => Key::Unidentified(native),
+        // -----------------------------------------------------------------
+        Escape => Key::Escape,
+        ForwardDel => Key::Delete,
+        CtrlLeft => Key::Control,
+        CtrlRight => Key::Control,
+        CapsLock => Key::CapsLock,
+        ScrollLock => Key::ScrollLock,
+        MetaLeft => Key::Super,
+        MetaRight => Key::Super,
+        Function => Key::Fn,
+        Sysrq => Key::PrintScreen,
+        Break => Key::Pause,
+        MoveHome => Key::Home,
+        MoveEnd => Key::End,
+        Insert => Key::Insert,
+        Forward => Key::BrowserForward,
+        MediaPlay => Key::MediaPlay,
+        MediaPause => Key::MediaPause,
+        MediaClose => Key::MediaClose,
+        MediaEject => Key::Eject,
+        MediaRecord => Key::MediaRecord,
+        F1 => Key::F1,
+        F2 => Key::F2,
+        F3 => Key::F3,
+        F4 => Key::F4,
+        F5 => Key::F5,
+        F6 => Key::F6,
+        F7 => Key::F7,
+        F8 => Key::F8,
+        F9 => Key::F9,
+        F10 => Key::F10,
+        F11 => Key::F11,
+        F12 => Key::F12,
+        NumLock => Key::NumLock,
+        Numpad0 => Key::Unidentified(native),
+        Numpad1 => Key::Unidentified(native),
+        Numpad2 => Key::Unidentified(native),
+        Numpad3 => Key::Unidentified(native),
+        Numpad4 => Key::Unidentified(native),
+        Numpad5 => Key::Unidentified(native),
+        Numpad6 => Key::Unidentified(native),
+        Numpad7 => Key::Unidentified(native),
+        Numpad8 => Key::Unidentified(native),
+        Numpad9 => Key::Unidentified(native),
+        NumpadDivide => Key::Unidentified(native),
+        NumpadMultiply => Key::Unidentified(native),
+        NumpadSubtract => Key::Unidentified(native),
+        NumpadAdd => Key::Unidentified(native),
+        NumpadDot => Key::Unidentified(native),
+        NumpadComma => Key::Unidentified(native),
+        NumpadEnter => Key::Unidentified(native),
+        NumpadEquals => Key::Unidentified(native),
+        NumpadLeftParen => Key::Unidentified(native),
+        NumpadRightParen => Key::Unidentified(native),
+
+        VolumeMute => Key::AudioVolumeMute,
+        Info => Key::Info,
+        ChannelUp => Key::ChannelUp,
+        ChannelDown => Key::ChannelDown,
+        ZoomIn => Key::ZoomIn,
+        ZoomOut => Key::ZoomOut,
+        Tv => Key::TV,
+        Window => Key::Unidentified(native),
+        Guide => Key::Guide,
+        Dvr => Key::DVR,
+        Bookmark => Key::BrowserFavorites,
+        Captions => Key::ClosedCaptionToggle,
+        Settings => Key::Settings,
+        TvPower => Key::TVPower,
+        TvInput => Key::TVInput,
+        StbPower => Key::STBPower,
+        StbInput => Key::STBInput,
+        AvrPower => Key::AVRPower,
+        AvrInput => Key::AVRInput,
+        ProgRed => Key::ColorF0Red,
+        ProgGreen => Key::ColorF1Green,
+        ProgYellow => Key::ColorF2Yellow,
+        ProgBlue => Key::ColorF3Blue,
+        AppSwitch => Key::AppSwitch,
+        Button1 => Key::Unidentified(native),
+        Button2 => Key::Unidentified(native),
+        Button3 => Key::Unidentified(native),
+        Button4 => Key::Unidentified(native),
+        Button5 => Key::Unidentified(native),
+        Button6 => Key::Unidentified(native),
+        Button7 => Key::Unidentified(native),
+        Button8 => Key::Unidentified(native),
+        Button9 => Key::Unidentified(native),
+        Button10 => Key::Unidentified(native),
+        Button11 => Key::Unidentified(native),
+        Button12 => Key::Unidentified(native),
+        Button13 => Key::Unidentified(native),
+        Button14 => Key::Unidentified(native),
+        Button15 => Key::Unidentified(native),
+        Button16 => Key::Unidentified(native),
+        LanguageSwitch => Key::GroupNext,
+        MannerMode => Key::MannerMode,
+        Keycode3dMode => Key::TV3DMode,
+        Contacts => Key::LaunchContacts,
+        Calendar => Key::LaunchCalendar,
+        Music => Key::LaunchMusicPlayer,
+        Calculator => Key::LaunchApplication2,
+        ZenkakuHankaku => Key::ZenkakuHankaku,
+        Eisu => Key::Eisu,
+        Muhenkan => Key::NonConvert,
+        Henkan => Key::Convert,
+        KatakanaHiragana => Key::HiraganaKatakana,
+        Yen => Key::Unidentified(native),
+        Ro => Key::Unidentified(native),
+        Kana => Key::KanjiMode,
+        Assist => Key::Unidentified(native),
+        BrightnessDown => Key::BrightnessDown,
+        BrightnessUp => Key::BrightnessUp,
+        MediaAudioTrack => Key::MediaAudioTrack,
+        Sleep => Key::Standby,
+        Wakeup => Key::WakeUp,
+        Pairing => Key::Pairing,
+        MediaTopMenu => Key::MediaTopMenu,
+        Keycode11 => Key::Unidentified(native),
+        Keycode12 => Key::Unidentified(native),
+        LastChannel => Key::MediaLast,
+        TvDataService => Key::TVDataService,
+        VoiceAssist => Key::VoiceDial,
+        TvRadioService => Key::TVRadioService,
+        TvTeletext => Key::Teletext,
+        TvNumberEntry => Key::TVNumberEntry,
+        TvTerrestrialAnalog => Key::TVTerrestrialAnalog,
+        TvTerrestrialDigital => Key::TVTerrestrialDigital,
+        TvSatellite => Key::TVSatellite,
+        TvSatelliteBs => Key::TVSatelliteBS,
+        TvSatelliteCs => Key::TVSatelliteCS,
+        TvSatelliteService => Key::TVSatelliteToggle,
+        TvNetwork => Key::TVNetwork,
+        TvAntennaCable => Key::TVAntennaCable,
+        TvInputHdmi1 => Key::TVInputHDMI1,
+        TvInputHdmi2 => Key::TVInputHDMI2,
+        TvInputHdmi3 => Key::TVInputHDMI3,
+        TvInputHdmi4 => Key::TVInputHDMI4,
+        TvInputComposite1 => Key::TVInputComposite1,
+        TvInputComposite2 => Key::TVInputComposite2,
+        TvInputComponent1 => Key::TVInputComponent1,
+        TvInputComponent2 => Key::TVInputComponent2,
+        TvInputVga1 => Key::TVInputVGA1,
+        TvAudioDescription => Key::TVAudioDescription,
+        TvAudioDescriptionMixUp => Key::TVAudioDescriptionMixUp,
+        TvAudioDescriptionMixDown => Key::TVAudioDescriptionMixDown,
+        TvZoomMode => Key::ZoomToggle,
+        TvContentsMenu => Key::TVContentsMenu,
+        TvMediaContextMenu => Key::TVMediaContext,
+        TvTimerProgramming => Key::TVTimer,
+        Help => Key::Help,
+        NavigatePrevious => Key::NavigatePrevious,
+        NavigateNext => Key::NavigateNext,
+        NavigateIn => Key::NavigateIn,
+        NavigateOut => Key::NavigateOut,
+        StemPrimary => Key::Unidentified(native),
+        Stem1 => Key::Unidentified(native),
+        Stem2 => Key::Unidentified(native),
+        Stem3 => Key::Unidentified(native),
+        DpadUpLeft => Key::Unidentified(native),
+        DpadDownLeft => Key::Unidentified(native),
+        DpadUpRight => Key::Unidentified(native),
+        DpadDownRight => Key::Unidentified(native),
+        MediaSkipForward => Key::MediaSkipForward,
+        MediaSkipBackward => Key::MediaSkipBackward,
+        MediaStepForward => Key::MediaStepForward,
+        MediaStepBackward => Key::MediaStepBackward,
+        SoftSleep => Key::Unidentified(native),
+        Cut => Key::Cut,
+        Copy => Key::Copy,
+        Paste => Key::Paste,
+        SystemNavigationUp => Key::Unidentified(native),
+        SystemNavigationDown => Key::Unidentified(native),
+        SystemNavigationLeft => Key::Unidentified(native),
+        SystemNavigationRight => Key::Unidentified(native),
+        AllApps => Key::Unidentified(native),
+        Refresh => Key::BrowserRefresh,
+        ThumbsUp => Key::Unidentified(native),
+        ThumbsDown => Key::Unidentified(native),
+        ProfileSwitch => Key::Unidentified(native),
+    }
+}
+
+fn keycode_to_location(keycode: ndk::event::Keycode) -> KeyLocation {
+    use ndk::event::Keycode::*;
+
+    match keycode {
+        AltLeft => KeyLocation::Left,
+        AltRight => KeyLocation::Right,
+        ShiftLeft => KeyLocation::Left,
+        ShiftRight => KeyLocation::Right,
+
+        // According to https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_NUM
+        Num => KeyLocation::Left,
+
+        CtrlLeft => KeyLocation::Left,
+        CtrlRight => KeyLocation::Right,
+        MetaLeft => KeyLocation::Left,
+        MetaRight => KeyLocation::Right,
+
+        NumLock => KeyLocation::Numpad,
+        Numpad0 => KeyLocation::Numpad,
+        Numpad1 => KeyLocation::Numpad,
+        Numpad2 => KeyLocation::Numpad,
+        Numpad3 => KeyLocation::Numpad,
+        Numpad4 => KeyLocation::Numpad,
+        Numpad5 => KeyLocation::Numpad,
+        Numpad6 => KeyLocation::Numpad,
+        Numpad7 => KeyLocation::Numpad,
+        Numpad8 => KeyLocation::Numpad,
+        Numpad9 => KeyLocation::Numpad,
+        NumpadDivide => KeyLocation::Numpad,
+        NumpadMultiply => KeyLocation::Numpad,
+        NumpadSubtract => KeyLocation::Numpad,
+        NumpadAdd => KeyLocation::Numpad,
+        NumpadDot => KeyLocation::Numpad,
+        NumpadComma => KeyLocation::Numpad,
+        NumpadEnter => KeyLocation::Numpad,
+        NumpadEquals => KeyLocation::Numpad,
+        NumpadLeftParen => KeyLocation::Numpad,
+        NumpadRightParen => KeyLocation::Numpad,
+
+        _ => KeyLocation::Standard,
     }
 }

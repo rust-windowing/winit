@@ -1,14 +1,15 @@
 use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ModifiersState, MouseButton};
+use crate::event::MouseButton;
+use crate::keyboard::ModifiersState;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use web_sys::{EventTarget, MouseEvent};
 
-type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>;
+type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32, ModifiersState)>>>>;
 
 #[allow(dead_code)]
 pub(super) struct MouseHandler {
@@ -42,35 +43,43 @@ impl MouseHandler {
     }
     pub fn on_cursor_leave<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(i32, ModifiersState),
     {
         *self.on_mouse_leave_handler.borrow_mut() = Some(Box::new(handler));
         let on_mouse_leave_handler = self.on_mouse_leave_handler.clone();
         let mouse_capture_state = self.mouse_capture_state.clone();
-        self.on_mouse_leave = Some(canvas_common.add_event("mouseout", move |_: MouseEvent| {
-            // If the mouse is being captured, it is always considered
-            // to be "within" the the canvas, until the capture has been
-            // released, therefore we don't send cursor leave events.
-            if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
-                if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
-                    handler(0);
+        self.on_mouse_leave = Some(canvas_common.add_event(
+            "mouseout",
+            move |event: MouseEvent| {
+                // If the mouse is being captured, it is always considered
+                // to be "within" the the canvas, until the capture has been
+                // released, therefore we don't send cursor leave events.
+                if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
+                    if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
+                        let modifiers = event::mouse_modifiers(&event);
+                        handler(0, modifiers);
+                    }
                 }
-            }
-        }));
+            },
+        ));
     }
 
     pub fn on_cursor_enter<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(i32, ModifiersState),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
-        self.on_mouse_enter = Some(canvas_common.add_event("mouseover", move |_: MouseEvent| {
-            // We don't send cursor leave events when the mouse is being
-            // captured, therefore we do the same with cursor enter events.
-            if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
-                handler(0);
-            }
-        }));
+        self.on_mouse_enter = Some(canvas_common.add_event(
+            "mouseover",
+            move |event: MouseEvent| {
+                // We don't send cursor leave events when the mouse is being
+                // captured, therefore we do the same with cursor enter events.
+                if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
+                    let modifiers = event::mouse_modifiers(&event);
+                    handler(0, modifiers);
+                }
+            },
+        ));
     }
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
@@ -99,11 +108,8 @@ impl MouseHandler {
                     MouseCaptureState::Captured => {}
                 }
                 event.stop_propagation();
-                handler(
-                    0,
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
+                let modifiers = event::mouse_modifiers(&event);
+                handler(0, event::mouse_button(&event), modifiers);
                 if event
                     .target()
                     .map_or(false, |target| target != EventTarget::from(canvas))
@@ -112,7 +118,8 @@ impl MouseHandler {
                     // cursor is being captured, we instead send it after
                     // the capture has been released.
                     if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
-                        handler(0);
+                        let modifiers = event::mouse_modifiers(&event);
+                        handler(0, modifiers);
                     }
                 }
                 if event.buttons() == 0 {
@@ -151,11 +158,12 @@ impl MouseHandler {
                 }
                 *mouse_capture_state = MouseCaptureState::Captured;
                 event.stop_propagation();
+                let modifiers = event::mouse_modifiers(&event);
                 handler(
                     0,
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
                     event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
+                    modifiers,
                 );
             },
         ));
@@ -194,11 +202,12 @@ impl MouseHandler {
                             event::mouse_position_by_client(&event, &canvas)
                         };
                         let mouse_delta = event::mouse_delta(&event);
+                        let modifiers = event::mouse_modifiers(&event);
                         handler(
                             0,
                             mouse_pos.to_physical(super::super::scale_factor()),
                             mouse_delta.to_physical(super::super::scale_factor()),
-                            event::mouse_modifiers(&event),
+                            modifiers,
                         );
                     }
                 }

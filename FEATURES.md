@@ -222,9 +222,9 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- | ------ |
-|New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |❓      |
-|Event Loop 2.0 ([#459])             |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |❓      |
-|Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌    |❓        |❓      |
+|New API for HiDPI ([#315] [#319])   |✔️      |✔️     |✔️        |✔️            |✔️      |✔️      |❓        |❓      |
+|Event Loop 2.0 ([#459])             |✔️      |✔️     |✔️        |✔️            |✔️      |✔️      |❓        |✔️       |
+|Keyboard Input 2.0 ([#753])         |✔️      |✔️     |✔️        |✔️            |✔️      |❌     |✔️         |✔️       |
 
 ### Completed API Reworks
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
@@ -243,5 +243,5 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 [#720]: https://github.com/rust-windowing/winit/issues/720
 [#721]: https://github.com/rust-windowing/winit/issues/721
 [#750]: https://github.com/rust-windowing/winit/issues/750
+[#753]: https://github.com/rust-windowing/winit/issues/753
 [#804]: https://github.com/rust-windowing/winit/issues/804
-[#812]: https://github.com/rust-windowing/winit/issues/812

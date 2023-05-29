@@ -209,3 +209,7 @@ pub(crate) fn set_ime_position_sync(window: &WinitWindow, logical_spot: LogicalP
         unsafe { Id::from_shared(window.view()) }.set_ime_position(logical_spot);
     });
 }
+
+pub(crate) fn get_kbd_type() -> u8 {
+    run_on_main(|| unsafe { ffi::LMGetKbdType() })
+}
