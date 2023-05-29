@@ -29,7 +29,7 @@ use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::Event,
+    event::{Event, KeyEvent},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     keyboard::{Key, KeyCode},
