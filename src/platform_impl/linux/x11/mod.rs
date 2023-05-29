@@ -19,8 +19,7 @@ pub use self::xdisplay::{XError, XNotSupported};
 
 use calloop::channel::{channel, Channel, Event as ChanResult, Sender};
 use calloop::generic::Generic;
-use calloop::Dispatcher;
-use calloop::EventLoop as Loop;
+use calloop::{Dispatcher, EventLoop as Loop};
 
 use std::{
     cell::{Cell, RefCell},
@@ -212,16 +211,25 @@ impl<T: 'static> EventLoop<T> {
         // Create an event loop.
         let event_loop =
             Loop::<EventLoopState<T>>::try_new().expect("Failed to initialize the event loop");
+        let handle = event_loop.handle();
 
         // Create the X11 event dispatcher.
         let source = X11Source::new(xconn.x11_fd, calloop::Interest::READ, calloop::Mode::Level);
-
-        let handle = event_loop.handle();
         handle
             .insert_source(source, |_, _, _| Ok(calloop::PostAction::Continue))
             .expect("Failed to register the X11 event dispatcher");
 
+        // Create a channel for sending user events.
         let (user_sender, user_channel) = channel();
+        handle
+            .insert_source(user_channel, |ev, _, state| {
+                if let ChanResult::Msg(user) = ev {
+                    state.user_events.push_back(user);
+                }
+            })
+            .expect("Failed to register the user event channel with the event loop");
+
+        // Create a channel for handling redraw requests.
         let (redraw_sender, redraw_channel) = channel();
 
         // Create a dispatcher for the redraw channel such that we can dispatch it independent of the
@@ -232,15 +240,6 @@ impl<T: 'static> EventLoop<T> {
                     state.redraw_events.push_back(window_id);
                 }
             });
-
-        // Register the channels with the event loop.
-        handle
-            .insert_source(user_channel, |ev, _, state| {
-                if let ChanResult::Msg(user) = ev {
-                    state.user_events.push_back(user);
-                }
-            })
-            .expect("Failed to register the user event channel with the event loop");
         handle
             .register_dispatcher(redraw_dispatcher.clone())
             .expect("Failed to register the redraw event channel with the event loop");
