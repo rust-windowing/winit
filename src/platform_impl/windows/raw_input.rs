@@ -23,7 +23,7 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::{event::ElementState, event_loop::DeviceEventFilter, platform_impl::platform::util};
+use crate::{event::ElementState, event_loop::DeviceEvents, platform_impl::platform::util};
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -140,18 +140,18 @@ pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
 
 pub fn register_all_mice_and_keyboards_for_raw_input(
     mut window_handle: HWND,
-    filter: DeviceEventFilter,
+    filter: DeviceEvents,
 ) -> bool {
     // RIDEV_DEVNOTIFY: receive hotplug events
     // RIDEV_INPUTSINK: receive events even if we're not in the foreground
     // RIDEV_REMOVE: don't receive device events (requires NULL hwndTarget)
     let flags = match filter {
-        DeviceEventFilter::Always => {
+        DeviceEvents::Never => {
             window_handle = 0;
             RIDEV_REMOVE
         }
-        DeviceEventFilter::Unfocused => RIDEV_DEVNOTIFY,
-        DeviceEventFilter::Never => RIDEV_DEVNOTIFY | RIDEV_INPUTSINK,
+        DeviceEvents::WhenFocused => RIDEV_DEVNOTIFY,
+        DeviceEvents::Always => RIDEV_DEVNOTIFY | RIDEV_INPUTSINK,
     };
 
     let devices: [RAWINPUTDEVICE; 2] = [

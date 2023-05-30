@@ -8,6 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
+- **Breaking** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
+- On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
 - **Breaking:** Remove all deprecated `modifiers` fields.
 - **Breaking:** Overhaul keyboard input handling.
   - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.

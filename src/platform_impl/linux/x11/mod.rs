@@ -46,9 +46,7 @@ use super::common::xkb_state::KbdState;
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::{
         platform::{sticky_exit_callback, WindowId},
         PlatformSpecificWindowBuilderAttributes,
@@ -107,7 +105,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
-    device_event_filter: Cell<DeviceEventFilter>,
+    device_events: Cell<DeviceEvents>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -266,11 +264,11 @@ impl<T: 'static> EventLoop<T> {
                 sender: redraw_sender, // not used again so no clone
                 waker: waker.clone(),
             },
-            device_event_filter: Default::default(),
+            device_events: Default::default(),
         };
 
         // Set initial device event filter.
-        window_target.update_device_event_filter(true);
+        window_target.update_listen_device_events(true);
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(window_target),
@@ -573,17 +571,17 @@ impl<T> EventLoopWindowTarget<T> {
         &self.xconn
     }
 
-    pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
-        self.device_event_filter.set(filter);
+    pub fn set_listen_device_events(&self, allowed: DeviceEvents) {
+        self.device_events.set(allowed);
     }
 
-    /// Update the device event filter based on window focus.
-    pub fn update_device_event_filter(&self, focus: bool) {
-        let filter_events = self.device_event_filter.get() == DeviceEventFilter::Never
-            || (self.device_event_filter.get() == DeviceEventFilter::Unfocused && !focus);
+    /// Update the device event based on window focus.
+    pub fn update_listen_device_events(&self, focus: bool) {
+        let device_events = self.device_events.get() == DeviceEvents::Always
+            || (focus && self.device_events.get() == DeviceEvents::WhenFocused);
 
         let mut mask = 0;
-        if !filter_events {
+        if device_events {
             mask = ffi::XI_RawMotionMask
                 | ffi::XI_RawButtonPressMask
                 | ffi::XI_RawButtonReleaseMask
