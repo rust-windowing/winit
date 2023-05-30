@@ -423,19 +423,14 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
 
-/// Controlling when device events are captured.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+/// Control when device events are captured.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 pub enum DeviceEvents {
     /// Report device events regardless of window focus.
     Always,
     /// Only capture device events while the window is focused.
+    #[default]
     WhenFocused,
     /// Never capture device events.
     Never,
-}
-
-impl Default for DeviceEvents {
-    fn default() -> Self {
-        Self::WhenFocused
-    }
 }

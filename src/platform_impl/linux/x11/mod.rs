@@ -575,13 +575,13 @@ impl<T> EventLoopWindowTarget<T> {
         self.device_events.set(allowed);
     }
 
-    /// Update the device event filter based on window focus.
+    /// Update the device event based on window focus.
     pub fn update_listen_device_events(&self, focus: bool) {
-        let filter_events = self.device_events.get() == DeviceEvents::Never
-            || (self.device_events.get() == DeviceEvents::WhenFocused && !focus);
+        let device_events = self.device_events.get() == DeviceEvents::Always
+            || (focus && self.device_events.get() == DeviceEvents::WhenFocused);
 
         let mut mask = 0;
-        if !filter_events {
+        if device_events {
             mask = ffi::XI_RawMotionMask
                 | ffi::XI_RawButtonPressMask
                 | ffi::XI_RawButtonReleaseMask
