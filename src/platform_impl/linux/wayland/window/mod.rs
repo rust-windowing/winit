@@ -15,9 +15,11 @@ use sctk::reexports::client::QueueHandle;
 
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::shell::wlr_layer::{Anchor, LayerSurface};
 use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
+use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -43,13 +45,12 @@ pub use state::WindowState;
 
 /// The Wayland window.
 pub struct Window {
-    /// Reference to the underlying SCTK window.
-    window: SctkWindow,
+    /// The underlying window shell and state
+    window: WindowShell,
 
     /// Window id.
     window_id: WindowId,
 
-    /// The state of the window.
     window_state: Arc<Mutex<WindowState>>,
 
     /// Compositor to handle WlRegion stuff.
@@ -105,37 +106,79 @@ impl Window {
             .map(|size| size.to_logical::<u32>(1.))
             .unwrap_or((800, 600).into());
 
-        let window = state.xdg_shell.create_window(
-            surface.clone(),
-            WindowDecorations::ServerDefault,
-            &queue_handle,
-        );
+        let (window, mut window_state) = if let Some(layer) = platform_attributes.layer_shell {
+            let layer_surface = state.layer_shell.create_layer_surface(
+                &queue_handle,
+                surface.clone(),
+                layer,
+                // TODO(theonlymrcat): Is this where app id should go?
+                None::<String>,
+                None,
+            );
 
-        let mut window_state = WindowState::new(
-            event_loop_window_target.connection.clone(),
-            &event_loop_window_target.queue_handle,
-            &state,
-            size,
-            window.clone(),
-            attributes.preferred_theme,
-        );
+            let window_state = WindowState::new_layer(
+                event_loop_window_target.connection.clone(),
+                &event_loop_window_target.queue_handle,
+                &state,
+                size,
+                layer_surface.clone(),
+                attributes.preferred_theme,
+            );
 
-        // Set the app_id.
-        if let Some(name) = platform_attributes.name.map(|name| name.general) {
-            window.set_app_id(name);
-        }
+            layer_surface.set_size(size.width, size.height);
+            if let Some(anchor) = platform_attributes.anchor {
+                layer_surface.set_anchor(anchor);
+            }
+            if let Some(exclusive_zone) = platform_attributes.exclusive_zone {
+                layer_surface.set_exclusive_zone(exclusive_zone)
+            }
+            if let Some((top, right, bottom, left)) = platform_attributes.margin {
+                layer_surface.set_margin(top, right, bottom, left);
+            }
+            if let Some(keyboard_interactivity) = platform_attributes.keyboard_interactivity {
+                layer_surface.set_keyboard_interactivity(keyboard_interactivity);
+            }
 
-        // Set the window title.
-        window_state.set_title(attributes.title);
+            (
+                WindowShell::WlrLayer {
+                    surface: layer_surface,
+                },
+                window_state,
+            )
+        } else {
+            let window = state.xdg_shell.create_window(
+                surface.clone(),
+                WindowDecorations::ServerDefault,
+                &queue_handle,
+            );
 
-        // Set the min and max sizes.
-        let min_size = attributes.min_inner_size.map(|size| size.to_logical(1.));
-        let max_size = attributes.max_inner_size.map(|size| size.to_logical(1.));
-        window_state.set_min_inner_size(min_size);
-        window_state.set_max_inner_size(max_size);
+            let mut window_state = WindowState::new_xdg(
+                event_loop_window_target.connection.clone(),
+                &event_loop_window_target.queue_handle,
+                &state,
+                size,
+                window.clone(),
+                attributes.preferred_theme,
+            );
 
-        // Non-resizable implies that the min and max sizes are set to the same value.
-        window_state.set_resizable(attributes.resizable);
+            // Set the app_id.
+            if let Some(name) = platform_attributes.name.map(|name| name.general) {
+                window.set_app_id(name);
+            }
+
+            // Set the window title.
+            window_state.set_title(attributes.title);
+
+            // Set the min and max sizes.
+            let min_size = attributes.min_inner_size.map(|size| size.to_logical(1.));
+            let max_size = attributes.max_inner_size.map(|size| size.to_logical(1.));
+            window_state.set_min_inner_size(min_size);
+            window_state.set_max_inner_size(max_size);
+
+            // Non-resizable implies that the min and max sizes are set to the same value.
+            window_state.set_resizable(attributes.resizable);
+            (WindowShell::Xdg { window }, window_state)
+        };
 
         // Set startup mode.
         match attributes.fullscreen.map(Into::into) {
@@ -151,12 +194,12 @@ impl Window {
 
                 window.set_fullscreen(output.as_ref())
             }
-            _ if attributes.maximized => window.set_maximized(),
+            _ if attributes.maximized => window.set_maximized(true),
             _ => (),
         };
 
         // XXX Do initial commit.
-        window.commit();
+        window.wl_surface().commit();
 
         // Add the window and window requests into the state.
         let window_state = Arc::new(Mutex::new(window_state));
@@ -228,7 +271,7 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: impl ToString) {
         let new_title = title.to_string();
-        self.window_state.lock().unwrap().set_title(new_title);
+        self.window_state.lock().unwrap().set_title(new_title)
     }
 
     #[inline]
@@ -396,34 +439,17 @@ impl Window {
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        self.window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_maximized())
-            .unwrap_or_default()
+        self.window_state.lock().unwrap().is_maximized()
     }
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        if maximized {
-            self.window.set_maximized()
-        } else {
-            self.window.unset_maximized()
-        }
+        self.window.set_maximized(maximized);
     }
 
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        let is_fullscreen = self
-            .window_state
-            .lock()
-            .unwrap()
-            .last_configure
-            .as_ref()
-            .map(|last_configure| last_configure.is_fullscreen())
-            .unwrap_or_default();
+        let is_fullscreen = self.window_state.lock().unwrap().is_fullscreen();
 
         if is_fullscreen {
             let current_monitor = self.current_monitor().map(PlatformMonitorHandle::Wayland);
@@ -620,6 +646,58 @@ impl Drop for Window {
     fn drop(&mut self) {
         self.window_requests.closed.store(true, Ordering::Relaxed);
         self.event_loop_awakener.ping();
+    }
+}
+
+enum WindowShell {
+    Xdg { window: SctkWindow },
+    WlrLayer { surface: LayerSurface },
+}
+
+impl WindowShell {
+    pub fn set_maximized(&self, maximized: bool) {
+        match self {
+            WindowShell::Xdg { window } => {
+                if maximized {
+                    window.set_maximized()
+                } else {
+                    window.unset_maximized()
+                }
+            }
+            WindowShell::WlrLayer { .. } => {
+                warn!("Maximizing is ignored for layer_shell windows")
+            }
+        }
+    }
+
+    pub fn set_minimized(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.set_minimized(),
+            WindowShell::WlrLayer { .. } => warn!("Minimizing is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn set_fullscreen(&self, output: Option<&WlOutput>) {
+        match self {
+            WindowShell::Xdg { window } => {
+                window.set_fullscreen(output);
+            }
+            WindowShell::WlrLayer { .. } => warn!("Fullscreen is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn unset_fullscreen(&self) {
+        match self {
+            WindowShell::Xdg { window } => window.unset_fullscreen(),
+            WindowShell::WlrLayer { .. } => warn!("Fullscreen is ignored for layer_shell windows"),
+        }
+    }
+
+    pub fn wl_surface(&self) -> &WlSurface {
+        match self {
+            WindowShell::Xdg { window } => window.wl_surface(),
+            WindowShell::WlrLayer { surface } => surface.wl_surface(),
+        }
     }
 }
 

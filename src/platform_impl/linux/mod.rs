@@ -40,6 +40,9 @@ use crate::{
     },
 };
 
+#[cfg(wayland_platform)]
+use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
@@ -97,6 +100,16 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     #[cfg(x11_platform)]
     pub x11_window_types: Vec<XWindowType>,
+    #[cfg(wayland_platform)]
+    pub layer_shell: Option<Layer>,
+    #[cfg(wayland_platform)]
+    pub anchor: Option<Anchor>,
+    #[cfg(wayland_platform)]
+    pub exclusive_zone: Option<i32>,
+    #[cfg(wayland_platform)]
+    pub margin: Option<(i32, i32, i32, i32)>,
+    #[cfg(wayland_platform)]
+    pub keyboard_interactivity: Option<KeyboardInteractivity>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -113,6 +126,16 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             override_redirect: false,
             #[cfg(x11_platform)]
             x11_window_types: vec![XWindowType::Normal],
+            #[cfg(wayland_platform)]
+            layer_shell: None,
+            #[cfg(wayland_platform)]
+            anchor: None,
+            #[cfg(wayland_platform)]
+            exclusive_zone: None,
+            #[cfg(wayland_platform)]
+            margin: None,
+            #[cfg(wayland_platform)]
+            keyboard_interactivity: None,
         }
     }
 }
