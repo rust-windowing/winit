@@ -27,9 +27,9 @@ use crate::{
 };
 
 use super::{
-    ffi, util, EventLoopWindowTarget, ImeRequest, ImeSender, WakeSender, WindowId, XConnection,
-    XError,
+    ffi, util, EventLoopWindowTarget, ImeRequest, ImeSender, WindowId, XConnection, XError,
 };
+use calloop::channel::Sender;
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -114,7 +114,7 @@ pub(crate) struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: WakeSender<WindowId>,
+    redraw_sender: Sender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -289,10 +289,7 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, &window_attrs),
-            redraw_sender: WakeSender {
-                waker: event_loop.redraw_sender.waker.clone(),
-                sender: event_loop.redraw_sender.sender.clone(),
-            },
+            redraw_sender: event_loop.redraw_sender.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1594,10 +1591,8 @@ impl UnownedWindow {
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
-            .sender
             .send(WindowId(self.xwindow as _))
             .unwrap();
-        self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]
