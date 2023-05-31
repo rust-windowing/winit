@@ -52,7 +52,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Implement `PartialOrd` and `Ord` on types in the `dpi` module.
 - Bump MSRV from `1.60` to `1.64`.
-- Web: Fix position of touch events to be relative to the canvas.
+- On Web, the canvas output bitmap size is no longer adjusted.
+- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
+- On Web: fix position of touch events to be relative to the canvas.
 
 # 0.28.6
 
@@ -68,12 +70,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, fix empty marked text blocking regular input.
 - On macOS, fix potential panic when getting refresh rate.
 - On macOS, fix crash when calling `Window::set_ime_position` from another thread.
-- On Web, the canvas output bitmap size is no longer adjusted.
 
 # 0.28.3
 
 - Fix macOS memory leaks.
-- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
 
 # 0.28.2
 
