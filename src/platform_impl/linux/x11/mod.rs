@@ -493,7 +493,7 @@ impl<T: 'static> EventLoop<T> {
                     // We don't go straight into executing the event loop iteration, we instead go
                     // to the start of this loop and check again if there's any pending event. We
                     // must do this because during the execution of the iteration we sometimes wake
-                    // the mio waker, and if the waker is already awaken before we call poll(),
+                    // the calloop waker, and if the waker is already awaken before we call poll(),
                     // then poll doesn't block, but it returns immediately. This caused the event
                     // loop to run continuously even if the control_flow was `Wait`
                     continue;
