@@ -133,7 +133,6 @@ package = "web-sys"
 version = "0.3.22"
 features = [
     'console',
-    "AddEventListenerOptions",
     'CssStyleDeclaration',
     'BeforeUnloadEvent',
     'Document',
@@ -148,7 +147,6 @@ features = [
     'KeyboardEvent',
     'MediaQueryList',
     'MediaQueryListEvent',
-    'MouseEvent',
     'Node',
     'PointerEvent',
     'Window',

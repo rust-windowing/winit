@@ -57,6 +57,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web: fix position of touch events to be relative to the canvas.
 - On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
   a transient activation.
+- **Breaking:** The minimum required version of Safari is now 13.
 
 # 0.28.6
 

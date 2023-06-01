@@ -1,3 +1,5 @@
+use self::pointer_handler::PointerHandler;
+
 use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
@@ -16,11 +18,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
-    MediaQueryListEvent, MouseEvent, WheelEvent,
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, WheelEvent,
 };
 
-mod mouse_handler;
 mod pointer_handler;
 
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub struct Canvas {
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
-    mouse_state: MouseState,
+    on_pointer: PointerHandler,
 }
 
 struct Common {
@@ -74,12 +74,6 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let mouse_state = if has_pointer_event() {
-            MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
-        } else {
-            MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
-        };
-
         Ok(Canvas {
             common: Common {
                 raw: canvas,
@@ -94,7 +88,7 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
-            mouse_state,
+            on_pointer: PointerHandler::new(),
         })
     }
 
@@ -225,20 +219,14 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, ModifiersState),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
-        }
+        self.on_pointer.on_cursor_leave(&self.common, handler)
     }
 
     pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, ModifiersState),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
-            MouseState::NoPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
-        }
+        self.on_pointer.on_cursor_enter(&self.common, handler)
     }
 
     pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
@@ -246,12 +234,8 @@ impl Canvas {
         M: 'static + FnMut(i32, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_mouse_release(&self.common, mouse_handler, touch_handler)
-            }
-            MouseState::NoPointerEvent(h) => h.on_mouse_release(&self.common, mouse_handler),
-        }
+        self.on_pointer
+            .on_mouse_release(&self.common, mouse_handler, touch_handler)
     }
 
     pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
@@ -259,12 +243,8 @@ impl Canvas {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_mouse_press(&self.common, mouse_handler, touch_handler)
-            }
-            MouseState::NoPointerEvent(h) => h.on_mouse_press(&self.common, mouse_handler),
-        }
+        self.on_pointer
+            .on_mouse_press(&self.common, mouse_handler, touch_handler)
     }
 
     pub fn on_cursor_move<M, T>(
@@ -276,21 +256,15 @@ impl Canvas {
         M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_cursor_move(&self.common, mouse_handler, touch_handler, prevent_default)
-            }
-            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, mouse_handler),
-        }
+        self.on_pointer
+            .on_cursor_move(&self.common, mouse_handler, touch_handler, prevent_default)
     }
 
     pub fn on_touch_cancel<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
-            h.on_touch_cancel(&self.common, handler)
-        }
+        self.on_pointer.on_touch_cancel(&self.common, handler)
     }
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
@@ -347,10 +321,7 @@ impl Canvas {
         self.on_mouse_wheel = None;
         self.on_fullscreen_change = None;
         self.on_dark_mode = None;
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.remove_listeners(),
-            MouseState::NoPointerEvent(h) => h.remove_listeners(),
-        }
+        self.on_pointer.remove_listeners()
     }
 }
 
@@ -404,43 +375,6 @@ impl Common {
         })
     }
 
-    // This function is used exclusively for mouse events (not pointer events).
-    // Due to the need for mouse capturing, the mouse event handlers are added
-    // to the window instead of the canvas element, which requires special
-    // handling to control event propagation.
-    fn add_window_mouse_event<F>(
-        &self,
-        event_name: &'static str,
-        mut handler: F,
-    ) -> EventListenerHandle<dyn FnMut(MouseEvent)>
-    where
-        F: 'static + FnMut(MouseEvent),
-    {
-        let wants_fullscreen = self.wants_fullscreen.clone();
-        let canvas = self.raw.clone();
-        let window = web_sys::window().expect("Failed to obtain window");
-
-        let closure = Closure::wrap(Box::new(move |event: MouseEvent| {
-            handler(event);
-
-            if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
-                *wants_fullscreen.borrow_mut() = false;
-            }
-        }) as Box<dyn FnMut(_)>);
-
-        let listener = EventListenerHandle::with_options(
-            &window,
-            event_name,
-            closure,
-            AddEventListenerOptions::new().capture(true),
-        );
-
-        listener
-    }
-
     pub fn request_fullscreen(&self) {
         #[wasm_bindgen]
         extern "C" {
@@ -470,23 +404,5 @@ impl Common {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
-    }
-}
-
-/// Pointer events are supported or not.
-enum MouseState {
-    HasPointerEvent(pointer_handler::PointerHandler),
-    NoPointerEvent(mouse_handler::MouseHandler),
-}
-
-/// Returns whether pointer events are supported.
-/// Used to decide whether to use pointer events
-/// or plain mouse events. Note that Safari
-/// doesn't support pointer events now.
-fn has_pointer_event() -> bool {
-    if let Some(window) = web_sys::window() {
-        window.get("PointerEvent").is_some()
-    } else {
-        false
     }
 }
