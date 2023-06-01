@@ -1,12 +1,13 @@
-use std::{fmt, io, mem, path::Path, sync::Arc};
+use std::{ffi::c_void, fmt, io, mem, path::Path, ptr::null, sync::Arc};
 
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
+        Graphics::Gdi::CreateBitmap,
         UI::WindowsAndMessaging::{
-            CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
-            IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
+            CreateIcon, CreateIconIndirect, DestroyIcon, LoadImageW, SendMessageW, HICON, ICONINFO,
+            ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
         },
     },
 };
@@ -19,6 +20,24 @@ use super::util;
 impl Pixel {
     fn convert_to_bgra(&mut self) {
         mem::swap(&mut self.r, &mut self.b);
+    }
+}
+
+impl Icon {
+    /// Creates an cursor icon from 32bpp RGBA data with hotspot
+    ///
+    /// The length of `rgba` must be divisible by 4, and `width * height` must equal
+    /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
+    pub fn from_rgba_cursor(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadIcon> {
+        Ok(Icon {
+            inner: WinIcon::from_rgba_cursor(rgba, width, height, hotspot_x, hotspot_y)?,
+        })
     }
 }
 
@@ -44,6 +63,40 @@ impl RgbaIcon {
                 and_mask.as_ptr(),
                 rgba.as_ptr(),
             )
+        };
+        if handle != 0 {
+            Ok(WinIcon::from_handle(handle))
+        } else {
+            Err(BadIcon::OsError(io::Error::last_os_error()))
+        }
+    }
+    fn into_windows_cursor_icon(self, hotspot_x: u32, hotspot_y: u32) -> Result<WinIcon, BadIcon> {
+        let rgba = self.rgba;
+        let pixel_count = rgba.len() / PIXEL_SIZE;
+        let pixels =
+            unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
+        for pixel in pixels {
+            pixel.convert_to_bgra();
+        }
+        let handle = unsafe {
+            let hbm_mask = CreateBitmap(self.width as i32, self.height as i32, 1, 1, null());
+            let hbm_color = CreateBitmap(
+                self.width as i32,
+                self.height as i32,
+                1,
+                (PIXEL_SIZE * 8) as u32,
+                rgba.as_ptr() as *const c_void,
+            );
+
+            let icon_info = ICONINFO {
+                fIcon: 0,
+                xHotspot: hotspot_x,
+                yHotspot: hotspot_y,
+                hbmMask: hbm_mask,
+                hbmColor: hbm_color,
+            };
+
+            CreateIconIndirect(&icon_info as *const _)
         };
         if handle != 0 {
             Ok(WinIcon::from_handle(handle))
@@ -128,6 +181,17 @@ impl WinIcon {
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
         let rgba_icon = RgbaIcon::from_rgba(rgba, width, height)?;
         rgba_icon.into_windows_icon()
+    }
+
+    pub fn from_rgba_cursor(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadIcon> {
+        let rgba_icon = RgbaIcon::from_rgba(rgba, width, height)?;
+        rgba_icon.into_windows_cursor_icon(hotspot_x, hotspot_y)
     }
 
     pub fn set_for_window(&self, hwnd: HWND, icon_type: IconType) {
