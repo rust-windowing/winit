@@ -2004,26 +2004,35 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_SETCURSOR => {
-            let set_cursor_to = {
+            let (set_cursor_to, custom_cursor) = {
                 let window_state = userdata.window_state_lock();
                 // The return value for the preceding `WM_NCHITTEST` message is conveniently
                 // provided through the low-order word of lParam. We use that here since
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
                 let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
                 if in_client_area {
-                    Some(window_state.mouse.cursor)
+                    (
+                        Some(window_state.mouse.cursor),
+                        window_state
+                            .mouse
+                            .custom_cursor
+                            .as_ref()
+                            .and_then(|v| Some(v.inner.as_raw_handle())),
+                    )
                 } else {
-                    None
+                    (None, None)
                 }
             };
 
-            match set_cursor_to {
-                Some(cursor) => {
-                    let cursor = unsafe { LoadCursorW(0, util::to_windows_cursor(cursor)) };
-                    unsafe { SetCursor(cursor) };
-                    result = ProcResult::Value(0);
-                }
-                None => result = ProcResult::DefWindowProc(wparam),
+            if let Some(cursor) = custom_cursor {
+                unsafe { SetCursor(cursor) };
+                result = ProcResult::Value(0);
+            } else if let Some(cursor) = set_cursor_to {
+                let cursor = unsafe { LoadCursorW(0, util::to_windows_cursor(cursor)) };
+                unsafe { SetCursor(cursor) };
+                result = ProcResult::Value(0);
+            } else {
+                result = ProcResult::DefWindowProc(wparam)
             }
         }
 
