@@ -93,6 +93,16 @@ pub trait WindowExtWayland {
     ///
     /// The pointer will become invalid when the [`Window`] is destroyed.
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
+
+    fn set_anchor(&self, anchor: Anchor);
+
+    fn set_exclusive_zone(&self, exclusive_zone: i32);
+
+    fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32);
+
+    fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity);
+
+    fn set_layer(&self, anchor: Layer);
 }
 
 impl WindowExtWayland for Window {
@@ -111,6 +121,46 @@ impl WindowExtWayland for Window {
             LinuxWindow::Wayland(ref w) => Some(w.display().id().as_ptr() as *mut _),
             #[cfg(x11_platform)]
             _ => None,
+        }
+    }
+
+    fn set_anchor(&self, anchor: Anchor) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_anchor(anchor),
+            #[cfg(x11_platform)]
+            _ => {}
+        }
+    }
+
+    fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_exclusive_zone(exclusive_zone),
+            #[cfg(x11_platform)]
+            _ => {}
+        }
+    }
+
+    fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_margin(top, right, bottom, left),
+            #[cfg(x11_platform)]
+            _ => {}
+        }
+    }
+
+    fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_keyboard_interactivity(keyboard_interactivity),
+            #[cfg(x11_platform)]
+            _ => {}
+        }
+    }
+
+    fn set_layer(&self, layer: Layer) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_layer(layer),
+            #[cfg(x11_platform)]
+            _ => {}
         }
     }
 }

@@ -15,7 +15,7 @@ use sctk::reexports::client::QueueHandle;
 
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::shell::wlr_layer::{Anchor, LayerSurface};
+use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerSurface};
 use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
@@ -106,7 +106,7 @@ impl Window {
             .map(|size| size.to_logical::<u32>(1.))
             .unwrap_or((800, 600).into());
 
-        let (window, mut window_state) = if let Some(layer) = platform_attributes.layer_shell {
+        let (window, window_state) = if let Some(layer) = platform_attributes.layer_shell {
             let layer_surface = state.layer_shell.create_layer_surface(
                 &queue_handle,
                 surface.clone(),
@@ -640,6 +640,32 @@ impl Window {
     pub fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()
     }
+
+    #[inline]
+    pub fn set_anchor(&self, anchor: Anchor) {
+        self.window.set_anchor(anchor);
+    }
+
+    #[inline]
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        self.window.set_margin(top, right, bottom, left);
+    }
+
+    #[inline]
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        self.window.set_exclusive_zone(exclusive_zone);
+    }
+
+    #[inline]
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        self.window
+            .set_keyboard_interactivity(keyboard_interactivity);
+    }
+
+    #[inline]
+    pub fn set_layer(&self, layer: Layer) {
+        self.window.set_layer(layer);
+    }
 }
 
 impl Drop for Window {
@@ -697,6 +723,43 @@ impl WindowShell {
         match self {
             WindowShell::Xdg { window } => window.wl_surface(),
             WindowShell::WlrLayer { surface } => surface.wl_surface(),
+        }
+    }
+
+    pub fn set_anchor(&self, anchor: Anchor) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_anchor(anchor),
+            WindowShell::Xdg { .. } => warn!("Anchor is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_margin(top, right, bottom, left),
+            WindowShell::Xdg { .. } => warn!("Margin is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_exclusive_zone(exclusive_zone),
+            WindowShell::Xdg { .. } => warn!("Exclusive zone is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        match self {
+            WindowShell::WlrLayer { surface } => {
+                surface.set_keyboard_interactivity(keyboard_interactivity)
+            }
+            WindowShell::Xdg { .. } => warn!("Keyboard interactivity is ignored for XDG windows"),
+        }
+    }
+
+    pub fn set_layer(&self, layer: Layer) {
+        match self {
+            WindowShell::WlrLayer { surface } => surface.set_layer(layer),
+            WindowShell::Xdg { .. } => warn!("Layer is ignored for XDG windows"),
         }
     }
 }

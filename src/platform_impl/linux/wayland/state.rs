@@ -325,7 +325,7 @@ impl LayerShellHandler for WinitState {
             .unwrap()
             .configure_layer(configure);
 
-        // self.window_compositor_updates[pos].size = Some(new_size);
+        self.window_compositor_updates[pos].size = Some(new_size);
     }
 }
 

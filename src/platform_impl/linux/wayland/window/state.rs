@@ -261,7 +261,7 @@ impl WindowState {
         }
     }
 
-    pub fn configure_layer(&mut self, configure: LayerSurfaceConfigure) {
+    pub fn configure_layer(&mut self, configure: LayerSurfaceConfigure) -> LogicalSize<u32> {
         match &mut self.shell_specific {
             ShellSpecificState::WlrLayer { last_configure, .. } => {
                 let new_size = match configure.new_size {
@@ -276,6 +276,8 @@ impl WindowState {
 
                 // XXX Update the new size right away.
                 self.resize(new_size);
+
+                new_size
             }
             ShellSpecificState::Xdg { .. } => unreachable!(), // TODO(theonlymrcat): Replace this match with let...else
         }
