@@ -1,7 +1,5 @@
 #![allow(clippy::single_match)]
 
-use std::path::Path;
-
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
@@ -104,6 +102,10 @@ const CURSORS: &[CursorIcon] = &[
     CursorIcon::RowResize,
 ];
 
+#[cfg(windows_platform)]
+use std::path::Path;
+
+#[cfg(windows_platform)]
 fn load_icon(path: &Path) -> Icon {
     let (icon_rgba, icon_width, icon_height) = {
         let image = image::open(path)

@@ -1352,9 +1352,9 @@ impl Window {
     ///
     ///  - Only **Windows** supported for now.
     #[inline]
-    pub fn set_cursor_custom_icon(&self, cursor: Icon) {
+    pub fn set_cursor_custom_icon(&self, _cursor: Icon) {
         #[cfg(windows_platform)]
-        self.window.set_cursor_custom_icon(cursor);
+        self.window.set_cursor_custom_icon(_cursor);
     }
 
     /// Changes the position of the cursor in window coordinates.
