@@ -1,10 +1,13 @@
 #![allow(clippy::single_match)]
 
+use std::path::Path;
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    window::{CursorIcon, WindowBuilder},
+    keyboard::{KeyCode, PhysicalKey},
+    window::{CursorIcon, Icon, WindowBuilder},
 };
 
 #[path = "util/fill.rs"]
@@ -22,6 +25,20 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            physical_key: PhysicalKey::Code(KeyCode::KeyC),
+                            ..
+                        },
+                    ..
+                } => {
+                    println!("Setting cursor to custom");
+                    let path: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
+                    let icon = load_icon(Path::new(path));
+                    window.set_cursor_custom_icon(icon.clone());
+                }
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -86,3 +103,15 @@ const CURSORS: &[CursorIcon] = &[
     CursorIcon::ColResize,
     CursorIcon::RowResize,
 ];
+
+fn load_icon(path: &Path) -> Icon {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+}
