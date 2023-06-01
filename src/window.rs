@@ -1353,6 +1353,7 @@ impl Window {
     ///  - Only **Windows** supported for now.
     #[inline]
     pub fn set_cursor_custom_icon(&self, cursor: Icon) {
+        #[cfg(windows_platform)]
         self.window.set_cursor_custom_icon(cursor);
     }
 
