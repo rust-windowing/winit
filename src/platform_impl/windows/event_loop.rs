@@ -2017,7 +2017,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             .mouse
                             .custom_cursor
                             .as_ref()
-                            .and_then(|v| Some(v.inner.as_raw_handle())),
+                            .map(|v| v.inner.as_raw_handle()),
                     )
                 } else {
                     (None, None)
