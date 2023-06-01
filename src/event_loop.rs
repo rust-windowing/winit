@@ -11,9 +11,12 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
 
-use instant::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
+#[cfg(not(wasm_platform))]
+use std::time::{Duration, Instant};
+#[cfg(wasm_platform)]
+use web_time::{Duration, Instant};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 

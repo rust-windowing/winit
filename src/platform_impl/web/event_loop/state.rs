@@ -1,7 +1,7 @@
 use super::backend;
 use crate::event_loop::ControlFlow;
 
-use instant::Instant;
+use web_time::Instant;
 
 #[derive(Debug)]
 pub enum State {
