@@ -1,7 +1,10 @@
 #![allow(clippy::single_match)]
 
-use instant::Instant;
 use std::time::Duration;
+#[cfg(not(wasm_platform))]
+use std::time::Instant;
+#[cfg(wasm_platform)]
+use web_time::Instant;
 
 use simple_logger::SimpleLogger;
 use winit::{

@@ -3,7 +3,6 @@ use crate::event::{Event, StartCause};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 
-use instant::{Duration, Instant};
 use std::{
     cell::RefCell,
     clone::Clone,
@@ -12,6 +11,7 @@ use std::{
     ops::Deref,
     rc::{Rc, Weak},
 };
+use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 

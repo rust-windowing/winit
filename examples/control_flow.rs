@@ -1,6 +1,10 @@
 #![allow(clippy::single_match)]
 
-use std::{thread, time};
+use std::thread;
+#[cfg(not(wasm_platform))]
+use std::time;
+#[cfg(wasm_platform)]
+use web_time as time;
 
 use simple_logger::SimpleLogger;
 use winit::{
@@ -102,7 +106,7 @@ fn main() {
                     Mode::Wait => control_flow.set_wait(),
                     Mode::WaitUntil => {
                         if !wait_cancelled {
-                            control_flow.set_wait_until(instant::Instant::now() + WAIT_TIME);
+                            control_flow.set_wait_until(time::Instant::now() + WAIT_TIME);
                         }
                     }
                     Mode::Poll => {
