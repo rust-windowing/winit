@@ -71,6 +71,7 @@ pub struct MouseProperties {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CursorFlags: u8 {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
@@ -78,6 +79,7 @@ bitflags! {
     }
 }
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowFlags: u32 {
         const RESIZABLE         = 1 << 0;
         const MINIMIZABLE       = 1 << 1;
@@ -118,7 +120,7 @@ bitflags! {
 
         const MARKER_ACTIVATE = 1 << 21;
 
-        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
 

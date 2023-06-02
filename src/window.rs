@@ -1480,6 +1480,7 @@ pub enum UserAttentionType {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowButtons: u32 {
         const CLOSE  = 1 << 0;
         const MINIMIZE  = 1 << 1;

@@ -109,6 +109,7 @@ unsafe impl Encode for NSApplicationActivationPolicy {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct NSApplicationPresentationOptions: NSUInteger {
         const NSApplicationPresentationDefault = 0;
         const NSApplicationPresentationAutoHideDock = 1 << 0;

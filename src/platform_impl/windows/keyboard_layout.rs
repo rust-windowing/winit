@@ -105,6 +105,7 @@ static NUMPAD_KEYCODES: Lazy<HashSet<KeyCode>> = Lazy::new(|| {
 });
 
 bitflags! {
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowsModifiers : u8 {
         const SHIFT = 1 << 0;
         const CONTROL = 1 << 1;
@@ -362,11 +363,11 @@ impl LayoutCache {
         }
 
         // Iterate through every combination of modifiers
-        let mods_end = WindowsModifiers::FLAGS_END.bits;
+        let mods_end = WindowsModifiers::FLAGS_END.bits();
         for mod_state in 0..mods_end {
             let mut keys_for_this_mod = HashMap::with_capacity(256);
 
-            let mod_state = unsafe { WindowsModifiers::from_bits_unchecked(mod_state) };
+            let mod_state = WindowsModifiers::from_bits_retain(mod_state);
             mod_state.apply_to_kbd_state(&mut key_state);
 
             // Virtual key values are in the domain [0, 255].
@@ -442,7 +443,7 @@ impl LayoutCache {
         // Second pass: replace right alt keys with AltGr if the layout has alt graph
         if layout.has_alt_graph {
             for mod_state in 0..mods_end {
-                let mod_state = unsafe { WindowsModifiers::from_bits_unchecked(mod_state) };
+                let mod_state = WindowsModifiers::from_bits_retain(mod_state);
                 if let Some(keys) = layout.keys.get_mut(&mod_state) {
                     if let Some(key) = keys.get_mut(&KeyCode::AltRight) {
                         *key = Key::AltGraph;
