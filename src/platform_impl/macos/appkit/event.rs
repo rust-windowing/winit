@@ -194,7 +194,7 @@ const NX_DEVICERALTKEYMASK: u32 = 0x00000040;
 const NX_DEVICERCTLKEYMASK: u32 = 0x00002000;
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct NSEventModifierFlags: NSUInteger {
         const NSAlphaShiftKeyMask                     = 1 << 16;
         const NSShiftKeyMask                          = 1 << 17;
@@ -213,7 +213,7 @@ unsafe impl Encode for NSEventModifierFlags {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct NSEventPhase: NSUInteger {
        const NSEventPhaseNone        = 0;
        const NSEventPhaseBegan       = 0x1 << 0;

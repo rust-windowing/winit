@@ -1572,7 +1572,7 @@ bitflags! {
     /// Represents the current state of the keyboard modifiers
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
-    #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ModifiersState: u32 {
         /// The "shift" key.
         const SHIFT = 0b100;
@@ -1623,7 +1623,7 @@ pub enum ModifiersKeyState {
 // to treat modifiers differently based on their position, which is required
 // on macOS due to their AltGr/Option situation.
 bitflags! {
-    #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ModifiersKeys: u8 {
         const LSHIFT   = 0b0000_0001;
         const RSHIFT   = 0b0000_0010;

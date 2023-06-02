@@ -347,7 +347,7 @@ unsafe impl Encode for NSWindowOcclusionState {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct NSWindowStyleMask: NSUInteger {
         const NSBorderlessWindowMask      = 0;
         const NSTitledWindowMask          = 1 << 0;

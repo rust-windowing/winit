@@ -71,7 +71,7 @@ enum ImeState {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq)]
     struct ModLocationMask: u8 {
         const LEFT = 1;
         const RIGHT = 2;
