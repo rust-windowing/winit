@@ -7,6 +7,7 @@ use crate::keyboard::ModifiersState;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use event::ButtonsState;
 use web_sys::{EventTarget, MouseEvent};
 
 type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32, ModifiersState)>>>>;
@@ -108,8 +109,11 @@ impl MouseHandler {
                     MouseCaptureState::Captured => {}
                 }
                 event.stop_propagation();
-                let modifiers = event::mouse_modifiers(&event);
-                handler(0, event::mouse_button(&event), modifiers);
+                handler(
+                    0,
+                    event::mouse_button(&event).expect("no mouse button released"),
+                    event::mouse_modifiers(&event),
+                );
                 if event
                     .target()
                     .map_or(false, |target| target != EventTarget::from(canvas))
@@ -158,12 +162,11 @@ impl MouseHandler {
                 }
                 *mouse_capture_state = MouseCaptureState::Captured;
                 event.stop_propagation();
-                let modifiers = event::mouse_modifiers(&event);
                 handler(
                     0,
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                    event::mouse_button(&event),
-                    modifiers,
+                    event::mouse_button(&event).expect("no mouse button pressed"),
+                    event::mouse_modifiers(&event),
                 );
             },
         ));
@@ -171,7 +174,15 @@ impl MouseHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        F: 'static
+            + FnMut(
+                i32,
+                PhysicalPosition<f64>,
+                PhysicalPosition<f64>,
+                ModifiersState,
+                ButtonsState,
+                Option<MouseButton>,
+            ),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
@@ -202,12 +213,13 @@ impl MouseHandler {
                             event::mouse_position_by_client(&event, &canvas)
                         };
                         let mouse_delta = event::mouse_delta(&event);
-                        let modifiers = event::mouse_modifiers(&event);
                         handler(
                             0,
                             mouse_pos.to_physical(super::super::scale_factor()),
                             mouse_delta.to_physical(super::super::scale_factor()),
-                            modifiers,
+                            event::mouse_modifiers(&event),
+                            event::mouse_buttons(&event),
+                            event::mouse_button(&event),
                         );
                     }
                 }

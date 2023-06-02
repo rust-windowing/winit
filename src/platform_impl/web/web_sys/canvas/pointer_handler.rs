@@ -4,6 +4,7 @@ use crate::dpi::PhysicalPosition;
 use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
+use event::ButtonsState;
 use web_sys::PointerEvent;
 
 #[allow(dead_code)]
@@ -42,8 +43,7 @@ impl PointerHandler {
                     return;
                 }
 
-                let modifiers = event::mouse_modifiers(&event);
-                handler(event.pointer_id(), modifiers);
+                handler(event.pointer_id(), event::mouse_modifiers(&event));
             },
         ));
     }
@@ -62,8 +62,7 @@ impl PointerHandler {
                     return;
                 }
 
-                let modifiers = event::mouse_modifiers(&event);
-                handler(event.pointer_id(), modifiers);
+                handler(event.pointer_id(), event::mouse_modifiers(&event));
             },
         ));
     }
@@ -89,8 +88,11 @@ impl PointerHandler {
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
-                    let modifiers = event::mouse_modifiers(&event);
-                    mouse_handler(event.pointer_id(), event::mouse_button(&event), modifiers);
+                    mouse_handler(
+                        event.pointer_id(),
+                        event::mouse_button(&event).expect("no mouse button released"),
+                        event::mouse_modifiers(&event),
+                    );
                 }
             },
         ));
@@ -117,12 +119,11 @@ impl PointerHandler {
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
-                    let modifiers = event::mouse_modifiers(&event);
                     mouse_handler(
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                        event::mouse_button(&event),
-                        modifiers,
+                        event::mouse_button(&event).expect("no mouse button pressed"),
+                        event::mouse_modifiers(&event),
                     );
 
                     // Error is swallowed here since the error would occur every time the mouse is
@@ -141,7 +142,15 @@ impl PointerHandler {
         mut touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        M: 'static
+            + FnMut(
+                i32,
+                PhysicalPosition<f64>,
+                PhysicalPosition<f64>,
+                ModifiersState,
+                ButtonsState,
+                Option<MouseButton>,
+            ),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -160,12 +169,13 @@ impl PointerHandler {
                         Force::Normalized(event.pressure() as f64),
                     );
                 } else {
-                    let modifiers = event::mouse_modifiers(&event);
                     mouse_handler(
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::super::scale_factor()),
                         event::mouse_delta(&event).to_physical(super::super::scale_factor()),
-                        modifiers,
+                        event::mouse_modifiers(&event),
+                        event::mouse_buttons(&event),
+                        event::mouse_button(&event),
                     );
                 }
             },
