@@ -6,12 +6,50 @@ use smol_str::SmolStr;
 use std::convert::TryInto;
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
-pub fn mouse_button(event: &MouseEvent) -> MouseButton {
+bitflags! {
+    pub struct ButtonsState: u16 {
+        const LEFT   = 0b001;
+        const RIGHT  = 0b010;
+        const MIDDLE = 0b100;
+    }
+}
+
+impl From<ButtonsState> for MouseButton {
+    fn from(value: ButtonsState) -> Self {
+        match value {
+            ButtonsState::LEFT => MouseButton::Left,
+            ButtonsState::RIGHT => MouseButton::Right,
+            ButtonsState::MIDDLE => MouseButton::Middle,
+            _ => MouseButton::Other(value.bits()),
+        }
+    }
+}
+
+impl From<MouseButton> for ButtonsState {
+    fn from(value: MouseButton) -> Self {
+        match value {
+            MouseButton::Left => ButtonsState::LEFT,
+            MouseButton::Right => ButtonsState::RIGHT,
+            MouseButton::Middle => ButtonsState::MIDDLE,
+            MouseButton::Other(value) => unsafe { ButtonsState::from_bits_unchecked(value) },
+        }
+    }
+}
+
+pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
+    unsafe { ButtonsState::from_bits_unchecked(event.buttons()) }
+}
+
+pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
     match event.button() {
-        0 => MouseButton::Left,
-        1 => MouseButton::Middle,
-        2 => MouseButton::Right,
-        i => MouseButton::Other((i - 3).try_into().expect("very large mouse button value")),
+        -1 => None,
+        0 => Some(MouseButton::Left),
+        1 => Some(MouseButton::Middle),
+        2 => Some(MouseButton::Right),
+        i => Some(MouseButton::Other(
+            i.try_into()
+                .expect("unexpected negative mouse button value"),
+        )),
     }
 }
 

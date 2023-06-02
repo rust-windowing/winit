@@ -6,6 +6,7 @@ mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::event::ButtonsState;
 pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 

@@ -1,6 +1,6 @@
-use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
+use super::{event, ButtonsState};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
@@ -273,7 +273,15 @@ impl Canvas {
         touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        M: 'static
+            + FnMut(
+                i32,
+                PhysicalPosition<f64>,
+                PhysicalPosition<f64>,
+                ModifiersState,
+                ButtonsState,
+                Option<MouseButton>,
+            ),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
