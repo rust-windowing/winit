@@ -1027,6 +1027,8 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
     // The buttonNumber property only makes sense for the mouse events:
     // NSLeftMouse.../NSRightMouse.../NSOtherMouse...
     // For the other events, it's always set to 0.
+    // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
+    // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
     match event.buttonNumber() {
         0 => MouseButton::Left,
         1 => MouseButton::Right,
