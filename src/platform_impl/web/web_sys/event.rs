@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 bitflags! {
-    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ButtonsState: u16 {
         const LEFT   = 0b001;
         const RIGHT  = 0b010;

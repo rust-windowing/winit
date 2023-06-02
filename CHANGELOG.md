@@ -59,6 +59,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   a transient activation.
 - On Web, fix pointer button events not being processed when a buttons is already pressed.
 - **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
+- On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
 
 # 0.28.6
 
