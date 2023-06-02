@@ -41,7 +41,7 @@ impl PointerHandler {
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                if event.pointer_type() == "touch" {
+                if event.pointer_type() != "mouse" {
                     return;
                 }
 
@@ -60,7 +60,7 @@ impl PointerHandler {
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                if event.pointer_type() == "touch" {
+                if event.pointer_type() != "mouse" {
                     return;
                 }
 
@@ -82,19 +82,19 @@ impl PointerHandler {
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
-                if event.pointer_type() == "touch" {
-                    touch_handler(
+                match event.pointer_type().as_str() {
+                    "touch" => touch_handler(
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
                             .to_physical(super::super::scale_factor()),
                         Force::Normalized(event.pressure() as f64),
-                    );
-                } else {
-                    mouse_handler(
+                    ),
+                    "mouse" => mouse_handler(
                         event.pointer_id(),
                         event::mouse_button(&event).expect("no mouse button released"),
                         event::mouse_modifiers(&event),
-                    );
+                    ),
+                    _ => (),
                 }
             },
         ));
@@ -113,25 +113,29 @@ impl PointerHandler {
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
             move |event: PointerEvent| {
-                if event.pointer_type() == "touch" {
-                    touch_handler(
-                        event.pointer_id(),
-                        event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
-                        Force::Normalized(event.pressure() as f64),
-                    );
-                } else {
-                    mouse_handler(
-                        event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                        event::mouse_button(&event).expect("no mouse button pressed"),
-                        event::mouse_modifiers(&event),
-                    );
+                match event.pointer_type().as_str() {
+                    "touch" => {
+                        touch_handler(
+                            event.pointer_id(),
+                            event::touch_position(&event, &canvas)
+                                .to_physical(super::super::scale_factor()),
+                            Force::Normalized(event.pressure() as f64),
+                        );
+                    }
+                    "mouse" => {
+                        mouse_handler(
+                            event.pointer_id(),
+                            event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                            event::mouse_button(&event).expect("no mouse button pressed"),
+                            event::mouse_modifiers(&event),
+                        );
 
-                    // Error is swallowed here since the error would occur every time the mouse is
-                    // clicked when the cursor is grabbed, and there is probably not a situation where
-                    // this could fail, that we care if it fails.
-                    let _e = canvas.set_pointer_capture(event.pointer_id());
+                        // Error is swallowed here since the error would occur every time the mouse is
+                        // clicked when the cursor is grabbed, and there is probably not a situation where
+                        // this could fail, that we care if it fails.
+                        let _e = canvas.set_pointer_capture(event.pointer_id());
+                    }
+                    _ => (),
                 }
             },
         ));
@@ -169,16 +173,22 @@ impl PointerHandler {
                     fn has_get_coalesced_events(this: &PointerEventExt) -> JsValue;
                 }
 
-                if event.pointer_type() == "touch" && prevent_default {
-                    // prevent scroll on mobile web
-                    event.prevent_default();
+                match event.pointer_type().as_str() {
+                    "touch" => {
+                        if prevent_default {
+                            // prevent scroll on mobile web
+                            event.prevent_default();
+                        }
+                    }
+                    "mouse" => (),
+                    _ => return,
                 }
 
                 let event: PointerEventExt = event.unchecked_into();
 
                 let id = event.pointer_id();
                 // cache buttons if the pointer is a mouse
-                let mouse = (event.pointer_type() != "touch").then(|| {
+                let mouse = (event.pointer_type() == "mouse").then(|| {
                     (
                         event::mouse_modifiers(&event),
                         event::mouse_buttons(&event),

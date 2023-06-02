@@ -62,6 +62,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
 - **Breaking:** On Web, `instant` is now replaced by `web_time`.
 - On Windows, port to `windows-sys` version 0.48.0.
+- On Web, fix pen treated as mouse input.
 
 # 0.28.6
 
