@@ -7,6 +7,7 @@ use std::convert::TryInto;
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 bitflags! {
+    #[derive(Clone, Copy, Eq, PartialEq)]
     pub struct ButtonsState: u16 {
         const LEFT   = 0b001;
         const RIGHT  = 0b010;
@@ -31,13 +32,13 @@ impl From<MouseButton> for ButtonsState {
             MouseButton::Left => ButtonsState::LEFT,
             MouseButton::Right => ButtonsState::RIGHT,
             MouseButton::Middle => ButtonsState::MIDDLE,
-            MouseButton::Other(value) => unsafe { ButtonsState::from_bits_unchecked(value) },
+            MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
         }
     }
 }
 
 pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
-    unsafe { ButtonsState::from_bits_unchecked(event.buttons()) }
+    ButtonsState::from_bits_retain(event.buttons())
 }
 
 pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
