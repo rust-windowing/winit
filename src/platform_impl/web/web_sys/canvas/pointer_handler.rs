@@ -5,6 +5,8 @@ use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
 use event::ButtonsState;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::PointerEvent;
 
 #[allow(dead_code)]
@@ -157,26 +159,76 @@ impl PointerHandler {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
-                if event.pointer_type() == "touch" {
-                    if prevent_default {
-                        // prevent scroll on mobile web
-                        event.prevent_default();
-                    }
-                    touch_handler(
-                        event.pointer_id(),
-                        event::touch_position(&event, &canvas)
-                            .to_physical(super::super::scale_factor()),
-                        Force::Normalized(event.pressure() as f64),
-                    );
-                } else {
-                    mouse_handler(
-                        event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                        event::mouse_delta(&event).to_physical(super::super::scale_factor()),
+                // coalesced events are not available on Safari
+                #[wasm_bindgen]
+                extern "C" {
+                    #[wasm_bindgen(extends = PointerEvent)]
+                    type PointerEventExt;
+
+                    #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
+                    fn has_get_coalesced_events(this: &PointerEventExt) -> JsValue;
+                }
+
+                if event.pointer_type() == "touch" && prevent_default {
+                    // prevent scroll on mobile web
+                    event.prevent_default();
+                }
+
+                let event: PointerEventExt = event.unchecked_into();
+
+                let id = event.pointer_id();
+                // cache buttons if the pointer is a mouse
+                let mouse = (event.pointer_type() != "touch").then(|| {
+                    (
                         event::mouse_modifiers(&event),
                         event::mouse_buttons(&event),
                         event::mouse_button(&event),
-                    );
+                    )
+                });
+
+                // store coalesced events to extend it's lifetime
+                let events = (!event.has_get_coalesced_events().is_undefined())
+                    .then(|| event.get_coalesced_events())
+                    // if coalesced events is empty, it's a chorded button event
+                    .filter(|events| events.length() != 0);
+
+                // make a single iterator depending on the availability of coalesced events
+                let events = if let Some(events) = &events {
+                    None.into_iter().chain(
+                        Some(events.iter().map(PointerEventExt::unchecked_from_js))
+                            .into_iter()
+                            .flatten(),
+                    )
+                } else {
+                    Some(event).into_iter().chain(None.into_iter().flatten())
+                };
+
+                for event in events {
+                    // coalesced events should always have the same source as the root event
+                    debug_assert_eq!(id, event.pointer_id());
+                    debug_assert_eq!(mouse.is_none(), event.pointer_type() == "touch");
+
+                    if let Some((modifiers, buttons, button)) = mouse {
+                        // coalesced events should have the same buttons
+                        debug_assert_eq!(modifiers, event::mouse_modifiers(&event));
+                        debug_assert_eq!(buttons, event::mouse_buttons(&event));
+
+                        mouse_handler(
+                            id,
+                            event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                            event::mouse_delta(&event).to_physical(super::super::scale_factor()),
+                            modifiers,
+                            buttons,
+                            button,
+                        );
+                    } else {
+                        touch_handler(
+                            id,
+                            event::touch_position(&event, &canvas)
+                                .to_physical(super::super::scale_factor()),
+                            Force::Normalized(event.pressure() as f64),
+                        );
+                    }
                 }
             },
         ));
