@@ -244,23 +244,67 @@ impl<T> EventLoopWindowTarget<T> {
             )));
         });
 
-        let runner = self.runner.clone();
-        let runner_touch = self.runner.clone();
-        let modifiers = self.modifiers.clone();
-        let has_focus_clone = has_focus.clone();
         canvas.on_cursor_move(
-            move |pointer_id, position, delta, active_modifiers, buttons, button| {
-                let modifiers_changed =
-                    (has_focus_clone.get() && modifiers.get() != active_modifiers).then(|| {
+            {
+                let runner = self.runner.clone();
+                let has_focus = has_focus.clone();
+                let modifiers = self.modifiers.clone();
+
+                move |active_modifiers| {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
-                        Event::WindowEvent {
+                        runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                        })
+                    }
+                }
+            },
+            {
+                let runner = self.runner.clone();
 
-                let button_event = button.map(|button| {
-                    if buttons.contains(button.into()) {
+                move |pointer_id, position, delta| {
+                    runner.send_events(
+                        [
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::CursorMoved {
+                                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                                    position,
+                                },
+                            },
+                            Event::DeviceEvent {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                event: DeviceEvent::MouseMotion {
+                                    delta: (delta.x, delta.y),
+                                },
+                            },
+                        ]
+                        .into_iter(),
+                    );
+                }
+            },
+            {
+                let runner = self.runner.clone();
+
+                move |device_id, location, force| {
+                    runner.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Touch(Touch {
+                            id: device_id as u64,
+                            device_id: RootDeviceId(DeviceId(device_id)),
+                            phase: TouchPhase::Moved,
+                            force: Some(force),
+                            location,
+                        }),
+                    });
+                }
+            },
+            {
+                let runner = self.runner.clone();
+
+                move |pointer_id, position: crate::dpi::PhysicalPosition<f64>, buttons, button| {
+                    let button_event = if buttons.contains(button.into()) {
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::MouseInput {
@@ -278,13 +322,13 @@ impl<T> EventLoopWindowTarget<T> {
                                 button,
                             },
                         }
-                    }
-                });
+                    };
 
-                runner.send_events(
-                    modifiers_changed
-                        .into_iter()
-                        .chain([
+                    // A chorded button event may come in without any prior CursorMoved events,
+                    // therefore we should send a CursorMoved event to make sure that the
+                    // user code has the correct cursor position.
+                    runner.send_events(
+                        [
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
                                 event: WindowEvent::CursorMoved {
@@ -292,27 +336,11 @@ impl<T> EventLoopWindowTarget<T> {
                                     position,
                                 },
                             },
-                            Event::DeviceEvent {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                event: DeviceEvent::MouseMotion {
-                                    delta: (delta.x, delta.y),
-                                },
-                            },
-                        ])
-                        .chain(button_event),
-                );
-            },
-            move |device_id, location, force| {
-                runner_touch.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::Touch(Touch {
-                        id: device_id as u64,
-                        device_id: RootDeviceId(DeviceId(device_id)),
-                        phase: TouchPhase::Moved,
-                        force: Some(force),
-                        location,
-                    }),
-                });
+                            button_event,
+                        ]
+                        .into_iter(),
+                    );
+                }
             },
             prevent_default,
         );

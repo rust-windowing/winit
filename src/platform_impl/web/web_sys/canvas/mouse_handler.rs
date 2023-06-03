@@ -7,7 +7,6 @@ use crate::keyboard::ModifiersState;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use event::ButtonsState;
 use web_sys::{EventTarget, MouseEvent};
 
 type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32, ModifiersState)>>>>;
@@ -172,23 +171,22 @@ impl MouseHandler {
         ));
     }
 
-    pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
-    where
-        F: 'static
-            + FnMut(
-                i32,
-                PhysicalPosition<f64>,
-                PhysicalPosition<f64>,
-                ModifiersState,
-                ButtonsState,
-                Option<MouseButton>,
-            ),
+    pub fn on_cursor_move<MOD, M>(
+        &mut self,
+        canvas_common: &super::Common,
+        mut modifier_handler: MOD,
+        mut mouse_handler: M,
+    ) where
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
         self.on_mouse_move = Some(canvas_common.add_window_mouse_event(
             "mousemove",
             move |event: MouseEvent| {
+                modifier_handler(event::mouse_modifiers(&event));
+
                 let canvas = canvas.clone();
                 let mouse_capture_state = mouse_capture_state.borrow();
                 let is_over_canvas = event
@@ -213,13 +211,10 @@ impl MouseHandler {
                             event::mouse_position_by_client(&event, &canvas)
                         };
                         let mouse_delta = event::mouse_delta(&event);
-                        handler(
+                        mouse_handler(
                             0,
                             mouse_pos.to_physical(super::super::scale_factor()),
                             mouse_delta.to_physical(super::super::scale_factor()),
-                            event::mouse_modifiers(&event),
-                            event::mouse_buttons(&event),
-                            event::mouse_button(&event),
                         );
                     }
                 }
