@@ -65,6 +65,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix pen treated as mouse input.
 - On Web, send mouse position on button release as well.
 - On Web, fix touch input not gaining or loosing focus.
+- **Breaking:** On Web, dropped support for Safari versions below 13.
 
 # 0.28.6
 

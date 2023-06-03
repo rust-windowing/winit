@@ -352,11 +352,10 @@ impl<T> EventLoopWindowTarget<T> {
                 let has_focus = has_focus.clone();
 
                 move |pointer_id, position, button, active_modifiers| {
-                    let focus_changed =
-                        (!has_focus.replace(true)).then_some(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::Focused(true),
-                        });
+                    let focus_changed = (!has_focus.replace(true)).then_some(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Focused(true),
+                    });
 
                     let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
@@ -393,11 +392,10 @@ impl<T> EventLoopWindowTarget<T> {
                 let has_focus = has_focus.clone();
 
                 move |device_id, location, force| {
-                    let focus_changed =
-                        (!has_focus.replace(true)).then_some(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::Focused(true),
-                        });
+                    let focus_changed = (!has_focus.replace(true)).then_some(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Focused(true),
+                    });
 
                     runner.send_events(focus_changed.into_iter().chain(iter::once(
                         Event::WindowEvent {
