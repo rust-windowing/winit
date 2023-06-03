@@ -267,28 +267,31 @@ impl Canvas {
         }
     }
 
-    pub fn on_cursor_move<M, T>(
+    pub fn on_cursor_move<MOD, M, T, B>(
         &mut self,
+        modifier_handler: MOD,
         mouse_handler: M,
         touch_handler: T,
+        button_handler: B,
         prevent_default: bool,
     ) where
-        M: 'static
-            + FnMut(
-                i32,
-                PhysicalPosition<f64>,
-                PhysicalPosition<f64>,
-                ModifiersState,
-                ButtonsState,
-                Option<MouseButton>,
-            ),
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => {
-                h.on_cursor_move(&self.common, mouse_handler, touch_handler, prevent_default)
+            MouseState::HasPointerEvent(h) => h.on_cursor_move(
+                &self.common,
+                modifier_handler,
+                mouse_handler,
+                touch_handler,
+                button_handler,
+                prevent_default,
+            ),
+            MouseState::NoPointerEvent(h) => {
+                h.on_cursor_move(&self.common, modifier_handler, mouse_handler)
             }
-            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, mouse_handler),
         }
     }
 

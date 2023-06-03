@@ -141,23 +141,19 @@ impl PointerHandler {
         ));
     }
 
-    pub fn on_cursor_move<M, T>(
+    pub fn on_cursor_move<MOD, M, T, B>(
         &mut self,
         canvas_common: &super::Common,
+        mut modifier_handler: MOD,
         mut mouse_handler: M,
         mut touch_handler: T,
+        mut button_handler: B,
         prevent_default: bool,
     ) where
-        M: 'static
-            + FnMut(
-                i32,
-                PhysicalPosition<f64>,
-                PhysicalPosition<f64>,
-                ModifiersState,
-                ButtonsState,
-                Option<MouseButton>,
-            ),
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         let canvas = canvas_common.raw.clone();
         self.on_cursor_move = Some(canvas_common.add_event(
@@ -173,7 +169,11 @@ impl PointerHandler {
                     fn has_get_coalesced_events(this: &PointerEventExt) -> JsValue;
                 }
 
-                match event.pointer_type().as_str() {
+                modifier_handler(event::mouse_modifiers(&event));
+
+                let pointer_type = event.pointer_type();
+
+                match pointer_type.as_str() {
                     "touch" => {
                         if prevent_default {
                             // prevent scroll on mobile web
@@ -184,23 +184,32 @@ impl PointerHandler {
                     _ => return,
                 }
 
-                let event: PointerEventExt = event.unchecked_into();
-
                 let id = event.pointer_id();
-                // cache buttons if the pointer is a mouse
-                let mouse = (event.pointer_type() == "mouse").then(|| {
-                    (
-                        event::mouse_modifiers(&event),
+
+                // chorded button event
+                if let Some(button) = event::mouse_button(&event) {
+                    debug_assert_eq!(
+                        pointer_type, "mouse",
+                        "expect pointer type of a chorded button event to be a mouse"
+                    );
+
+                    button_handler(
+                        id,
+                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
                         event::mouse_buttons(&event),
-                        event::mouse_button(&event),
-                    )
-                });
+                        button,
+                    );
+
+                    return;
+                }
+
+                // pointer move event
+
+                let event: PointerEventExt = event.unchecked_into();
 
                 // store coalesced events to extend it's lifetime
                 let events = (!event.has_get_coalesced_events().is_undefined())
-                    .then(|| event.get_coalesced_events())
-                    // if coalesced events is empty, it's a chorded button event
-                    .filter(|events| events.length() != 0);
+                    .then(|| event.get_coalesced_events());
 
                 // make a single iterator depending on the availability of coalesced events
                 let events = if let Some(events) = &events {
@@ -214,30 +223,19 @@ impl PointerHandler {
                 };
 
                 for event in events {
-                    // coalesced events should always have the same source as the root event
-                    debug_assert_eq!(id, event.pointer_id());
-                    debug_assert_eq!(mouse.is_none(), event.pointer_type() == "touch");
-
-                    if let Some((modifiers, buttons, button)) = mouse {
-                        // coalesced events should have the same buttons
-                        debug_assert_eq!(modifiers, event::mouse_modifiers(&event));
-                        debug_assert_eq!(buttons, event::mouse_buttons(&event));
-
-                        mouse_handler(
+                    match pointer_type.as_str() {
+                        "mouse" => mouse_handler(
                             id,
                             event::mouse_position(&event).to_physical(super::super::scale_factor()),
                             event::mouse_delta(&event).to_physical(super::super::scale_factor()),
-                            modifiers,
-                            buttons,
-                            button,
-                        );
-                    } else {
-                        touch_handler(
+                        ),
+                        "touch" => touch_handler(
                             id,
                             event::touch_position(&event, &canvas)
                                 .to_physical(super::super::scale_factor()),
                             Force::Normalized(event.pressure() as f64),
-                        );
+                        ),
+                        _ => unreachable!("didn't return early before"),
                     }
                 }
             },
