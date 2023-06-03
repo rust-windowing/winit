@@ -63,6 +63,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** On Web, `instant` is now replaced by `web_time`.
 - On Windows, port to `windows-sys` version 0.48.0.
 - On Web, fix pen treated as mouse input.
+- On Web, send mouse position on button release as well.
 
 # 0.28.6
 

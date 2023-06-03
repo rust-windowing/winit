@@ -84,7 +84,7 @@ impl MouseHandler {
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
         let on_mouse_leave_handler = self.on_mouse_leave_handler.clone();
         let mouse_capture_state = self.mouse_capture_state.clone();
@@ -110,6 +110,7 @@ impl MouseHandler {
                 event.stop_propagation();
                 handler(
                     0,
+                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
                     event::mouse_button(&event).expect("no mouse button released"),
                     event::mouse_modifiers(&event),
                 );

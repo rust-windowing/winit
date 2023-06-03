@@ -400,43 +400,59 @@ impl<T> EventLoopWindowTarget<T> {
             },
         );
 
-        let runner = self.runner.clone();
-        let runner_touch = self.runner.clone();
-        let modifiers = self.modifiers.clone();
-        let has_focus_clone = has_focus.clone();
         canvas.on_mouse_release(
-            move |pointer_id, button, active_modifiers| {
-                let modifiers_changed =
-                    (has_focus_clone.get() && modifiers.get() != active_modifiers).then(|| {
-                        modifiers.set(active_modifiers);
+            {
+                let runner = self.runner.clone();
+                let modifiers = self.modifiers.clone();
+                let has_focus = has_focus.clone();
+
+                move |pointer_id, position, button, active_modifiers| {
+                    let modifiers_changed =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                            modifiers.set(active_modifiers);
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                            }
+                        });
+
+                    // A mouse up event may come in without any prior CursorMoved events,
+                    // therefore we should send a CursorMoved event to make sure that the
+                    // user code has the correct cursor position.
+                    runner.send_events(modifiers_changed.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
-
-                runner.send_events(modifiers_changed.into_iter().chain(iter::once(
-                    Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::MouseInput {
-                            device_id: RootDeviceId(DeviceId(pointer_id)),
-                            state: ElementState::Released,
-                            button,
+                            event: WindowEvent::CursorMoved {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                position,
+                            },
                         },
-                    },
-                )));
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::MouseInput {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                state: ElementState::Released,
+                                button,
+                            },
+                        },
+                    ]));
+                }
             },
-            move |device_id, location, force| {
-                runner_touch.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::Touch(Touch {
-                        id: device_id as u64,
-                        device_id: RootDeviceId(DeviceId(device_id)),
-                        phase: TouchPhase::Ended,
-                        force: Some(force),
-                        location,
-                    }),
-                });
+            {
+                let runner_touch = self.runner.clone();
+
+                move |device_id, location, force| {
+                    runner_touch.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Touch(Touch {
+                            id: device_id as u64,
+                            device_id: RootDeviceId(DeviceId(device_id)),
+                            phase: TouchPhase::Ended,
+                            force: Some(force),
+                            location,
+                        }),
+                    });
+                }
             },
         );
 

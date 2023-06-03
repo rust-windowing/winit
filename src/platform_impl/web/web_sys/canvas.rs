@@ -243,7 +243,7 @@ impl Canvas {
 
     pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
     where
-        M: 'static + FnMut(i32, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         match &mut self.mouse_state {
