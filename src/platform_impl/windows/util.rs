@@ -13,7 +13,7 @@ use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, RECT},
+        Foundation::{BOOL, HMODULE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
@@ -149,10 +149,7 @@ pub fn is_minimized(window: HWND) -> bool {
     unsafe { IsIconic(window) != false.into() }
 }
 
-#[allow(clippy::upper_case_acronyms)]
-pub type HINSTANCE = isize;
-
-pub fn get_instance_handle() -> HINSTANCE {
+pub fn get_instance_handle() -> HMODULE {
     // Gets the instance handle by taking the address of the
     // pseudo-variable created by the microsoft linker:
     // https://devblogs.microsoft.com/oldnewthing/20041025-00/?p=37483

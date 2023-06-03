@@ -14,7 +14,8 @@ use std::{
 
 use windows_sys::Win32::{
     Foundation::{
-        HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
+        HMODULE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
+        WPARAM,
     },
     Graphics::{
         Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
@@ -68,7 +69,7 @@ use crate::{
         ime::ImeContext,
         keyboard::KeyEventBuilder,
         monitor::{self, MonitorHandle},
-        util::{self, HINSTANCE},
+        util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -314,7 +315,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn hinstance(&self) -> HINSTANCE {
+    pub fn hinstance(&self) -> HMODULE {
         unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) }
     }
 
