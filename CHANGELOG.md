@@ -61,6 +61,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
 - On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
 - **Breaking:** On Web, `instant` is now replaced by `web_time`.
+- On Windows, port to `windows-sys` version 0.48.0.
 
 # 0.28.6
 
