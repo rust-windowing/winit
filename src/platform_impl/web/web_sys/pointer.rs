@@ -104,6 +104,7 @@ impl PointerHandler {
         canvas_common: &Common,
         mut mouse_handler: M,
         mut touch_handler: T,
+        prevent_default: bool,
     ) where
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
@@ -112,6 +113,13 @@ impl PointerHandler {
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
             move |event: PointerEvent| {
+                if prevent_default {
+                    // prevent text selection
+                    event.prevent_default();
+                    // but still focus element
+                    let _ = canvas.focus();
+                }
+
                 match event.pointer_type().as_str() {
                     "touch" => {
                         touch_handler(
@@ -191,6 +199,13 @@ impl PointerHandler {
                         pointer_type, "mouse",
                         "expect pointer type of a chorded button event to be a mouse"
                     );
+
+                    if prevent_default {
+                        // prevent text selection
+                        event.prevent_default();
+                        // but still focus element
+                        let _ = canvas.focus();
+                    }
 
                     button_handler(
                         id,
