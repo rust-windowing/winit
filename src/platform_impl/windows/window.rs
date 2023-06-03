@@ -14,7 +14,7 @@ use std::{
 
 use windows_sys::Win32::{
     Foundation::{
-        HINSTANCE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
+        HMODULE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
         WPARAM,
     },
     Graphics::{
@@ -315,7 +315,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn hinstance(&self) -> HINSTANCE {
+    pub fn hinstance(&self) -> HMODULE {
         unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) }
     }
 
