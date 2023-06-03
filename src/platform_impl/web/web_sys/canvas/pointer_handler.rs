@@ -75,7 +75,7 @@ impl PointerHandler {
         mut mouse_handler: M,
         mut touch_handler: T,
     ) where
-        M: 'static + FnMut(i32, MouseButton, ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let canvas = canvas_common.raw.clone();
@@ -91,6 +91,7 @@ impl PointerHandler {
                     ),
                     "mouse" => mouse_handler(
                         event.pointer_id(),
+                        event::mouse_position(&event).to_physical(super::super::scale_factor()),
                         event::mouse_button(&event).expect("no mouse button released"),
                         event::mouse_modifiers(&event),
                     ),
