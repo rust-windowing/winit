@@ -30,7 +30,10 @@ use windows_sys::Win32::{
         SC_SCREENSAVE,
     },
     Media::{timeBeginPeriod, timeEndPeriod, timeGetDevCaps, TIMECAPS, TIMERR_NOERROR},
-    System::{Ole::RevokeDragDrop, Threading::GetCurrentThreadId, WindowsProgramming::INFINITE},
+    System::{
+        Ole::RevokeDragDrop,
+        Threading::{GetCurrentThreadId, INFINITE},
+    },
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
