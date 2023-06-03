@@ -345,58 +345,73 @@ impl<T> EventLoopWindowTarget<T> {
             prevent_default,
         );
 
-        let runner = self.runner.clone();
-        let runner_touch = self.runner.clone();
-        let modifiers = self.modifiers.clone();
-        let has_focus_clone = has_focus.clone();
         canvas.on_mouse_press(
-            move |pointer_id, position, button, active_modifiers| {
-                let focus_changed =
-                    (!has_focus_clone.replace(true)).then_some(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::Focused(true),
+            {
+                let runner = self.runner.clone();
+                let modifiers = self.modifiers.clone();
+                let has_focus = has_focus.clone();
+
+                move |pointer_id, position, button, active_modifiers| {
+                    let focus_changed =
+                        (!has_focus.replace(true)).then_some(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::Focused(true),
+                        });
+
+                    let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
+                        modifiers.set(active_modifiers);
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        }
                     });
 
-                let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
-                    modifiers.set(active_modifiers);
-                    Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                    }
-                });
-
-                // A mouse down event may come in without any prior CursorMoved events,
-                // therefore we should send a CursorMoved event to make sure that the
-                // user code has the correct cursor position.
-                runner.send_events(focus_changed.into_iter().chain(modifiers_changed).chain([
-                    Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::CursorMoved {
-                            device_id: RootDeviceId(DeviceId(pointer_id)),
-                            position,
+                    // A mouse down event may come in without any prior CursorMoved events,
+                    // therefore we should send a CursorMoved event to make sure that the
+                    // user code has the correct cursor position.
+                    runner.send_events(focus_changed.into_iter().chain(modifiers_changed).chain([
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                position,
+                            },
                         },
-                    },
-                    Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::MouseInput {
-                            device_id: RootDeviceId(DeviceId(pointer_id)),
-                            state: ElementState::Pressed,
-                            button,
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::MouseInput {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                state: ElementState::Pressed,
+                                button,
+                            },
                         },
-                    },
-                ]));
+                    ]));
+                }
             },
-            move |device_id, location, force| {
-                runner_touch.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::Touch(Touch {
-                        id: device_id as u64,
-                        device_id: RootDeviceId(DeviceId(device_id)),
-                        phase: TouchPhase::Started,
-                        force: Some(force),
-                        location,
-                    }),
-                });
+            {
+                let runner = self.runner.clone();
+                let has_focus = has_focus.clone();
+
+                move |device_id, location, force| {
+                    let focus_changed =
+                        (!has_focus.replace(true)).then_some(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::Focused(true),
+                        });
+
+                    runner.send_events(focus_changed.into_iter().chain(iter::once(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::Touch(Touch {
+                                id: device_id as u64,
+                                device_id: RootDeviceId(DeviceId(device_id)),
+                                phase: TouchPhase::Started,
+                                force: Some(force),
+                                location,
+                            }),
+                        },
+                    )));
+                }
             },
         );
 

@@ -64,6 +64,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, port to `windows-sys` version 0.48.0.
 - On Web, fix pen treated as mouse input.
 - On Web, send mouse position on button release as well.
+- On Web, fix touch input not gaining or loosing focus.
 
 # 0.28.6
 
