@@ -9,8 +9,50 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
-pub fn mouse_button(event: &MouseEvent) -> MouseButton {
-    // https://www.w3.org/TR/uievents/#dom-mouseevent-button
+bitflags! {
+    // https://www.w3.org/TR/pointerevents3/#the-buttons-property
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ButtonsState: u16 {
+        const LEFT    = 0b00001;
+        const RIGHT   = 0b00010;
+        const MIDDLE  = 0b00100;
+        const BACK    = 0b01000;
+        const FORWARD = 0b10000;
+    }
+}
+
+impl From<ButtonsState> for MouseButton {
+    fn from(value: ButtonsState) -> Self {
+        match value {
+            ButtonsState::LEFT => MouseButton::Left,
+            ButtonsState::RIGHT => MouseButton::Right,
+            ButtonsState::MIDDLE => MouseButton::Middle,
+            ButtonsState::BACK => MouseButton::Back,
+            ButtonsState::FORWARD => MouseButton::Forward,
+            _ => MouseButton::Other(value.bits()),
+        }
+    }
+}
+
+impl From<MouseButton> for ButtonsState {
+    fn from(value: MouseButton) -> Self {
+        match value {
+            MouseButton::Left => ButtonsState::LEFT,
+            MouseButton::Right => ButtonsState::RIGHT,
+            MouseButton::Middle => ButtonsState::MIDDLE,
+            MouseButton::Back => ButtonsState::BACK,
+            MouseButton::Forward => ButtonsState::FORWARD,
+            MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
+        }
+    }
+}
+
+pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
+    ButtonsState::from_bits_retain(event.buttons())
+}
+
+pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+    // https://www.w3.org/TR/pointerevents3/#the-button-property
     match event.button() {
         -1 => None,
         0 => Some(MouseButton::Left),
@@ -31,6 +73,8 @@ impl MouseButton {
             MouseButton::Left => 0,
             MouseButton::Right => 1,
             MouseButton::Middle => 2,
+            MouseButton::Back => 3,
+            MouseButton::Forward => 4,
             MouseButton::Other(value) => value.into(),
         }
     }
