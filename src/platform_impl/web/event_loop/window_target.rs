@@ -349,14 +349,8 @@ impl<T> EventLoopWindowTarget<T> {
             {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
-                let has_focus = has_focus.clone();
 
                 move |pointer_id, position, button, active_modifiers| {
-                    let focus_changed = (!has_focus.replace(true)).then_some(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::Focused(true),
-                    });
-
                     let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -368,7 +362,7 @@ impl<T> EventLoopWindowTarget<T> {
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(focus_changed.into_iter().chain(modifiers_changed).chain([
+                    runner.send_events(modifiers_changed.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
@@ -389,28 +383,21 @@ impl<T> EventLoopWindowTarget<T> {
             },
             {
                 let runner = self.runner.clone();
-                let has_focus = has_focus.clone();
 
                 move |device_id, location, force| {
-                    let focus_changed = (!has_focus.replace(true)).then_some(Event::WindowEvent {
+                    runner.send_event(Event::WindowEvent {
                         window_id: RootWindowId(id),
-                        event: WindowEvent::Focused(true),
-                    });
-
-                    runner.send_events(focus_changed.into_iter().chain(iter::once(
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::Touch(Touch {
-                                id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
-                                phase: TouchPhase::Started,
-                                force: Some(force),
-                                location,
-                            }),
-                        },
-                    )));
+                        event: WindowEvent::Touch(Touch {
+                            id: device_id as u64,
+                            device_id: RootDeviceId(DeviceId(device_id)),
+                            phase: TouchPhase::Started,
+                            force: Some(force),
+                            location,
+                        }),
+                    })
                 }
             },
+            prevent_default,
         );
 
         canvas.on_mouse_release(

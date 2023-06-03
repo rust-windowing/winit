@@ -235,13 +235,21 @@ impl Canvas {
             .on_mouse_release(&self.common, mouse_handler, touch_handler)
     }
 
-    pub fn on_mouse_press<M, T>(&mut self, mouse_handler: M, touch_handler: T)
-    where
+    pub fn on_mouse_press<M, T>(
+        &mut self,
+        mouse_handler: M,
+        touch_handler: T,
+        prevent_default: bool,
+    ) where
         M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler
-            .on_mouse_press(&self.common, mouse_handler, touch_handler)
+        self.pointer_handler.on_mouse_press(
+            &self.common,
+            mouse_handler,
+            touch_handler,
+            prevent_default,
+        )
     }
 
     pub fn on_cursor_move<MOD, M, T, B>(
