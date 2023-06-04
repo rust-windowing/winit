@@ -8,8 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- **Breaking** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
-- **Breaking** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
+- **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
+- **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
 - On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
 - **Breaking:** Remove all deprecated `modifiers` fields.
 - **Breaking:** Overhaul keyboard input handling.
@@ -51,8 +51,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Implement `PartialOrd` and `Ord` on types in the `dpi` module.
-- Bump MSRV from `1.60` to `1.64`.
-- On Web, the canvas output bitmap size is no longer adjusted.
+- **Breaking:** Bump MSRV from `1.60` to `1.64`.
+- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
 - On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
 - On Web: fix position of touch events to be relative to the canvas.
 - On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
