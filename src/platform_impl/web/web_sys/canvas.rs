@@ -2,13 +2,14 @@ use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, ButtonsState};
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::window::WindowAttributes;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use js_sys::Promise;
@@ -39,15 +40,17 @@ pub struct Common {
     pub window: web_sys::Window,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
+    size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
 impl Canvas {
     pub fn create(
         window: web_sys::Window,
-        attr: PlatformSpecificWindowBuilderAttributes,
+        attr: &WindowAttributes,
+        platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match attr.canvas {
+        let canvas = match platform_attr.canvas {
             Some(canvas) => canvas,
             None => {
                 let document = window
@@ -66,16 +69,28 @@ impl Canvas {
         // sequential keyboard navigation, but its order is defined by the
         // document's source order.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
-        if attr.focusable {
+        if platform_attr.focusable {
             canvas
                 .set_attribute("tabindex", "0")
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        Ok(Canvas {
+        let size = attr
+            .inner_size
+            .unwrap_or(
+                LogicalSize {
+                    width: 1024.0,
+                    height: 768.0,
+                }
+                .into(),
+            )
+            .to_physical(super::scale_factor(&window));
+
+        let canvas = Canvas {
             common: Common {
                 window,
                 raw: canvas,
+                size: Rc::new(Cell::new(size)),
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
             on_touch_start: None,
@@ -88,7 +103,11 @@ impl Canvas {
             on_fullscreen_change: None,
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
-        })
+        };
+
+        super::set_canvas_size(&canvas, size.into());
+
+        Ok(canvas)
     }
 
     pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
@@ -121,11 +140,12 @@ impl Canvas {
         }
     }
 
-    pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize {
-            width: self.common.raw.width(),
-            height: self.common.raw.height(),
-        }
+    pub fn window(&self) -> &web_sys::Window {
+        &self.common.window
+    }
+
+    pub fn size(&self) -> &Rc<Cell<PhysicalSize<u32>>> {
+        &self.common.size
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {

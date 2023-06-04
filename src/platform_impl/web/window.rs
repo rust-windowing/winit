@@ -1,4 +1,4 @@
-use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
@@ -48,7 +48,7 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let window = target.runner.window();
-        let canvas = backend::Canvas::create(window.clone(), platform_attr)?;
+        let canvas = backend::Canvas::create(window.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -66,15 +66,6 @@ impl Window {
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
-
-        backend::set_canvas_size(
-            window,
-            canvas.borrow().raw(),
-            attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
-                width: 1024.0,
-                height: 768.0,
-            })),
-        );
 
         let window = Window {
             id,
@@ -171,7 +162,7 @@ impl Window {
     pub fn set_inner_size(&self, size: Size) {
         self.inner.dispatch(move |inner| {
             let old_size = inner.inner_size();
-            backend::set_canvas_size(&inner.window, inner.canvas.borrow().raw(), size);
+            backend::set_canvas_size(&inner.canvas.borrow(), size);
             let new_size = inner.inner_size();
             if old_size != new_size {
                 (inner.resize_notify_fn)(new_size);
@@ -454,7 +445,7 @@ impl Inner {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.canvas.borrow().size()
+        self.canvas.borrow().size().get()
     }
 }
 

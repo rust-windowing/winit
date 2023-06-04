@@ -76,12 +76,19 @@ pub fn scale_factor(window: &web_sys::Window) -> f64 {
     window.device_pixel_ratio()
 }
 
-pub fn set_canvas_size(window: &web_sys::Window, raw: &HtmlCanvasElement, size: Size) {
-    let scale_factor = scale_factor(window);
-    let logical_size = size.to_logical::<f64>(scale_factor);
+pub fn set_canvas_size(canvas: &Canvas, new_size: Size) {
+    let scale_factor = scale_factor(canvas.window());
 
-    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
-    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+    let physical_size = new_size.to_physical(scale_factor);
+    canvas.size().set(physical_size);
+
+    let logical_size = new_size.to_logical::<f64>(scale_factor);
+    set_canvas_style_property(canvas.raw(), "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(
+        canvas.raw(),
+        "height",
+        &format!("{}px", logical_size.height),
+    );
 }
 
 pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {

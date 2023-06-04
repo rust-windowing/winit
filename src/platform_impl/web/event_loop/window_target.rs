@@ -16,7 +16,7 @@ use super::{
     runner,
     window::WindowId,
 };
-use crate::dpi::{PhysicalSize, Size};
+use crate::dpi::Size;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase,
     WindowEvent,
@@ -89,6 +89,7 @@ impl<T> EventLoopWindowTarget<T> {
         has_focus: Arc<AtomicBool>,
     ) {
         self.runner.add_canvas(RootWindowId(id), canvas);
+        let canvas_clone = canvas.clone();
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
@@ -502,32 +503,27 @@ impl<T> EventLoopWindowTarget<T> {
             prevent_default,
         );
 
-        let runner = self.runner.clone();
-        let raw = canvas.raw().clone();
-
         // The size to restore to after exiting fullscreen.
-        let mut intended_size = PhysicalSize {
-            width: raw.width(),
-            height: raw.height(),
-        };
+        let mut intended_size = canvas.size().get();
 
         canvas.on_fullscreen_change({
             let window = self.runner.window().clone();
+            let runner = self.runner.clone();
+
             move || {
+                let canvas = canvas_clone.borrow();
+
                 // If the canvas is marked as fullscreen, it is moving *into* fullscreen
                 // If it is not, it is moving *out of* fullscreen
-                let new_size = if backend::is_fullscreen(&window, &raw) {
-                    intended_size = PhysicalSize {
-                        width: raw.width(),
-                        height: raw.height(),
-                    };
+                let new_size = if backend::is_fullscreen(&window, canvas.raw()) {
+                    intended_size = canvas.size().get();
 
                     backend::window_size(&window).to_physical(backend::scale_factor(&window))
                 } else {
                     intended_size
                 };
 
-                backend::set_canvas_size(&window, &raw, Size::Physical(new_size));
+                backend::set_canvas_size(&canvas, Size::Physical(new_size));
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Resized(new_size),
