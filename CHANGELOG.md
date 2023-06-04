@@ -71,6 +71,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, `EventLoopProxy` now implements `Send`.
 - On Web, `Window` now implements `Send` and `Sync`.
 - **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
+- On Web, use the correct canvas size when calculating the new size during scale factor change,
+  instead of using the output bitmap size.
 
 # 0.28.6
 
