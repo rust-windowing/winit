@@ -212,40 +212,56 @@ impl Canvas {
         ));
     }
 
-    pub fn on_cursor_leave<F>(&mut self, handler: F)
+    pub fn on_cursor_leave<MOD, M>(&mut self, modifier_handler: MOD, mouse_handler: M)
     where
-        F: 'static + FnMut(i32, ModifiersState),
-    {
-        self.pointer_handler.on_cursor_leave(&self.common, handler)
-    }
-
-    pub fn on_cursor_enter<F>(&mut self, handler: F)
-    where
-        F: 'static + FnMut(i32, ModifiersState),
-    {
-        self.pointer_handler.on_cursor_enter(&self.common, handler)
-    }
-
-    pub fn on_mouse_release<M, T>(&mut self, mouse_handler: M, touch_handler: T)
-    where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32),
     {
         self.pointer_handler
-            .on_mouse_release(&self.common, mouse_handler, touch_handler)
+            .on_cursor_leave(&self.common, modifier_handler, mouse_handler)
     }
 
-    pub fn on_mouse_press<M, T>(
+    pub fn on_cursor_enter<MOD, M>(&mut self, modifier_handler: MOD, mouse_handler: M)
+    where
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32),
+    {
+        self.pointer_handler
+            .on_cursor_enter(&self.common, modifier_handler, mouse_handler)
+    }
+
+    pub fn on_mouse_release<MOD, M, T>(
         &mut self,
+        modifier_handler: MOD,
+        mouse_handler: M,
+        touch_handler: T,
+    ) where
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+    {
+        self.pointer_handler.on_mouse_release(
+            &self.common,
+            modifier_handler,
+            mouse_handler,
+            touch_handler,
+        )
+    }
+
+    pub fn on_mouse_press<MOD, M, T>(
+        &mut self,
+        modifier_handler: MOD,
         mouse_handler: M,
         touch_handler: T,
         prevent_default: bool,
     ) where
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        MOD: 'static + FnMut(ModifiersState),
+        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_press(
             &self.common,
+            modifier_handler,
             mouse_handler,
             touch_handler,
             prevent_default,
