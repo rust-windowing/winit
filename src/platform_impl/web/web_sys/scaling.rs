@@ -1,9 +1,9 @@
+use web_sys::MediaQueryList;
+
 use super::super::ScaleChangeArgs;
 use super::media_query_handle::MediaQueryListHandle;
 
 use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::prelude::Closure;
-use web_sys::MediaQueryListEvent;
 
 pub struct ScaleChangeDetector(Rc<RefCell<ScaleChangeDetectorInternal>>);
 
@@ -39,53 +39,57 @@ impl ScaleChangeDetectorInternal {
         }));
 
         let weak_self = Rc::downgrade(&new_self);
-        let closure = Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
+        let mql = Self::create_mql(&window, move |mql| {
             if let Some(rc_self) = weak_self.upgrade() {
-                rc_self.borrow_mut().handler(event);
+                Self::handler(rc_self, mql);
             }
-        }) as Box<dyn FnMut(_)>);
-
-        let mql = Self::create_mql(&window, closure);
+        });
         {
             let mut borrowed_self = new_self.borrow_mut();
-            borrowed_self.mql = mql;
+            borrowed_self.mql = Some(mql);
         }
         new_self
     }
 
-    fn create_mql(
-        window: &web_sys::Window,
-        closure: Closure<dyn FnMut(MediaQueryListEvent)>,
-    ) -> Option<MediaQueryListHandle> {
+    fn create_mql<F>(window: &web_sys::Window, closure: F) -> MediaQueryListHandle
+    where
+        F: 'static + FnMut(&MediaQueryList),
+    {
         let current_scale = super::scale_factor(window);
-        // This media query initially matches the current `devicePixelRatio`.
-        // We add 0.0001 to the lower and upper bounds such that it won't fail
-        // due to floating point precision limitations.
+        // TODO: Remove `-webkit-device-pixel-ratio`. Requires Safari v16.
         let media_query = format!(
-            "(min-resolution: {min_scale:.4}dppx) and (max-resolution: {max_scale:.4}dppx),
-             (-webkit-min-device-pixel-ratio: {min_scale:.4}) and (-webkit-max-device-pixel-ratio: {max_scale:.4})",
-            min_scale = current_scale - 0.0001, max_scale= current_scale + 0.0001,
+            "(resolution: {current_scale}dppx),
+             (-webkit-device-pixel-ratio: {current_scale})",
         );
         let mql = MediaQueryListHandle::new(window, &media_query, closure);
-        if let Some(mql) = &mql {
-            assert!(mql.mql().matches());
-        }
+        assert!(
+            mql.mql().matches(),
+            "created media query doesn't match, {current_scale} != {}",
+            super::scale_factor(window,)
+        );
         mql
     }
 
-    fn handler(&mut self, _event: MediaQueryListEvent) {
-        let mql = self
-            .mql
-            .take()
-            .expect("DevicePixelRatioChangeDetector::mql should not be None");
-        let closure = mql.remove();
-        let new_scale = super::scale_factor(&self.window);
-        (self.callback)(ScaleChangeArgs {
-            old_scale: self.last_scale,
+    fn handler(this: Rc<RefCell<Self>>, mql: &MediaQueryList) {
+        let weak_self = Rc::downgrade(&this);
+        let mut this = this.borrow_mut();
+        let old_scale = this.last_scale;
+        let new_scale = super::scale_factor(&this.window);
+        (this.callback)(ScaleChangeArgs {
+            old_scale,
             new_scale,
         });
-        let new_mql = Self::create_mql(&self.window, closure);
-        self.mql = new_mql;
-        self.last_scale = new_scale;
+
+        // If this matches, then the scale factor is back to it's
+        // old value again, so we won't need to update the query.
+        if !mql.matches() {
+            let new_mql = Self::create_mql(&this.window, move |mql| {
+                if let Some(rc_self) = weak_self.upgrade() {
+                    Self::handler(rc_self, mql);
+                }
+            });
+            this.mql = Some(new_mql);
+            this.last_scale = new_scale;
+        }
     }
 }

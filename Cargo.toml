@@ -145,7 +145,6 @@ features = [
     'HtmlElement',
     'KeyboardEvent',
     'MediaQueryList',
-    'MediaQueryListEvent',
     'Node',
     'PointerEvent',
     'Window',

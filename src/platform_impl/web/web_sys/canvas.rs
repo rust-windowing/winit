@@ -17,9 +17,7 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, WheelEvent,
-};
+use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -343,13 +341,11 @@ impl Canvas {
     where
         F: 'static + FnMut(bool),
     {
-        let closure =
-            Closure::wrap(
-                Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
-                    as Box<dyn FnMut(_)>,
-            );
-        self.on_dark_mode =
-            MediaQueryListHandle::new(&self.common.window, "(prefers-color-scheme: dark)", closure);
+        self.on_dark_mode = Some(MediaQueryListHandle::new(
+            &self.common.window,
+            "(prefers-color-scheme: dark)",
+            move |mql| handler(mql.matches()),
+        ));
     }
 
     pub fn request_fullscreen(&self) {
