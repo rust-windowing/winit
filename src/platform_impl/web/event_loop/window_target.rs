@@ -278,24 +278,21 @@ impl<T> EventLoopWindowTarget<T> {
                 let runner = self.runner.clone();
 
                 move |pointer_id, position, delta| {
-                    runner.send_events(
-                        [
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::CursorMoved {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    position,
-                                },
-                            },
-                            Event::DeviceEvent {
+                    runner.send_events([
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
                                 device_id: RootDeviceId(DeviceId(pointer_id)),
-                                event: DeviceEvent::MouseMotion {
-                                    delta: (delta.x, delta.y),
-                                },
+                                position,
                             },
-                        ]
-                        .into_iter(),
-                    );
+                        },
+                        Event::DeviceEvent {
+                            device_id: RootDeviceId(DeviceId(pointer_id)),
+                            event: DeviceEvent::MouseMotion {
+                                delta: (delta.x, delta.y),
+                            },
+                        },
+                    ]);
                 }
             },
             {
@@ -341,19 +338,16 @@ impl<T> EventLoopWindowTarget<T> {
                     // A chorded button event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(
-                        [
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::CursorMoved {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    position,
-                                },
+                    runner.send_events([
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                position,
                             },
-                            button_event,
-                        ]
-                        .into_iter(),
-                    );
+                        },
+                        button_event,
+                    ]);
                 }
             },
             prevent_default,
@@ -381,26 +375,23 @@ impl<T> EventLoopWindowTarget<T> {
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(
-                        [
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::CursorMoved {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    position,
-                                },
+                    runner.send_events([
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                position,
                             },
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::MouseInput {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    state: ElementState::Pressed,
-                                    button,
-                                },
+                        },
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::MouseInput {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                state: ElementState::Pressed,
+                                button,
                             },
-                        ]
-                        .into_iter(),
-                    );
+                        },
+                    ]);
                 }
             },
             {
@@ -445,26 +436,23 @@ impl<T> EventLoopWindowTarget<T> {
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(
-                        [
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::CursorMoved {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    position,
-                                },
+                    runner.send_events([
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                position,
                             },
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::MouseInput {
-                                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                                    state: ElementState::Released,
-                                    button,
-                                },
+                        },
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::MouseInput {
+                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                state: ElementState::Released,
+                                button,
                             },
-                        ]
-                        .into_iter(),
-                    );
+                        },
+                    ]);
                 }
             },
             {

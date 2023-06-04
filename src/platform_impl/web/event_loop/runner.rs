@@ -192,7 +192,7 @@ impl<T: 'static> Shared<T> {
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_events(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    pub fn send_events(&self, events: impl IntoIterator<Item = Event<'static, T>>) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
