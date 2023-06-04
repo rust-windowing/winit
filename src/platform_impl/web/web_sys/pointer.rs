@@ -6,9 +6,10 @@ use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
 use event::ButtonsState;
+use once_cell::unsync::OnceCell;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::PointerEvent;
+use web_sys::{HtmlCanvasElement, PointerEvent};
 
 #[allow(dead_code)]
 pub(super) struct PointerHandler {
@@ -186,7 +187,11 @@ impl PointerHandler {
     {
         let canvas = canvas_common.raw.clone();
         self.on_cursor_move = Some(canvas_common.add_event(
-            "pointermove",
+            if has_pointer_raw_support(&canvas) {
+                "pointerrawupdate"
+            } else {
+                "pointermove"
+            },
             move |event: PointerEvent| {
                 // coalesced events are not available on Safari
                 #[wasm_bindgen]
@@ -299,4 +304,25 @@ impl PointerHandler {
         self.on_pointer_release = None;
         self.on_touch_cancel = None;
     }
+}
+
+fn has_pointer_raw_support(canvas: &HtmlCanvasElement) -> bool {
+    thread_local! {
+        static POINTER_RAW_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    POINTER_RAW_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type HtmlCanvasElementExt;
+
+                #[wasm_bindgen(method, getter, js_name = onpointerrawupdate)]
+                fn has_on_pointerrawupdate(this: &HtmlCanvasElementExt) -> JsValue;
+            }
+
+            let canvas: &HtmlCanvasElementExt = canvas.unchecked_ref();
+            !canvas.has_on_pointerrawupdate().is_undefined()
+        })
+    })
 }
