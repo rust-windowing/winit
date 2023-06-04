@@ -138,14 +138,6 @@ impl Canvas {
         }));
     }
 
-    pub fn on_touch_end(&mut self, prevent_default: bool) {
-        self.on_touch_end = Some(self.common.add_event("touchend", move |event: Event| {
-            if prevent_default {
-                event.prevent_default();
-            }
-        }));
-    }
-
     pub fn on_blur<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),

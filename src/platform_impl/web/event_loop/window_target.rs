@@ -91,7 +91,6 @@ impl<T> EventLoopWindowTarget<T> {
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
         canvas.on_touch_start(prevent_default);
-        canvas.on_touch_end(prevent_default);
 
         let runner = self.runner.clone();
         let has_focus_clone = has_focus.clone();

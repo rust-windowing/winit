@@ -203,13 +203,7 @@ impl PointerHandler {
                 let pointer_type = event.pointer_type();
 
                 match pointer_type.as_str() {
-                    "touch" => {
-                        if prevent_default {
-                            // prevent scroll on mobile web
-                            event.prevent_default();
-                        }
-                    }
-                    "mouse" => (),
+                    "touch" | "mouse" => (),
                     _ => return,
                 }
 
