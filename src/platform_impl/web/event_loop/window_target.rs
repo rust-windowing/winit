@@ -198,51 +198,65 @@ impl<T> EventLoopWindowTarget<T> {
             prevent_default,
         );
 
-        let runner = self.runner.clone();
-        let modifiers = self.modifiers.clone();
-        let has_focus_clone = has_focus.clone();
-        canvas.on_cursor_leave(move |pointer_id, active_modifiers| {
-            let modifiers_changed = (has_focus_clone.get() && modifiers.get() != active_modifiers)
-                .then(|| {
-                    modifiers.set(active_modifiers);
-                    Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+        canvas.on_cursor_leave(
+            {
+                let runner = self.runner.clone();
+                let has_focus = has_focus.clone();
+                let modifiers = self.modifiers.clone();
+
+                move |active_modifiers| {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
+                        modifiers.set(active_modifiers);
+                        runner.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        });
                     }
-                });
+                }
+            },
+            {
+                let runner = self.runner.clone();
 
-            runner.send_events(modifiers_changed.into_iter().chain(iter::once(
-                Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::CursorLeft {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
-                },
-            )));
-        });
-
-        let runner = self.runner.clone();
-        let modifiers = self.modifiers.clone();
-        let has_focus_clone = has_focus.clone();
-        canvas.on_cursor_enter(move |pointer_id, active_modifiers| {
-            let modifiers_changed = (has_focus_clone.get() && modifiers.get() != active_modifiers)
-                .then(|| {
-                    modifiers.set(active_modifiers);
-                    Event::WindowEvent {
+                move |pointer_id| {
+                    runner.send_event(Event::WindowEvent {
                         window_id: RootWindowId(id),
-                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                    }
-                });
+                        event: WindowEvent::CursorLeft {
+                            device_id: RootDeviceId(DeviceId(pointer_id)),
+                        },
+                    });
+                }
+            },
+        );
 
-            runner.send_events(modifiers_changed.into_iter().chain(iter::once(
-                Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::CursorEntered {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                    },
-                },
-            )));
-        });
+        canvas.on_cursor_enter(
+            {
+                let runner = self.runner.clone();
+                let has_focus = has_focus.clone();
+                let modifiers = self.modifiers.clone();
+
+                move |active_modifiers| {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
+                        modifiers.set(active_modifiers);
+                        runner.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                        });
+                    }
+                }
+            },
+            {
+                let runner = self.runner.clone();
+
+                move |pointer_id| {
+                    runner.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::CursorEntered {
+                            device_id: RootDeviceId(DeviceId(pointer_id)),
+                        },
+                    });
+                }
+            },
+        );
 
         canvas.on_cursor_move(
             {
@@ -350,35 +364,43 @@ impl<T> EventLoopWindowTarget<T> {
                 let runner = self.runner.clone();
                 let modifiers = self.modifiers.clone();
 
-                move |pointer_id, position, button, active_modifiers| {
-                    let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
+                move |active_modifiers| {
+                    if modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
-                        Event::WindowEvent {
+                        runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                        })
+                    }
+                }
+            },
+            {
+                let runner = self.runner.clone();
 
+                move |pointer_id, position, button| {
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers_changed.into_iter().chain([
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                position,
+                    runner.send_events(
+                        [
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::CursorMoved {
+                                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                                    position,
+                                },
                             },
-                        },
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                state: ElementState::Pressed,
-                                button,
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::MouseInput {
+                                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                                    state: ElementState::Pressed,
+                                    button,
+                                },
                             },
-                        },
-                    ]));
+                        ]
+                        .into_iter(),
+                    );
                 }
             },
             {
@@ -403,39 +425,46 @@ impl<T> EventLoopWindowTarget<T> {
         canvas.on_mouse_release(
             {
                 let runner = self.runner.clone();
-                let modifiers = self.modifiers.clone();
                 let has_focus = has_focus.clone();
+                let modifiers = self.modifiers.clone();
 
-                move |pointer_id, position, button, active_modifiers| {
-                    let modifiers_changed =
-                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
-                            modifiers.set(active_modifiers);
-                            Event::WindowEvent {
-                                window_id: RootWindowId(id),
-                                event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                            }
+                move |active_modifiers| {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
+                        modifiers.set(active_modifiers);
+                        runner.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
                         });
+                    }
+                }
+            },
+            {
+                let runner = self.runner.clone();
 
+                move |pointer_id, position, button| {
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers_changed.into_iter().chain([
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                position,
+                    runner.send_events(
+                        [
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::CursorMoved {
+                                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                                    position,
+                                },
                             },
-                        },
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                state: ElementState::Released,
-                                button,
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::MouseInput {
+                                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                                    state: ElementState::Released,
+                                    button,
+                                },
                             },
-                        },
-                    ]));
+                        ]
+                        .into_iter(),
+                    );
                 }
             },
             {
