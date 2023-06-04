@@ -26,6 +26,9 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// For example, mouse wheel events are only handled by the canvas by default. This avoids
     /// the default behavior of scrolling the page.
+    ///
+    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
+    /// context menu with Shift+Rightclick.
     fn with_prevent_default(self, prevent_default: bool) -> Self;
 
     /// Whether the canvas should be focusable using the tab key. This is necessary to capture
