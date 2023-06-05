@@ -10,19 +10,24 @@ use winit::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum CustomEvent {
-    Foo,
+    Add { a: u32, b: u32 },
 }
 
 thread_local! {
     pub static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<CustomEvent>>> = RefCell::new(None);
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = "fireFoo"))]
-pub fn fire_foo() {
+fn add(a: u32, b: u32) -> u32 {
+    a + b
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = "fireAdd"))]
+pub fn fire_add() {
     EVENT_LOOP_PROXY.with(|proxy| {
         if let Some(event_loop_proxy) = proxy.borrow().as_ref() {
-            // TODO: .ok()?
-            event_loop_proxy.send_event(CustomEvent::Foo).ok();
+            event_loop_proxy
+                .send_event(CustomEvent::Add { a: 1, b: 2 })
+                .ok();
         }
     });
 }
@@ -56,7 +61,10 @@ pub fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
-            Event::UserEvent(CustomEvent::Foo) => println!("user event: {:?}", event),
+            Event::UserEvent(CustomEvent::Add { a, b }) => {
+                let result = add(a, b);
+                log::info!("{:?}", result);
+            }
             _ => (),
         }
     });
@@ -96,21 +104,30 @@ mod wasm {
             .unwrap()
             .dyn_into()
             .unwrap();
-        script.set_type("text/javascript");
+        script.set_type("module");
 
         // Your JavaScript code here, including creating the button and attaching the event handler
         script.set_inner_text(
             r#"
-            import { fireFoo } from "your-wasm"
+console.log("Custom Button Loaded");
+import fireAdd from "./wasm_custom_event.js";
+fireAdd();
+let button = document.createElement("button");
+button.innerHTML = "Click me!";
+button.onclick = () => {
+    console.log("Button Clicked", fireAdd);
+    fireAdd();
+};
+document.body.appendChild(button);
+console.log("Custom Button Loaded 2");
 
-            var button = document.createElement("button");
-            button.innerHTML = "Click me!";
-            button.onclick = fireFoo;
-
-            document.body.appendChild(button);
             "#,
         );
 
-        body.append_child(&script);
+        let first_child = body.first_child();
+        match first_child {
+            Some(node) => body.insert_before(&script, Some(&node)).unwrap(),
+            None => body.append_child(&script).unwrap(),
+        };
     }
 }
