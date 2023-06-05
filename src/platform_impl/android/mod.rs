@@ -408,6 +408,9 @@ impl<T: 'static> EventLoop<T> {
                 }
                 InputEvent::KeyEvent(key) => {  
                     match key.key_code() {
+                        // Flagg keys related to volume as unhandled. While winit does not have a way for applications
+                        // to configure what keys to flag as handled, this appears to be a good default until winit
+                        // can be configured.
                         ndk::event::Keycode::VolumeUp |
                         ndk::event::Keycode::VolumeDown |
                         ndk::event::Keycode::VolumeMute => {
@@ -475,6 +478,7 @@ impl<T: 'static> EventLoop<T> {
                     warn!("Unknown android_activity input event {event:?}")
                 }
             }
+            input_status
         });
 
         // Empty the user event buffer
