@@ -1,3 +1,6 @@
+/// This example will show how to call a Rust function from JavaScript
+/// You should see the number 42 appear in browser console output when you click the button
+
 #[cfg(not(wasm_platform))]
 pub fn main() {
     panic!("This example is only meant to be compiled for wasm target")
@@ -112,7 +115,7 @@ mod wasm {
             r#"
             import { handleWasmCall } from "./wasm_custom_event.js";
             let button = document.createElement("button");
-            button.innerHTML = "What is the meaning of life?";
+            button.innerHTML = "Favourite Number?";
             button.onclick = handleWasmCall;
             document.body.appendChild(button);
             "#,
