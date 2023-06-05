@@ -1,4 +1,4 @@
-#![allow(clippy::single_match)]
+#![allow(clippy::disallowed_methods, clippy::single_match)]
 
 use winit::{
     event::{Event, WindowEvent},
@@ -52,7 +52,7 @@ mod wasm {
     pub fn insert_canvas_and_create_log_list(window: &Window) -> web_sys::Element {
         use winit::platform::web::WindowExtWebSys;
 
-        let canvas = window.canvas();
+        let canvas = window.canvas().unwrap();
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();

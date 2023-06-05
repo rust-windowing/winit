@@ -3,6 +3,8 @@ use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
 
@@ -84,7 +86,7 @@ impl<T> EventLoopWindowTarget<T> {
         canvas: &Rc<RefCell<backend::Canvas>>,
         id: WindowId,
         prevent_default: bool,
-        has_focus: Rc<Cell<bool>>,
+        has_focus: Arc<AtomicBool>,
     ) {
         self.runner.add_canvas(RootWindowId(id), canvas);
         let mut canvas = canvas.borrow_mut();
@@ -96,7 +98,7 @@ impl<T> EventLoopWindowTarget<T> {
         let has_focus_clone = has_focus.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_blur(move || {
-            has_focus_clone.set(false);
+            has_focus_clone.store(false, Ordering::Relaxed);
 
             let clear_modifiers = (!modifiers.get().is_empty()).then(|| {
                 modifiers.set(ModifiersState::empty());
@@ -119,7 +121,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus_clone = has_focus.clone();
         canvas.on_focus(move || {
-            if !has_focus_clone.replace(true) {
+            if !has_focus_clone.swap(true, Ordering::Relaxed) {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Focused(true),
@@ -204,7 +206,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
+                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -234,7 +236,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
+                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -264,7 +266,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
+                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -419,7 +421,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.get() && modifiers.get() != active_modifiers {
+                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -476,7 +478,8 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_mouse_wheel(
             move |pointer_id, delta, active_modifiers| {
-                let modifiers_changed = (has_focus.get() && modifiers.get() != active_modifiers)
+                let modifiers_changed = (has_focus.load(Ordering::Relaxed)
+                    && modifiers.get() != active_modifiers)
                     .then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -507,26 +510,30 @@ impl<T> EventLoopWindowTarget<T> {
             width: raw.width(),
             height: raw.height(),
         };
-        canvas.on_fullscreen_change(move || {
-            // If the canvas is marked as fullscreen, it is moving *into* fullscreen
-            // If it is not, it is moving *out of* fullscreen
-            let new_size = if backend::is_fullscreen(&raw) {
-                intended_size = PhysicalSize {
-                    width: raw.width(),
-                    height: raw.height(),
+
+        canvas.on_fullscreen_change({
+            let window = self.runner.window().clone();
+            move || {
+                // If the canvas is marked as fullscreen, it is moving *into* fullscreen
+                // If it is not, it is moving *out of* fullscreen
+                let new_size = if backend::is_fullscreen(&window, &raw) {
+                    intended_size = PhysicalSize {
+                        width: raw.width(),
+                        height: raw.height(),
+                    };
+
+                    backend::window_size(&window).to_physical(backend::scale_factor(&window))
+                } else {
+                    intended_size
                 };
 
-                backend::window_size().to_physical(backend::scale_factor())
-            } else {
-                intended_size
-            };
-
-            backend::set_canvas_size(&raw, Size::Physical(new_size));
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Resized(new_size),
-            });
-            runner.request_redraw(RootWindowId(id));
+                backend::set_canvas_size(&window, &raw, Size::Physical(new_size));
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Resized(new_size),
+                });
+                runner.request_redraw(RootWindowId(id));
+            }
         });
 
         let runner = self.runner.clone();
