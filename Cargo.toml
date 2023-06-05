@@ -149,7 +149,8 @@ features = [
     'Node',
     'PointerEvent',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    "HtmlScriptElement",
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
