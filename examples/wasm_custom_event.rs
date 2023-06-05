@@ -110,7 +110,7 @@ mod wasm {
         script.set_inner_text(
             r#"
 console.log("Custom Button Loaded");
-import fireAdd from "./wasm_custom_event.js";
+import { fireAdd } from "./wasm_custom_event.js";
 fireAdd();
 let button = document.createElement("button");
 button.innerHTML = "Click me!";
