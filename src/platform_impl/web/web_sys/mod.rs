@@ -15,7 +15,7 @@ use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
-use web_sys::{BeforeUnloadEvent, Element, HtmlCanvasElement};
+use web_sys::{Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -28,18 +28,13 @@ pub fn exit_fullscreen(window: &web_sys::Window) {
 }
 
 pub struct UnloadEventHandle {
-    _listener: event_handle::EventListenerHandle<dyn FnMut(BeforeUnloadEvent)>,
+    _listener: event_handle::EventListenerHandle<dyn FnMut()>,
 }
 
-pub fn on_unload(
-    window: &web_sys::Window,
-    mut handler: impl FnMut() + 'static,
-) -> UnloadEventHandle {
-    let closure = Closure::wrap(
-        Box::new(move |_: BeforeUnloadEvent| handler()) as Box<dyn FnMut(BeforeUnloadEvent)>
-    );
+pub fn on_unload(window: &web_sys::Window, handler: impl FnMut() + 'static) -> UnloadEventHandle {
+    let closure = Closure::new(handler);
 
-    let listener = event_handle::EventListenerHandle::new(window, "beforeunload", closure);
+    let listener = event_handle::EventListenerHandle::new(window, "pagehide", closure);
     UnloadEventHandle {
         _listener: listener,
     }

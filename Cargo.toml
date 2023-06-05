@@ -133,7 +133,6 @@ version = "0.3.22"
 features = [
     'console',
     'CssStyleDeclaration',
-    'BeforeUnloadEvent',
     'Document',
     'DomRect',
     'Element',
