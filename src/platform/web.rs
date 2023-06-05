@@ -2,6 +2,10 @@
 //! allow end users to determine how the page should be laid out. Use the [`WindowExtWebSys`] trait
 //! to retrieve the canvas from the Window. Alternatively, use the [`WindowBuilderExtWebSys`] trait
 //! to provide your own canvas.
+//!
+//! Winit controls the size of the canvas and therefore any attempts to manipulate it's size
+//! without using [`Window::set_inner_size()`][crate::window::Window::set_inner_size()] will be
+//! overwritten by Winit.
 
 use crate::event::Event;
 use crate::event_loop::ControlFlow;
