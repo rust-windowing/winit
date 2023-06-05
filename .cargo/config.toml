@@ -1,6 +1,2 @@
 [alias]
 run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
-
-# [build]
-# target = "wasm32-unknown-unknown"
-# target_arch = "wasm32"
