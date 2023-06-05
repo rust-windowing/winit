@@ -74,6 +74,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, use the correct canvas size when calculating the new size during scale factor change,
   instead of using the output bitmap size.
 - On Web, scale factor and dark mode detection are now more robust.
+- On Web, fix the bfcache by not using the `beforeunload` event.
 
 # 0.28.6
 
