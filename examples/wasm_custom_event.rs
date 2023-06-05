@@ -1,88 +1,89 @@
-#![allow(clippy::single_match)]
-
-use std::cell::RefCell;
-use wasm_bindgen::prelude::*;
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{EventLoop, EventLoopBuilder, EventLoopProxy},
-    window::WindowBuilder,
-};
-
-#[derive(Debug, Clone, Copy)]
-pub enum CustomEvent {
-    Add { a: u32, b: u32 },
-}
-
-thread_local! {
-    pub static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<CustomEvent>>> = RefCell::new(None);
-}
-
-fn add(a: u32, b: u32) -> u32 {
-    a + b
-}
-
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = "fireAdd"))]
-pub fn fire_add() {
-    EVENT_LOOP_PROXY.with(|proxy| {
-        if let Some(event_loop_proxy) = proxy.borrow().as_ref() {
-            event_loop_proxy
-                .send_event(CustomEvent::Add { a: 1, b: 2 })
-                .ok();
-        }
-    });
-}
-
+#[cfg(not(wasm_platform))]
 pub fn main() {
-    let event_loop: EventLoop<CustomEvent> =
-        EventLoopBuilder::<CustomEvent>::with_user_event().build();
+    panic!("This example is only meant to be compiled for wasm target")
+}
 
-    let event_loop_proxy = event_loop.create_proxy();
-
-    EVENT_LOOP_PROXY.with(move |proxy| {
-        proxy.replace(Some(event_loop_proxy));
-    });
-
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
-
-    #[cfg(wasm_platform)]
-    wasm::insert_canvas(&window);
-
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            }
-            Event::UserEvent(CustomEvent::Add { a, b }) => {
-                let result = add(a, b);
-                log::info!("{:?}", result);
-            }
-            _ => (),
-        }
-    });
+#[cfg(wasm_platform)]
+pub fn main() {
+    panic!("Please run `cargo run-wasm --example wasm_custom_event`")
 }
 
 #[cfg(wasm_platform)]
 mod wasm {
+    use std::cell::RefCell;
+
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlScriptElement;
-    use winit::{event::Event, window::Window};
+    use winit::event::Event;
+    use winit::event::WindowEvent;
+    use winit::event_loop::EventLoop;
+    use winit::event_loop::EventLoopBuilder;
+    use winit::event_loop::EventLoopProxy;
+    use winit::window::Window;
+    use winit::window::WindowBuilder;
+
+    // Because EventLoopProxy is not Send, we need to wrap it in a RefCell and use thread_local!
+    thread_local! {
+        pub static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<CustomEvent>>> = RefCell::new(None);
+    }
+
+    // Function to be called from JS
+    fn wasm_call() -> u32 {
+        42
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum CustomEvent {
+        WasmCall,
+    }
 
     #[wasm_bindgen(start)]
     pub fn run() {
         console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
 
-        #[allow(clippy::main_recursion)]
-        super::main();
+        let event_loop: EventLoop<CustomEvent> =
+            EventLoopBuilder::<CustomEvent>::with_user_event().build();
+
+        let event_loop_proxy = event_loop.create_proxy();
+
+        // Initialize the thread_local EVENT_LOOP_PROXY value
+        EVENT_LOOP_PROXY.with(move |proxy| {
+            proxy.replace(Some(event_loop_proxy));
+        });
+
+        let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+        insert_canvas(&window);
+
+        event_loop.run(move |event, _, control_flow| {
+            control_flow.set_wait();
+
+            match event {
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    window_id,
+                } if window_id == window.id() => control_flow.set_exit(),
+                Event::MainEventsCleared => {
+                    window.request_redraw();
+                }
+                // Handle custom events here
+                Event::UserEvent(CustomEvent::WasmCall) => {
+                    // Send the result back to JS as proof that the custom event was handled
+                    log::info!("{:?}", wasm_call());
+                }
+                _ => (),
+            }
+        });
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = "handleWasmCall"))]
+    pub fn handle_wasm_call() {
+        EVENT_LOOP_PROXY.with(|proxy| {
+            if let Some(event_loop_proxy) = proxy.borrow().as_ref() {
+                event_loop_proxy.send_event(CustomEvent::WasmCall).ok();
+            }
+        });
     }
 
     pub fn insert_canvas(window: &Window) {
@@ -109,18 +110,11 @@ mod wasm {
         // Your JavaScript code here, including creating the button and attaching the event handler
         script.set_inner_text(
             r#"
-console.log("Custom Button Loaded");
-import { fireAdd } from "./wasm_custom_event.js";
-fireAdd();
-let button = document.createElement("button");
-button.innerHTML = "Click me!";
-button.onclick = () => {
-    console.log("Button Clicked", fireAdd);
-    fireAdd();
-};
-document.body.appendChild(button);
-console.log("Custom Button Loaded 2");
-
+            import { handleWasmCall } from "./wasm_custom_event.js";
+            let button = document.createElement("button");
+            button.innerHTML = "What is the meaning of life?";
+            button.onclick = handleWasmCall;
+            document.body.appendChild(button);
             "#,
         );
 
