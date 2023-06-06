@@ -95,7 +95,7 @@ mod wasm {
         let body = document.body().unwrap();
 
         // Set a background color for the canvas to make it easier to tell where the canvas is for debugging purposes.
-        canvas.style().set_css_text("background-color: crimson;");
+        canvas.style().set_property("background-color", "crimson");
         body.append_child(&canvas).unwrap();
 
         // Create script element
