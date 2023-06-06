@@ -42,11 +42,21 @@ pub trait EventLoopBuilderExtAndroid {
     ///
     /// This must be called on Android since the `AndroidApp` is not global state.
     fn with_android_app(&mut self, app: AndroidApp) -> &mut Self;
+
+    /// Calling this will mark the volume keys to be manually handled by the application
+    ///
+    /// Default is to let the operating system handle the volume keys
+    fn handle_volume_keys(&mut self) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
     fn with_android_app(&mut self, app: AndroidApp) -> &mut Self {
         self.platform_specific.android_app = Some(app);
+        self
+    }
+
+    fn handle_volume_keys(&mut self) -> &mut Self {
+        self.platform_specific.ignore_volume_keys = false;
         self
     }
 }

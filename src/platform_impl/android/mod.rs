@@ -138,11 +138,22 @@ pub struct EventLoop<T: 'static> {
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
     running: bool,
+    ignore_volume_keys: bool,
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) android_app: Option<AndroidApp>,
+    pub(crate) ignore_volume_keys: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            android_app: Default::default(),
+            ignore_volume_keys: true,
+        }
+    }
 }
 
 fn sticky_exit_callback<T, F>(
@@ -192,6 +203,7 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
             running: false,
+            ignore_volume_keys: attributes.ignore_volume_keys,
         }
     }
 
@@ -327,8 +339,8 @@ impl<T: 'static> EventLoop<T> {
         }
 
         // Process input events
-
         self.android_app.input_events(|event| {
+            let mut input_status = InputStatus::Handled;
             match event {
                 InputEvent::MotionEvent(motion_event) => {
                     let window_id = window::WindowId(WindowId);
@@ -395,67 +407,78 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 InputEvent::KeyEvent(key) => {
-                    let state = match key.action() {
-                        KeyAction::Down => event::ElementState::Pressed,
-                        KeyAction::Up => event::ElementState::Released,
-                        _ => event::ElementState::Released,
-                    };
-
-                    #[cfg(feature = "android-native-activity")]
-                    let (keycode_u32, scancode_u32) = unsafe {
-                        // We abuse the fact that `android_activity`'s `KeyEvent` is `repr(transparent)`
-                        let event = (key as *const android_activity::input::KeyEvent<'_>).cast::<ndk::event::KeyEvent>();
-                        // We use the unsafe function directly because we want to forward the
-                        // keycode value even if it doesn't have a variant defined in the ndk
-                        // crate.
-                        (
-                            AKeyEvent_getKeyCode((*event).ptr().as_ptr()) as u32,
-                            (*event).scan_code() as u32
-                        )
-                    };
-                    #[cfg(feature = "android-game-activity")]
-                    let (keycode_u32, scancode_u32) = (key.keyCode as u32, key.scanCode as u32);
-                    let keycode = keycode_u32
-                        .try_into()
-                        .unwrap_or(ndk::event::Keycode::Unknown);
-                    let physical_key = KeyCode::Unidentified(
-                        NativeKeyCode::Android(scancode_u32),
-                    );
-                    let native = NativeKey::Android(keycode_u32);
-                    let logical_key = keycode_to_logical(keycode, native);
-                    // TODO: maybe use getUnicodeChar to get the logical key
-
-                    let event = event::Event::WindowEvent {
-                        window_id: window::WindowId(WindowId),
-                        event: event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId),
-                            event: event::KeyEvent {
-                                state,
-                                physical_key,
-                                logical_key,
-                                location: keycode_to_location(keycode),
-                                repeat: key.repeat_count() > 0,
-                                text: None,
-                                platform_specific: KeyEventExtra {},
-                            },
-                            is_synthetic: false,
+                    match key.key_code() {
+                        // Flagg keys related to volume as unhandled. While winit does not have a way for applications
+                        // to configure what keys to flag as handled, this appears to be a good default until winit
+                        // can be configured.
+                        ndk::event::Keycode::VolumeUp |
+                        ndk::event::Keycode::VolumeDown |
+                        ndk::event::Keycode::VolumeMute => {
+                            if self.ignore_volume_keys {
+                                input_status = InputStatus::Unhandled
+                            }
                         },
-                    };
-                    sticky_exit_callback(
-                        event,
-                        self.window_target(),
-                        control_flow,
-                        callback,
-                    );
+                        _ => {
+                            let state = match key.action() {
+                                KeyAction::Down => event::ElementState::Pressed,
+                                KeyAction::Up => event::ElementState::Released,
+                                _ => event::ElementState::Released,
+                            };
+
+                            #[cfg(feature = "android-native-activity")]
+                            let (keycode_u32, scancode_u32) = unsafe {
+                                // We abuse the fact that `android_activity`'s `KeyEvent` is `repr(transparent)`
+                                let event = (key as *const android_activity::input::KeyEvent<'_>).cast::<ndk::event::KeyEvent>();
+                                // We use the unsafe function directly because we want to forward the
+                                // keycode value even if it doesn't have a variant defined in the ndk
+                                // crate.
+                                (
+                                    AKeyEvent_getKeyCode((*event).ptr().as_ptr()) as u32,
+                                    (*event).scan_code() as u32
+                                )
+                            };
+                            #[cfg(feature = "android-game-activity")]
+                            let (keycode_u32, scancode_u32) = (key.keyCode as u32, key.scanCode as u32);
+                            let keycode = keycode_u32
+                                .try_into()
+                                .unwrap_or(ndk::event::Keycode::Unknown);
+                            let physical_key = KeyCode::Unidentified(
+                                NativeKeyCode::Android(scancode_u32),
+                            );
+                            let native = NativeKey::Android(keycode_u32);
+                            let logical_key = keycode_to_logical(keycode, native);
+                            // TODO: maybe use getUnicodeChar to get the logical key
+
+                            let event = event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::KeyboardInput {
+                                    device_id: event::DeviceId(DeviceId),
+                                    event: event::KeyEvent {
+                                        state,
+                                        physical_key,
+                                        logical_key,
+                                        location: keycode_to_location(keycode),
+                                        repeat: key.repeat_count() > 0,
+                                        text: None,
+                                        platform_specific: KeyEventExtra {},
+                                    },
+                                    is_synthetic: false,
+                                },
+                            };
+                            sticky_exit_callback(
+                                event,
+                                self.window_target(),
+                                control_flow,
+                                callback,
+                            );
+                        }
+                    }
                 }
                 _ => {
                     warn!("Unknown android_activity input event {event:?}")
                 }
             }
-
-            // Assume all events are handled, while Winit doesn't currently give a way for
-            // applications to report whether they handled an input event.
-            InputStatus::Handled
+            input_status
         });
 
         // Empty the user event buffer
