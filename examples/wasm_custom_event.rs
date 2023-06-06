@@ -13,8 +13,7 @@ pub fn main() {
 
 #[cfg(wasm_platform)]
 mod wasm {
-    use std::cell::RefCell;
-
+    use once_cell::unsync::OnceCell;
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlScriptElement;
@@ -26,9 +25,9 @@ mod wasm {
     use winit::window::Window;
     use winit::window::WindowBuilder;
 
-    // Because EventLoopProxy is not Send, we need to wrap it in a RefCell and use thread_local!
+    
     thread_local! {
-        pub static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<CustomEvent>>> = RefCell::new(None);
+        pub static EVENT_LOOP_PROXY: OnceCell<EventLoopProxy<CustomEvent>> = OnceCell::new();
     }
 
     // Function to be called from JS
@@ -51,8 +50,8 @@ mod wasm {
         let event_loop_proxy = event_loop.create_proxy();
 
         // Initialize the thread_local EVENT_LOOP_PROXY value
-        EVENT_LOOP_PROXY.with(move |proxy| {
-            proxy.replace(Some(event_loop_proxy));
+        EVENT_LOOP_PROXY.with(|cell| {
+            cell.set(event_loop_proxy).unwrap();
         });
 
         let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -82,10 +81,8 @@ mod wasm {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = "handleWasmCall"))]
     pub fn handle_wasm_call() {
-        EVENT_LOOP_PROXY.with(|proxy| {
-            if let Some(event_loop_proxy) = proxy.borrow().as_ref() {
-                event_loop_proxy.send_event(CustomEvent::WasmCall).ok();
-            }
+        EVENT_LOOP_PROXY.with(|cell| {
+            cell.get().unwrap().send_event(CustomEvent::WasmCall).ok();
         });
     }
 
