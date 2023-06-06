@@ -17,13 +17,9 @@ mod wasm {
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlScriptElement;
-    use winit::event::Event;
-    use winit::event::WindowEvent;
-    use winit::event_loop::EventLoop;
-    use winit::event_loop::EventLoopBuilder;
-    use winit::event_loop::EventLoopProxy;
-    use winit::window::Window;
-    use winit::window::WindowBuilder;
+    use winit::event::{Event, WindowEvent};
+    use winit::event_loop::{EventLoop, EventLoopBuilder, EventLoopProxy};
+    use winit::window::{Window, WindowBuilder};
 
     
     thread_local! {
@@ -96,7 +92,7 @@ mod wasm {
         let body = document.body().unwrap();
 
         // Set a background color for the canvas to make it easier to tell where the canvas is for debugging purposes.
-        canvas.style().set_css_text("background-color: crimson;");
+        canvas.style().set_property("background-color", "crimson");
         body.append_child(&canvas).unwrap();
 
         // Create script element
