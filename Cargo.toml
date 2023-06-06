@@ -150,7 +150,6 @@ features = [
     'PointerEvent',
     'Window',
     'WheelEvent',
-    "HtmlScriptElement",
 ]
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies.web_sys]
