@@ -153,6 +153,11 @@ features = [
     "HtmlScriptElement",
 ]
 
+[target.'cfg(target_family = "wasm")'.dev-dependencies.web_sys]
+package = "web-sys"
+version = "0.3.22"
+features = ['HtmlScriptElement']
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 js-sys = "0.3"
 wasm-bindgen = "0.2.45"
