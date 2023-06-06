@@ -18,13 +18,9 @@ mod wasm {
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlScriptElement;
-    use winit::event::Event;
-    use winit::event::WindowEvent;
-    use winit::event_loop::EventLoop;
-    use winit::event_loop::EventLoopBuilder;
-    use winit::event_loop::EventLoopProxy;
-    use winit::window::Window;
-    use winit::window::WindowBuilder;
+    use winit::event::{Event, WindowEvent};
+    use winit::event_loop::{EventLoop, EventLoopBuilder, EventLoopProxy};
+    use winit::window::{Window, WindowBuilder};
 
     // Because EventLoopProxy is not Send, we need to wrap it in a RefCell and use thread_local!
     thread_local! {
