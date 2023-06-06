@@ -406,7 +406,7 @@ impl<T: 'static> EventLoop<T> {
                         }
                     }
                 }
-                InputEvent::KeyEvent(key) => {  
+                InputEvent::KeyEvent(key) => {
                     match key.key_code() {
                         // Flagg keys related to volume as unhandled. While winit does not have a way for applications
                         // to configure what keys to flag as handled, this appears to be a good default until winit
