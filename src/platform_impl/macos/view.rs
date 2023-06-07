@@ -243,7 +243,9 @@ declare_class!(
         fn draw_rect(&mut self, rect: NSRect) {
             trace_scope!("drawRect:");
 
-            AppState::handle_redraw(self.window_id());
+            if let Some(window) = self._ns_window.load() {
+                AppState::handle_redraw(WindowId(window.id()));
+            }
 
             #[allow(clippy::let_unit_value)]
             unsafe {
