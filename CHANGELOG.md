@@ -54,7 +54,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
 - Implement `PartialOrd` and `Ord` on types in the `dpi` module.
 - **Breaking:** Bump MSRV from `1.60` to `1.64`.
-- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
+- **Breaking:** On Web, `Window::(set_)inner_size()` will return/change the visual canvas size
+  instead of the internal canvas size.
 - On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
 - On Web: fix position of touch events to be relative to the canvas.
 - On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
