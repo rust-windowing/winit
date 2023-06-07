@@ -67,7 +67,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix pen treated as mouse input.
 - On Web, send mouse position on button release as well.
 - On Web, fix touch input not gaining or loosing focus.
-- **Breaking:** On Web, dropped support for Safari versions below 13.
+- **Breaking:** On Web, dropped support for Safari versions below 13.1.
 - On Web, prevent clicks on the canvas to select text.
 - On Web, `EventLoopProxy` now implements `Send`.
 - On Web, `Window` now implements `Send` and `Sync`.
@@ -79,6 +79,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix scale factor resize suggestion always overwriting the canvas size.
 - On macOS, fix crash when dropping `Window`.
 - On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.
+- **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to
+  the canvas size will be reported through `WindowEvent::Resized`.
 
 # 0.28.6
 

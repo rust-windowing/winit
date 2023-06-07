@@ -1,8 +1,9 @@
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
+use super::resize::ResizeHandle;
 use super::{event, ButtonsState};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
@@ -29,9 +30,9 @@ pub struct Canvas {
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
+    on_resize: Option<ResizeHandle>,
 }
 
 pub struct Common {
@@ -73,22 +74,16 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let size = attr
-            .inner_size
-            .unwrap_or(
-                LogicalSize {
-                    width: 1024.0,
-                    height: 768.0,
-                }
-                .into(),
-            )
-            .to_physical(super::scale_factor(&window));
+        if let Some(size) = attr.inner_size {
+            let size = size.to_logical(super::scale_factor(&window));
+            super::set_canvas_size(&canvas, size);
+        }
 
-        let canvas = Canvas {
+        Ok(Canvas {
             common: Common {
                 window,
                 raw: canvas,
-                size: Rc::new(Cell::new(size)),
+                size: Rc::default(),
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
             on_touch_start: None,
@@ -98,14 +93,10 @@ impl Canvas {
             on_keyboard_release: None,
             on_keyboard_press: None,
             on_mouse_wheel: None,
-            on_fullscreen_change: None,
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
-        };
-
-        super::set_canvas_size(&canvas, size.into());
-
-        Ok(canvas)
+            on_resize: None,
+        })
     }
 
     pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
@@ -138,12 +129,16 @@ impl Canvas {
         }
     }
 
-    pub fn window(&self) -> &web_sys::Window {
-        &self.common.window
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.common.size.get()
     }
 
-    pub fn size(&self) -> &Rc<Cell<PhysicalSize<u32>>> {
-        &self.common.size
+    pub fn set_inner_size(&self, size: PhysicalSize<u32>) {
+        self.common.size.set(size)
+    }
+
+    pub fn window(&self) -> &web_sys::Window {
+        &self.common.window
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -329,16 +324,6 @@ impl Canvas {
         }));
     }
 
-    pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(),
-    {
-        self.on_fullscreen_change = Some(
-            self.common
-                .add_event("fullscreenchange", move |_: Event| handler()),
-        );
-    }
-
     pub fn on_dark_mode<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(bool),
@@ -347,6 +332,17 @@ impl Canvas {
             &self.common.window,
             "(prefers-color-scheme: dark)",
             move |mql| handler(mql.matches()),
+        ));
+    }
+
+    pub fn on_resize<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(PhysicalSize<u32>),
+    {
+        self.on_resize = Some(ResizeHandle::new(
+            self.window().clone(),
+            self.raw().clone(),
+            handler,
         ));
     }
 
@@ -364,9 +360,9 @@ impl Canvas {
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
         self.on_mouse_wheel = None;
-        self.on_fullscreen_change = None;
         self.on_dark_mode = None;
-        self.pointer_handler.remove_listeners()
+        self.pointer_handler.remove_listeners();
+        self.on_resize = None;
     }
 }
 

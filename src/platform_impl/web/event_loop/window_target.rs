@@ -16,7 +16,6 @@ use super::{
     runner,
     window::WindowId,
 };
-use crate::dpi::Size;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase,
     WindowEvent,
@@ -595,35 +594,6 @@ impl<T> EventLoopWindowTarget<T> {
             prevent_default,
         );
 
-        // The size to restore to after exiting fullscreen.
-        let mut intended_size = canvas.size().get();
-
-        canvas.on_fullscreen_change({
-            let window = self.runner.window().clone();
-            let runner = self.runner.clone();
-
-            move || {
-                let canvas = canvas_clone.borrow();
-
-                // If the canvas is marked as fullscreen, it is moving *into* fullscreen
-                // If it is not, it is moving *out of* fullscreen
-                let new_size = if backend::is_fullscreen(&window, canvas.raw()) {
-                    intended_size = canvas.size().get();
-
-                    backend::window_size(&window).to_physical(backend::scale_factor(&window))
-                } else {
-                    intended_size
-                };
-
-                backend::set_canvas_size(&canvas, Size::Physical(new_size));
-                runner.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::Resized(new_size),
-                });
-                runner.request_redraw(RootWindowId(id));
-            }
-        });
-
         let runner = self.runner.clone();
         canvas.on_touch_cancel(move |device_id, location, force| {
             runner.send_event(Event::WindowEvent {
@@ -649,6 +619,16 @@ impl<T> EventLoopWindowTarget<T> {
                 window_id: RootWindowId(id),
                 event: WindowEvent::ThemeChanged(theme),
             });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_resize(move |size| {
+            canvas_clone.borrow().set_inner_size(size);
+            runner.send_event(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::Resized(size),
+            });
+            runner.request_redraw(RootWindowId(id));
         });
     }
 

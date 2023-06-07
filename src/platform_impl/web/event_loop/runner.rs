@@ -327,14 +327,13 @@ impl<T: 'static> Shared<T> {
 
         // Now handle the `ScaleFactorChanged` events.
         for &(id, ref canvas) in &*self.0.all_canvases.borrow() {
-            let rc = match canvas.upgrade() {
+            let canvas = match canvas.upgrade() {
                 Some(rc) => rc,
                 // This shouldn't happen, but just in case...
                 None => continue,
             };
-            let canvas = rc.borrow();
             // First, we send the `ScaleFactorChanged` event:
-            let current_size = canvas.size().get();
+            let current_size = canvas.borrow().inner_size();
             let logical_size = current_size.to_logical::<f64>(old_scale);
             let mut new_size = logical_size.to_physical(new_scale);
             self.handle_single_event_sync(
@@ -348,16 +347,11 @@ impl<T: 'static> Shared<T> {
                 &mut control,
             );
 
-            // Then we resize the canvas to the new size and send a `Resized` event:
+            // Then we resize the canvas to the new size, a new
+            // `Resized` event will be sent by the `ResizeObserver`:
             if current_size != new_size {
-                backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
-                self.handle_single_event_sync(
-                    Event::WindowEvent {
-                        window_id: id,
-                        event: crate::event::WindowEvent::Resized(new_size),
-                    },
-                    &mut control,
-                );
+                let new_size = new_size.to_logical::<f64>(new_scale);
+                backend::set_canvas_size(canvas.borrow().raw(), new_size);
             }
         }
 

@@ -1,9 +1,10 @@
 #![allow(clippy::disallowed_methods, clippy::single_match)]
 
 use winit::{
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    keyboard::KeyCode,
+    window::{Fullscreen, WindowBuilder},
 };
 
 pub fn main() {
@@ -30,6 +31,25 @@ pub fn main() {
             } if window_id == window.id() => control_flow.set_exit(),
             Event::MainEventsCleared => {
                 window.request_redraw();
+            }
+            Event::WindowEvent {
+                window_id,
+                event:
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                physical_key: KeyCode::KeyF,
+                                state: ElementState::Released,
+                                ..
+                            },
+                        ..
+                    },
+            } if window_id == window.id() => {
+                if window.fullscreen().is_some() {
+                    window.set_fullscreen(None);
+                } else {
+                    window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                }
             }
             _ => (),
         }
