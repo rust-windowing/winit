@@ -349,14 +349,16 @@ impl<T: 'static> Shared<T> {
             );
 
             // Then we resize the canvas to the new size and send a `Resized` event:
-            backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
-            self.handle_single_event_sync(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::Resized(new_size),
-                },
-                &mut control,
-            );
+            if current_size != new_size {
+                backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
+                self.handle_single_event_sync(
+                    Event::WindowEvent {
+                        window_id: id,
+                        event: crate::event::WindowEvent::Resized(new_size),
+                    },
+                    &mut control,
+                );
+            }
         }
 
         // Process the destroy-pending windows again.
