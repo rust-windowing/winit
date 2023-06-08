@@ -243,6 +243,7 @@ declare_class!(
         fn draw_rect(&mut self, rect: NSRect) {
             trace_scope!("drawRect:");
 
+            // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self._ns_window.load() {
                 AppState::handle_redraw(WindowId(window.id()));
             }
