@@ -154,7 +154,7 @@ impl KbdState {
     /// `xkb_state_key_get_utf8`.
     fn make_string_with<F>(&mut self, mut f: F) -> Option<SmolStr>
     where
-        F: FnMut(*mut i8, usize) -> i32,
+        F: FnMut(*mut c_char, usize) -> i32,
     {
         let size = f(ptr::null_mut(), 0);
         if size == 0 {
