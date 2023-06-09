@@ -21,7 +21,7 @@ impl ScaleChangeDetector {
 struct ScaleChangeDetectorInternal {
     window: web_sys::Window,
     callback: Box<dyn FnMut(ScaleChangeArgs)>,
-    mql: Option<MediaQueryListHandle>,
+    mql: MediaQueryListHandle,
     last_scale: f64,
 }
 
@@ -31,24 +31,21 @@ impl ScaleChangeDetectorInternal {
         F: 'static + FnMut(ScaleChangeArgs),
     {
         let current_scale = super::scale_factor(&window);
-        let new_self = Rc::new(RefCell::new(Self {
-            window: window.clone(),
-            callback: Box::new(handler),
-            mql: None,
-            last_scale: current_scale,
-        }));
+        Rc::new_cyclic(|weak_self| {
+            let weak_self = weak_self.clone();
+            let mql = Self::create_mql(&window, move |mql| {
+                if let Some(rc_self) = weak_self.upgrade() {
+                    Self::handler(rc_self, mql);
+                }
+            });
 
-        let weak_self = Rc::downgrade(&new_self);
-        let mql = Self::create_mql(&window, move |mql| {
-            if let Some(rc_self) = weak_self.upgrade() {
-                Self::handler(rc_self, mql);
-            }
-        });
-        {
-            let mut borrowed_self = new_self.borrow_mut();
-            borrowed_self.mql = Some(mql);
-        }
-        new_self
+            RefCell::new(Self {
+                window,
+                callback: Box::new(handler),
+                mql,
+                last_scale: current_scale,
+            })
+        })
     }
 
     fn create_mql<F>(window: &web_sys::Window, closure: F) -> MediaQueryListHandle
@@ -65,7 +62,7 @@ impl ScaleChangeDetectorInternal {
         assert!(
             mql.mql().matches(),
             "created media query doesn't match, {current_scale} != {}",
-            super::scale_factor(window,)
+            super::scale_factor(window)
         );
         mql
     }
@@ -75,21 +72,31 @@ impl ScaleChangeDetectorInternal {
         let mut this = this.borrow_mut();
         let old_scale = this.last_scale;
         let new_scale = super::scale_factor(&this.window);
+
+        // TODO: confirm/reproduce this problem, see:
+        // <https://github.com/rust-windowing/winit/issues/2597>.
+        // This should never happen, but if it does then apparently the scale factor didn't change.
+        if mql.matches() {
+            warn!(
+                "media query tracking scale factor was triggered without a change:\n\
+                Media Query: {}\n\
+                Current Scale: {new_scale}",
+                mql.media(),
+            );
+            return;
+        }
+
         (this.callback)(ScaleChangeArgs {
             old_scale,
             new_scale,
         });
 
-        // If this matches, then the scale factor is back to it's
-        // old value again, so we won't need to update the query.
-        if !mql.matches() {
-            let new_mql = Self::create_mql(&this.window, move |mql| {
-                if let Some(rc_self) = weak_self.upgrade() {
-                    Self::handler(rc_self, mql);
-                }
-            });
-            this.mql = Some(new_mql);
-            this.last_scale = new_scale;
-        }
+        let new_mql = Self::create_mql(&this.window, move |mql| {
+            if let Some(rc_self) = weak_self.upgrade() {
+                Self::handler(rc_self, mql);
+            }
+        });
+        this.mql = new_mql;
+        this.last_scale = new_scale;
     }
 }
