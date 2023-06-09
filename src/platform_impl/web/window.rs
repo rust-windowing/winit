@@ -46,7 +46,7 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let window = target.runner.window();
-        let canvas = backend::Canvas::create(window.clone(), &attr, platform_attr)?;
+        let canvas = backend::Canvas::create(id, window.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));

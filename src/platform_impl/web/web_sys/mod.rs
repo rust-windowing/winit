@@ -3,13 +3,12 @@ mod event;
 mod event_handle;
 mod media_query_handle;
 mod pointer;
-mod resize;
-mod scaling;
+mod resize_scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
-pub use self::scaling::ScaleChangeDetector;
+pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
 use crate::dpi::LogicalSize;

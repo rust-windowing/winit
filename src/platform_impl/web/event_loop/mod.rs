@@ -1,5 +1,5 @@
 mod proxy;
-mod runner;
+pub(crate) mod runner;
 mod state;
 mod window_target;
 

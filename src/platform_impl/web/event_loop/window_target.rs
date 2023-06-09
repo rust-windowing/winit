@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
 
+use super::runner::EventWrapper;
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
@@ -70,10 +71,6 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
         self.runner.set_listener(event_handler);
-        let runner = self.runner.clone();
-        self.runner.set_on_scale_change(move |arg| {
-            runner.handle_scale_changed(arg.old_scale, arg.new_scale)
-        });
     }
 
     pub fn generate_id(&self) -> WindowId {
@@ -621,15 +618,32 @@ impl<T> EventLoopWindowTarget<T> {
             });
         });
 
-        let runner = self.runner.clone();
-        canvas.on_resize(move |size| {
-            canvas_clone.borrow().set_inner_size(size);
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Resized(size),
-            });
-            runner.request_redraw(RootWindowId(id));
-        });
+        canvas.on_resize_scale(
+            {
+                let runner = self.runner.clone();
+                let canvas = canvas_clone.clone();
+
+                move |size, scale| {
+                    runner.send_event(EventWrapper::ScaleChange {
+                        canvas: Rc::downgrade(&canvas),
+                        size,
+                        scale,
+                    })
+                }
+            },
+            {
+                let runner = self.runner.clone();
+
+                move |size| {
+                    RefCell::borrow(&canvas_clone).set_inner_size(size);
+                    runner.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Resized(size),
+                    });
+                    runner.request_redraw(RootWindowId(id));
+                }
+            },
+        );
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
