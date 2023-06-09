@@ -351,7 +351,8 @@ impl<T: 'static> Shared<T> {
             // `Resized` event will be sent by the `ResizeObserver`:
             if current_size != new_size {
                 let new_size = new_size.to_logical::<f64>(new_scale);
-                backend::set_canvas_size(canvas.borrow().raw(), new_size);
+                let canvas = canvas.borrow();
+                backend::set_canvas_size(canvas.window(), canvas.raw(), new_size);
             }
         }
 

@@ -103,7 +103,7 @@ impl ResizeHandle {
             "lr" | "lr-tb" | "rl" => true,
             "tb" | "tb-lr" | "tb-rl" => false,
             _ => {
-                log::warn!("unrecognized `writing-mode`, assuming horizontal");
+                warn!("unrecognized `writing-mode`, assuming horizontal");
                 true
             }
         };

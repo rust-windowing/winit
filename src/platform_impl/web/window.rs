@@ -151,7 +151,8 @@ impl Window {
     pub fn set_inner_size(&self, size: Size) {
         self.inner.dispatch(move |inner| {
             let size = size.to_logical(inner.scale_factor());
-            backend::set_canvas_size(inner.canvas.borrow().raw(), size);
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_size(canvas.window(), canvas.raw(), size);
         });
     }
 

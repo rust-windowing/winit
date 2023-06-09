@@ -76,7 +76,7 @@ impl Canvas {
 
         if let Some(size) = attr.inner_size {
             let size = size.to_logical(super::scale_factor(&window));
-            super::set_canvas_size(&canvas, size);
+            super::set_canvas_size(&window, &canvas, size);
         }
 
         Ok(Canvas {
