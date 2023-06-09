@@ -201,10 +201,7 @@ impl ResizeScaleInternal {
         canvas: &HtmlCanvasElement,
         entries: Array,
     ) -> PhysicalSize<u32> {
-        debug_assert_eq!(entries.length(), 1, "expected exactly one entry");
-        let entry = entries.get(0);
-        debug_assert!(entry.has_type::<ResizeObserverEntry>());
-        let entry: ResizeObserverEntry = entry.unchecked_into();
+        let entry: ResizeObserverEntry = entries.get(0).unchecked_into();
 
         // Safari doesn't support `devicePixelContentBoxSize`
         if !has_device_pixel_support() {
@@ -214,15 +211,10 @@ impl ResizeScaleInternal {
                 .to_physical(backend::scale_factor(window));
         }
 
-        let entries = entry.device_pixel_content_box_size();
-        debug_assert_eq!(
-            entries.length(),
-            1,
-            "a canvas can't be split into multiple fragments"
-        );
-        let entry = entries.get(0);
-        debug_assert!(entry.has_type::<ResizeObserverSize>());
-        let entry: ResizeObserverSize = entry.unchecked_into();
+        let entry: ResizeObserverSize = entry
+            .device_pixel_content_box_size()
+            .get(0)
+            .unchecked_into();
 
         let style = window
             .get_computed_style(canvas)
