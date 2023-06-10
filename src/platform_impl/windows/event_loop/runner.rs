@@ -25,7 +25,7 @@ use crate::{
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
 
-type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>;
+type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>>;
 
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
@@ -63,7 +63,7 @@ enum RunnerState {
 }
 
 enum BufferedEvent<T: 'static> {
-    Event(Event<'static, T>),
+    Event(Event<T>),
     ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
@@ -84,11 +84,11 @@ impl<T> EventLoopRunner<T> {
 
     pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
     where
-        F: FnMut(Event<'_, T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &mut ControlFlow),
     {
         let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
         >(Some(Box::new(f))));
         assert!(old_event_handler.is_none());
     }
@@ -206,7 +206,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
-    pub(crate) unsafe fn send_event(&self, event: Event<'_, T>) {
+    pub(crate) unsafe fn send_event(&self, event: Event<T>) {
         if let Event::RedrawRequested(_) = event {
             if self.runner_state.get() != RunnerState::HandlingRedrawEvents {
                 warn!("RedrawRequested dispatched without explicit MainEventsCleared");
@@ -238,7 +238,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::Destroyed);
     }
 
-    unsafe fn call_event_handler(&self, event: Event<'_, T>) {
+    unsafe fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
@@ -412,7 +412,7 @@ impl<T> EventLoopRunner<T> {
 }
 
 impl<T> BufferedEvent<T> {
-    pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
+    pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
                 event:
@@ -421,20 +421,20 @@ impl<T> BufferedEvent<T> {
                         new_inner_size,
                     },
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
+            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, new_inner_size),
+            event => BufferedEvent::Event(event),
         }
     }
 
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<'_, T>)) {
+    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<T>)) {
         match self {
             Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
+            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size: &mut new_inner_size,
+                        new_inner_size: new_inner_size,
                     },
                 });
 

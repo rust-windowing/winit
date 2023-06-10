@@ -142,7 +142,7 @@ pub(crate) struct WindowData<T: 'static> {
 }
 
 impl<T> WindowData<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -157,7 +157,7 @@ struct ThreadMsgTargetData<T: 'static> {
 }
 
 impl<T> ThreadMsgTargetData<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -251,7 +251,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let exit_code = self.run_return(event_handler);
         ::std::process::exit(exit_code);
@@ -259,7 +259,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let event_loop_windows_ref = &self.window_target;
 
@@ -2032,7 +2032,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_physical_inner_size = match allow_resize {
+            let new_physical_inner_size = match allow_resize {
                 // We calculate our own size because the default suggested rect doesn't do a great job
                 // of preserving the window's logical size.
                 true => old_physical_inner_size
@@ -2045,7 +2045,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    new_inner_size: &mut new_physical_inner_size,
+                    new_inner_size: new_physical_inner_size,
                 },
             });
 
