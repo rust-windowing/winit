@@ -434,7 +434,7 @@ impl<T> BufferedEvent<T> {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size: new_inner_size,
+                        new_inner_size,
                     },
                 });
 
