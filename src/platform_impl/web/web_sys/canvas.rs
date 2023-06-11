@@ -378,16 +378,10 @@ impl Common {
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
     {
-        let closure = Closure::wrap(Box::new(move |event: E| {
-            {
-                let event_ref = event.as_ref();
-                event_ref.stop_propagation();
-                event_ref.cancel_bubble();
-            }
-
+        let closure = Closure::new(move |event: E| {
+            event.as_ref().stop_propagation();
             handler(event);
-        }) as Box<dyn FnMut(E)>);
-
+        });
         EventListenerHandle::new(&self.raw, event_name, closure)
     }
 
