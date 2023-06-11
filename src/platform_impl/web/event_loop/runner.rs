@@ -196,18 +196,38 @@ impl<T: 'static> Shared<T> {
                 }
 
                 // pointer move event
-                let id = event.pointer_id();
+                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
                 let mut delta = backend::event::MouseDelta::init(&window, &event);
-                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
+                runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta
                         .delta(&event)
                         .to_physical(backend::scale_factor(&window));
-                    Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(id)),
-                        event: DeviceEvent::MouseMotion {
-                            delta: (delta.x, delta.y),
+
+                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Motion {
+                            axis: 0,
+                            value: delta.x,
                         },
-                    }
+                    });
+
+                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Motion {
+                            axis: 1,
+                            value: delta.y,
+                        },
+                    });
+
+                    x_motion
+                        .into_iter()
+                        .chain(y_motion)
+                        .chain(iter::once(Event::DeviceEvent {
+                            device_id,
+                            event: DeviceEvent::MouseMotion {
+                                delta: (delta.x, delta.y),
+                            },
+                        }))
                 }));
             }),
         ));

@@ -290,22 +290,42 @@ impl<T> EventLoopWindowTarget<T> {
                         |(position, delta)| {
                             let device_id = RootDeviceId(DeviceId(pointer_id));
 
-                            runner
-                                .device_events()
-                                .then_some(Event::DeviceEvent {
+                            let device_events = runner.device_events().then(|| {
+                                let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
                                     device_id,
-                                    event: DeviceEvent::MouseMotion {
-                                        delta: (delta.x, delta.y),
+                                    event: DeviceEvent::Motion {
+                                        axis: 0,
+                                        value: delta.x,
                                     },
-                                })
-                                .into_iter()
-                                .chain(iter::once(Event::WindowEvent {
+                                });
+
+                                let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
+                                    device_id,
+                                    event: DeviceEvent::Motion {
+                                        axis: 1,
+                                        value: delta.y,
+                                    },
+                                });
+
+                                x_motion.into_iter().chain(y_motion).chain(iter::once(
+                                    Event::DeviceEvent {
+                                        device_id,
+                                        event: DeviceEvent::MouseMotion {
+                                            delta: (delta.x, delta.y),
+                                        },
+                                    },
+                                ))
+                            });
+
+                            device_events.into_iter().flatten().chain(iter::once(
+                                Event::WindowEvent {
                                     window_id: RootWindowId(id),
                                     event: WindowEvent::CursorMoved {
                                         device_id,
                                         position,
                                     },
-                                }))
+                                },
+                            ))
                         },
                     )));
                 }
