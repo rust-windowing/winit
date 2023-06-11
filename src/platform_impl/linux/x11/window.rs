@@ -279,6 +279,14 @@ impl UnownedWindow {
             )
         };
 
+        unsafe {
+            (xconn.xlib.XSelectInput)(
+                xconn.display,
+                root,
+                ffi::PropertyChangeMask,
+            );
+        }
+
         #[allow(clippy::mutex_atomic)]
         let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),

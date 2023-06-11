@@ -1,11 +1,13 @@
 use std::{env, slice, str::FromStr};
 
+
 use super::{
     ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
 use crate::platform_impl::platform::x11::monitor;
 use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
+use x11_dl::xlib::XTextProperty;
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {
@@ -39,11 +41,23 @@ impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
         (self.xlib.XrmInitialize)();
-        let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
-        if resource_manager_str.is_null() {
-            return None;
-        }
-        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
+
+        // Logic inspired by dunst
+        // https://github.com/dunst-project/dunst/commit/812d5a3b84c093adfbdab9939ee57545e442090c
+        (self.xlib.XFlush)(self.display);
+
+        let default_screen = (self.xlib.XDefaultScreen)(self.display);
+        let root = (self.xlib.XRootWindow)(self.display, default_screen);
+
+        let prop = &mut XTextProperty { value: ptr::null_mut(), encoding: 0, format: 0, nitems: 0 };
+
+        (self.xlib.XLockDisplay)(self.display);
+        (self.xlib.XGetTextProperty)(self.display, root, &mut *prop, ffi::XA_RESOURCE_MANAGER);
+
+        (self.xlib.XFlush)(self.display);
+        (self.xlib.XSync)(self.display, 0);
+
+        if let Ok(res) = ::std::ffi::CStr::from_ptr(prop.value as *const i8).to_str() {
             let name: &str = "Xft.dpi:\t";
             for pair in res.split('\n') {
                 if let Some(stripped) = pair.strip_prefix(name) {
