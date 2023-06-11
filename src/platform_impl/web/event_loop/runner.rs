@@ -1,7 +1,9 @@
+use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
-use crate::event::{Event, StartCause};
+use crate::event::{DeviceEvent, DeviceId as RootDeviceId, Event, StartCause};
 use crate::event_loop::ControlFlow;
+use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
 
 use std::{
@@ -12,6 +14,8 @@ use std::{
     ops::Deref,
     rc::{Rc, Weak},
 };
+use wasm_bindgen::prelude::Closure;
+use web_sys::PointerEvent;
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -33,6 +37,8 @@ pub struct Execution<T: 'static> {
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    #[allow(clippy::type_complexity)]
+    on_mouse_move: RefCell<Option<EventListenerHandle<dyn FnMut(PointerEvent)>>>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -131,6 +137,7 @@ impl<T: 'static> Shared<T> {
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
             unload_event_handle: RefCell::new(None),
+            on_mouse_move: RefCell::new(None),
         }))
     }
 
@@ -165,6 +172,38 @@ impl<T: 'static> Shared<T> {
             Some(backend::on_unload(self.window(), move || {
                 close_instance.handle_unload()
             }));
+
+        let runner = self.clone();
+        let window = self.window().clone();
+        *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "pointermove",
+            Closure::new(move |event: PointerEvent| {
+                if event.pointer_type() != "mouse" {
+                    return;
+                }
+
+                // chorded button event
+                if backend::event::mouse_button(&event).is_some() {
+                    return;
+                }
+
+                // pointer move event
+                let id = event.pointer_id();
+                let mut delta = backend::event::MouseDelta::init(&window, &event);
+                runner.send_events(backend::event::pointer_move_event(event).map(|event| {
+                    let delta = delta
+                        .delta(&event)
+                        .to_physical(backend::scale_factor(&window));
+                    Event::DeviceEvent {
+                        device_id: RootDeviceId(DeviceId(id)),
+                        event: DeviceEvent::MouseMotion {
+                            delta: (delta.x, delta.y),
+                        },
+                    }
+                }));
+            }),
+        ));
     }
 
     // Generate a strictly increasing ID
@@ -405,6 +444,7 @@ impl<T: 'static> Shared<T> {
         self.handle_event(Event::LoopDestroyed, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.unload_event_handle.borrow_mut() = None;
+        *self.0.on_mouse_move.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;

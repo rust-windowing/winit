@@ -81,6 +81,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.
 - **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to
   the canvas size will be reported through `WindowEvent::Resized`.
+- On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
 
 # 0.28.6
 

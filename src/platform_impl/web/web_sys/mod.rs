@@ -1,5 +1,5 @@
 mod canvas;
-mod event;
+pub mod event;
 mod event_handle;
 mod media_query_handle;
 mod pointer;
@@ -8,6 +8,7 @@ mod timeout;
 
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
+pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
