@@ -2,12 +2,13 @@ use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, DeviceId as RootDeviceId, Event, StartCause};
-use crate::event_loop::ControlFlow;
+use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
 
+use std::sync::atomic::Ordering;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     clone::Clone,
     collections::{HashSet, VecDeque},
     iter,
@@ -37,6 +38,7 @@ pub struct Execution<T: 'static> {
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    device_events: Cell<DeviceEvents>,
     #[allow(clippy::type_complexity)]
     on_mouse_move: RefCell<Option<EventListenerHandle<dyn FnMut(PointerEvent)>>>,
 }
@@ -137,6 +139,7 @@ impl<T: 'static> Shared<T> {
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
             unload_event_handle: RefCell::new(None),
+            device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
         }))
     }
@@ -179,6 +182,10 @@ impl<T: 'static> Shared<T> {
             self.window(),
             "pointermove",
             Closure::new(move |event: PointerEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
                 if event.pointer_type() != "mouse" {
                     return;
                 }
@@ -488,6 +495,24 @@ impl<T: 'static> Shared<T> {
             RunnerEnum::Running(ref runner) => runner.state.control_flow(),
             RunnerEnum::Pending => ControlFlow::Poll,
             RunnerEnum::Destroyed => ControlFlow::Exit,
+        }
+    }
+
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.0.device_events.set(allowed)
+    }
+
+    pub fn device_events(&self) -> bool {
+        match self.0.device_events.get() {
+            DeviceEvents::Always => true,
+            DeviceEvents::WhenFocused => self.0.all_canvases.borrow().iter().any(|(_, canvas)| {
+                if let Some(canvas) = canvas.upgrade() {
+                    canvas.borrow().has_focus.load(Ordering::Relaxed)
+                } else {
+                    false
+                }
+            }),
+            DeviceEvents::Never => false,
         }
     }
 }

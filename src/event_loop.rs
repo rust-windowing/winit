@@ -356,11 +356,11 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / macOS / iOS / Android / Web / Orbital:** Unsupported.
+    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {
-        #[cfg(any(x11_platform, wayland_platform, windows))]
+        #[cfg(any(x11_platform, wasm_platform, wayland_platform, windows))]
         self.p.listen_device_events(_allowed);
     }
 }
