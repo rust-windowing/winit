@@ -40,7 +40,8 @@ pub struct Common {
     pub window: web_sys::Window,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
-    size: Rc<Cell<PhysicalSize<u32>>>,
+    old_size: Rc<Cell<PhysicalSize<u32>>>,
+    current_size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -85,7 +86,8 @@ impl Canvas {
             common: Common {
                 window,
                 raw: canvas,
-                size: Rc::default(),
+                old_size: Rc::default(),
+                current_size: Rc::default(),
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
             id,
@@ -132,12 +134,20 @@ impl Canvas {
         }
     }
 
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.common.size.get()
+    pub fn old_size(&self) -> PhysicalSize<u32> {
+        self.common.old_size.get()
     }
 
-    pub fn set_inner_size(&self, size: PhysicalSize<u32>) {
-        self.common.size.set(size)
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.common.current_size.get()
+    }
+
+    pub fn set_old_size(&self, size: PhysicalSize<u32>) {
+        self.common.old_size.set(size)
+    }
+
+    pub fn set_current_size(&self, size: PhysicalSize<u32>) {
+        self.common.current_size.set(size)
     }
 
     pub fn window(&self) -> &web_sys::Window {
@@ -367,8 +377,7 @@ impl Canvas {
         scale: f64,
     ) {
         // First, we send the `ScaleFactorChanged` event:
-        let old_size = self.inner_size();
-        self.set_inner_size(current_size);
+        self.set_current_size(current_size);
         let mut new_size = current_size;
         event_handler(crate::event::Event::WindowEvent {
             window_id: RootWindowId(self.id),
@@ -388,9 +397,10 @@ impl Canvas {
             self.on_resize_scale
                 .as_ref()
                 .expect("expected Window to still be active")
-                .create_oneshot_resize();
-        } else if old_size != new_size {
+                .notify_resize();
+        } else if self.old_size() != new_size {
             // Then we at least send a resized event.
+            self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::Resized(new_size),

@@ -13,7 +13,7 @@ use super::super::backend;
 use super::media_query_handle::MediaQueryListHandle;
 
 use std::cell::{Cell, RefCell};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 pub struct ResizeScaleHandle(Rc<RefCell<ResizeScaleInternal>>);
 
@@ -36,12 +36,8 @@ impl ResizeScaleHandle {
         ))
     }
 
-    pub(crate) fn create_oneshot_resize(&self) {
-        self.0
-            .borrow()
-            .create_oneshot_observer(Rc::downgrade(&self.0), |this, size| {
-                (this.resize_handler)(size)
-            })
+    pub(crate) fn notify_resize(&self) {
+        self.0.borrow_mut().notify()
     }
 }
 
@@ -55,7 +51,7 @@ struct ResizeScaleInternal {
     _observer_closure: Closure<dyn FnMut(Array, ResizeObserver)>,
     scale_handler: Box<dyn FnMut(PhysicalSize<u32>, f64)>,
     resize_handler: Box<dyn FnMut(PhysicalSize<u32>)>,
-    resize_enabled: Cell<bool>,
+    notify_scale: Cell<bool>,
 }
 
 impl ResizeScaleInternal {
@@ -84,8 +80,12 @@ impl ResizeScaleInternal {
                 if let Some(rc_self) = weak_self.upgrade() {
                     let mut this = rc_self.borrow_mut();
 
-                    if this.resize_enabled.get() {
-                        let size = Self::process_entry(&this.window, &this.canvas, entries);
+                    let size = Self::process_entry(&this.window, &this.canvas, entries);
+
+                    if this.notify_scale.replace(false) {
+                        let scale = backend::scale_factor(&this.window);
+                        (this.scale_handler)(size, scale)
+                    } else {
                         (this.resize_handler)(size)
                     }
                 }
@@ -100,7 +100,7 @@ impl ResizeScaleInternal {
                 _observer_closure: observer_closure,
                 scale_handler: Box::new(scale_handler),
                 resize_handler: Box::new(resize_handler),
-                resize_enabled: Cell::new(true),
+                notify_scale: Cell::new(false),
             })
         })
     }
@@ -141,26 +141,61 @@ impl ResizeScaleInternal {
         observer
     }
 
-    fn create_oneshot_observer(
-        &self,
-        weak_self: Weak<RefCell<Self>>,
-        handler: impl 'static + FnOnce(&mut Self, PhysicalSize<u32>),
-    ) {
-        self.resize_enabled.set(false);
+    fn notify(&mut self) {
+        let document = self.window.document().expect("Failed to obtain document");
 
-        let observer_closure =
-            Closure::once_into_js(move |entries: Array, observer: ResizeObserver| {
-                if let Some(rc_self) = weak_self.upgrade() {
-                    let mut this = rc_self.borrow_mut();
-                    let size = Self::process_entry(&this.window, &this.canvas, entries);
-                    this.resize_enabled.set(true);
+        if !document.contains(Some(&self.canvas)) {
+            let size = PhysicalSize::new(0, 0);
 
-                    handler(&mut this, size)
-                }
+            if self.notify_scale.replace(false) {
+                let scale = backend::scale_factor(&self.window);
+                (self.scale_handler)(size, scale)
+            } else {
+                (self.resize_handler)(size)
+            }
 
-                observer.disconnect();
-            });
-        Self::create_observer(&self.canvas, &observer_closure);
+            return;
+        }
+
+        // Safari doesn't support `devicePixelContentBoxSize`
+        if has_device_pixel_support() {
+            self.observer.unobserve(&self.canvas);
+            self.observer.observe(&self.canvas);
+
+            return;
+        }
+
+        let style = self
+            .window
+            .get_computed_style(&self.canvas)
+            .expect("Failed to obtain computed style")
+            // this can't fail: we aren't using a pseudo-element
+            .expect("Invalid pseudo-element");
+
+        let mut size = LogicalSize::new(
+            backend::style_size_property(&style, "width"),
+            backend::style_size_property(&style, "height"),
+        );
+
+        if style.get_property_value("box-sizing").unwrap() == "border-box" {
+            size.width -= backend::style_size_property(&style, "border-left-width")
+                + backend::style_size_property(&style, "border-right-width")
+                + backend::style_size_property(&style, "padding-left")
+                + backend::style_size_property(&style, "padding-right");
+            size.height -= backend::style_size_property(&style, "border-top-width")
+                + backend::style_size_property(&style, "border-bottom-width")
+                + backend::style_size_property(&style, "padding-top")
+                + backend::style_size_property(&style, "padding-bottom");
+        }
+
+        let size = size.to_physical(backend::scale_factor(&self.window));
+
+        if self.notify_scale.replace(false) {
+            let scale = backend::scale_factor(&self.window);
+            (self.scale_handler)(size, scale)
+        } else {
+            (self.resize_handler)(size)
+        }
     }
 
     fn handle_scale(this: Rc<RefCell<Self>>, mql: &MediaQueryList) {
@@ -181,19 +216,15 @@ impl ResizeScaleInternal {
             return;
         }
 
-        let new_mql = Self::create_mql(&this.window, {
-            let weak_self = weak_self.clone();
-            move |mql| {
-                if let Some(rc_self) = weak_self.upgrade() {
-                    Self::handle_scale(rc_self, mql);
-                }
+        let new_mql = Self::create_mql(&this.window, move |mql| {
+            if let Some(rc_self) = weak_self.upgrade() {
+                Self::handle_scale(rc_self, mql);
             }
         });
         this.mql = new_mql;
 
-        this.create_oneshot_observer(weak_self, move |this, size| {
-            (this.scale_handler)(size, scale)
-        });
+        this.notify_scale.set(true);
+        this.notify();
     }
 
     fn process_entry(

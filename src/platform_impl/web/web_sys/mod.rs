@@ -67,17 +67,6 @@ pub fn set_canvas_size(
         return;
     }
 
-    /// This function will panic if the element is not inserted in the DOM
-    /// or is not a CSS property that represents a size in pixel.
-    fn style_size_property(style: &CssStyleDeclaration, property: &str) -> f64 {
-        let prop = style
-            .get_property_value(property)
-            .expect("Found invalid property");
-        prop.strip_suffix("px")
-            .expect("Element was not inserted into the DOM or is not a size in pixel")
-            .parse()
-            .expect("CSS property is not a size in pixel")
-    }
     let style = window
         .get_computed_style(raw)
         .expect("Failed to obtain computed style")
@@ -96,6 +85,18 @@ pub fn set_canvas_size(
 
     set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
     set_canvas_style_property(raw, "height", &format!("{}px", new_size.height));
+}
+
+/// This function will panic if the element is not inserted in the DOM
+/// or is not a CSS property that represents a size in pixel.
+pub fn style_size_property(style: &CssStyleDeclaration, property: &str) -> f64 {
+    let prop = style
+        .get_property_value(property)
+        .expect("Found invalid property");
+    prop.strip_suffix("px")
+        .expect("Element was not inserted into the DOM or is not a size in pixel")
+        .parse()
+        .expect("CSS property is not a size in pixel")
 }
 
 pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {

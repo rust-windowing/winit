@@ -634,13 +634,17 @@ impl<T> EventLoopWindowTarget<T> {
             {
                 let runner = self.runner.clone();
 
-                move |size| {
-                    RefCell::borrow(&canvas_clone).set_inner_size(size);
-                    runner.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::Resized(size),
-                    });
-                    runner.request_redraw(RootWindowId(id));
+                move |new_size| {
+                    let canvas = RefCell::borrow(&canvas_clone);
+                    canvas.set_current_size(new_size);
+                    if canvas.old_size() != new_size {
+                        canvas.set_old_size(new_size);
+                        runner.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::Resized(new_size),
+                        });
+                        runner.request_redraw(RootWindowId(id));
+                    }
                 }
             },
         );
