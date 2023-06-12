@@ -598,16 +598,21 @@ impl<T> EventLoopWindowTarget<T> {
                         }
                     });
 
-                runner.send_events(modifiers_changed.into_iter().chain(iter::once(
-                    Event::WindowEvent {
+                let device_event = runner.device_events().then_some(Event::DeviceEvent {
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                    event: DeviceEvent::MouseWheel { delta },
+                });
+
+                runner.send_events(modifiers_changed.into_iter().chain(device_event).chain(
+                    iter::once(Event::WindowEvent {
                         window_id: RootWindowId(id),
                         event: WindowEvent::MouseWheel {
                             device_id: RootDeviceId(DeviceId(pointer_id)),
                             delta,
                             phase: TouchPhase::Moved,
                         },
-                    },
-                )));
+                    }),
+                ));
             },
             prevent_default,
         );

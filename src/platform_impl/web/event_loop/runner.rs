@@ -16,7 +16,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use wasm_bindgen::prelude::Closure;
-use web_sys::PointerEvent;
+use web_sys::{PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -41,6 +41,8 @@ pub struct Execution<T: 'static> {
     device_events: Cell<DeviceEvents>,
     #[allow(clippy::type_complexity)]
     on_mouse_move: RefCell<Option<EventListenerHandle<dyn FnMut(PointerEvent)>>>,
+    #[allow(clippy::type_complexity)]
+    on_wheel: RefCell<Option<EventListenerHandle<dyn FnMut(WheelEvent)>>>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -141,6 +143,7 @@ impl<T: 'static> Shared<T> {
             unload_event_handle: RefCell::new(None),
             device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
+            on_wheel: RefCell::new(None),
         }))
     }
 
@@ -229,6 +232,24 @@ impl<T: 'static> Shared<T> {
                             },
                         }))
                 }));
+            }),
+        ));
+        let runner = self.clone();
+        let window = self.window().clone();
+        *self.0.on_wheel.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "wheel",
+            Closure::new(move |event: WheelEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
+                if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
+                    runner.send_event(Event::DeviceEvent {
+                        device_id: RootDeviceId(DeviceId(0)),
+                        event: DeviceEvent::MouseWheel { delta },
+                    });
+                }
             }),
         ));
     }
@@ -472,6 +493,7 @@ impl<T: 'static> Shared<T> {
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.unload_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
+        *self.0.on_wheel.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
