@@ -6,8 +6,6 @@ use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
 use event::ButtonsState;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{JsCast, JsValue};
 use web_sys::PointerEvent;
 
 #[allow(dead_code)]
@@ -183,8 +181,9 @@ impl PointerHandler {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static
+            + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>),
+        T: 'static + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         let window = canvas_common.window.clone();
@@ -192,16 +191,6 @@ impl PointerHandler {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
-                // coalesced events are not available on Safari
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(extends = PointerEvent)]
-                    type PointerEventExt;
-
-                    #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
-                    fn has_get_coalesced_events(this: &PointerEventExt) -> JsValue;
-                }
-
                 modifier_handler(event::mouse_modifiers(&event));
 
                 let pointer_type = event.pointer_type();
@@ -238,40 +227,34 @@ impl PointerHandler {
                 }
 
                 // pointer move event
+                let scale = super::scale_factor(&window);
+                match pointer_type.as_str() {
+                    "mouse" => {
+                        let mut delta = event::MouseDelta::init(&window, &event);
 
-                let event: PointerEventExt = event.unchecked_into();
-
-                // store coalesced events to extend it's lifetime
-                let events = (!event.has_get_coalesced_events().is_undefined())
-                    .then(|| event.get_coalesced_events());
-
-                // make a single iterator depending on the availability of coalesced events
-                let events = if let Some(events) = &events {
-                    None.into_iter().chain(
-                        Some(events.iter().map(PointerEventExt::unchecked_from_js))
-                            .into_iter()
-                            .flatten(),
-                    )
-                } else {
-                    Some(event).into_iter().chain(None.into_iter().flatten())
-                };
-
-                for event in events {
-                    match pointer_type.as_str() {
-                        "mouse" => mouse_handler(
+                        mouse_handler(
                             id,
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            event::mouse_delta(&event).to_physical(super::scale_factor(&window)),
-                        ),
-                        "touch" => touch_handler(
-                            id,
-                            event::touch_position(&event, &canvas)
-                                .to_physical(super::scale_factor(&window)),
-                            Force::Normalized(event.pressure() as f64),
-                        ),
-                        _ => unreachable!("didn't return early before"),
+                            &mut event::pointer_move_event(event).map(|event| {
+                                let position = event::mouse_position(&event).to_physical(scale);
+                                let delta = delta
+                                    .delta(&event)
+                                    .to_physical(super::scale_factor(&window));
+
+                                (position, delta)
+                            }),
+                        )
                     }
-                }
+                    "touch" => touch_handler(
+                        id,
+                        &mut event::pointer_move_event(event).map(|event| {
+                            (
+                                event::touch_position(&event, &canvas).to_physical(scale),
+                                Force::Normalized(event.pressure() as f64),
+                            )
+                        }),
+                    ),
+                    _ => unreachable!("didn't return early before"),
+                };
             },
         ));
     }

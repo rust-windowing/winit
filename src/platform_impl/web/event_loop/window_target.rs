@@ -279,29 +279,33 @@ impl<T> EventLoopWindowTarget<T> {
             {
                 let runner = self.runner.clone();
 
-                move |pointer_id, position, delta| {
-                    runner.send_events([
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                position,
+                move |pointer_id, events| {
+                    runner.send_events(events.flat_map(|(position, delta)| {
+                        let device_id = RootDeviceId(DeviceId(pointer_id));
+
+                        [
+                            Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::MouseMotion {
+                                    delta: (delta.x, delta.y),
+                                },
                             },
-                        },
-                        Event::DeviceEvent {
-                            device_id: RootDeviceId(DeviceId(pointer_id)),
-                            event: DeviceEvent::MouseMotion {
-                                delta: (delta.x, delta.y),
+                            Event::WindowEvent {
+                                window_id: RootWindowId(id),
+                                event: WindowEvent::CursorMoved {
+                                    device_id,
+                                    position,
+                                },
                             },
-                        },
-                    ]);
+                        ]
+                    }));
                 }
             },
             {
                 let runner = self.runner.clone();
 
-                move |device_id, location, force| {
-                    runner.send_event(Event::WindowEvent {
+                move |device_id, events| {
+                    runner.send_events(events.map(|(location, force)| Event::WindowEvent {
                         window_id: RootWindowId(id),
                         event: WindowEvent::Touch(Touch {
                             id: device_id as u64,
@@ -310,7 +314,7 @@ impl<T> EventLoopWindowTarget<T> {
                             force: Some(force),
                             location,
                         }),
-                    });
+                    }));
                 }
             },
             {

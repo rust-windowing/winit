@@ -2,8 +2,11 @@ use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 
+use once_cell::unsync::OnceCell;
 use smol_str::SmolStr;
 use std::convert::TryInto;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 bitflags! {
@@ -61,10 +64,48 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     }
 }
 
-pub fn mouse_delta(event: &MouseEvent) -> LogicalPosition<f64> {
-    LogicalPosition {
-        x: event.movement_x() as f64,
-        y: event.movement_y() as f64,
+// TODO: Remove this when Firefox supports correct movement values in coalesced events.
+// See <https://bugzilla.mozilla.org/show_bug.cgi?id=1753724>.
+pub struct MouseDelta(Option<MouseDeltaInner>);
+
+pub struct MouseDeltaInner {
+    old_position: LogicalPosition<f64>,
+    old_delta: LogicalPosition<f64>,
+}
+
+impl MouseDelta {
+    pub fn init(window: &web_sys::Window, event: &PointerEvent) -> Self {
+        // Firefox has wrong movement values in coalesced events, we will detect that by checking
+        // for `pointerrawupdate` support. Presumably an implementation of `pointerrawupdate`
+        // should require correct movement values, otherwise uncoalesced events might be broken as
+        // well.
+        Self(
+            (!has_pointer_raw_support(window) && has_coalesced_events_support(event)).then(|| {
+                MouseDeltaInner {
+                    old_position: mouse_position(event),
+                    old_delta: LogicalPosition {
+                        x: event.movement_x() as f64,
+                        y: event.movement_y() as f64,
+                    },
+                }
+            }),
+        )
+    }
+
+    pub fn delta(&mut self, event: &MouseEvent) -> LogicalPosition<f64> {
+        if let Some(inner) = &mut self.0 {
+            let new_position = mouse_position(event);
+            let x = new_position.x - inner.old_position.x + inner.old_delta.x;
+            let y = new_position.y - inner.old_position.y + inner.old_delta.y;
+            inner.old_position = new_position;
+            inner.old_delta = LogicalPosition::new(0., 0.);
+            LogicalPosition::new(x, y)
+        } else {
+            LogicalPosition {
+                x: event.movement_x() as f64,
+                y: event.movement_y() as f64,
+            }
+        }
     }
 }
 
@@ -171,4 +212,68 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
 
 pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
     mouse_position_by_client(event, canvas)
+}
+
+pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEvent> {
+    // make a single iterator depending on the availability of coalesced events
+    if has_coalesced_events_support(&event) {
+        None.into_iter().chain(
+            Some(
+                event
+                    .get_coalesced_events()
+                    .into_iter()
+                    .map(PointerEvent::unchecked_from_js),
+            )
+            .into_iter()
+            .flatten(),
+        )
+    } else {
+        Some(event).into_iter().chain(None.into_iter().flatten())
+    }
+}
+
+// TODO: Remove when all browsers implement it correctly.
+// See <https://github.com/rust-windowing/winit/issues/2875>.
+pub fn has_pointer_raw_support(window: &web_sys::Window) -> bool {
+    thread_local! {
+        static POINTER_RAW_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    POINTER_RAW_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type PointerRawSupport;
+
+                #[wasm_bindgen(method, getter, js_name = onpointerrawupdate)]
+                fn has_on_pointerrawupdate(this: &PointerRawSupport) -> JsValue;
+            }
+
+            let support: &PointerRawSupport = window.unchecked_ref();
+            !support.has_on_pointerrawupdate().is_undefined()
+        })
+    })
+}
+
+// TODO: Remove when Safari supports `getCoalescedEvents`.
+// See <https://bugs.webkit.org/show_bug.cgi?id=210454>.
+pub fn has_coalesced_events_support(event: &PointerEvent) -> bool {
+    thread_local! {
+        static COALESCED_EVENTS_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    COALESCED_EVENTS_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type PointerCoalescedEventsSupport;
+
+                #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
+                fn has_get_coalesced_events(this: &PointerCoalescedEventsSupport) -> JsValue;
+            }
+
+            let support: &PointerCoalescedEventsSupport = event.unchecked_ref();
+            !support.has_get_coalesced_events().is_undefined()
+        })
+    })
 }

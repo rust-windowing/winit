@@ -289,8 +289,9 @@ impl Canvas {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static
+            + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>),
+        T: 'static + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         self.pointer_handler.on_cursor_move(
