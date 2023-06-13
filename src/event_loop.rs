@@ -158,13 +158,6 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
-    ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
-    ///   example when the scaling of the page has changed. This should be treated as an implementation
-    ///   detail which should not be relied on.
     Poll,
 
     /// When the current loop iteration finishes, suspend the thread until another event arrives.

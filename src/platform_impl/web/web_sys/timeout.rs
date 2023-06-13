@@ -1,8 +1,11 @@
+use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 use wasm_bindgen::closure::Closure;
+use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
 #[derive(Debug)]
 pub struct Timeout {
@@ -40,16 +43,21 @@ impl Drop for Timeout {
 }
 
 #[derive(Debug)]
-pub struct AnimationFrameRequest {
+pub struct IdleCallback {
     window: web_sys::Window,
-    handle: i32,
-    // track callback state, because `cancelAnimationFrame` is slow
+    handle: Handle,
     fired: Rc<Cell<bool>>,
     _closure: Closure<dyn FnMut()>,
 }
 
-impl AnimationFrameRequest {
-    pub fn new<F>(window: web_sys::Window, mut f: F) -> AnimationFrameRequest
+#[derive(Clone, Copy, Debug)]
+enum Handle {
+    IdleCallback(u32),
+    Timeout(i32),
+}
+
+impl IdleCallback {
+    pub fn new<F>(window: web_sys::Window, mut f: F) -> IdleCallback
     where
         F: 'static + FnMut(),
     {
@@ -60,11 +68,21 @@ impl AnimationFrameRequest {
             f();
         }) as Box<dyn FnMut()>);
 
-        let handle = window
-            .request_animation_frame(closure.as_ref().unchecked_ref())
-            .expect("Failed to request animation frame");
+        let handle = if has_idle_callback_support(&window) {
+            Handle::IdleCallback(
+                window
+                    .request_idle_callback(closure.as_ref().unchecked_ref())
+                    .expect("Failed to request idle callback"),
+            )
+        } else {
+            Handle::Timeout(
+                window
+                    .set_timeout_with_callback(closure.as_ref().unchecked_ref())
+                    .expect("Failed to set timeout"),
+            )
+        };
 
-        AnimationFrameRequest {
+        IdleCallback {
             window,
             handle,
             fired,
@@ -73,12 +91,34 @@ impl AnimationFrameRequest {
     }
 }
 
-impl Drop for AnimationFrameRequest {
+impl Drop for IdleCallback {
     fn drop(&mut self) {
         if !(*self.fired).get() {
-            self.window
-                .cancel_animation_frame(self.handle)
-                .expect("Failed to cancel animation frame");
+            match self.handle {
+                Handle::IdleCallback(handle) => self.window.cancel_idle_callback(handle),
+                Handle::Timeout(handle) => self.window.clear_timeout_with_handle(handle),
+            }
         }
     }
+}
+
+fn has_idle_callback_support(window: &web_sys::Window) -> bool {
+    thread_local! {
+        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    IDLE_CALLBACK_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type IdleCallbackSupport;
+
+                #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
+                fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
+            }
+
+            let support: &IdleCallbackSupport = window.unchecked_ref();
+            !support.has_request_idle_callback().is_undefined()
+        })
+    })
 }
