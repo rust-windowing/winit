@@ -6,8 +6,6 @@ use crate::event::{Force, MouseButton};
 use crate::keyboard::ModifiersState;
 
 use event::ButtonsState;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{JsCast, JsValue};
 use web_sys::PointerEvent;
 
 #[allow(dead_code)]
@@ -32,54 +30,40 @@ impl PointerHandler {
         }
     }
 
-    pub fn on_cursor_leave<MOD, M>(
-        &mut self,
-        canvas_common: &Common,
-        mut modifier_handler: MOD,
-        mut mouse_handler: M,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32),
+    pub fn on_cursor_leave<F>(&mut self, canvas_common: &Common, mut handler: F)
+    where
+        F: 'static + FnMut(ModifiersState, Option<i32>),
     {
         self.on_cursor_leave = Some(canvas_common.add_event(
             "pointerout",
             move |event: PointerEvent| {
-                modifier_handler(event::mouse_modifiers(&event));
+                let modifiers = event::mouse_modifiers(&event);
 
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
+                let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
 
-                mouse_handler(event.pointer_id());
+                handler(modifiers, pointer_id);
             },
         ));
     }
 
-    pub fn on_cursor_enter<MOD, M>(
-        &mut self,
-        canvas_common: &Common,
-        mut modifier_handler: MOD,
-        mut mouse_handler: M,
-    ) where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32),
+    pub fn on_cursor_enter<F>(&mut self, canvas_common: &Common, mut handler: F)
+    where
+        F: 'static + FnMut(ModifiersState, Option<i32>),
     {
         self.on_cursor_enter = Some(canvas_common.add_event(
             "pointerover",
             move |event: PointerEvent| {
-                modifier_handler(event::mouse_modifiers(&event));
+                let modifiers = event::mouse_modifiers(&event);
 
                 // touch events are handled separately
                 // handling them here would produce duplicate mouse events, inconsistent with
                 // other platforms.
-                if event.pointer_type() != "mouse" {
-                    return;
-                }
+                let pointer_id = (event.pointer_type() == "mouse").then(|| event.pointer_id());
 
-                mouse_handler(event.pointer_id());
+                handler(modifiers, pointer_id);
             },
         ));
     }
@@ -92,29 +76,31 @@ impl PointerHandler {
         mut touch_handler: T,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
-                modifier_handler(event::mouse_modifiers(&event));
+                let modifiers = event::mouse_modifiers(&event);
 
                 match event.pointer_type().as_str() {
                     "touch" => touch_handler(
+                        modifiers,
                         event.pointer_id(),
                         event::touch_position(&event, &canvas)
                             .to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     ),
                     "mouse" => mouse_handler(
+                        modifiers,
                         event.pointer_id(),
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_button(&event).expect("no mouse button released"),
                     ),
-                    _ => (),
+                    _ => modifier_handler(modifiers),
                 }
             },
         ));
@@ -129,8 +115,8 @@ impl PointerHandler {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
@@ -144,11 +130,12 @@ impl PointerHandler {
                     let _ = canvas.focus();
                 }
 
-                modifier_handler(event::mouse_modifiers(&event));
+                let modifiers = event::mouse_modifiers(&event);
 
                 match event.pointer_type().as_str() {
                     "touch" => {
                         touch_handler(
+                            modifiers,
                             event.pointer_id(),
                             event::touch_position(&event, &canvas)
                                 .to_physical(super::scale_factor(&window)),
@@ -157,6 +144,7 @@ impl PointerHandler {
                     }
                     "mouse" => {
                         mouse_handler(
+                            modifiers,
                             event.pointer_id(),
                             event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                             event::mouse_button(&event).expect("no mouse button pressed"),
@@ -167,7 +155,7 @@ impl PointerHandler {
                         // this could fail, that we care if it fails.
                         let _e = canvas.set_pointer_capture(event.pointer_id());
                     }
-                    _ => (),
+                    _ => modifier_handler(modifiers),
                 }
             },
         ));
@@ -183,32 +171,29 @@ impl PointerHandler {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
-        B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+        M: 'static
+            + FnMut(
+                ModifiersState,
+                i32,
+                &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>,
+            ),
+        T: 'static
+            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
+        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
-                // coalesced events are not available on Safari
-                #[wasm_bindgen]
-                extern "C" {
-                    #[wasm_bindgen(extends = PointerEvent)]
-                    type PointerEventExt;
-
-                    #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
-                    fn has_get_coalesced_events(this: &PointerEventExt) -> JsValue;
-                }
-
-                modifier_handler(event::mouse_modifiers(&event));
+                let modifiers = event::mouse_modifiers(&event);
 
                 let pointer_type = event.pointer_type();
 
-                match pointer_type.as_str() {
-                    "touch" | "mouse" => (),
-                    _ => return,
+                if let "touch" | "mouse" = pointer_type.as_str() {
+                } else {
+                    modifier_handler(modifiers);
+                    return;
                 }
 
                 let id = event.pointer_id();
@@ -228,6 +213,7 @@ impl PointerHandler {
                     }
 
                     button_handler(
+                        modifiers,
                         id,
                         event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         event::mouse_buttons(&event),
@@ -238,40 +224,36 @@ impl PointerHandler {
                 }
 
                 // pointer move event
+                let scale = super::scale_factor(&window);
+                match pointer_type.as_str() {
+                    "mouse" => {
+                        let mut delta = event::MouseDelta::init(&window, &event);
 
-                let event: PointerEventExt = event.unchecked_into();
-
-                // store coalesced events to extend it's lifetime
-                let events = (!event.has_get_coalesced_events().is_undefined())
-                    .then(|| event.get_coalesced_events());
-
-                // make a single iterator depending on the availability of coalesced events
-                let events = if let Some(events) = &events {
-                    None.into_iter().chain(
-                        Some(events.iter().map(PointerEventExt::unchecked_from_js))
-                            .into_iter()
-                            .flatten(),
-                    )
-                } else {
-                    Some(event).into_iter().chain(None.into_iter().flatten())
-                };
-
-                for event in events {
-                    match pointer_type.as_str() {
-                        "mouse" => mouse_handler(
+                        mouse_handler(
+                            modifiers,
                             id,
-                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
-                            event::mouse_delta(&event).to_physical(super::scale_factor(&window)),
-                        ),
-                        "touch" => touch_handler(
-                            id,
-                            event::touch_position(&event, &canvas)
-                                .to_physical(super::scale_factor(&window)),
-                            Force::Normalized(event.pressure() as f64),
-                        ),
-                        _ => unreachable!("didn't return early before"),
+                            &mut event::pointer_move_event(event).map(|event| {
+                                let position = event::mouse_position(&event).to_physical(scale);
+                                let delta = delta
+                                    .delta(&event)
+                                    .to_physical(super::scale_factor(&window));
+
+                                (position, delta)
+                            }),
+                        )
                     }
-                }
+                    "touch" => touch_handler(
+                        modifiers,
+                        id,
+                        &mut event::pointer_move_event(event).map(|event| {
+                            (
+                                event::touch_position(&event, &canvas).to_physical(scale),
+                                Force::Normalized(event.pressure() as f64),
+                            )
+                        }),
+                    ),
+                    _ => unreachable!("didn't return early before"),
+                };
             },
         ));
     }
