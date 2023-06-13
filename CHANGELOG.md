@@ -83,7 +83,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   the canvas size will be reported through `WindowEvent::Resized`.
 - On Web, respect `EventLoopWindowTarget::listen_device_events()` settings.
 - On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
-- On Web, add `DeviceEvent::Motion` and `DeviceEvent::MouseWheel` support.
+- On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel` and `DeviceEvent::Button` support.
 
 # 0.28.6
 

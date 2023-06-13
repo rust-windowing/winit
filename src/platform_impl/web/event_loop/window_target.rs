@@ -380,38 +380,41 @@ impl<T> EventLoopWindowTarget<T> {
                             }
                         });
 
-                    let button_event = if buttons.contains(button.into()) {
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                state: ElementState::Pressed,
-                                button,
-                            },
-                        }
+                    let device_id = RootDeviceId(DeviceId(pointer_id));
+
+                    let state = if buttons.contains(button.into()) {
+                        ElementState::Pressed
                     } else {
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
-                                state: ElementState::Released,
-                                button,
-                            },
-                        }
+                        ElementState::Released
                     };
+
+                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Button {
+                            button: button.to_id(),
+                            state,
+                        },
+                    });
 
                     // A chorded button event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain([
+                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                device_id,
                                 position,
                             },
                         },
-                        button_event,
+                        Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::MouseInput {
+                                device_id,
+                                state,
+                                button,
+                            },
+                        },
                     ]));
                 }
             },
@@ -446,21 +449,30 @@ impl<T> EventLoopWindowTarget<T> {
                         }
                     });
 
+                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Button {
+                            button: button.to_id(),
+                            state: ElementState::Pressed,
+                        },
+                    });
+
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain([
+                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                device_id,
                                 position,
                             },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                device_id,
                                 state: ElementState::Pressed,
                                 button,
                             },
@@ -530,21 +542,30 @@ impl<T> EventLoopWindowTarget<T> {
                             }
                         });
 
+                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Button {
+                            button: button.to_id(),
+                            state: ElementState::Pressed,
+                        },
+                    });
+
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain([
+                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                device_id,
                                 position,
                             },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::MouseInput {
-                                device_id: RootDeviceId(DeviceId(pointer_id)),
+                                device_id,
                                 state: ElementState::Released,
                                 button,
                             },

@@ -57,6 +57,17 @@ pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
     }
 }
 
+impl MouseButton {
+    pub fn to_id(self) -> u32 {
+        match self {
+            MouseButton::Left => 0,
+            MouseButton::Right => 1,
+            MouseButton::Middle => 2,
+            MouseButton::Other(value) => value.into(),
+        }
+    }
+}
+
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,

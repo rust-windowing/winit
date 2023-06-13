@@ -1,7 +1,7 @@
 use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, DeviceId as RootDeviceId, Event, StartCause};
+use crate::event::{DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, StartCause};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
@@ -29,6 +29,8 @@ impl<T> Clone for Shared<T> {
     }
 }
 
+type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
+
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
     events: RefCell<VecDeque<EventWrapper<T>>>,
@@ -39,10 +41,10 @@ pub struct Execution<T: 'static> {
     destroy_pending: RefCell<VecDeque<WindowId>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
     device_events: Cell<DeviceEvents>,
-    #[allow(clippy::type_complexity)]
-    on_mouse_move: RefCell<Option<EventListenerHandle<dyn FnMut(PointerEvent)>>>,
-    #[allow(clippy::type_complexity)]
-    on_wheel: RefCell<Option<EventListenerHandle<dyn FnMut(WheelEvent)>>>,
+    on_mouse_move: OnEventHandle<PointerEvent>,
+    on_wheel: OnEventHandle<WheelEvent>,
+    on_press: OnEventHandle<PointerEvent>,
+    on_release: OnEventHandle<PointerEvent>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -144,6 +146,8 @@ impl<T: 'static> Shared<T> {
             device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
             on_wheel: RefCell::new(None),
+            on_press: RefCell::new(None),
+            on_release: RefCell::new(None),
         }))
     }
 
@@ -189,17 +193,39 @@ impl<T: 'static> Shared<T> {
                     return;
                 }
 
-                if event.pointer_type() != "mouse" {
+                let pointer_type = event.pointer_type();
+
+                if pointer_type != "mouse" {
                     return;
                 }
 
                 // chorded button event
-                if backend::event::mouse_button(&event).is_some() {
+                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
+
+                if let Some(button) = backend::event::mouse_button(&event) {
+                    debug_assert_eq!(
+                        pointer_type, "mouse",
+                        "expect pointer type of a chorded button event to be a mouse"
+                    );
+
+                    let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
+                        ElementState::Pressed
+                    } else {
+                        ElementState::Released
+                    };
+
+                    runner.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: DeviceEvent::Button {
+                            button: button.to_id(),
+                            state,
+                        },
+                    });
+
                     return;
                 }
 
                 // pointer move event
-                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
                 let mut delta = backend::event::MouseDelta::init(&window, &event);
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta
@@ -250,6 +276,52 @@ impl<T: 'static> Shared<T> {
                         event: DeviceEvent::MouseWheel { delta },
                     });
                 }
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_press.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "pointerdown",
+            Closure::new(move |event: PointerEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
+                if event.pointer_type() != "mouse" {
+                    return;
+                }
+
+                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                runner.send_event(Event::DeviceEvent {
+                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    event: DeviceEvent::Button {
+                        button: button.to_id(),
+                        state: ElementState::Pressed,
+                    },
+                });
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_release.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "pointerup",
+            Closure::new(move |event: PointerEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
+                if event.pointer_type() != "mouse" {
+                    return;
+                }
+
+                let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
+                runner.send_event(Event::DeviceEvent {
+                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    event: DeviceEvent::Button {
+                        button: button.to_id(),
+                        state: ElementState::Released,
+                    },
+                });
             }),
         ));
     }
@@ -494,6 +566,8 @@ impl<T: 'static> Shared<T> {
         *self.0.unload_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
         *self.0.on_wheel.borrow_mut() = None;
+        *self.0.on_press.borrow_mut() = None;
+        *self.0.on_release.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
