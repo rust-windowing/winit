@@ -224,22 +224,18 @@ impl Canvas {
         ));
     }
 
-    pub fn on_cursor_leave<MOD, M>(&mut self, modifier_handler: MOD, mouse_handler: M)
+    pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32),
+        F: 'static + FnMut(ModifiersState, Option<i32>),
     {
-        self.pointer_handler
-            .on_cursor_leave(&self.common, modifier_handler, mouse_handler)
+        self.pointer_handler.on_cursor_leave(&self.common, handler)
     }
 
-    pub fn on_cursor_enter<MOD, M>(&mut self, modifier_handler: MOD, mouse_handler: M)
+    pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
-        MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32),
+        F: 'static + FnMut(ModifiersState, Option<i32>),
     {
-        self.pointer_handler
-            .on_cursor_enter(&self.common, modifier_handler, mouse_handler)
+        self.pointer_handler.on_cursor_enter(&self.common, handler)
     }
 
     pub fn on_mouse_release<MOD, M, T>(
@@ -249,8 +245,8 @@ impl Canvas {
         touch_handler: T,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_release(
             &self.common,
@@ -268,8 +264,8 @@ impl Canvas {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
-        T: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+        M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
+        T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         self.pointer_handler.on_mouse_press(
             &self.common,
@@ -290,9 +286,14 @@ impl Canvas {
     ) where
         MOD: 'static + FnMut(ModifiersState),
         M: 'static
-            + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>),
-        T: 'static + FnMut(i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
-        B: 'static + FnMut(i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
+            + FnMut(
+                ModifiersState,
+                i32,
+                &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>,
+            ),
+        T: 'static
+            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
+        B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         self.pointer_handler.on_cursor_move(
             &self.common,
