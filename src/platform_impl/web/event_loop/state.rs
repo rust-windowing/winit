@@ -15,7 +15,7 @@ pub enum State {
         start: Instant,
     },
     Poll {
-        request: backend::AnimationFrameRequest,
+        request: backend::IdleCallback,
     },
     Exit,
 }

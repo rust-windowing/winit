@@ -442,10 +442,9 @@ impl<T: 'static> Shared<T> {
             ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    request: backend::AnimationFrameRequest::new(
-                        self.window().clone(),
-                        move || cloned.poll(),
-                    ),
+                    request: backend::IdleCallback::new(self.window().clone(), move || {
+                        cloned.poll()
+                    }),
                 }
             }
             ControlFlow::Wait => State::Wait {

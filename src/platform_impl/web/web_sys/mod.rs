@@ -9,7 +9,7 @@ mod timeout;
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
 pub use self::scaling::ScaleChangeDetector;
-pub use self::timeout::{AnimationFrameRequest, Timeout};
+pub use self::timeout::{IdleCallback, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
