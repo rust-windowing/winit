@@ -17,8 +17,8 @@ use super::{
     window::WindowId,
 };
 use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase,
-    WindowEvent,
+    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, RawKeyEvent, Touch,
+    TouchPhase, WindowEvent,
 };
 use crate::event_loop::DeviceEvents;
 use crate::keyboard::ModifiersState;
@@ -137,24 +137,36 @@ impl<T> EventLoopWindowTarget<T> {
                     }
                 });
 
+                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+
+                let device_event = runner.device_events().then_some(Event::DeviceEvent {
+                    device_id,
+                    event: DeviceEvent::Key(RawKeyEvent {
+                        physical_key,
+                        state: ElementState::Pressed,
+                    }),
+                });
+
                 runner.send_events(
-                    iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                            event: KeyEvent {
-                                physical_key,
-                                logical_key,
-                                text,
-                                location,
-                                state: ElementState::Pressed,
-                                repeat,
-                                platform_specific: KeyEventExtra,
+                    device_event
+                        .into_iter()
+                        .chain(iter::once(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::KeyboardInput {
+                                device_id,
+                                event: KeyEvent {
+                                    physical_key,
+                                    logical_key,
+                                    text,
+                                    location,
+                                    state: ElementState::Pressed,
+                                    repeat,
+                                    platform_specific: KeyEventExtra,
+                                },
+                                is_synthetic: false,
                             },
-                            is_synthetic: false,
-                        },
-                    })
-                    .chain(modifiers_changed),
+                        }))
+                        .chain(modifiers_changed),
                 );
             },
             prevent_default,
@@ -172,24 +184,36 @@ impl<T> EventLoopWindowTarget<T> {
                     }
                 });
 
+                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+
+                let device_event = runner.device_events().then_some(Event::DeviceEvent {
+                    device_id,
+                    event: DeviceEvent::Key(RawKeyEvent {
+                        physical_key,
+                        state: ElementState::Pressed,
+                    }),
+                });
+
                 runner.send_events(
-                    iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                            event: KeyEvent {
-                                physical_key,
-                                logical_key,
-                                text,
-                                location,
-                                state: ElementState::Released,
-                                repeat,
-                                platform_specific: KeyEventExtra,
+                    device_event
+                        .into_iter()
+                        .chain(iter::once(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::KeyboardInput {
+                                device_id,
+                                event: KeyEvent {
+                                    physical_key,
+                                    logical_key,
+                                    text,
+                                    location,
+                                    state: ElementState::Released,
+                                    repeat,
+                                    platform_specific: KeyEventExtra,
+                                },
+                                is_synthetic: false,
                             },
-                            is_synthetic: false,
-                        },
-                    })
-                    .chain(modifiers_changed),
+                        }))
+                        .chain(modifiers_changed),
                 )
             },
             prevent_default,

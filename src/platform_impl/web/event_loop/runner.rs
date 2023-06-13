@@ -1,7 +1,9 @@
 use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
-use crate::event::{DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, StartCause};
+use crate::event::{
+    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
+};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
@@ -16,7 +18,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use wasm_bindgen::prelude::Closure;
-use web_sys::{PointerEvent, WheelEvent};
+use web_sys::{KeyboardEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -43,8 +45,10 @@ pub struct Execution<T: 'static> {
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
     on_wheel: OnEventHandle<WheelEvent>,
-    on_press: OnEventHandle<PointerEvent>,
-    on_release: OnEventHandle<PointerEvent>,
+    on_mouse_press: OnEventHandle<PointerEvent>,
+    on_mouse_release: OnEventHandle<PointerEvent>,
+    on_key_press: OnEventHandle<KeyboardEvent>,
+    on_key_release: OnEventHandle<KeyboardEvent>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -146,8 +150,10 @@ impl<T: 'static> Shared<T> {
             device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
             on_wheel: RefCell::new(None),
-            on_press: RefCell::new(None),
-            on_release: RefCell::new(None),
+            on_mouse_press: RefCell::new(None),
+            on_mouse_release: RefCell::new(None),
+            on_key_press: RefCell::new(None),
+            on_key_release: RefCell::new(None),
         }))
     }
 
@@ -279,7 +285,7 @@ impl<T: 'static> Shared<T> {
             }),
         ));
         let runner = self.clone();
-        *self.0.on_press.borrow_mut() = Some(EventListenerHandle::new(
+        *self.0.on_mouse_press.borrow_mut() = Some(EventListenerHandle::new(
             self.window(),
             "pointerdown",
             Closure::new(move |event: PointerEvent| {
@@ -302,7 +308,7 @@ impl<T: 'static> Shared<T> {
             }),
         ));
         let runner = self.clone();
-        *self.0.on_release.borrow_mut() = Some(EventListenerHandle::new(
+        *self.0.on_mouse_release.borrow_mut() = Some(EventListenerHandle::new(
             self.window(),
             "pointerup",
             Closure::new(move |event: PointerEvent| {
@@ -321,6 +327,42 @@ impl<T: 'static> Shared<T> {
                         button: button.to_id(),
                         state: ElementState::Released,
                     },
+                });
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_key_press.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "keydown",
+            Closure::new(move |event: KeyboardEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
+                runner.send_event(Event::DeviceEvent {
+                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    event: DeviceEvent::Key(RawKeyEvent {
+                        physical_key: backend::event::key_code(&event),
+                        state: ElementState::Pressed,
+                    }),
+                });
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_key_release.borrow_mut() = Some(EventListenerHandle::new(
+            self.window(),
+            "keyup",
+            Closure::new(move |event: KeyboardEvent| {
+                if !runner.device_events() {
+                    return;
+                }
+
+                runner.send_event(Event::DeviceEvent {
+                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    event: DeviceEvent::Key(RawKeyEvent {
+                        physical_key: backend::event::key_code(&event),
+                        state: ElementState::Released,
+                    }),
                 });
             }),
         ));
@@ -566,8 +608,10 @@ impl<T: 'static> Shared<T> {
         *self.0.unload_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
         *self.0.on_wheel.borrow_mut() = None;
-        *self.0.on_press.borrow_mut() = None;
-        *self.0.on_release.borrow_mut() = None;
+        *self.0.on_mouse_press.borrow_mut() = None;
+        *self.0.on_mouse_release.borrow_mut() = None;
+        *self.0.on_key_press.borrow_mut() = None;
+        *self.0.on_key_release.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
