@@ -134,7 +134,7 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_keyboard_press(
             move |physical_key, logical_key, text, location, repeat, active_modifiers| {
-                let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
+                let modifiers = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id: RootWindowId(id),
@@ -142,25 +142,22 @@ impl<T> EventLoopWindowTarget<T> {
                     }
                 });
 
-                runner.send_events(
-                    iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                            event: KeyEvent {
-                                physical_key,
-                                logical_key,
-                                text,
-                                location,
-                                state: ElementState::Pressed,
-                                repeat,
-                                platform_specific: KeyEventExtra,
-                            },
-                            is_synthetic: false,
+                runner.send_events(modifiers.into_iter().chain(iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                        event: KeyEvent {
+                            physical_key,
+                            logical_key,
+                            text,
+                            location,
+                            state: ElementState::Pressed,
+                            repeat,
+                            platform_specific: KeyEventExtra,
                         },
-                    })
-                    .chain(modifiers_changed),
-                );
+                        is_synthetic: false,
+                    },
+                })));
             },
             prevent_default,
         );
@@ -169,7 +166,7 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_keyboard_release(
             move |physical_key, logical_key, text, location, repeat, active_modifiers| {
-                let modifiers_changed = (modifiers.get() != active_modifiers).then(|| {
+                let modifiers = (modifiers.get() != active_modifiers).then(|| {
                     modifiers.set(active_modifiers);
                     Event::WindowEvent {
                         window_id: RootWindowId(id),
@@ -177,25 +174,22 @@ impl<T> EventLoopWindowTarget<T> {
                     }
                 });
 
-                runner.send_events(
-                    iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                            event: KeyEvent {
-                                physical_key,
-                                logical_key,
-                                text,
-                                location,
-                                state: ElementState::Released,
-                                repeat,
-                                platform_specific: KeyEventExtra,
-                            },
-                            is_synthetic: false,
+                runner.send_events(modifiers.into_iter().chain(iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                        event: KeyEvent {
+                            physical_key,
+                            logical_key,
+                            text,
+                            location,
+                            state: ElementState::Released,
+                            repeat,
+                            platform_specific: KeyEventExtra,
                         },
-                    })
-                    .chain(modifiers_changed),
-                )
+                        is_synthetic: false,
+                    },
+                })))
             },
             prevent_default,
         );
