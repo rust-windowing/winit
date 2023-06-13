@@ -69,7 +69,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix touch input not gaining or loosing focus.
 - **Breaking:** On Web, dropped support for Safari versions below 13.
 - On Web, prevent clicks on the canvas to select text.
-- On Web, use high-frequency pointer input events when supported by the browser.
 - On Web, `EventLoopProxy` now implements `Send`.
 - On Web, `Window` now implements `Send` and `Sync`.
 - **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
