@@ -142,9 +142,18 @@ impl ResizeScaleInternal {
     }
 
     fn notify(&mut self) {
+        let style = self
+            .window
+            .get_computed_style(&self.canvas)
+            .expect("Failed to obtain computed style")
+            // this can't fail: we aren't using a pseudo-element
+            .expect("Invalid pseudo-element");
+
         let document = self.window.document().expect("Failed to obtain document");
 
-        if !document.contains(Some(&self.canvas)) {
+        if !document.contains(Some(&self.canvas))
+            || style.get_property_value("display").unwrap() == "none"
+        {
             let size = PhysicalSize::new(0, 0);
 
             if self.notify_scale.replace(false) {
@@ -164,13 +173,6 @@ impl ResizeScaleInternal {
 
             return;
         }
-
-        let style = self
-            .window
-            .get_computed_style(&self.canvas)
-            .expect("Failed to obtain computed style")
-            // this can't fail: we aren't using a pseudo-element
-            .expect("Invalid pseudo-element");
 
         let mut size = LogicalSize::new(
             backend::style_size_property(&style, "width"),

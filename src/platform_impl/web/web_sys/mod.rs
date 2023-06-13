@@ -63,15 +63,16 @@ pub fn set_canvas_size(
 ) {
     let document = window.document().expect("Failed to obtain document");
 
-    if !document.contains(Some(raw)) {
-        return;
-    }
-
     let style = window
         .get_computed_style(raw)
         .expect("Failed to obtain computed style")
         // this can't fail: we aren't using a pseudo-element
         .expect("Invalid pseudo-element");
+
+    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+        return;
+    }
+
     if style.get_property_value("box-sizing").unwrap() == "border-box" {
         new_size.width += style_size_property(&style, "border-left-width")
             + style_size_property(&style, "border-right-width")
