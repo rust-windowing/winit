@@ -12,6 +12,8 @@ use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use js_sys::Promise;
 use smol_str::SmolStr;
@@ -24,6 +26,7 @@ use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
 pub struct Canvas {
     common: Common,
     id: WindowId,
+    pub has_focus: Arc<AtomicBool>,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -91,6 +94,7 @@ impl Canvas {
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
             id,
+            has_focus: Arc::new(AtomicBool::new(false)),
             on_touch_start: None,
             on_touch_end: None,
             on_blur: None,

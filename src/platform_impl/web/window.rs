@@ -51,12 +51,12 @@ impl Window {
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        let has_focus = Arc::new(AtomicBool::new(false));
-        target.register(&canvas, id, prevent_default, has_focus.clone());
+        target.register(&canvas, id, prevent_default);
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
+        let has_focus = canvas.borrow().has_focus.clone();
         let window = Window {
             id,
             has_focus,
