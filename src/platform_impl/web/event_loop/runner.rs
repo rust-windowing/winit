@@ -1,4 +1,5 @@
-use super::{super::ScaleChangeArgs, backend, state::State};
+use super::{backend, state::State};
+use crate::dpi::PhysicalSize;
 use crate::event::{Event, StartCause};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
@@ -25,13 +26,12 @@ impl<T> Clone for Shared<T> {
 
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
-    events: RefCell<VecDeque<Event<'static, T>>>,
+    events: RefCell<VecDeque<EventWrapper<T>>>,
     id: RefCell<u32>,
     window: web_sys::Window,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
-    scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
 }
 
@@ -86,10 +86,31 @@ impl<T: 'static> Runner<T> {
         })
     }
 
-    fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut ControlFlow) {
+    fn handle_single_event(
+        &mut self,
+        runner: &Shared<T>,
+        event: impl Into<EventWrapper<T>>,
+        control: &mut ControlFlow,
+    ) {
         let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
 
-        (self.event_handler)(event, control);
+        match event.into() {
+            EventWrapper::Event(event) => (self.event_handler)(event, control),
+            EventWrapper::ScaleChange {
+                canvas,
+                size,
+                scale,
+            } => {
+                if let Some(canvas) = canvas.upgrade() {
+                    canvas.borrow().handle_scale_change(
+                        runner,
+                        |event| (self.event_handler)(event, control),
+                        size,
+                        scale,
+                    )
+                }
+            }
+        }
 
         // Maintain closed state, even if the callback changes it
         if is_closed {
@@ -109,7 +130,6 @@ impl<T: 'static> Shared<T> {
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
-            scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
         }))
     }
@@ -147,16 +167,6 @@ impl<T: 'static> Shared<T> {
             }));
     }
 
-    pub(crate) fn set_on_scale_change<F>(&self, handler: F)
-    where
-        F: 'static + FnMut(ScaleChangeArgs),
-    {
-        *self.0.scale_change_detector.borrow_mut() = Some(backend::ScaleChangeDetector::new(
-            self.window().clone(),
-            handler,
-        ));
-    }
-
     // Generate a strictly increasing ID
     // This is used to differentiate windows when handling events
     pub fn generate_id(&self) -> u32 {
@@ -168,7 +178,7 @@ impl<T: 'static> Shared<T> {
 
     pub fn request_redraw(&self, id: WindowId) {
         self.0.redraw_pending.borrow_mut().insert(id);
-        self.send_events(iter::empty());
+        self.send_events::<EventWrapper<T>>(iter::empty());
     }
 
     pub fn init(&self) {
@@ -196,14 +206,17 @@ impl<T: 'static> Shared<T> {
     // Add an event to the event loop runner, from the user or an event handler
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_event(&self, event: Event<'static, T>) {
+    pub(crate) fn send_event<E: Into<EventWrapper<T>>>(&self, event: E) {
         self.send_events(iter::once(event));
     }
 
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_events(&self, events: impl IntoIterator<Item = Event<'static, T>>) {
+    pub(crate) fn send_events<E: Into<EventWrapper<T>>>(
+        &self,
+        events: impl IntoIterator<Item = E>,
+    ) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -232,7 +245,10 @@ impl<T: 'static> Shared<T> {
         }
         if !process_immediately {
             // Queue these events to look at later
-            self.0.events.borrow_mut().extend(events);
+            self.0
+                .events
+                .borrow_mut()
+                .extend(events.into_iter().map(Into::into));
             return;
         }
         // At this point, we know this is a fresh set of events
@@ -250,13 +266,13 @@ impl<T: 'static> Shared<T> {
         // Take the start event, then the events provided to this function, and run an iteration of
         // the event loop
         let start_event = Event::NewEvents(start_cause);
-        let events = iter::once(start_event).chain(events);
+        let events =
+            iter::once(EventWrapper::from(start_event)).chain(events.into_iter().map(Into::into));
         self.run_until_cleared(events);
     }
 
     // Process the destroy-pending windows. This should only be called from
-    // `run_until_cleared` and `handle_scale_changed`, somewhere between emitting
-    // `NewEvents` and `MainEventsCleared`.
+    // `run_until_cleared`, somewhere between emitting `NewEvents` and `MainEventsCleared`.
     fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0
@@ -278,10 +294,10 @@ impl<T: 'static> Shared<T> {
     // cleared
     //
     // This will also process any events that have been queued or that are queued during processing
-    fn run_until_cleared(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    fn run_until_cleared<E: Into<EventWrapper<T>>>(&self, events: impl Iterator<Item = E>) {
         let mut control = self.current_control_flow();
         for event in events {
-            self.handle_event(event, &mut control);
+            self.handle_event(event.into(), &mut control);
         }
         self.process_destroy_pending_windows(&mut control);
         self.handle_event(Event::MainEventsCleared, &mut control);
@@ -289,85 +305,6 @@ impl<T: 'static> Shared<T> {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::RedrawRequested(window_id), &mut control);
-        }
-        self.handle_event(Event::RedrawEventsCleared, &mut control);
-
-        self.apply_control_flow(control);
-        // If the event loop is closed, it has been closed this iteration and now the closing
-        // event should be emitted
-        if self.is_closed() {
-            self.handle_loop_destroyed(&mut control);
-        }
-    }
-
-    pub fn handle_scale_changed(&self, old_scale: f64, new_scale: f64) {
-        // If there aren't any windows, then there is nothing to do here.
-        if self.0.all_canvases.borrow().is_empty() {
-            return;
-        }
-
-        let start_cause = match (self.0.runner.borrow().maybe_runner())
-            .unwrap_or_else(|| unreachable!("`scale_changed` should not happen without a runner"))
-            .maybe_start_cause()
-        {
-            Some(c) => c,
-            // If we're in the exit state, don't do event processing
-            None => return,
-        };
-        let mut control = self.current_control_flow();
-
-        // Handle the start event and all other events in the queue.
-        self.handle_event(Event::NewEvents(start_cause), &mut control);
-
-        // It is possible for windows to be dropped before this point. We don't
-        // want to send `ScaleFactorChanged` for destroyed windows, so we process
-        // the destroy-pending windows here.
-        self.process_destroy_pending_windows(&mut control);
-
-        // Now handle the `ScaleFactorChanged` events.
-        for &(id, ref canvas) in &*self.0.all_canvases.borrow() {
-            let rc = match canvas.upgrade() {
-                Some(rc) => rc,
-                // This shouldn't happen, but just in case...
-                None => continue,
-            };
-            let canvas = rc.borrow();
-            // First, we send the `ScaleFactorChanged` event:
-            let current_size = canvas.size().get();
-            let logical_size = current_size.to_logical::<f64>(old_scale);
-            let mut new_size = logical_size.to_physical(new_scale);
-            self.handle_single_event_sync(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::ScaleFactorChanged {
-                        scale_factor: new_scale,
-                        new_inner_size: &mut new_size,
-                    },
-                },
-                &mut control,
-            );
-
-            // Then we resize the canvas to the new size and send a `Resized` event:
-            if current_size != new_size {
-                backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
-                self.handle_single_event_sync(
-                    Event::WindowEvent {
-                        window_id: id,
-                        event: crate::event::WindowEvent::Resized(new_size),
-                    },
-                    &mut control,
-                );
-            }
-        }
-
-        // Process the destroy-pending windows again.
-        self.process_destroy_pending_windows(&mut control);
-        self.handle_event(Event::MainEventsCleared, &mut control);
-
-        // Discard all the pending redraw as we shall just redraw all windows.
-        self.0.redraw_pending.borrow_mut().clear();
-        for &(window_id, _) in &*self.0.all_canvases.borrow() {
             self.handle_event(Event::RedrawRequested(window_id), &mut control);
         }
         self.handle_event(Event::RedrawEventsCleared, &mut control);
@@ -388,35 +325,20 @@ impl<T: 'static> Shared<T> {
         self.handle_event(Event::LoopDestroyed, &mut control);
     }
 
-    // handle_single_event_sync takes in an event and handles it synchronously.
-    //
-    // It should only ever be called from `scale_changed`.
-    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut ControlFlow) {
-        if self.is_closed() {
-            *control = ControlFlow::Exit;
-        }
-        match *self.0.runner.borrow_mut() {
-            RunnerEnum::Running(ref mut runner) => {
-                runner.handle_single_event(event, control);
-            }
-            _ => panic!("Cannot handle event synchronously without a runner"),
-        }
-    }
-
     // handle_event takes in events and either queues them or applies a callback
     //
-    // It should only ever be called from `run_until_cleared` and `scale_changed`.
-    fn handle_event(&self, event: Event<'static, T>, control: &mut ControlFlow) {
+    // It should only ever be called from `run_until_cleared`.
+    fn handle_event(&self, event: impl Into<EventWrapper<T>>, control: &mut ControlFlow) {
         if self.is_closed() {
             *control = ControlFlow::Exit;
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
-                runner.handle_single_event(event, control);
+                runner.handle_single_event(self, event, control);
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
-            RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event),
+            RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
             // If the Runner has been destroyed, there is nothing to do.
             RunnerEnum::Destroyed => return,
         }
@@ -482,7 +404,6 @@ impl<T: 'static> Shared<T> {
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
         self.handle_event(Event::LoopDestroyed, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
-        *self.0.scale_change_detector.borrow_mut() = None;
         *self.0.unload_event_handle.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
@@ -528,5 +449,20 @@ impl<T: 'static> Shared<T> {
             RunnerEnum::Pending => ControlFlow::Poll,
             RunnerEnum::Destroyed => ControlFlow::Exit,
         }
+    }
+}
+
+pub(crate) enum EventWrapper<T: 'static> {
+    Event(Event<'static, T>),
+    ScaleChange {
+        canvas: Weak<RefCell<backend::Canvas>>,
+        size: PhysicalSize<u32>,
+        scale: f64,
+    },
+}
+
+impl<T> From<Event<'static, T>> for EventWrapper<T> {
+    fn from(value: Event<'static, T>) -> Self {
+        Self::Event(value)
     }
 }

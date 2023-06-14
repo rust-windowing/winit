@@ -129,12 +129,13 @@ redox_syscall = "0.3"
 
 [target.'cfg(target_family = "wasm")'.dependencies.web_sys]
 package = "web-sys"
-version = "0.3"
+version = "0.3.64"
 features = [
     'console',
     'CssStyleDeclaration',
     'Document',
     'DomRect',
+    'DomRectReadOnly',
     'Element',
     'Event',
     'EventTarget',
@@ -145,6 +146,11 @@ features = [
     'MediaQueryList',
     'Node',
     'PointerEvent',
+    'ResizeObserver',
+    'ResizeObserverBoxOptions',
+    'ResizeObserverEntry',
+    'ResizeObserverOptions',
+    'ResizeObserverSize',
     'Window',
     'WheelEvent'
 ]

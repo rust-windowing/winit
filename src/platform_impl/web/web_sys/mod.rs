@@ -3,19 +3,19 @@ mod event;
 mod event_handle;
 mod media_query_handle;
 mod pointer;
-mod scaling;
+mod resize_scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
-pub use self::scaling::ScaleChangeDetector;
+pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
-use crate::dpi::{LogicalSize, Size};
+use crate::dpi::LogicalSize;
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
-use web_sys::{Element, HtmlCanvasElement};
+use web_sys::{CssStyleDeclaration, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -52,38 +52,52 @@ impl WindowExtWebSys for Window {
     }
 }
 
-pub fn window_size(window: &web_sys::Window) -> LogicalSize<f64> {
-    let width = window
-        .inner_width()
-        .expect("Failed to get width")
-        .as_f64()
-        .expect("Failed to get width as f64");
-    let height = window
-        .inner_height()
-        .expect("Failed to get height")
-        .as_f64()
-        .expect("Failed to get height as f64");
-
-    LogicalSize { width, height }
-}
-
 pub fn scale_factor(window: &web_sys::Window) -> f64 {
     window.device_pixel_ratio()
 }
 
-pub fn set_canvas_size(canvas: &Canvas, new_size: Size) {
-    let scale_factor = scale_factor(canvas.window());
+pub fn set_canvas_size(
+    window: &web_sys::Window,
+    raw: &HtmlCanvasElement,
+    mut new_size: LogicalSize<f64>,
+) {
+    let document = window.document().expect("Failed to obtain document");
 
-    let physical_size = new_size.to_physical(scale_factor);
-    canvas.size().set(physical_size);
+    let style = window
+        .get_computed_style(raw)
+        .expect("Failed to obtain computed style")
+        // this can't fail: we aren't using a pseudo-element
+        .expect("Invalid pseudo-element");
 
-    let logical_size = new_size.to_logical::<f64>(scale_factor);
-    set_canvas_style_property(canvas.raw(), "width", &format!("{}px", logical_size.width));
-    set_canvas_style_property(
-        canvas.raw(),
-        "height",
-        &format!("{}px", logical_size.height),
-    );
+    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+        return;
+    }
+
+    if style.get_property_value("box-sizing").unwrap() == "border-box" {
+        new_size.width += style_size_property(&style, "border-left-width")
+            + style_size_property(&style, "border-right-width")
+            + style_size_property(&style, "padding-left")
+            + style_size_property(&style, "padding-right");
+        new_size.height += style_size_property(&style, "border-top-width")
+            + style_size_property(&style, "border-bottom-width")
+            + style_size_property(&style, "padding-top")
+            + style_size_property(&style, "padding-bottom");
+    }
+
+    set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", new_size.height));
+}
+
+/// This function will panic if the element is not inserted in the DOM
+/// or is not a CSS property that represents a size in pixel.
+pub fn style_size_property(style: &CssStyleDeclaration, property: &str) -> f64 {
+    let prop = style
+        .get_property_value(property)
+        .expect("Found invalid property");
+    prop.strip_suffix("px")
+        .expect("Element was not inserted into the DOM or is not a size in pixel")
+        .parse()
+        .expect("CSS property is not a size in pixel")
 }
 
 pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {

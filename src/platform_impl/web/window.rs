@@ -1,6 +1,5 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
-use crate::event;
 use crate::icon::Icon;
 use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -31,7 +30,6 @@ pub struct Inner {
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
-    resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -48,21 +46,13 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let window = target.runner.window();
-        let canvas = backend::Canvas::create(window.clone(), &attr, platform_attr)?;
+        let canvas = backend::Canvas::create(id, window.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
         let has_focus = Arc::new(AtomicBool::new(false));
         target.register(&canvas, id, prevent_default, has_focus.clone());
-
-        let runner = target.runner.clone();
-        let resize_notify_fn = Box::new(move |new_size| {
-            runner.send_event(event::Event::WindowEvent {
-                window_id: RootWI(id),
-                event: event::WindowEvent::Resized(new_size),
-            });
-        });
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
@@ -75,7 +65,6 @@ impl Window {
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
-                resize_notify_fn,
                 destroy_fn: Some(destroy_fn),
             })
             .unwrap(),
@@ -149,7 +138,7 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| inner.inner_size())
+        self.inner.queue(|inner| inner.canvas.borrow().inner_size())
     }
 
     #[inline]
@@ -161,12 +150,9 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         self.inner.dispatch(move |inner| {
-            let old_size = inner.inner_size();
-            backend::set_canvas_size(&inner.canvas.borrow(), size);
-            let new_size = inner.inner_size();
-            if old_size != new_size {
-                (inner.resize_notify_fn)(new_size);
-            }
+            let size = size.to_logical(inner.scale_factor());
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_size(canvas.window(), canvas.raw(), size);
         });
     }
 
@@ -441,11 +427,6 @@ impl Inner {
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor(&self.window)
-    }
-
-    #[inline]
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.canvas.borrow().size().get()
     }
 }
 

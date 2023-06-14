@@ -1,13 +1,14 @@
+use super::super::WindowId;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, ButtonsState};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use super::{event, ButtonsState, ResizeScaleHandle};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
-use crate::window::WindowAttributes;
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -22,6 +23,7 @@ use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
 #[allow(dead_code)]
 pub struct Canvas {
     common: Common,
+    id: WindowId,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -29,21 +31,23 @@ pub struct Canvas {
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
+    on_resize_scale: Option<ResizeScaleHandle>,
 }
 
 pub struct Common {
     pub window: web_sys::Window,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
-    size: Rc<Cell<PhysicalSize<u32>>>,
+    old_size: Rc<Cell<PhysicalSize<u32>>>,
+    current_size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
 impl Canvas {
     pub fn create(
+        id: WindowId,
         window: web_sys::Window,
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
@@ -73,24 +77,20 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        let size = attr
-            .inner_size
-            .unwrap_or(
-                LogicalSize {
-                    width: 1024.0,
-                    height: 768.0,
-                }
-                .into(),
-            )
-            .to_physical(super::scale_factor(&window));
+        if let Some(size) = attr.inner_size {
+            let size = size.to_logical(super::scale_factor(&window));
+            super::set_canvas_size(&window, &canvas, size);
+        }
 
-        let canvas = Canvas {
+        Ok(Canvas {
             common: Common {
                 window,
                 raw: canvas,
-                size: Rc::new(Cell::new(size)),
+                old_size: Rc::default(),
+                current_size: Rc::default(),
                 wants_fullscreen: Rc::new(RefCell::new(false)),
             },
+            id,
             on_touch_start: None,
             on_touch_end: None,
             on_blur: None,
@@ -98,14 +98,10 @@ impl Canvas {
             on_keyboard_release: None,
             on_keyboard_press: None,
             on_mouse_wheel: None,
-            on_fullscreen_change: None,
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
-        };
-
-        super::set_canvas_size(&canvas, size.into());
-
-        Ok(canvas)
+            on_resize_scale: None,
+        })
     }
 
     pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
@@ -138,12 +134,24 @@ impl Canvas {
         }
     }
 
-    pub fn window(&self) -> &web_sys::Window {
-        &self.common.window
+    pub fn old_size(&self) -> PhysicalSize<u32> {
+        self.common.old_size.get()
     }
 
-    pub fn size(&self) -> &Rc<Cell<PhysicalSize<u32>>> {
-        &self.common.size
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.common.current_size.get()
+    }
+
+    pub fn set_old_size(&self, size: PhysicalSize<u32>) {
+        self.common.old_size.set(size)
+    }
+
+    pub fn set_current_size(&self, size: PhysicalSize<u32>) {
+        self.common.current_size.set(size)
+    }
+
+    pub fn window(&self) -> &web_sys::Window {
+        &self.common.window
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -329,16 +337,6 @@ impl Canvas {
         }));
     }
 
-    pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(),
-    {
-        self.on_fullscreen_change = Some(
-            self.common
-                .add_event("fullscreenchange", move |_: Event| handler()),
-        );
-    }
-
     pub fn on_dark_mode<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(bool),
@@ -350,6 +348,19 @@ impl Canvas {
         ));
     }
 
+    pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
+    where
+        S: 'static + FnMut(PhysicalSize<u32>, f64),
+        R: 'static + FnMut(PhysicalSize<u32>),
+    {
+        self.on_resize_scale = Some(ResizeScaleHandle::new(
+            self.window().clone(),
+            self.raw().clone(),
+            scale_handler,
+            size_handler,
+        ));
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.request_fullscreen()
     }
@@ -358,15 +369,54 @@ impl Canvas {
         self.common.is_fullscreen()
     }
 
+    pub(crate) fn handle_scale_change<T: 'static>(
+        &self,
+        runner: &super::super::event_loop::runner::Shared<T>,
+        event_handler: impl FnOnce(crate::event::Event<'_, T>),
+        current_size: PhysicalSize<u32>,
+        scale: f64,
+    ) {
+        // First, we send the `ScaleFactorChanged` event:
+        self.set_current_size(current_size);
+        let mut new_size = current_size;
+        event_handler(crate::event::Event::WindowEvent {
+            window_id: RootWindowId(self.id),
+            event: crate::event::WindowEvent::ScaleFactorChanged {
+                scale_factor: scale,
+                new_inner_size: &mut new_size,
+            },
+        });
+
+        if current_size != new_size {
+            // Then we resize the canvas to the new size, a new
+            // `Resized` event will be sent by the `ResizeObserver`:
+            let new_size = new_size.to_logical(scale);
+            super::set_canvas_size(self.window(), self.raw(), new_size);
+
+            // Set the size might not trigger the event because the calculation is inaccurate.
+            self.on_resize_scale
+                .as_ref()
+                .expect("expected Window to still be active")
+                .notify_resize();
+        } else if self.old_size() != new_size {
+            // Then we at least send a resized event.
+            self.set_old_size(new_size);
+            runner.send_event(crate::event::Event::WindowEvent {
+                window_id: RootWindowId(self.id),
+                event: crate::event::WindowEvent::Resized(new_size),
+            })
+        }
+    }
+
     pub fn remove_listeners(&mut self) {
         self.on_focus = None;
         self.on_blur = None;
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
         self.on_mouse_wheel = None;
-        self.on_fullscreen_change = None;
         self.on_dark_mode = None;
-        self.pointer_handler.remove_listeners()
+        self.pointer_handler.remove_listeners();
+        self.on_resize_scale = None;
     }
 }
 
