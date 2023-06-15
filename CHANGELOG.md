@@ -85,7 +85,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
 - On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and
   `DeviceEvent::Key` support.
-- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events on Wayland, X11, Windows, macOS and Web.
+- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
+  on Wayland, X11, Windows, macOS and Web.
 
 # 0.28.6
 
@@ -101,8 +102,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, fix empty marked text blocking regular input.
 - On macOS, fix potential panic when getting refresh rate.
 - On macOS, fix crash when calling `Window::set_ime_position` from another thread.
-- Bump MSRV from `1.60` to `1.64`. This is a **breaking** change.
-- On macOS, fixed potential panic when getting refresh rate.
 
 # 0.28.3
 
