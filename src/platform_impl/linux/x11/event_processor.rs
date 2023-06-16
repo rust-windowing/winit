@@ -579,7 +579,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 use crate::event::{
                     ElementState::{Pressed, Released},
-                    MouseButton::{Left, Middle, Other, Right},
+                    MouseButton::{Back, Forward, Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
                     Touch,
                     WindowEvent::{
@@ -650,6 +650,23 @@ impl<T: 'static> EventProcessor<T> {
                                     });
                                 }
                             }
+
+                            8 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Back,
+                                },
+                            }),
+                            9 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Forward,
+                                },
+                            }),
 
                             x => callback(Event::WindowEvent {
                                 window_id,
