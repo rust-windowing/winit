@@ -167,6 +167,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), error::NotSupportedError> {
+        Err(error::NotSupportedError::new())
+    }
+
+    #[inline]
     pub fn reset_dead_keys(&self) {
         // TODO?
     }

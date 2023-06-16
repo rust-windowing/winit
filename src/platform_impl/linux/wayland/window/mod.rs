@@ -489,6 +489,12 @@ impl Window {
         xdg_activation_token.commit();
     }
 
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        let surface = self.window.wl_surface();
+        surface.frame(&self.queue_handle, surface.clone());
+        Ok(())
+    }
+
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         self.window_state.lock().unwrap().set_cursor_grab(mode)

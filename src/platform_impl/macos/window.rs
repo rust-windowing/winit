@@ -536,6 +536,10 @@ impl WinitWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new())
+    }
+
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let frame_rect = self.frame();
         let position = LogicalPosition::new(

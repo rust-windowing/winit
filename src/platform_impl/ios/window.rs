@@ -75,6 +75,10 @@ impl Inner {
         }
     }
 
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new())
+    }
+
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();

@@ -808,6 +808,10 @@ impl Window {
         self.redraw_requester.request_redraw()
     }
 
+    pub fn request_frame_throttling_hint(&self) -> Result<(), error::NotSupportedError> {
+        Err(error::NotSupportedError::new())
+    }
+
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         Err(error::NotSupportedError::new())
     }

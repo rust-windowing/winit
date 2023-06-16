@@ -1127,6 +1127,26 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
+    /// Request a frame throttling hint from the windowing system.
+    ///
+    /// The error is returned when frame couldn't be requested and the user should use their
+    /// fallback renderer scheduling logic, like using timer based on monitor refresh rate or
+    /// graphics API extensions (VSYNC).
+    ///
+    /// For more see [`FrameThrottled`] event.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:**  Uses frame callbacks. The user must perform drawing operation resulting in
+    ///                 `wl_surface.commit`(eglSwapBuffers, etc) after issueing a request.
+    /// - ** macOS / Windows / iOS / Android / Web / X11 / Orbital:** Not supported.
+    ///
+    /// [`FrameThrottled`]: crate::event::WindowEvent::FrameThrottled.
+    #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        self.window.request_frame_throttling_hint()
+    }
+
     /// Sets the current window theme. Use `None` to fallback to system default.
     ///
     /// ## Platform-specific

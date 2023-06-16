@@ -23,6 +23,7 @@ use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
 use crate::dpi::LogicalSize;
+use crate::event::WindowEvent;
 
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
@@ -321,7 +322,11 @@ impl CompositorHandler for WinitState {
         self.scale_factor_changed(surface, scale_factor as f64, true)
     }
 
-    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: u32) {}
+    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &WlSurface, _: u32) {
+        let window_id = super::make_wid(surface);
+        self.events_sink
+            .push_window_event(WindowEvent::FrameThrottled, window_id);
+    }
 }
 
 impl ProvidesRegistryState for WinitState {

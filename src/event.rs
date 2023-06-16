@@ -366,6 +366,14 @@ pub enum WindowEvent<'a> {
     /// hovered.
     HoveredFileCancelled,
 
+    /// An event from windowing system when it is a good time to start drawing a new frame.
+    ///
+    /// This is useful for throttling redrawing operation and driving animations. The event
+    /// is delivered in reaction to [`Window::request_frame_throttling_hint`].
+    ///
+    /// For platform specifics see [`Window::request_frame_throttling_hint`] request.
+    FrameThrottled,
+
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
@@ -553,6 +561,7 @@ impl Clone for WindowEvent<'static> {
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
+            FrameThrottled => FrameThrottled,
             DroppedFile(file) => DroppedFile(file.clone()),
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
@@ -656,6 +665,7 @@ impl<'a> WindowEvent<'a> {
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
+            FrameThrottled => Some(FrameThrottled),
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),

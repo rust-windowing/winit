@@ -142,6 +142,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new())
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::WindowArea::Outer.get_rect(self.hwnd())
             .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))

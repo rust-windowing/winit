@@ -541,12 +541,11 @@ impl Window {
         }
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.request_user_attention(request_type),
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref w) => w.request_user_attention(request_type),
-        }
+        x11_or_wayland!(match self; Window(w) => w.request_user_attention(request_type))
+    }
+
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        x11_or_wayland!(match self; Window(w) => w.request_frame_throttling_hint())
     }
 
     #[inline]

@@ -1584,6 +1584,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
+        Err(NotSupportedError::new())
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow as _)
     }
