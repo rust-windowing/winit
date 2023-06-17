@@ -719,6 +719,14 @@ impl<T> EventLoopWindowTarget<T> {
                 }
             },
         );
+
+        let runner = self.runner.clone();
+        canvas.on_frame_throttle(move || {
+            runner.send_event(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::FrameThrottled,
+            })
+        })
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {

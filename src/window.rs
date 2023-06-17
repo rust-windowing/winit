@@ -1139,7 +1139,7 @@ impl Window {
     ///
     /// - **Wayland:**  Uses frame callbacks. The user must perform drawing operation resulting in
     ///                 `wl_surface.commit`(eglSwapBuffers, etc) after issueing a request.
-    /// - ** macOS / Windows / iOS / Android / Web / X11 / Orbital:** Not supported.
+    /// - ** macOS / Windows / iOS / Android / X11 / Orbital:** Not supported.
     ///
     /// [`FrameThrottled`]: crate::event::WindowEvent::FrameThrottled.
     #[inline]

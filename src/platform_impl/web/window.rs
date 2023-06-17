@@ -353,7 +353,10 @@ impl Window {
 
     #[inline]
     pub fn request_frame_throttling_hint(&self) -> Result<(), NotSupportedError> {
-        Err(NotSupportedError::new())
+        self.inner.dispatch(move |inner| {
+            inner.canvas.borrow().request_frame_throttling_hint();
+        });
+        Ok(())
     }
 
     #[inline]

@@ -2,7 +2,7 @@ use super::super::WindowId;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, ButtonsState, ResizeScaleHandle};
+use super::{event, ButtonsState, FrameThrottlingHandler, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
@@ -37,6 +37,7 @@ pub struct Canvas {
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
+    frame_throttling_handler: FrameThrottlingHandler,
 }
 
 pub struct Common {
@@ -87,7 +88,7 @@ impl Canvas {
 
         Ok(Canvas {
             common: Common {
-                window,
+                window: window.clone(),
                 raw: canvas,
                 old_size: Rc::default(),
                 current_size: Rc::default(),
@@ -105,6 +106,7 @@ impl Canvas {
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
             on_resize_scale: None,
+            frame_throttling_handler: FrameThrottlingHandler::new(window),
         })
     }
 
@@ -365,12 +367,23 @@ impl Canvas {
         ));
     }
 
+    pub(crate) fn on_frame_throttle<F>(&mut self, f: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.frame_throttling_handler.on_frame_throttle(f)
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.request_fullscreen()
     }
 
     pub fn is_fullscreen(&self) -> bool {
         self.common.is_fullscreen()
+    }
+
+    pub fn request_frame_throttling_hint(&self) {
+        self.frame_throttling_handler.request();
     }
 
     pub(crate) fn handle_scale_change<T: 'static>(
