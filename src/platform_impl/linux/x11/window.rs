@@ -23,7 +23,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event_loop::AsyncRequestSerial,
     platform_impl::{
-        x11::{atoms::*, MonitorHandle as X11MonitorHandle, X11Error},
+        x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
@@ -37,7 +37,6 @@ use super::{
     ffi, util, CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
-use calloop::channel::Sender;
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -122,8 +121,8 @@ pub(crate) struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: Sender<WindowId>,
-    activation_sender: Sender<super::ActivationToken>,
+    redraw_sender: WakeSender<WindowId>,
+    activation_sender: WakeSender<super::ActivationToken>,
 }
 
 impl UnownedWindow {

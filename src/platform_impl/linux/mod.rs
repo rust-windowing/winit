@@ -19,6 +19,7 @@ use std::{
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
+use std::time::Duration;
 
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
@@ -28,7 +29,7 @@ use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, X11Error, XCo
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError, RunLoopError},
     event::{Event, KeyEvent},
     event_loop::{
         AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
@@ -36,7 +37,10 @@ use crate::{
     },
     icon::Icon,
     keyboard::{Key, KeyCode},
-    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
+    platform::{
+        modifier_supplement::KeyEventExtModifierSupplement, pump_events::PumpStatus,
+        scancode::KeyCodeExtScancode,
+    },
     window::{
         ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
@@ -840,6 +844,20 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
     }
 
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
+    where
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
+    }
+
+    pub fn pump_events<F>(&mut self, callback: F) -> PumpStatus
+    where
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(callback))
+    }
+
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
@@ -931,6 +949,15 @@ fn sticky_exit_callback<T, F>(
     } else {
         callback(evt, target, control_flow)
     }
+}
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
 }
 
 #[cfg(target_os = "linux")]
