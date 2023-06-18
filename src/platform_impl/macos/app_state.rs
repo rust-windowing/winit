@@ -65,14 +65,17 @@ impl<T> EventLoopHandler<T> {
             RefMut<'_, dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
         ),
     {
+        // The `NSApp` and our `HANDLER` are global state and so it's possible that
+        // we could get a delegate callback after the application has exit an
+        // `EventLoop`. If the loop has been exit then our weak `self.callback`
+        // will fail to upgrade.
+        //
+        // We don't want to panic or output any verbose logging if we fail to
+        // upgrade the weak reference since it might be valid that the application
+        // re-starts the `NSApp` after exiting a Winit `EventLoop`
         if let Some(callback) = self.callback.upgrade() {
             let callback = callback.borrow_mut();
             (f)(self, callback);
-        } else {
-            panic!(
-                "Tried to dispatch an event, but the event loop that \
-                owned the event handler callback seems to be destroyed"
-            );
         }
     }
 }
@@ -90,6 +93,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
             if let ControlFlow::ExitWithCode(code) = *control_flow {
+                // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
                 let dummy = &mut ControlFlow::ExitWithCode(code);
                 (callback)(event.userify(), &this.window_target, dummy);
             } else {
@@ -102,6 +106,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
         self.with_callback(|this, mut callback| {
             for event in this.window_target.p.receiver.try_iter() {
                 if let ControlFlow::ExitWithCode(code) = *control_flow {
+                    // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
                     let dummy = &mut ControlFlow::ExitWithCode(code);
                     (callback)(Event::UserEvent(event), &this.window_target, dummy);
                 } else {
@@ -114,7 +119,11 @@ impl<T> EventHandler for EventLoopHandler<T> {
 
 #[derive(Default)]
 struct Handler {
-    ready: AtomicBool,
+    stop_app_on_launch: AtomicBool,
+    stop_app_before_wait: AtomicBool,
+    stop_app_on_redraw: AtomicBool,
+    launched: AtomicBool,
+    running: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
@@ -141,12 +150,37 @@ impl Handler {
         self.waker.lock().unwrap()
     }
 
-    fn is_ready(&self) -> bool {
-        self.ready.load(Ordering::Acquire)
+    /// `true` after `ApplicationDelegate::applicationDidFinishLaunching` called
+    ///
+    /// NB: This is global / `NSApp` state and since the app will only be launched
+    /// once but an `EventLoop` may be run more than once then only the first
+    /// `EventLoop` will observe the `NSApp` before it is launched.
+    fn is_launched(&self) -> bool {
+        self.launched.load(Ordering::Acquire)
     }
 
-    fn set_ready(&self) {
-        self.ready.store(true, Ordering::Release);
+    /// Set via `ApplicationDelegate::applicationDidFinishLaunching`
+    fn set_launched(&self) {
+        self.launched.store(true, Ordering::Release);
+    }
+
+    /// `true` if an `EventLoop` is currently running
+    ///
+    /// NB: This is global / `NSApp` state and may persist beyond the lifetime of
+    /// a running `EventLoop`.
+    ///
+    /// # Caveat
+    /// This is only intended to be called from the main thread
+    fn is_running(&self) -> bool {
+        self.running.load(Ordering::Relaxed)
+    }
+
+    /// Set when an `EventLoop` starts running, after the `NSApp` is launched
+    ///
+    /// # Caveat
+    /// This is only intended to be called from the main thread
+    fn set_running(&self) {
+        self.running.store(true, Ordering::Relaxed);
     }
 
     fn should_exit(&self) -> bool {
@@ -154,6 +188,74 @@ impl Handler {
             *self.control_flow.lock().unwrap(),
             ControlFlow::ExitWithCode(_)
         )
+    }
+
+    /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits
+    ///
+    /// Since an `EventLoop` may be run more than once we need make sure to reset the
+    /// `control_flow` state back to `Poll` each time the loop exits.
+    ///
+    /// Note: that if the `NSApp` has been launched then that state is preserved, and we won't
+    /// need to re-launch the app if subsequent EventLoops are run.
+    ///
+    /// # Caveat
+    /// This is only intended to be called from the main thread
+    fn exit(&self) {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interiour mutability
+        //
+        // XXX: As an aside; having each individual bit of state for `Handler` be atomic or wrapped in a
+        // `Mutex` for the sake of interior mutability seems a bit odd, and also a potential foot
+        // gun in case the state is unwittingly accessed across threads because the fine-grained locking
+        // wouldn't ensure that there's interior consistency.
+        //
+        // Maybe the whole thing should just be put in a static `Mutex<>` to make it clear
+        // the we can mutate more than one peice of state while maintaining consistency. (though it
+        // looks like there have been recuring re-entrancy issues with callback handling that might
+        // make that awkward)
+        self.running.store(false, Ordering::Relaxed);
+        *self.control_flow_prev.lock().unwrap() = ControlFlow::default();
+        *self.control_flow.lock().unwrap() = ControlFlow::default();
+        self.set_stop_app_on_redraw_requested(false);
+        self.set_stop_app_before_wait(false);
+    }
+
+    pub fn request_stop_app_on_launch(&self) {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_on_launch.store(true, Ordering::Relaxed);
+    }
+
+    pub fn should_stop_app_on_launch(&self) -> bool {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_on_launch.load(Ordering::Relaxed)
+    }
+
+    pub fn set_stop_app_before_wait(&self, stop_before_wait: bool) {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_before_wait
+            .store(stop_before_wait, Ordering::Relaxed);
+    }
+
+    pub fn should_stop_app_before_wait(&self) -> bool {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_before_wait.load(Ordering::Relaxed)
+    }
+
+    pub fn set_stop_app_on_redraw_requested(&self, stop_on_redraw: bool) {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_on_redraw
+            .store(stop_on_redraw, Ordering::Relaxed);
+    }
+
+    pub fn should_stop_app_on_redraw_requested(&self) -> bool {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_on_redraw.load(Ordering::Relaxed)
     }
 
     fn get_control_flow_and_update_prev(&self) -> ControlFlow {
@@ -190,6 +292,10 @@ impl Handler {
 
     fn set_in_callback(&self, in_callback: bool) {
         self.in_callback.store(in_callback, Ordering::Release);
+    }
+
+    fn have_callback(&self) -> bool {
+        self.callback.lock().unwrap().is_some()
     }
 
     fn handle_nonuser_event(&self, wrapper: EventWrapper) {
@@ -253,23 +359,86 @@ impl Handler {
 pub(crate) enum AppState {}
 
 impl AppState {
-    pub fn set_callback<T>(callback: Weak<Callback<T>>, window_target: Rc<RootWindowTarget<T>>) {
+    /// Associate the application's event callback with the (global static) Handler state
+    ///
+    /// # Safety
+    /// This is ignoring the lifetime of the application callback (which may not be 'static)
+    /// and can lead to undefined behaviour if the callback is not cleared before the end of
+    /// its real lifetime.
+    ///
+    /// All public APIs that take an event callback (`run`, `run_ondemand`,
+    /// `pump_events`) _must_ pair a call to `set_callback` with
+    /// a call to `clear_callback` before returning to avoid undefined behaviour.
+    pub unsafe fn set_callback<T>(
+        callback: Weak<Callback<T>>,
+        window_target: Rc<RootWindowTarget<T>>,
+    ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
             window_target,
         }));
     }
 
+    pub fn clear_callback() {
+        HANDLER.callback.lock().unwrap().take();
+    }
+
+    pub fn is_launched() -> bool {
+        HANDLER.is_launched()
+    }
+
+    pub fn is_running() -> bool {
+        HANDLER.is_running()
+    }
+
+    // If `pump_events` is called to progress the event loop then we bootstrap the event
+    // loop via `[NSApp run]` but will use `CFRunLoopRunInMode` for subsequent calls to
+    // `pump_events`
+    pub fn request_stop_on_launch() {
+        HANDLER.request_stop_app_on_launch();
+    }
+
+    pub fn set_stop_app_before_wait(stop_before_wait: bool) {
+        HANDLER.set_stop_app_before_wait(stop_before_wait);
+    }
+
+    pub fn set_stop_app_on_redraw_requested(stop_on_redraw: bool) {
+        HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
+    }
+
+    pub fn control_flow() -> ControlFlow {
+        HANDLER.get_old_and_new_control_flow().1
+    }
+
     pub fn exit() -> i32 {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
         HANDLER.set_in_callback(false);
-        HANDLER.callback.lock().unwrap().take();
+        HANDLER.exit();
+        Self::clear_callback();
         if let ControlFlow::ExitWithCode(code) = HANDLER.get_old_and_new_control_flow().1 {
             code
         } else {
             0
         }
+    }
+
+    pub fn dispatch_init_events() {
+        HANDLER.set_in_callback(true);
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
+            StartCause::Init,
+        )));
+        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed));
+        HANDLER.set_in_callback(false);
+    }
+
+    pub fn start_running() {
+        debug_assert!(HANDLER.is_launched());
+
+        HANDLER.set_running();
+        Self::dispatch_init_events()
     }
 
     pub fn launched(
@@ -286,30 +455,42 @@ impl AppState {
         window_activation_hack(&app);
         app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
-        HANDLER.set_ready();
+        HANDLER.set_launched();
         HANDLER.waker().start();
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
             menu::initialize();
         }
-        HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
-            StartCause::Init,
-        )));
-        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
-        // applications don't themselves have a formal suspend/resume lifecycle.
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed));
-        HANDLER.set_in_callback(false);
+
+        Self::start_running();
+
+        // If the `NSApp` is being launched via `EventLoop::pump_events()` then we'll
+        // want to stop the app once it is launched (and return to the external loop)
+        //
+        // In this case we still want to consider Winit's `EventLoop` to be "running",
+        // so we call `start_running()` above.
+        if HANDLER.should_stop_app_on_launch() {
+            // Note: the original idea had been to only stop the underlying `RunLoop`
+            // for the app but that didn't work as expected (`[NSApp run]` effectively
+            // ignored the attempt to stop the RunLoop and re-started it.). So we
+            // return from `pump_events` by stopping the `NSApp`
+            Self::stop();
+        }
     }
 
+    // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
         // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
-        if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
+        if panic_info.is_panicking()
+            || !HANDLER.have_callback()
+            || !HANDLER.is_running()
+            || HANDLER.get_in_callback()
+        {
             return;
         }
         let start = HANDLER.get_start_time().unwrap();
@@ -358,6 +539,12 @@ impl AppState {
             HANDLER
                 .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
             HANDLER.set_in_callback(false);
+
+            // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
+            // as a way to ensure that `pump_events` can't block an external loop indefinitely
+            if HANDLER.should_stop_app_on_redraw_requested() {
+                AppState::stop();
+            }
         }
     }
 
@@ -368,13 +555,29 @@ impl AppState {
         HANDLER.events().push_back(wrapper);
     }
 
+    pub fn stop() {
+        let app = NSApp();
+        autoreleasepool(|_| {
+            app.stop(None);
+            // To stop event loop immediately, we need to post some event here.
+            app.postEvent_atStart(&NSEvent::dummy(), true);
+        });
+    }
+
+    // Called by RunLoopObserver before waiting for new events
     pub fn cleared(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
         // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
-        if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
+        // XXX: how does it make sense that `get_in_callback()` can ever return `true` here if we're
+        // about to return to the `CFRunLoop` to poll for new events?
+        if panic_info.is_panicking()
+            || !HANDLER.have_callback()
+            || !HANDLER.is_running()
+            || HANDLER.get_in_callback()
+        {
             return;
         }
 
@@ -384,6 +587,7 @@ impl AppState {
             HANDLER.handle_nonuser_event(event);
         }
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
+
         for window_id in HANDLER.should_redraw() {
             HANDLER
                 .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
@@ -392,12 +596,11 @@ impl AppState {
         HANDLER.set_in_callback(false);
 
         if HANDLER.should_exit() {
-            let app = NSApp();
-            autoreleasepool(|_| {
-                app.stop(None);
-                // To stop event loop immediately, we need to post some event here.
-                app.postEvent_atStart(&NSEvent::dummy(), true);
-            });
+            Self::stop();
+        }
+
+        if HANDLER.should_stop_app_before_wait() {
+            Self::stop();
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
