@@ -13,7 +13,6 @@
 //!
 //! - `run_ondemand` (available on `windows`, `unix`, `macos`, `android`)
 //! - `pump_events` (available on `windows`, `unix`, `macos`, `android`)
-//! - `run_return` (available on `windows`, `unix`, `macos`, and `android`)
 //!
 //! However only the module corresponding to the platform you're compiling to will be available.
 
@@ -53,16 +52,6 @@ pub mod run_ondemand;
     wayland_platform
 ))]
 pub mod pump_events;
-
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    android_platform,
-    x11_platform,
-    wayland_platform,
-    orbital_platform
-))]
-pub mod run_return;
 
 pub mod modifier_supplement;
 pub mod scancode;

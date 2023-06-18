@@ -539,17 +539,6 @@ impl<T: 'static> EventLoop<T> {
         ::std::process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
-    where
-        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        match self.run_ondemand(callback) {
-            Err(RunLoopError::ExitFailure(code)) => code,
-            Err(_err) => 1,
-            Ok(_) => 0,
-        }
-    }
-
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),

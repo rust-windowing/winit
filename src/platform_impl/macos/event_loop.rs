@@ -204,17 +204,6 @@ impl<T> EventLoop<T> {
         process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
-    where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-    {
-        match self.run_ondemand(callback) {
-            Err(RunLoopError::ExitFailure(code)) => code,
-            Err(_err) => 1,
-            Ok(_) => 0,
-        }
-    }
-
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to

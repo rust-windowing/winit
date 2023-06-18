@@ -156,7 +156,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// Almost every change is persistent between multiple calls to the event loop closure within a
 /// given run loop. The only exception to this is [`ExitWithCode`] which, once set, cannot be unset.
-/// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
+/// Changes are **not** persistent between multiple calls to `run_ondemand` - issuing a new call will
 /// reset the control flow to [`Poll`].
 ///
 /// [`ExitWithCode`]: Self::ExitWithCode
