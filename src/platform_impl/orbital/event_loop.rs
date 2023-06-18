@@ -301,15 +301,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
-    where
-        F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
-    {
-        let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
-    }
-
     fn process_event<F>(
         window_id: WindowId,
         event_option: EventOption,
@@ -451,9 +442,10 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler_inner: F) -> i32
+    pub fn run<F>(mut self, event_handler: F) -> !
     where
-        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static
+            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // Wrapper for event handler function that prevents ExitWithCode from being unset.
         let mut event_handler =
@@ -696,7 +688,7 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
-        code
+        ::std::process::exit(code);
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
