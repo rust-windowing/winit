@@ -830,13 +830,6 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
-    where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
-    }
-
     pub fn run<F>(self, callback: F) -> !
     where
         F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
