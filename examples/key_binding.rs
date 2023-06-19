@@ -18,10 +18,13 @@ fn main() {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn main() {
+    #[path = "util/fill.rs"]
+    mod fill;
+
     simple_logger::SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400.0, 200.0))
         .build(&event_loop)
         .unwrap();
@@ -53,6 +56,9 @@ fn main() {
                 }
                 _ => (),
             },
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         };
     });

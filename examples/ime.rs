@@ -10,6 +10,9 @@ use winit::{
     window::{ImePurpose, WindowBuilder},
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new()
         .with_level(LevelFilter::Trace)
@@ -96,6 +99,9 @@ fn main() {
                     window.set_ime_purpose(ime_purpose);
                     println!("\nIME purpose: {ime_purpose:?}\n");
                 }
+            }
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
             }
             _ => (),
         }

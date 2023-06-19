@@ -10,6 +10,9 @@ use winit::{
     window::Window,
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -54,6 +57,11 @@ fn main() {
                         windows.insert(window.id(), window);
                     }
                     _ => (),
+                }
+            }
+            Event::RedrawRequested(window_id) => {
+                if let Some(window) = windows.get(&window_id) {
+                    fill::fill_window(window);
                 }
             }
             _ => (),

@@ -1,4 +1,8 @@
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[path = "util/fill.rs"]
+mod fill;
+
+#[cfg(any(x11_platform, macos_platform, windows_platform))]
 fn main() {
     use std::collections::HashMap;
 
@@ -69,6 +73,10 @@ fn main() {
                     spawn_child_window(&parent_window, event_loop, &mut windows);
                 }
                 _ => (),
+            }
+        } else if let Event::RedrawRequested(wid) = event {
+            if let Some(window) = windows.get(&wid) {
+                fill::fill_window(window);
             }
         }
     })

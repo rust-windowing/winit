@@ -8,11 +8,14 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Your faithful window")
         .build(&event_loop)
         .unwrap();
@@ -78,6 +81,9 @@ fn main() {
                     }
                     _ => (),
                 }
+            }
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
             }
             _ => (),
         }

@@ -9,6 +9,9 @@ use winit::{
     window::{Icon, WindowBuilder},
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
 
@@ -42,6 +45,8 @@ fn main() {
                 }
                 _ => (),
             }
+        } else if let Event::RedrawRequested(_) = event {
+            fill::fill_window(&window);
         }
     });
 }

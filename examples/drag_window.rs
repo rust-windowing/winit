@@ -8,6 +8,9 @@ use winit::{
     window::{Window, WindowBuilder, WindowId},
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -58,6 +61,13 @@ fn main() {
             }
             _ => (),
         },
+        Event::RedrawRequested(wid) => {
+            if wid == window_1.id() {
+                fill::fill_window(&window_1);
+            } else if wid == window_2.id() {
+                fill::fill_window(&window_2);
+            }
+        }
         _ => (),
     });
 }
