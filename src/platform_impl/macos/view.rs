@@ -28,6 +28,7 @@ use crate::{
         TouchPhase, WindowEvent,
     },
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
+    platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
@@ -482,6 +483,7 @@ declare_class!(
             // Get the characters from the event.
             let old_ime_state = self.state.ime_state;
             self.state.forward_key_to_app = false;
+            let event = replace_event(event, self.window().option_as_alt());
 
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
@@ -500,7 +502,7 @@ declare_class!(
                 }
             }
 
-            self.update_modifiers(event, false);
+            self.update_modifiers(&event, false);
 
             let had_ime_input = match self.state.ime_state {
                 ImeState::Commited => {
@@ -514,7 +516,7 @@ declare_class!(
             };
 
             if !had_ime_input || self.state.forward_key_to_app {
-                let key_event = create_key_event(event, true, event.is_a_repeat(), None);
+                let key_event = create_key_event(&event, true, event.is_a_repeat(), None);
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
                     event: key_event,
@@ -527,13 +529,14 @@ declare_class!(
         fn key_up(&mut self, event: &NSEvent) {
             trace_scope!("keyUp:");
 
-            self.update_modifiers(event, false);
+            let event = replace_event(event, self.window().option_as_alt());
+            self.update_modifiers(&event, false);
 
             // We want to send keyboard input when we are currently in the ground state.
             if matches!(self.state.ime_state, ImeState::Ground | ImeState::Disabled) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
-                    event: create_key_event(event, false, false, None),
+                    event: create_key_event(&event, false, false, None),
                     is_synthetic: false,
                 });
             }
@@ -1036,5 +1039,40 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
         3 => MouseButton::Back,
         4 => MouseButton::Forward,
         n => MouseButton::Other(n as u16),
+    }
+}
+
+// NOTE: to get option as alt working we need to rewrite events
+// we're getting from the operating system, which makes it
+// impossible to provide such events as extra in `KeyEvent`.
+fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent, Shared> {
+    let ev_mods = event_mods(event).state;
+    let ignore_alt_characters = match option_as_alt {
+        OptionAsAlt::OnlyLeft if event.lalt_pressed() => true,
+        OptionAsAlt::OnlyRight if event.ralt_pressed() => true,
+        OptionAsAlt::Both if ev_mods.alt_key() => true,
+        _ => false,
+    } && !ev_mods.control_key()
+        && !ev_mods.super_key();
+
+    if ignore_alt_characters {
+        let ns_chars = event
+            .charactersIgnoringModifiers()
+            .expect("expected characters to be non-null");
+
+        NSEvent::keyEventWithType(
+            event.type_(),
+            event.locationInWindow(),
+            event.modifierFlags(),
+            event.timestamp(),
+            event.window_number(),
+            None,
+            &ns_chars,
+            &ns_chars,
+            event.is_a_repeat(),
+            event.key_code(),
+        )
+    } else {
+        event.copy()
     }
 }

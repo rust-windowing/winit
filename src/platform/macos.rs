@@ -56,6 +56,17 @@ pub trait WindowExtMacOS {
 
     /// Put the window in a state which indicates a file save is required.
     fn set_document_edited(&self, edited: bool);
+
+    /// Set option as alt behavior as described in [`OptionAsAlt`].
+    ///
+    /// This will ignore diacritical marks and accent characters from
+    /// being processed as received characters. Instead, the input
+    /// device's raw character will be placed in event queues with the
+    /// Alt modifier set.
+    fn set_option_as_alt(&self, option_as_alt: OptionAsAlt);
+
+    /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
+    fn option_as_alt(&self) -> OptionAsAlt;
 }
 
 impl WindowExtMacOS for Window {
@@ -97,6 +108,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_document_edited(&self, edited: bool) {
         self.window.set_document_edited(edited)
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
+        self.window.set_option_as_alt(option_as_alt)
+    }
+
+    #[inline]
+    fn option_as_alt(&self) -> OptionAsAlt {
+        self.window.option_as_alt()
     }
 }
 
@@ -140,6 +161,10 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
+    /// Set how the <kbd>Option</kbd> keys are interpreted.
+    ///
+    /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
+    fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -197,6 +222,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
+
+    #[inline]
+    fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> WindowBuilder {
+        self.platform_specific.option_as_alt = option_as_alt;
         self
     }
 }
@@ -308,4 +339,24 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_other_applications(&self) {
         self.p.hide_other_applications()
     }
+}
+
+/// Option as alt behavior.
+///
+/// The default is `None`.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum OptionAsAlt {
+    /// The left `Option` key is treated as `Alt`.
+    OnlyLeft,
+
+    /// The right `Option` key is treated as `Alt`.
+    OnlyRight,
+
+    /// Both `Option` keys are treated as `Alt`.
+    Both,
+
+    /// No special handling is applied for `Option` key.
+    #[default]
+    None,
 }

@@ -67,6 +67,35 @@ extern_methods!(
             }
         }
 
+        pub fn keyEventWithType(
+            type_: NSEventType,
+            location: NSPoint,
+            modifier_flags: NSEventModifierFlags,
+            timestamp: NSTimeInterval,
+            window_num: NSInteger,
+            context: Option<&NSObject>,
+            characters: &NSString,
+            characters_ignoring_modifiers: &NSString,
+            is_a_repeat: bool,
+            scancode: c_ushort,
+        ) -> Id<Self, Shared> {
+            unsafe {
+                msg_send_id![
+                    Self::class(),
+                    keyEventWithType: type_,
+                    location: location,
+                    modifierFlags: modifier_flags,
+                    timestamp: timestamp,
+                    windowNumber: window_num,
+                    context: context,
+                    characters: characters,
+                    charactersIgnoringModifiers: characters_ignoring_modifiers,
+                    isARepeat: is_a_repeat,
+                    keyCode: scancode,
+                ]
+            }
+        }
+
         #[sel(locationInWindow)]
         pub fn locationInWindow(&self) -> NSPoint;
 

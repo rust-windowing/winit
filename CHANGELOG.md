@@ -38,7 +38,6 @@ And please only add new entries to the top of this list, right below the `# Unre
     portable) interpretations of a given key-press.
   - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
     `KeyCode`.
-  - Remove `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
   - `ModifiersChanged` now uses dedicated `Modifiers` struct.
 - On Orbital, fix `ModifiersChanged` not being sent.
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
