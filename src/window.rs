@@ -1017,37 +1017,45 @@ impl Window {
         self.window.set_window_icon(window_icon)
     }
 
-    /// Sets location of IME candidate box in client area coordinates relative to the top left.
+    /// Set the IME cursor editing area, where the `position` is the top left corner of that area
+    /// and `size` is the size of this area starting from the position. An example of such area
+    /// could be a input field in the UI or line in the editor.
     ///
-    /// This is the window / popup / overlay that allows you to select the desired characters.
-    /// The look of this box may differ between input devices, even on the same platform.
+    /// The windowing system could place a candidate box close to that area, but try to not obscure
+    /// the specified area, so the user input to it stays visible.
+    ///
+    /// The candidate box is the window / popup / overlay that allows you to select the desired
+    /// characters. The look of this box may differ between input devices, even on the same
+    /// platform.
     ///
     /// (Apple's official term is "candidate window", see their [chinese] and [japanese] guides).
     ///
     /// ## Example
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
     /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the position in logical dimensions like this:
-    /// window.set_ime_position(LogicalPosition::new(400.0, 200.0));
+    /// window.set_ime_cursor_area(LogicalPosition::new(400.0, 200.0), LogicalSize::new(100, 100));
     ///
     /// // Or specify the position in physical dimensions like this:
-    /// window.set_ime_position(PhysicalPosition::new(400, 200));
+    /// window.set_ime_cursor_area(PhysicalPosition::new(400, 200), PhysicalSize::new(100, 100));
     /// ```
     ///
     /// ## Platform-specific
     ///
+    /// - **X11:** - area is not supported, only position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[inline]
-    pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
-        self.window.set_ime_position(position.into())
+    pub fn set_ime_cursor_area<P: Into<Position>, S: Into<Size>>(&self, position: P, size: S) {
+        self.window
+            .set_ime_cursor_area(position.into(), size.into())
     }
 
     /// Sets whether the window should get IME events

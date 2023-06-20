@@ -1034,7 +1034,7 @@ impl From<ModifiersState> for Modifiers {
 /// ```
 ///
 /// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
-/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
+/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_cursor_area`].)
 ///
 /// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the following event
 /// sequence could be obtained:
@@ -1058,7 +1058,7 @@ pub enum Ime {
     ///
     /// After getting this event you could receive [`Preedit`](Self::Preedit) and
     /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
-    /// like [`Window::set_ime_position`].
+    /// like [`Window::set_ime_cursor_area`].
     Enabled,
 
     /// Notifies when a new composing text should be set at the cursor position.
@@ -1079,7 +1079,7 @@ pub enum Ime {
     ///
     /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
     /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You should
-    /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
+    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear pending
     /// preedit text.
     Disabled,
 }

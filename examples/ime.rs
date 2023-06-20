@@ -3,7 +3,7 @@
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use winit::{
-    dpi::PhysicalPosition,
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, KeyCode},
@@ -66,7 +66,7 @@ fn main() {
                 );
                 ime_pos = cursor_position;
                 if may_show_ime {
-                    window.set_ime_position(ime_pos);
+                    window.set_ime_cursor_area(ime_pos, PhysicalSize::new(10, 10));
                 }
             }
             Event::WindowEvent {
@@ -76,7 +76,7 @@ fn main() {
                 println!("{event:?}");
                 may_show_ime = event != Ime::Disabled;
                 if may_show_ime {
-                    window.set_ime_position(ime_pos);
+                    window.set_ime_cursor_area(ime_pos, PhysicalSize::new(10, 10));
                 }
             }
             Event::WindowEvent {
