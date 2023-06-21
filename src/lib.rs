@@ -89,6 +89,7 @@
 //! // closure passed to `run`.
 //! let mut app = MyApp { frame_count: 0 };
 //!
+//! // Note the `move` closure: the app object is now owned by the closure.
 //! event_loop.run(move |event, _window_target, control_flow| {
 //!     // ControlFlow::Wait pauses the event loop until events are available to process.
 //!     // This is ideal for non-game applications that only update in response to user
@@ -126,7 +127,7 @@
 //!             //
 //!             // It's preferable for applications that do not render continuously to render in
 //!             // this event rather than in MainEventsCleared, since rendering in here allows
-//!             // the program to gracefully handle redraws requested by the OS.
+//!             // the program to gracefully handle redraws requested by the platform.
 //!         },
 //!         _ => ()
 //!     }
@@ -147,7 +148,7 @@
 //! [`raw_window_handle`] and [`raw_display_handle`] methods), which in turn allows
 //!  you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
 //!
-//! Note that many platforms will display garbage data in the window's client area if the
+//! Note that several platforms will display garbage data in the window's client area if the
 //! application doesn't render anything to the window by the time the desktop compositor is ready to
 //! display the window to the user. If you notice this happening, you should create the window with
 //! [`visible` set to `false`](crate::window::WindowBuilder::with_visible) and explicitly make the
