@@ -54,7 +54,8 @@
 //! this is platform-dependent and may change.
 //!
 //! The [`Suspended`] and [`Resumed`] loop-stage events are used on some platforms (typically mobile platforms) to
-//! indicate suspension and resumption of the application by the platform. See the [detailed documentation][`Suspended`]
+//! indicate suspension and resumption of the application by the platform. A `Suspended` event breaks out of the loop,
+//! and the next event is guaranteed to be a `Resumed` event. See the [detailed documentation][`Suspended`]
 //! for more on these events.
 //!
 //! Once the [`ControlFlow`] has been set to exit (typically with [`ControlFlow::set_exit()`] or
