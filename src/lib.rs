@@ -45,7 +45,7 @@
 //! should be run, since all input has been handled for this loop iteration. Applications which need to constantly update
 //! their graphics (for example, games) will typically call [`request_redraw()`] while handling [`MainEventsCleared`].
 //!
-//! If the window needs to be redrawn (either because the platform requests it, or application code has), then a
+//! If the window needs to be redrawn (because either the platform or application code requests it), then a
 //! [`RedrawRequested`] event follows. winit will ensure that this is sent at most once per loop so that applications
 //! can run rendering code here, confident that work will not be duplicated. This is always followed by the
 //! [`RedrawEventsCleared`] loop-stage event, marking the end of the primary loop.
