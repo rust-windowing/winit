@@ -120,6 +120,9 @@ impl Window {
             attributes.preferred_theme,
         );
 
+        // Set transparency hint.
+        window_state.set_transparent(attributes.transparent);
+
         // Set the app_id.
         if let Some(name) = platform_attributes.name.map(|name| name.general) {
             window.set_app_id(name);
