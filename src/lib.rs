@@ -21,15 +21,15 @@
 //!
 //! # Overview of the event loop
 //!
-//! An [`EventLoop`] object must be *run* so that [`Window`]s created with in can be correctly displayed and function.
+//! An [`EventLoop`] object must be *run* so that [`Window`]s created with it can be correctly displayed and function.
 //! This is done by passing a closure to [`EventLoop::run()`], which will take control of the
 //! current process. All application code is then managed from this closure.
 //!
 //! A running [`EventLoop`] works by passing [`Event`]s to the closure. The closure handles these events and can control
-//! the behaviour of the loop through setting the [`ControlFlow`] also passed to the closure. With the order illustrated
-//! by the following diagram, showing how the events loop.
+//! the behaviour of the loop by modifying the [`ControlFlow`] that is also passed to the closure. The closure is
+//! invoked with each event, the order of which is illustrated by the following diagram, showing how the events loop.
 //!
-//! <img src="../../../docs/event-loop.svg" alt="Flowchart illustrating order of events" height="630px" style="float:left">
+//! <img src="https://raw.githubusercontent.com/rust-windowing/winit/master/docs/event-loop.svg" alt="Flowchart illustrating order of events" height="630px" style="float:left">
 //!
 //! The progress of the event loop is marked by so-called "loop-stage events". Key application logic is most often run
 //! while handling such loop-stage events.
@@ -46,28 +46,26 @@
 //! their graphics (for example, games) will typically call [`request_redraw()`] while handling [`MainEventsCleared`].
 //!
 //! If the window needs to be redrawn (either because the platform requests it, or application code has), then a
-//! [`RedrawRequested`] event follows. winit will ensure that this is sent at most once so that applications can run rendering code here,
-//! confident that work will not be duplicated. This is always followed by the [`RedrawEventsCleared`] loop-stage event,
-//! marking the end of the primary loop.
+//! [`RedrawRequested`] event follows. winit will ensure that this is sent at most once per loop so that applications
+//! can run rendering code here, confident that work will not be duplicated. This is always followed by the
+//! [`RedrawEventsCleared`] loop-stage event, marking the end of the primary loop.
 //!
 //! Some platforms currently run one iteration of this primary loop immediately after the first [`Resumed`] event, but
 //! this is platform-dependent and may change.
 //!
 //! The [`Suspended`] and [`Resumed`] loop-stage events are used on some platforms (typically mobile platforms) to
-//! indicate suspension and resumption of the application by the platform. See the [detailed docs][`Suspended`] for details.
+//! indicate suspension and resumption of the application by the platform. See the [detailed documentation][`Suspended`]
+//! for more on these events.
 //!
-//! Once the [`ControlFlow`] has been set to exit (typically with [`ControlFlow::set_exit()`] or [`set_exit_with_code()`][`ControlFlow::set_exit()`])
-//! a final [`LoopDestroyed`] event is dispatched. This is irreversible and a typical place to free all application resources,
-//! as the process will be terminated after this.
+//! Once the [`ControlFlow`] has been set to exit (typically with [`ControlFlow::set_exit()`] or
+//! [`set_exit_with_code()`][`ControlFlow::set_exit_with_code()`]) a final [`LoopDestroyed`] event is dispatched. This
+//! is irreversible and a typical time to free all application resources, as the process will be terminated after this.
 //!
 //! This overview should be correct for cross-platform use in most cases, please see the detailed descriptions in the
 //! API docs for the exact behaviour of each event and details of any platform-dependent behaviour. In particular on some
 //! platforms it is possible (though discouraged) to use [`run_return()`][`EventLoopExtRunReturn::run_return`] to prevent
 //! [`run()`][`EventLoop::run()`] from hijacking the process, however this may change the order of events significantly,
 //! so carefully check the API documentation.
-//!
-//! The [`winit_input_helper`](https://crates.io/crates/winit_input_helper) crate can help the mangement of main events
-//! and collect input for processing during [`MainEventsCleared`].
 //!
 //! # Using the event loop
 //!
@@ -135,7 +133,7 @@
 //! });
 //! ```
 //!
-//! [`Event`]`::`[`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
+//! [`Event::WindowEvent`][event::Event::WindowEvent] has a [`WindowId`] member. In multi-window environments, it should be
 //! compared to the value returned by [`Window::id()`][window_id_fn] to determine which [`Window`]
 //! dispatched the event.
 //!
