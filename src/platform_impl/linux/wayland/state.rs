@@ -321,7 +321,15 @@ impl CompositorHandler for WinitState {
         self.scale_factor_changed(surface, scale_factor as f64, true)
     }
 
-    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: u32) {}
+    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &WlSurface, _: u32) {
+        let window_id = super::make_wid(surface);
+        let window = match self.windows.get_mut().get(&window_id) {
+            Some(window) => window,
+            None => return,
+        };
+
+        window.lock().unwrap().frame_callback_received();
+    }
 }
 
 impl ProvidesRegistryState for WinitState {
