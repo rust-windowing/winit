@@ -125,6 +125,9 @@ pub struct WindowState {
     /// sends `None` for the new size in the configure.
     stateless_size: LogicalSize<u32>,
 
+    /// The state of the frame callback.
+    frame_callback_state: FrameCallbackState,
+
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
 
@@ -134,26 +137,62 @@ pub struct WindowState {
     has_pending_move: Option<u32>,
 }
 
-/// The state of the cursor grabs.
-#[derive(Clone, Copy)]
-struct GrabState {
-    /// The grab mode requested by the user.
-    user_grab_mode: CursorGrabMode,
+impl WindowState {
+    /// Create new window state.
+    pub fn new(
+        connection: Connection,
+        queue_handle: &QueueHandle<WinitState>,
+        winit_state: &WinitState,
+        size: LogicalSize<u32>,
+        window: Window,
+        theme: Option<Theme>,
+    ) -> Self {
+        let compositor = winit_state.compositor_state.clone();
+        let pointer_constraints = winit_state.pointer_constraints.clone();
+        let viewport = winit_state
+            .viewporter_state
+            .as_ref()
+            .map(|state| state.get_viewport(window.wl_surface(), queue_handle));
+        let fractional_scale = winit_state
+            .fractional_scaling_manager
+            .as_ref()
+            .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
-    /// The current grab mode.
-    current_grab_mode: CursorGrabMode,
-}
-
-impl GrabState {
-    fn new() -> Self {
         Self {
-            user_grab_mode: CursorGrabMode::None,
-            current_grab_mode: CursorGrabMode::None,
+            compositor,
+            connection,
+            csd_fails: false,
+            cursor_grab_mode: GrabState::new(),
+            cursor_icon: CursorIcon::Default,
+            cursor_visible: true,
+            decorate: true,
+            fractional_scale,
+            frame: None,
+            frame_callback_state: FrameCallbackState::None,
+            has_focus: false,
+            has_pending_move: None,
+            ime_allowed: false,
+            ime_purpose: ImePurpose::Normal,
+            last_configure: None,
+            max_inner_size: None,
+            min_inner_size: MIN_WINDOW_SIZE,
+            pointer_constraints,
+            pointers: Default::default(),
+            queue_handle: queue_handle.clone(),
+            resizable: true,
+            scale_factor: 1.,
+            shm: winit_state.shm.wl_shm().clone(),
+            size,
+            stateless_size: size,
+            text_inputs: Vec::new(),
+            theme,
+            title: String::default(),
+            transparent: false,
+            viewport,
+            window: ManuallyDrop::new(window),
         }
     }
-}
 
-impl WindowState {
     /// Apply closure on the given pointer.
     fn apply_on_poiner<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
         &self,
@@ -166,6 +205,33 @@ impl WindowState {
                 let data = pointer.pointer().winit_data();
                 callback(pointer.as_ref(), data);
             })
+    }
+
+    /// Get the current state of the frame callback.
+    pub fn frame_callback_state(&self) -> FrameCallbackState {
+        self.frame_callback_state
+    }
+
+    /// The frame callback was received, but not yet sent to the user.
+    pub fn frame_callback_received(&mut self) {
+        self.frame_callback_state = FrameCallbackState::Received;
+    }
+
+    /// Reset the frame callbacks state.
+    pub fn frame_callback_reset(&mut self) {
+        self.frame_callback_state = FrameCallbackState::None;
+    }
+
+    /// Request a frame callback if we don't have one for this window in flight.
+    pub fn request_frame_callback(&mut self) {
+        let surface = self.window.wl_surface();
+        match self.frame_callback_state {
+            FrameCallbackState::None | FrameCallbackState::Received => {
+                self.frame_callback_state = FrameCallbackState::Requested;
+                surface.frame(&self.queue_handle, surface.clone());
+            }
+            FrameCallbackState::Requested => (),
+        }
     }
 
     pub fn configure(
@@ -388,60 +454,6 @@ impl WindowState {
         } else {
             // Server side decorations.
             true
-        }
-    }
-
-    /// Create new window state.
-    pub fn new(
-        connection: Connection,
-        queue_handle: &QueueHandle<WinitState>,
-        winit_state: &WinitState,
-        size: LogicalSize<u32>,
-        window: Window,
-        theme: Option<Theme>,
-    ) -> Self {
-        let compositor = winit_state.compositor_state.clone();
-        let pointer_constraints = winit_state.pointer_constraints.clone();
-        let viewport = winit_state
-            .viewporter_state
-            .as_ref()
-            .map(|state| state.get_viewport(window.wl_surface(), queue_handle));
-        let fractional_scale = winit_state
-            .fractional_scaling_manager
-            .as_ref()
-            .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
-
-        Self {
-            compositor,
-            connection,
-            theme,
-            csd_fails: false,
-            decorate: true,
-            cursor_grab_mode: GrabState::new(),
-            cursor_icon: CursorIcon::Default,
-            cursor_visible: true,
-            fractional_scale,
-            frame: None,
-            has_focus: false,
-            ime_allowed: false,
-            ime_purpose: ImePurpose::Normal,
-            last_configure: None,
-            max_inner_size: None,
-            min_inner_size: MIN_WINDOW_SIZE,
-            pointer_constraints,
-            pointers: Default::default(),
-            queue_handle: queue_handle.clone(),
-            scale_factor: 1.,
-            shm: winit_state.shm.wl_shm().clone(),
-            size,
-            stateless_size: size,
-            text_inputs: Vec::new(),
-            title: String::default(),
-            transparent: false,
-            resizable: true,
-            viewport,
-            window: ManuallyDrop::new(window),
-            has_pending_move: None,
         }
     }
 
@@ -890,6 +902,37 @@ impl Drop for WindowState {
 
         surface.destroy();
     }
+}
+
+/// The state of the cursor grabs.
+#[derive(Clone, Copy)]
+struct GrabState {
+    /// The grab mode requested by the user.
+    user_grab_mode: CursorGrabMode,
+
+    /// The current grab mode.
+    current_grab_mode: CursorGrabMode,
+}
+
+impl GrabState {
+    fn new() -> Self {
+        Self {
+            user_grab_mode: CursorGrabMode::None,
+            current_grab_mode: CursorGrabMode::None,
+        }
+    }
+}
+
+/// The state of the frame callback.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameCallbackState {
+    /// No frame callback was requsted.
+    #[default]
+    None,
+    /// The frame callback was requested, but not yet arrived, the redraw events are throttled.
+    Requested,
+    /// The callback was marked as done, and user could receive redraw requested
+    Received,
 }
 
 impl From<ResizeDirection> for ResizeEdge {

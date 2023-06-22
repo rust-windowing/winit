@@ -38,7 +38,7 @@ use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
 use super::{EventLoopWindowTarget, WindowId};
 
-mod state;
+pub(crate) mod state;
 
 pub use state::WindowState;
 
@@ -295,7 +295,7 @@ impl Window {
 
     #[inline]
     pub fn pre_present_notify(&self) {
-        // TODO
+        self.window_state.lock().unwrap().request_frame_callback();
     }
 
     #[inline]
