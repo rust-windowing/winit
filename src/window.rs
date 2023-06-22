@@ -548,6 +548,43 @@ impl Window {
         self.window.request_redraw()
     }
 
+    /// Notify the windowing system that you're before presenting to the window.
+    ///
+    /// You should call this event after you've done drawing operations, but before you submit
+    /// the buffer to the display or commit your drawings. Doing so will help winit to properly
+    /// schedule and do assumptions about its internal state. For example, it could properly
+    /// throttle [`Event::RedrawRequested`].
+    ///
+    /// ## Example
+    ///
+    /// This example illustrates how it looks with OpenGL, but it applies to other graphics
+    /// APIs and software rendering.
+    ///
+    /// ```no_run
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn swap_buffers() {}
+    /// // Do the actual drawing with OpenGL.
+    ///
+    /// // Notify winit that we're about to submit buffer to the windowing system.
+    /// window.pre_present_notify();
+    ///
+    /// // Sumbit buffer to the windowing system.
+    /// swap_buffers();
+    /// ```
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland:** - schedules a frame callback to throttle [`Event::RedrawRequested`].
+    ///
+    /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
+    #[inline]
+    pub fn pre_present_notify(&self) {
+        self.window.pre_present_notify();
+    }
+
     /// Reset the dead key state of the keyboard.
     ///
     /// This is useful when a dead key is bound to trigger an action. Then

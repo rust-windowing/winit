@@ -74,6 +74,8 @@ impl Inner {
         }
     }
 
+    pub fn pre_present_notify(&self) {}
+
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();

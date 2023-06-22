@@ -114,6 +114,8 @@ impl Window {
             .dispatch(|inner| (inner.register_redraw_request)());
     }
 
+    pub fn pre_present_notify(&self) {}
+
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.inner.queue(|inner| {
             Ok(inner

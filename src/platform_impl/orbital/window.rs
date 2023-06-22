@@ -167,6 +167,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn pre_present_notify(&self) {}
+
+    #[inline]
     pub fn reset_dead_keys(&self) {
         // TODO?
     }

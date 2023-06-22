@@ -143,6 +143,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn pre_present_notify(&self) {}
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::WindowArea::Outer.get_rect(self.hwnd())
             .map(|rect| Ok(PhysicalPosition::new(rect.left, rect.top)))

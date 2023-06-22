@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Add `Window::pre_present_notify` to notify winit before presenting to the windowing system.
 - On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
 - **Breaking:** Remove lifetime parameter from `Event` and `WindowEvent`.
 - **Breaking:** `ScaleFactorChanged` now contains a writer instead of a reference to update inner size.
