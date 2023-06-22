@@ -569,6 +569,9 @@ impl WinitWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
+    #[inline]
+    pub fn pre_present_notify(&self) {}
+
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let frame_rect = self.frame();
         let position = LogicalPosition::new(
