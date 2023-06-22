@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Web, allow event loops to be recreated with `spawn`.
 - **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
 - On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
 - On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.

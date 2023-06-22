@@ -9,9 +9,9 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{error, fmt};
 
-use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 #[cfg(not(wasm_platform))]
 use std::time::{Duration, Instant};
@@ -69,6 +69,8 @@ impl EventLoopBuilder<()> {
     }
 }
 
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+
 impl<T> EventLoopBuilder<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
@@ -114,16 +116,21 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
-        static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
-        if EVENT_LOOP_CREATED.set(()).is_err() {
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             panic!("Creating EventLoop multiple times is not supported.");
         }
+
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
             event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
         }
+    }
+
+    #[cfg(wasm_platform)]
+    pub(crate) fn allow_event_loop_recreation() {
+        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 }
 
