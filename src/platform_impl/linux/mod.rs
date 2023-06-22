@@ -555,17 +555,17 @@ impl Window {
         }
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.request_user_attention(request_type),
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref w) => w.request_user_attention(request_type),
-        }
+        x11_or_wayland!(match self; Window(w) => w.request_user_attention(request_type))
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         x11_or_wayland!(match self; Window(w) => w.request_redraw())
+    }
+
+    #[inline]
+    pub fn pre_present_notify(&self) {
+        x11_or_wayland!(match self; Window(w) => w.pre_present_notify())
     }
 
     #[inline]

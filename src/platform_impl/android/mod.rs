@@ -813,6 +813,8 @@ impl Window {
         self.redraw_requester.request_redraw()
     }
 
+    pub fn pre_present_notify(&self) {}
+
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         Err(error::NotSupportedError::new())
     }
