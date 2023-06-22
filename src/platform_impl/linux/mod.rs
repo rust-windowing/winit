@@ -512,8 +512,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: Position) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+    pub fn set_ime_cursor_area(&self, position: Position, size: Size) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_cursor_area(position, size))
     }
 
     #[inline]

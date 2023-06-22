@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusize zone.
 - On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
 - On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
 - **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.

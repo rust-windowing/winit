@@ -1510,7 +1510,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
+    pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         let _ = self
             .ime_sender

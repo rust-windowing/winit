@@ -122,6 +122,7 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 pub(super) struct ViewState {
     pub cursor_state: Mutex<CursorState>,
     ime_position: LogicalPosition<f64>,
+    ime_size: LogicalSize<f64>,
     pub(super) modifiers: Modifiers,
     phys_modifiers: HashMap<Key, ModLocationMask>,
     tracking_rect: Option<NSTrackingRectTag>,
@@ -167,6 +168,7 @@ declare_class!(
                 let state = ViewState {
                     cursor_state: Default::default(),
                     ime_position: LogicalPosition::new(0.0, 0.0),
+                    ime_size: Default::default(),
                     modifiers: Default::default(),
                     phys_modifiers: Default::default(),
                     tracking_rect: None,
@@ -416,11 +418,8 @@ declare_class!(
             let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
             let x = base_x + self.state.ime_position.x;
             let y = base_y - self.state.ime_position.y;
-            // This is not ideal: We _should_ return a different position based on
-            // the currently selected character (which varies depending on the type
-            // and size of the character), but in the current `winit` API there is
-            // no way to express this. Same goes for the `NSSize`.
-            NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(0.0, 0.0))
+            let LogicalSize { width, height } = self.state.ime_size;
+            NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(width, height))
         }
 
         #[sel(insertText:replacementRange:)]
@@ -871,8 +870,13 @@ impl WinitView {
         }
     }
 
-    pub(super) fn set_ime_position(&mut self, position: LogicalPosition<f64>) {
+    pub(super) fn set_ime_cursor_area(
+        &mut self,
+        position: LogicalPosition<f64>,
+        size: LogicalSize<f64>,
+    ) {
         self.state.ime_position = position;
+        self.state.ime_size = size;
         let input_context = self.inputContext().expect("input context");
         input_context.invalidateCharacterCoordinates();
     }

@@ -324,7 +324,7 @@ impl Window {
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {}
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {}

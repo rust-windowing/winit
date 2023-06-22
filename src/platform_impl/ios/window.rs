@@ -295,8 +295,8 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_position(&self, _position: Position) {
-        warn!("`Window::set_ime_position` is ignored on iOS")
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
+        warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
     pub fn set_ime_allowed(&self, _allowed: bool) {

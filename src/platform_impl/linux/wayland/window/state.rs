@@ -741,13 +741,14 @@ impl WindowState {
     }
 
     /// Set the IME position.
-    pub fn set_ime_position(&self, position: LogicalPosition<u32>) {
+    pub fn set_ime_cursor_area(&self, position: LogicalPosition<u32>, size: LogicalSize<u32>) {
         // XXX This won't fly unless user will have a way to request IME window per seat, since
         // the ime windows will be overlapping, but winit doesn't expose API to specify for
         // which seat we're setting IME position.
         let (x, y) = (position.x as i32, position.y as i32);
+        let (width, height) = (size.width as i32, size.height as i32);
         for text_input in self.text_inputs.iter() {
-            text_input.set_cursor_rectangle(x, y, 0, 0);
+            text_input.set_cursor_rectangle(x, y, width, height);
             text_input.commit();
         }
     }

@@ -327,7 +327,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
 

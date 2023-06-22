@@ -722,9 +722,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         unsafe {
-            ImeContext::current(self.hwnd()).set_ime_position(spot, self.scale_factor());
+            ImeContext::current(self.hwnd()).set_ime_cursor_area(spot, size, self.scale_factor());
         }
     }
 
