@@ -294,6 +294,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn pre_present_notify(&self) {
+        // TODO
+    }
+
+    #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();

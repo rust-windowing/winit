@@ -1732,6 +1732,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn pre_present_notify(&self) {
+        // TODO timer
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = XlibWindowHandle::empty();
         window_handle.window = self.xlib_window();
