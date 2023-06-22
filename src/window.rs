@@ -524,11 +524,12 @@ impl Window {
         self.window.scale_factor()
     }
 
-    /// Requests a future [`Event::RedrawRequested`] event to be emitted in a way that is
-    /// synchronized and / or throttled by the windowing system.
+    /// Queues a [`Event::RedrawRequested`] event to be emitted that aligns with the windowing
+    /// system drawing loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
-    /// OS-requested redraws (e.g. when a window gets resized).
+    /// OS-requested redraws (e.g. when a window gets resized). To improve the event delivery
+    /// consider using [`Window::pre_present_notify`] as described in docs.
     ///
     /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
     ///
@@ -536,11 +537,16 @@ impl Window {
     /// with respect to other events, since the requirements can vary significantly between
     /// windowing systems.
     ///
+    /// However as the event aligns with the windowing system drawing loop, it may not arrive in
+    /// same or even next event loop iteration.
+    ///
     /// ## Platform-specific
     ///
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and `RedrawRequested`
     ///   is emitted in sync with any `WM_PAINT` messages
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Wayland:** The events are aligned with the frame callbacks when [`Window::pre_present_notify`]
+    ///                is used.
     ///
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
     #[inline]
