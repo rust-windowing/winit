@@ -66,6 +66,11 @@ pub trait EventLoopExtWebSys {
     ///
     /// Unlike `run`, this returns immediately, and doesn't throw an exception in order to
     /// satisfy its `!` return type.
+    ///
+    /// Once the event loop has been destroyed, it's possible to reinitialize another event loop
+    /// by calling this function again. This can be useful if you want to recreate the event loop
+    /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
+    /// event loop when switching between tabs on a single page application.
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static

@@ -8,7 +8,9 @@ pub use self::window_target::EventLoopWindowTarget;
 
 use super::{backend, device, window};
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, EventLoopBuilder, EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 
 use std::marker::PhantomData;
 
@@ -33,7 +35,7 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.spawn(event_handler);
+        self.spawn_inner(event_handler);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -44,7 +46,15 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn<F>(self, mut event_handler: F)
+    pub fn spawn<F>(self, event_handler: F)
+    where
+        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        EventLoopBuilder::<T>::allow_event_loop_recreation();
+        self.spawn_inner(event_handler);
+    }
+
+    fn spawn_inner<F>(self, mut event_handler: F)
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
