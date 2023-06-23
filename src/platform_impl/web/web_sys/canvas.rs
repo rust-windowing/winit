@@ -19,6 +19,7 @@ use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use super::super::WindowId;
+use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
@@ -42,6 +43,7 @@ pub struct Canvas {
     pointer_handler: PointerHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
     on_intersect: Option<IntersectionObserverHandle>,
+    animation_frame_handler: AnimationFrameHandler,
 }
 
 pub struct Common {
@@ -98,7 +100,7 @@ impl Canvas {
             .expect("Invalid pseudo-element");
 
         let common = Common {
-            window,
+            window: window.clone(),
             document,
             raw: canvas,
             style,
@@ -151,6 +153,7 @@ impl Canvas {
             pointer_handler: PointerHandler::new(),
             on_resize_scale: None,
             on_intersect: None,
+            animation_frame_handler: AnimationFrameHandler::new(window),
         })
     }
 
@@ -441,12 +444,23 @@ impl Canvas {
         self.on_intersect = Some(IntersectionObserverHandle::new(self.raw(), handler));
     }
 
+    pub(crate) fn on_animation_frame<F>(&mut self, f: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.animation_frame_handler.on_animation_frame(f)
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.request_fullscreen()
     }
 
     pub fn is_fullscreen(&self) -> bool {
         self.common.is_fullscreen()
+    }
+
+    pub fn request_animation_frame(&self) {
+        self.animation_frame_handler.request();
     }
 
     pub(crate) fn handle_scale_change<T: 'static>(
