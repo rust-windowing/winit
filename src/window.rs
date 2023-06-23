@@ -547,6 +547,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** The events are aligned with the frame callbacks when [`Window::pre_present_notify`]
     ///                is used.
+    /// - **Web:** [`Event::RedrawRequested`] will be aligned with the `requestAnimationFrame`.
     ///
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
     #[inline]
