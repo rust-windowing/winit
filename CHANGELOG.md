@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusize zone.
+- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
 - On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
 - On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
 - **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
@@ -31,7 +31,7 @@ And please only add new entries to the top of this list, right below the `# Unre
     active (software) keyboard layout.
   - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
   - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
-    but can appear simultanesouly in different spots on the same keyboard
+    but can appear simultaneously in different spots on the same keyboard
     layout.
   - Add `Window::reset_dead_keys` to enable application-controlled cancellation
     of dead key sequences.
@@ -393,7 +393,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # 0.23.0 (2020-10-02)
 
-- On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
+- On iOS, fixed support for the "Debug View Hierarchy" feature in Xcode.
 - On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
 - On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.

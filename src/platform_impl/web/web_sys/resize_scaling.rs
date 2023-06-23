@@ -257,7 +257,7 @@ impl ResizeScaleInternal {
 
         let writing_mode = style
             .get_property_value("writing-mode")
-            .expect("`wirting-mode` is a valid CSS property");
+            .expect("`writing-mode` is a valid CSS property");
 
         // means the canvas is not inserted into the DOM
         if writing_mode.is_empty() {
