@@ -735,7 +735,10 @@ impl<T> EventLoopWindowTarget<T> {
             }
 
             canvas_clone.borrow_mut().is_intersecting = Some(is_intersecting);
-        })
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_animation_frame(move || runner.request_redraw(RootWindowId(id)));
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
