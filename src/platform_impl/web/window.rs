@@ -30,7 +30,6 @@ pub struct Inner {
     document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
-    register_redraw_request: Box<dyn Fn()>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -40,8 +39,6 @@ impl Window {
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let runner = target.runner.clone();
-
         let id = target.generate_id();
 
         let prevent_default = platform_attr.prevent_default;
@@ -51,8 +48,6 @@ impl Window {
         let canvas =
             backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
-
-        let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
         target.register(&canvas, id, prevent_default);
 
@@ -68,7 +63,6 @@ impl Window {
                 document: document.clone(),
                 canvas,
                 previous_pointer: RefCell::new("auto"),
-                register_redraw_request,
                 destroy_fn: Some(destroy_fn),
             })
             .unwrap(),
@@ -110,8 +104,9 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        self.inner
-            .dispatch(|inner| (inner.register_redraw_request)());
+        self.inner.dispatch(move |inner| {
+            inner.canvas.borrow().request_animation_frame();
+        });
     }
 
     pub fn pre_present_notify(&self) {}
