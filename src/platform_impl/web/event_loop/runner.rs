@@ -35,6 +35,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
+    event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<EventWrapper<T>>>,
     id: RefCell<u32>,
     window: web_sys::Window,
@@ -139,6 +140,7 @@ impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
         Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
+            event_loop_recreation: Cell::new(false),
             events: RefCell::new(VecDeque::new()),
             #[allow(clippy::disallowed_methods)]
             window: web_sys::window().expect("only callable from inside the `Window`"),
@@ -649,6 +651,9 @@ impl<T: 'static> Shared<T> {
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
+        if self.0.event_loop_recreation.get() {
+            crate::event_loop::EventLoopBuilder::<T>::allow_event_loop_recreation();
+        }
     }
 
     // Check if the event loop is currently closed
@@ -690,6 +695,10 @@ impl<T: 'static> Shared<T> {
             }),
             DeviceEvents::Never => false,
         }
+    }
+
+    pub fn event_loop_recreation(&self, allow: bool) {
+        self.0.event_loop_recreation.set(allow)
     }
 }
 

@@ -8,9 +8,7 @@ pub use self::window_target::EventLoopWindowTarget;
 
 use super::{backend, device, window};
 use crate::event::Event;
-use crate::event_loop::{
-    ControlFlow, EventLoopBuilder, EventLoopWindowTarget as RootEventLoopWindowTarget,
-};
+use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 
 use std::marker::PhantomData;
 
@@ -35,7 +33,7 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.spawn_inner(event_handler);
+        self.spawn_inner(event_handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -50,11 +48,10 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        EventLoopBuilder::<T>::allow_event_loop_recreation();
-        self.spawn_inner(event_handler);
+        self.spawn_inner(event_handler, true);
     }
 
-    fn spawn_inner<F>(self, mut event_handler: F)
+    fn spawn_inner<F>(self, mut event_handler: F, event_loop_recreation: bool)
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -63,9 +60,10 @@ impl<T> EventLoop<T> {
             _marker: PhantomData,
         };
 
-        self.elw.p.run(Box::new(move |event, flow| {
-            event_handler(event, &target, flow)
-        }));
+        self.elw.p.run(
+            Box::new(move |event, flow| event_handler(event, &target, flow)),
+            event_loop_recreation,
+        );
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
