@@ -69,7 +69,8 @@ impl<T> EventLoopWindowTarget<T> {
         EventLoopProxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
+    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>, event_loop_recreation: bool) {
+        self.runner.event_loop_recreation(event_loop_recreation);
         self.runner.set_listener(event_handler);
     }
 
