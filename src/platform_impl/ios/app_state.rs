@@ -59,7 +59,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event<'static, Never> {
     fn is_redraw(&self) -> bool {
-        matches!(self, Event::RedrawRequested(_))
+        matches!(self, Event::RedrawRequested(_) | Event::RedrawEventsCleared)
     }
 }
 
