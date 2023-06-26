@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::keyboard::Key;
@@ -18,6 +19,8 @@ fn main() {
 
     let mut decorations = true;
     let mut minimized = false;
+    let mut with_min_size = false;
+    let mut with_max_size = false;
 
     let window = WindowBuilder::new()
         .with_title("Hello world!")
@@ -46,6 +49,8 @@ fn main() {
     println!("- D\tToggle window decorations");
     println!("- X\tMaximize window");
     println!("- Z\tMinimize window");
+    println!("- I\tToggle mIn size limit");
+    println!("- A\tToggle mAx size limit");
 
     event_loop.run(move |event, elwt, control_flow| {
         control_flow.set_wait();
@@ -119,6 +124,32 @@ fn main() {
                         "z" => {
                             minimized = !minimized;
                             window.set_minimized(minimized);
+                        }
+                        "i" => {
+                            with_min_size = !with_min_size;
+                            let min_size = if with_min_size {
+                                Some(PhysicalSize::new(100, 100))
+                            } else {
+                                None
+                            };
+                            window.set_min_inner_size(min_size);
+                            eprintln!(
+                                "Min: {with_min_size}: {min_size:?} => {:?}",
+                                window.inner_size()
+                            );
+                        }
+                        "a" => {
+                            with_max_size = !with_max_size;
+                            let max_size = if with_max_size {
+                                Some(PhysicalSize::new(200, 200))
+                            } else {
+                                None
+                            };
+                            window.set_max_inner_size(max_size);
+                            eprintln!(
+                                "Max: {with_max_size}: {max_size:?} => {:?}",
+                                window.inner_size()
+                            );
                         }
                         _ => (),
                     },
