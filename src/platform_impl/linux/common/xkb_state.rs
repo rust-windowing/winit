@@ -524,10 +524,12 @@ impl<'a> KeyEventResults<'a> {
         // This will become a pointer to an array which libxkbcommon owns, so we don't need to deallocate it.
         let mut keysyms = ptr::null();
         let keysym_count = unsafe {
+            let layout = (XKBH.xkb_state_key_get_layout)(self.state.xkb_state, self.keycode);
             (XKBH.xkb_keymap_key_get_syms_by_level)(
                 self.state.xkb_keymap,
                 self.keycode,
-                0,
+                layout,
+                // NOTE: The level should be zero to ignore modifiers.
                 0,
                 &mut keysyms,
             )
