@@ -123,7 +123,7 @@ wayland-backend = { version = "0.1.0", default_features = false, features = ["cl
 wayland-protocols = { version = "0.30.0", features = [ "staging"], optional = true }
 calloop = "0.10.5"
 x11-dl = { version = "2.18.5", optional = true }
-xkbcommon-dl = "0.3.0"
+xkbcommon-dl = "0.4.0"
 memmap2 = { version = "0.5.0", optional = true }
 
 [target.'cfg(target_os = "redox")'.dependencies]

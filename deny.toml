@@ -37,6 +37,8 @@ skip = [
     { name = "memmap2" },       # sctk uses a different version until the next update
     { name = "libloading" },    # x11rb uses a different version until the next update
     { name = "syn" },           # https://github.com/rust-mobile/ndk/issues/392 and https://github.com/rustwasm/wasm-bindgen/issues/3390
+    { name = "num_enum"},       # See above ^, waiting for release
+    { name = "num_enum_derive"},# See above ^, waiting for release
     { name = "miniz_oxide"},    # https://github.com/rust-lang/flate2-rs/issues/340
     { name = "redox_syscall" }, # https://gitlab.redox-os.org/redox-os/orbclient/-/issues/46
 ]
