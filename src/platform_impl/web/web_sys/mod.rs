@@ -16,7 +16,7 @@ use crate::dpi::LogicalSize;
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
-use web_sys::{CssStyleDeclaration, Element, HtmlCanvasElement};
+use web_sys::{CssStyleDeclaration, Element, HtmlCanvasElement, PageTransitionEvent};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -28,16 +28,24 @@ pub fn exit_fullscreen(window: &web_sys::Window) {
     document.exit_fullscreen();
 }
 
-pub struct UnloadEventHandle {
-    _listener: event_handle::EventListenerHandle<dyn FnMut()>,
+pub struct PageTransitionEventHandle {
+    _show_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
+    _hide_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
 }
 
-pub fn on_unload(window: &web_sys::Window, handler: impl FnMut() + 'static) -> UnloadEventHandle {
-    let closure = Closure::new(handler);
+pub fn on_page_transition(
+    window: &web_sys::Window,
+    show_handler: impl FnMut(PageTransitionEvent) + 'static,
+    hide_handler: impl FnMut(PageTransitionEvent) + 'static,
+) -> PageTransitionEventHandle {
+    let show_closure = Closure::new(show_handler);
+    let hide_closure = Closure::new(hide_handler);
 
-    let listener = event_handle::EventListenerHandle::new(window, "pagehide", closure);
-    UnloadEventHandle {
-        _listener: listener,
+    let show_listener = event_handle::EventListenerHandle::new(window, "pageshow", show_closure);
+    let hide_listener = event_handle::EventListenerHandle::new(window, "pagehide", hide_closure);
+    PageTransitionEventHandle {
+        _show_listener: show_listener,
+        _hide_listener: hide_listener,
     }
 }
 

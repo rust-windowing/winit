@@ -18,7 +18,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use wasm_bindgen::prelude::Closure;
-use web_sys::{KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -41,7 +41,7 @@ pub struct Execution<T: 'static> {
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
-    unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
     on_wheel: OnEventHandle<WheelEvent>,
@@ -146,7 +146,7 @@ impl<T: 'static> Shared<T> {
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
-            unload_event_handle: RefCell::new(None),
+            page_transition_event_handle: RefCell::new(None),
             device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
             on_wheel: RefCell::new(None),
@@ -183,11 +183,27 @@ impl<T: 'static> Shared<T> {
         }
         self.init();
 
-        let close_instance = self.clone();
-        *self.0.unload_event_handle.borrow_mut() =
-            Some(backend::on_unload(self.window(), move || {
-                close_instance.handle_unload()
-            }));
+        *self.0.page_transition_event_handle.borrow_mut() = Some(backend::on_page_transition(
+            self.window(),
+            {
+                let runner = self.clone();
+                move |event: PageTransitionEvent| {
+                    if event.persisted() {
+                        runner.send_event(Event::Resumed);
+                    }
+                }
+            },
+            {
+                let runner = self.clone();
+                move |event: PageTransitionEvent| {
+                    if event.persisted() {
+                        runner.send_event(Event::Suspended);
+                    } else {
+                        runner.handle_unload();
+                    }
+                }
+            },
+        ));
 
         let runner = self.clone();
         let window = self.window().clone();
@@ -605,7 +621,7 @@ impl<T: 'static> Shared<T> {
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
         self.handle_event(Event::LoopDestroyed, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
-        *self.0.unload_event_handle.borrow_mut() = None;
+        *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
         *self.0.on_wheel.borrow_mut() = None;
         *self.0.on_mouse_press.borrow_mut() = None;

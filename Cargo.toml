@@ -148,6 +148,7 @@ features = [
     'KeyboardEvent',
     'MediaQueryList',
     'Node',
+    'PageTransitionEvent',
     'PointerEvent',
     'ResizeObserver',
     'ResizeObserverBoxOptions',
