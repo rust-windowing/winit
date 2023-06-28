@@ -125,6 +125,18 @@ pub enum Event<'a, T: 'static> {
     /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
+    /// ## Web
+    ///
+    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// put in the [´bfcache`] (back/forward cache) - an in-memory cache that stores a
+    /// complete snapshot of a page (including the JavaScript heap) as the user is
+    /// navigating away.
+    ///
+    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
+    ///
     /// [`Resumed`]: Self::Resumed
     Suspended,
 
@@ -178,6 +190,18 @@ pub enum Event<'a, T: 'static> {
     ///
     /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ## Web
+    ///
+    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// restored from the [´bfcache`] (back/forward cache) - an in-memory cache that
+    /// stores a complete snapshot of a page (including the JavaScript heap) as the
+    /// user is navigating away.
+    ///
+    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
     ///
     /// [`Suspended`]: Self::Suspended
     Resumed,
