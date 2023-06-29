@@ -2,10 +2,14 @@ use log::debug;
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::WindowBuilder,
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -31,9 +35,9 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(VirtualKeyCode::Space),
+                        event:
+                            KeyEvent {
+                                logical_key: Key::Space,
                                 state: ElementState::Released,
                                 ..
                             },
@@ -51,6 +55,9 @@ fn main() {
                 window.set_resize_increments(new_increments);
             }
             Event::MainEventsCleared => window.request_redraw(),
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         }
     });

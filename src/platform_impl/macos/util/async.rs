@@ -202,10 +202,18 @@ pub(crate) fn close_sync(window: &NSWindow) {
     });
 }
 
-pub(crate) fn set_ime_position_sync(window: &WinitWindow, logical_spot: LogicalPosition<f64>) {
+pub(crate) fn set_ime_cursor_area_sync(
+    window: &WinitWindow,
+    logical_spot: LogicalPosition<f64>,
+    size: LogicalSize<f64>,
+) {
     let window = MainThreadSafe(window);
     run_on_main(move || {
         // TODO(madsmtm): Remove the need for this
-        unsafe { Id::from_shared(window.view()) }.set_ime_position(logical_spot);
+        unsafe { Id::from_shared(window.view()) }.set_ime_cursor_area(logical_spot, size);
     });
+}
+
+pub(crate) fn get_kbd_type() -> u8 {
+    run_on_main(|| unsafe { ffi::LMGetKbdType() })
 }

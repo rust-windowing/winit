@@ -167,7 +167,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
 /// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
     pub x: P,
@@ -246,7 +246,7 @@ impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
 }
 
 /// A position represented in physical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,
@@ -325,7 +325,7 @@ impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
 }
 
 /// A size represented in logical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
     pub width: P,
@@ -407,7 +407,7 @@ impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
 }
 
 /// A size represented in physical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize<P> {
     pub width: P,

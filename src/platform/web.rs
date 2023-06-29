@@ -12,7 +12,8 @@ use crate::window::WindowBuilder;
 use web_sys::HtmlCanvasElement;
 
 pub trait WindowExtWebSys {
-    fn canvas(&self) -> HtmlCanvasElement;
+    /// Only returns the canvas if called from inside the window.
+    fn canvas(&self) -> Option<HtmlCanvasElement>;
 
     /// Whether the browser reports the preferred color scheme to be "dark".
     fn is_dark_mode(&self) -> bool;
@@ -26,6 +27,9 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// For example, mouse wheel events are only handled by the canvas by default. This avoids
     /// the default behavior of scrolling the page.
+    ///
+    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
+    /// context menu with Shift+Rightclick.
     fn with_prevent_default(self, prevent_default: bool) -> Self;
 
     /// Whether the canvas should be focusable using the tab key. This is necessary to capture
@@ -62,6 +66,11 @@ pub trait EventLoopExtWebSys {
     ///
     /// Unlike `run`, this returns immediately, and doesn't throw an exception in order to
     /// satisfy its `!` return type.
+    ///
+    /// Once the event loop has been destroyed, it's possible to reinitialize another event loop
+    /// by calling this function again. This can be useful if you want to recreate the event loop
+    /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
+    /// event loop when switching between tabs on a single page application.
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static

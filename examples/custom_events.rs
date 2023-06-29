@@ -9,6 +9,9 @@ fn main() {
         window::WindowBuilder,
     };
 
+    #[path = "util/fill.rs"]
+    mod fill;
+
     #[derive(Debug, Clone, Copy)]
     enum CustomEvent {
         Timer,
@@ -17,7 +20,7 @@ fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
@@ -44,6 +47,9 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => control_flow.set_exit(),
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         }
     });

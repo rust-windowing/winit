@@ -38,7 +38,6 @@ impl PointerHandler for WinitState {
     ) {
         let seat = pointer.winit_data().seat();
         let seat_state = self.seats.get(&seat.id()).unwrap();
-        let modifiers = seat_state.modifiers;
 
         let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
 
@@ -130,7 +129,6 @@ impl PointerHandler for WinitState {
                         WindowEvent::CursorMoved {
                             device_id,
                             position,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -151,7 +149,6 @@ impl PointerHandler for WinitState {
                         WindowEvent::CursorMoved {
                             device_id,
                             position,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -177,7 +174,6 @@ impl PointerHandler for WinitState {
                             device_id,
                             state,
                             button,
-                            modifiers,
                         },
                         window_id,
                     );
@@ -231,7 +227,6 @@ impl PointerHandler for WinitState {
                             device_id,
                             delta,
                             phase,
-                            modifiers,
                         },
                         window_id,
                     )
@@ -402,15 +397,21 @@ impl Default for WinitPointerDataInner {
 
 /// Convert the Wayland button into winit.
 fn wayland_button_to_winit(button: u32) -> MouseButton {
-    // These values are comming from <linux/input-event-codes.h>.
+    // These values are coming from <linux/input-event-codes.h>.
     const BTN_LEFT: u32 = 0x110;
     const BTN_RIGHT: u32 = 0x111;
     const BTN_MIDDLE: u32 = 0x112;
+    const BTN_SIDE: u32 = 0x113;
+    const BTN_EXTRA: u32 = 0x114;
+    const BTN_FORWARD: u32 = 0x115;
+    const BTN_BACK: u32 = 0x116;
 
     match button {
         BTN_LEFT => MouseButton::Left,
         BTN_RIGHT => MouseButton::Right,
         BTN_MIDDLE => MouseButton::Middle,
+        BTN_BACK | BTN_SIDE => MouseButton::Back,
+        BTN_FORWARD | BTN_EXTRA => MouseButton::Forward,
         button => MouseButton::Other(button as u16),
     }
 }

@@ -6,13 +6,15 @@ use raw_window_handle::{
 use std::{
     cell::Cell,
     ffi::c_void,
-    io, mem, panic, ptr,
+    io,
+    mem::{self, MaybeUninit},
+    panic, ptr,
     sync::{mpsc::channel, Arc, Mutex, MutexGuard},
 };
 
 use windows_sys::Win32::{
     Foundation::{
-        HINSTANCE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
+        HMODULE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
         WPARAM,
     },
     Graphics::{
@@ -32,9 +34,9 @@ use windows_sys::Win32::{
     UI::{
         Input::{
             KeyboardAndMouse::{
-                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
-                INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                MAPVK_VK_TO_VSC, VK_LMENU, VK_MENU,
+                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput,
+                ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
+                KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VIRTUAL_KEY, VK_LMENU, VK_MENU, VK_SPACE,
             },
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
@@ -65,6 +67,7 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
+        keyboard::KeyEventBuilder,
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -312,7 +315,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn hinstance(&self) -> HINSTANCE {
+    pub fn hinstance(&self) -> HMODULE {
         unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) }
     }
 
@@ -719,9 +722,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         unsafe {
-            ImeContext::current(self.hwnd()).set_ime_position(spot, self.scale_factor());
+            ImeContext::current(self.hwnd()).set_ime_cursor_area(spot, size, self.scale_factor());
         }
     }
 
@@ -832,6 +835,26 @@ impl Window {
                 },
             )
         };
+    }
+
+    #[inline]
+    pub fn reset_dead_keys(&self) {
+        // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
+        // key input which we can call `ToUnicode` with.
+        unsafe {
+            let vk = VK_SPACE as VIRTUAL_KEY;
+            let scancode = MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC);
+            let kbd_state = [0; 256];
+            let mut char_buff = [MaybeUninit::uninit(); 8];
+            ToUnicode(
+                vk as u32,
+                scancode,
+                kbd_state.as_ptr(),
+                char_buff[0].as_mut_ptr(),
+                char_buff.len() as i32,
+                0,
+            );
+        }
     }
 }
 
@@ -950,6 +973,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         event_loop::WindowData {
             window_state: win.window_state.clone(),
             event_loop_runner: self.event_loop.runner_shared.clone(),
+            key_event_builder: KeyEventBuilder::default(),
             _file_drop_handler: file_drop_handler,
             userdata_removed: Cell::new(false),
             recurse_depth: Cell::new(0),

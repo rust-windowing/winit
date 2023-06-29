@@ -162,7 +162,6 @@ pub struct SharedState {
 
     /// The current resize incerments for the window content.
     pub(crate) resize_increments: NSSize,
-
     /// The state of the `Option` as `Alt`.
     pub(crate) option_as_alt: OptionAsAlt,
 }
@@ -1162,10 +1161,11 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
+    pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        util::set_ime_position_sync(self, logical_spot);
+        let size = size.to_logical(scale_factor);
+        util::set_ime_cursor_area_sync(self, logical_spot, size);
     }
 
     #[inline]
@@ -1270,6 +1270,10 @@ impl WinitWindow {
 
     pub fn title(&self) -> String {
         self.title_().to_string()
+    }
+
+    pub fn reset_dead_keys(&self) {
+        // (Artur) I couldn't find a way to implement this.
     }
 }
 

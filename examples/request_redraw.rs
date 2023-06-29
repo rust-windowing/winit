@@ -7,6 +7,9 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -34,6 +37,7 @@ fn main() {
             },
             Event::RedrawRequested(_) => {
                 println!("\nredrawing!\n");
+                fill::fill_window(&window);
             }
             _ => (),
         }

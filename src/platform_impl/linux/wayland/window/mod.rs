@@ -105,11 +105,18 @@ impl Window {
             .map(|size| size.to_logical::<u32>(1.))
             .unwrap_or((800, 600).into());
 
-        let window = state.xdg_shell.create_window(
-            surface.clone(),
-            WindowDecorations::ServerDefault,
-            &queue_handle,
-        );
+        // We prefer server side decorations, however to not have decorations we ask for client
+        // side decorations instead.
+        let default_decorations = if attributes.decorations {
+            WindowDecorations::RequestServer
+        } else {
+            WindowDecorations::RequestClient
+        };
+
+        let window =
+            state
+                .xdg_shell
+                .create_window(surface.clone(), default_decorations, &queue_handle);
 
         let mut window_state = WindowState::new(
             event_loop_window_target.connection.clone(),
@@ -119,6 +126,12 @@ impl Window {
             window.clone(),
             attributes.preferred_theme,
         );
+
+        // Set transparency hint.
+        window_state.set_transparent(attributes.transparent);
+
+        // Set the decorations hint.
+        window_state.set_decorate(attributes.decorations);
 
         // Set the app_id.
         if let Some(name) = platform_attributes.name.map(|name| name.general) {
@@ -531,12 +544,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: Position) {
+    pub fn set_ime_cursor_area(&self, position: Position, size: Size) {
         let window_state = self.window_state.lock().unwrap();
         if window_state.ime_allowed() {
             let scale_factor = window_state.scale_factor();
             let position = position.to_logical(scale_factor);
-            window_state.set_ime_position(position);
+            let size = size.to_logical(scale_factor);
+            window_state.set_ime_cursor_area(position, size);
         }
     }
 

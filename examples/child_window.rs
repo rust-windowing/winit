@@ -1,11 +1,15 @@
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[path = "util/fill.rs"]
+mod fill;
+
+#[cfg(any(x11_platform, macos_platform, windows_platform))]
 fn main() {
     use std::collections::HashMap;
 
     use raw_window_handle::HasRawWindowHandle;
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
-        event::{ElementState, Event, KeyboardInput, WindowEvent},
+        event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
         window::{Window, WindowBuilder, WindowId},
     };
@@ -59,8 +63,8 @@ fn main() {
                     println!("cursor entered in the window {window_id:?}");
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
+                    event:
+                        KeyEvent {
                             state: ElementState::Pressed,
                             ..
                         },
@@ -69,6 +73,10 @@ fn main() {
                     spawn_child_window(&parent_window, event_loop, &mut windows);
                 }
                 _ => (),
+            }
+        } else if let Event::RedrawRequested(wid) = event {
+            if let Some(window) = windows.get(&wid) {
+                fill::fill_window(window);
             }
         }
     })

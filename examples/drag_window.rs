@@ -2,12 +2,14 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{
-        ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
-    },
+    event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::{Window, WindowBuilder, WindowId},
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -45,20 +47,27 @@ fn main() {
                 name_windows(entered_id, switched, &window_1, &window_2)
             }
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
+                event:
+                    KeyEvent {
                         state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::X),
+                        logical_key: Key::Character(c),
                         ..
                     },
                 ..
-            } => {
+            } if c == "x" => {
                 switched = !switched;
                 name_windows(entered_id, switched, &window_1, &window_2);
                 println!("Switched!")
             }
             _ => (),
         },
+        Event::RedrawRequested(wid) => {
+            if wid == window_1.id() {
+                fill::fill_window(&window_1);
+            } else if wid == window_2.id() {
+                fill::fill_window(&window_2);
+            }
+        }
         _ => (),
     });
 }

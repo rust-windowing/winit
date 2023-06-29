@@ -5,11 +5,14 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[path = "util/fill.rs"]
+mod fill;
+
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Touchpad gestures")
         .build(&event_loop)
         .unwrap();
@@ -41,6 +44,8 @@ fn main() {
                 }
                 _ => (),
             }
+        } else if let Event::RedrawRequested(_) = event {
+            fill::fill_window(&window);
         }
     });
 }

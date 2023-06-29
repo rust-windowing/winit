@@ -1,25 +1,83 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 
+use once_cell::unsync::OnceCell;
+use smol_str::SmolStr;
 use std::convert::TryInto;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
-pub fn mouse_button(event: &MouseEvent) -> MouseButton {
-    match event.button() {
-        0 => MouseButton::Left,
-        1 => MouseButton::Middle,
-        2 => MouseButton::Right,
-        i => MouseButton::Other((i - 3).try_into().expect("very large mouse button value")),
+bitflags! {
+    // https://www.w3.org/TR/pointerevents3/#the-buttons-property
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ButtonsState: u16 {
+        const LEFT    = 0b00001;
+        const RIGHT   = 0b00010;
+        const MIDDLE  = 0b00100;
+        const BACK    = 0b01000;
+        const FORWARD = 0b10000;
     }
 }
 
-pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
-    m
+impl From<ButtonsState> for MouseButton {
+    fn from(value: ButtonsState) -> Self {
+        match value {
+            ButtonsState::LEFT => MouseButton::Left,
+            ButtonsState::RIGHT => MouseButton::Right,
+            ButtonsState::MIDDLE => MouseButton::Middle,
+            ButtonsState::BACK => MouseButton::Back,
+            ButtonsState::FORWARD => MouseButton::Forward,
+            _ => MouseButton::Other(value.bits()),
+        }
+    }
+}
+
+impl From<MouseButton> for ButtonsState {
+    fn from(value: MouseButton) -> Self {
+        match value {
+            MouseButton::Left => ButtonsState::LEFT,
+            MouseButton::Right => ButtonsState::RIGHT,
+            MouseButton::Middle => ButtonsState::MIDDLE,
+            MouseButton::Back => ButtonsState::BACK,
+            MouseButton::Forward => ButtonsState::FORWARD,
+            MouseButton::Other(value) => ButtonsState::from_bits_retain(value),
+        }
+    }
+}
+
+pub fn mouse_buttons(event: &MouseEvent) -> ButtonsState {
+    ButtonsState::from_bits_retain(event.buttons())
+}
+
+pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
+    // https://www.w3.org/TR/pointerevents3/#the-button-property
+    match event.button() {
+        -1 => None,
+        0 => Some(MouseButton::Left),
+        1 => Some(MouseButton::Middle),
+        2 => Some(MouseButton::Right),
+        3 => Some(MouseButton::Back),
+        4 => Some(MouseButton::Forward),
+        i => Some(MouseButton::Other(
+            i.try_into()
+                .expect("unexpected negative mouse button value"),
+        )),
+    }
+}
+
+impl MouseButton {
+    pub fn to_id(self) -> u32 {
+        match self {
+            MouseButton::Left => 0,
+            MouseButton::Right => 1,
+            MouseButton::Middle => 2,
+            MouseButton::Back => 3,
+            MouseButton::Forward => 4,
+            MouseButton::Other(value) => value.into(),
+        }
+    }
 }
 
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
@@ -29,10 +87,48 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     }
 }
 
-pub fn mouse_delta(event: &MouseEvent) -> LogicalPosition<f64> {
-    LogicalPosition {
-        x: event.movement_x() as f64,
-        y: event.movement_y() as f64,
+// TODO: Remove this when Firefox supports correct movement values in coalesced events.
+// See <https://bugzilla.mozilla.org/show_bug.cgi?id=1753724>.
+pub struct MouseDelta(Option<MouseDeltaInner>);
+
+pub struct MouseDeltaInner {
+    old_position: LogicalPosition<f64>,
+    old_delta: LogicalPosition<f64>,
+}
+
+impl MouseDelta {
+    pub fn init(window: &web_sys::Window, event: &PointerEvent) -> Self {
+        // Firefox has wrong movement values in coalesced events, we will detect that by checking
+        // for `pointerrawupdate` support. Presumably an implementation of `pointerrawupdate`
+        // should require correct movement values, otherwise uncoalesced events might be broken as
+        // well.
+        Self(
+            (!has_pointer_raw_support(window) && has_coalesced_events_support(event)).then(|| {
+                MouseDeltaInner {
+                    old_position: mouse_position(event),
+                    old_delta: LogicalPosition {
+                        x: event.movement_x() as f64,
+                        y: event.movement_y() as f64,
+                    },
+                }
+            }),
+        )
+    }
+
+    pub fn delta(&mut self, event: &MouseEvent) -> LogicalPosition<f64> {
+        if let Some(inner) = &mut self.0 {
+            let new_position = mouse_position(event);
+            let x = new_position.x - inner.old_position.x + inner.old_delta.x;
+            let y = new_position.y - inner.old_position.y + inner.old_delta.y;
+            inner.old_position = new_position;
+            inner.old_delta = LogicalPosition::new(0., 0.);
+            LogicalPosition::new(x, y)
+        } else {
+            LogicalPosition {
+                x: event.movement_x() as f64,
+                y: event.movement_y() as f64,
+            }
+        }
     }
 }
 
@@ -47,210 +143,160 @@ pub fn mouse_position_by_client(
     }
 }
 
-pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
+pub fn mouse_scroll_delta(
+    window: &web_sys::Window,
+    event: &WheelEvent,
+) -> Option<MouseScrollDelta> {
     let x = -event.delta_x();
     let y = -event.delta_y();
 
     match event.delta_mode() {
         WheelEvent::DOM_DELTA_LINE => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
         WheelEvent::DOM_DELTA_PIXEL => {
-            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
+            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor(window));
             Some(MouseScrollDelta::PixelDelta(delta))
         }
         _ => None,
     }
 }
 
-pub fn scan_code(event: &KeyboardEvent) -> ScanCode {
-    match event.key_code() {
-        0 => event.char_code(),
-        i => i,
-    }
+pub fn key_code(event: &KeyboardEvent) -> KeyCode {
+    let code = event.code();
+    KeyCode::from_key_code_attribute_value(&code)
 }
 
-pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
-    Some(match &event.code()[..] {
-        "Digit1" => VirtualKeyCode::Key1,
-        "Digit2" => VirtualKeyCode::Key2,
-        "Digit3" => VirtualKeyCode::Key3,
-        "Digit4" => VirtualKeyCode::Key4,
-        "Digit5" => VirtualKeyCode::Key5,
-        "Digit6" => VirtualKeyCode::Key6,
-        "Digit7" => VirtualKeyCode::Key7,
-        "Digit8" => VirtualKeyCode::Key8,
-        "Digit9" => VirtualKeyCode::Key9,
-        "Digit0" => VirtualKeyCode::Key0,
-        "KeyA" => VirtualKeyCode::A,
-        "KeyB" => VirtualKeyCode::B,
-        "KeyC" => VirtualKeyCode::C,
-        "KeyD" => VirtualKeyCode::D,
-        "KeyE" => VirtualKeyCode::E,
-        "KeyF" => VirtualKeyCode::F,
-        "KeyG" => VirtualKeyCode::G,
-        "KeyH" => VirtualKeyCode::H,
-        "KeyI" => VirtualKeyCode::I,
-        "KeyJ" => VirtualKeyCode::J,
-        "KeyK" => VirtualKeyCode::K,
-        "KeyL" => VirtualKeyCode::L,
-        "KeyM" => VirtualKeyCode::M,
-        "KeyN" => VirtualKeyCode::N,
-        "KeyO" => VirtualKeyCode::O,
-        "KeyP" => VirtualKeyCode::P,
-        "KeyQ" => VirtualKeyCode::Q,
-        "KeyR" => VirtualKeyCode::R,
-        "KeyS" => VirtualKeyCode::S,
-        "KeyT" => VirtualKeyCode::T,
-        "KeyU" => VirtualKeyCode::U,
-        "KeyV" => VirtualKeyCode::V,
-        "KeyW" => VirtualKeyCode::W,
-        "KeyX" => VirtualKeyCode::X,
-        "KeyY" => VirtualKeyCode::Y,
-        "KeyZ" => VirtualKeyCode::Z,
-        "Escape" => VirtualKeyCode::Escape,
-        "F1" => VirtualKeyCode::F1,
-        "F2" => VirtualKeyCode::F2,
-        "F3" => VirtualKeyCode::F3,
-        "F4" => VirtualKeyCode::F4,
-        "F5" => VirtualKeyCode::F5,
-        "F6" => VirtualKeyCode::F6,
-        "F7" => VirtualKeyCode::F7,
-        "F8" => VirtualKeyCode::F8,
-        "F9" => VirtualKeyCode::F9,
-        "F10" => VirtualKeyCode::F10,
-        "F11" => VirtualKeyCode::F11,
-        "F12" => VirtualKeyCode::F12,
-        "F13" => VirtualKeyCode::F13,
-        "F14" => VirtualKeyCode::F14,
-        "F15" => VirtualKeyCode::F15,
-        "F16" => VirtualKeyCode::F16,
-        "F17" => VirtualKeyCode::F17,
-        "F18" => VirtualKeyCode::F18,
-        "F19" => VirtualKeyCode::F19,
-        "F20" => VirtualKeyCode::F20,
-        "F21" => VirtualKeyCode::F21,
-        "F22" => VirtualKeyCode::F22,
-        "F23" => VirtualKeyCode::F23,
-        "F24" => VirtualKeyCode::F24,
-        "PrintScreen" => VirtualKeyCode::Snapshot,
-        "ScrollLock" => VirtualKeyCode::Scroll,
-        "Pause" => VirtualKeyCode::Pause,
-        "Insert" => VirtualKeyCode::Insert,
-        "Home" => VirtualKeyCode::Home,
-        "Delete" => VirtualKeyCode::Delete,
-        "End" => VirtualKeyCode::End,
-        "PageDown" => VirtualKeyCode::PageDown,
-        "PageUp" => VirtualKeyCode::PageUp,
-        "ArrowLeft" => VirtualKeyCode::Left,
-        "ArrowUp" => VirtualKeyCode::Up,
-        "ArrowRight" => VirtualKeyCode::Right,
-        "ArrowDown" => VirtualKeyCode::Down,
-        "Backspace" => VirtualKeyCode::Back,
-        "Enter" => VirtualKeyCode::Return,
-        "Space" => VirtualKeyCode::Space,
-        "Compose" => VirtualKeyCode::Compose,
-        "Caret" => VirtualKeyCode::Caret,
-        "NumLock" => VirtualKeyCode::Numlock,
-        "Numpad0" => VirtualKeyCode::Numpad0,
-        "Numpad1" => VirtualKeyCode::Numpad1,
-        "Numpad2" => VirtualKeyCode::Numpad2,
-        "Numpad3" => VirtualKeyCode::Numpad3,
-        "Numpad4" => VirtualKeyCode::Numpad4,
-        "Numpad5" => VirtualKeyCode::Numpad5,
-        "Numpad6" => VirtualKeyCode::Numpad6,
-        "Numpad7" => VirtualKeyCode::Numpad7,
-        "Numpad8" => VirtualKeyCode::Numpad8,
-        "Numpad9" => VirtualKeyCode::Numpad9,
-        "AbntC1" => VirtualKeyCode::AbntC1,
-        "AbntC2" => VirtualKeyCode::AbntC2,
-        "NumpadAdd" => VirtualKeyCode::NumpadAdd,
-        "Quote" => VirtualKeyCode::Apostrophe,
-        "Apps" => VirtualKeyCode::Apps,
-        "At" => VirtualKeyCode::At,
-        "Ax" => VirtualKeyCode::Ax,
-        "Backslash" => VirtualKeyCode::Backslash,
-        "Calculator" => VirtualKeyCode::Calculator,
-        "Capital" => VirtualKeyCode::Capital,
-        "Semicolon" => VirtualKeyCode::Semicolon,
-        "Comma" => VirtualKeyCode::Comma,
-        "Convert" => VirtualKeyCode::Convert,
-        "NumpadDecimal" => VirtualKeyCode::NumpadDecimal,
-        "NumpadDivide" => VirtualKeyCode::NumpadDivide,
-        "Equal" => VirtualKeyCode::Equals,
-        "Backquote" => VirtualKeyCode::Grave,
-        "Kana" => VirtualKeyCode::Kana,
-        "Kanji" => VirtualKeyCode::Kanji,
-        "AltLeft" => VirtualKeyCode::LAlt,
-        "BracketLeft" => VirtualKeyCode::LBracket,
-        "ControlLeft" => VirtualKeyCode::LControl,
-        "ShiftLeft" => VirtualKeyCode::LShift,
-        "MetaLeft" => VirtualKeyCode::LWin,
-        "Mail" => VirtualKeyCode::Mail,
-        "MediaSelect" => VirtualKeyCode::MediaSelect,
-        "MediaStop" => VirtualKeyCode::MediaStop,
-        "Minus" => VirtualKeyCode::Minus,
-        "NumpadMultiply" => VirtualKeyCode::NumpadMultiply,
-        "Mute" => VirtualKeyCode::Mute,
-        "LaunchMyComputer" => VirtualKeyCode::MyComputer,
-        "NavigateForward" => VirtualKeyCode::NavigateForward,
-        "NavigateBackward" => VirtualKeyCode::NavigateBackward,
-        "NextTrack" => VirtualKeyCode::NextTrack,
-        "NoConvert" => VirtualKeyCode::NoConvert,
-        "NumpadComma" => VirtualKeyCode::NumpadComma,
-        "NumpadEnter" => VirtualKeyCode::NumpadEnter,
-        "NumpadEquals" => VirtualKeyCode::NumpadEquals,
-        "OEM102" => VirtualKeyCode::OEM102,
-        "Period" => VirtualKeyCode::Period,
-        "PlayPause" => VirtualKeyCode::PlayPause,
-        "Power" => VirtualKeyCode::Power,
-        "PrevTrack" => VirtualKeyCode::PrevTrack,
-        "AltRight" => VirtualKeyCode::RAlt,
-        "BracketRight" => VirtualKeyCode::RBracket,
-        "ControlRight" => VirtualKeyCode::RControl,
-        "ShiftRight" => VirtualKeyCode::RShift,
-        "MetaRight" => VirtualKeyCode::RWin,
-        "Slash" => VirtualKeyCode::Slash,
-        "Sleep" => VirtualKeyCode::Sleep,
-        "Stop" => VirtualKeyCode::Stop,
-        "NumpadSubtract" => VirtualKeyCode::NumpadSubtract,
-        "Sysrq" => VirtualKeyCode::Sysrq,
-        "Tab" => VirtualKeyCode::Tab,
-        "Underline" => VirtualKeyCode::Underline,
-        "Unlabeled" => VirtualKeyCode::Unlabeled,
-        "AudioVolumeDown" => VirtualKeyCode::VolumeDown,
-        "AudioVolumeUp" => VirtualKeyCode::VolumeUp,
-        "Wake" => VirtualKeyCode::Wake,
-        "WebBack" => VirtualKeyCode::WebBack,
-        "WebFavorites" => VirtualKeyCode::WebFavorites,
-        "WebForward" => VirtualKeyCode::WebForward,
-        "WebHome" => VirtualKeyCode::WebHome,
-        "WebRefresh" => VirtualKeyCode::WebRefresh,
-        "WebSearch" => VirtualKeyCode::WebSearch,
-        "WebStop" => VirtualKeyCode::WebStop,
-        "Yen" => VirtualKeyCode::Yen,
-        _ => return None,
-    })
+pub fn key(event: &KeyboardEvent) -> Key {
+    Key::from_key_attribute_value(&event.key())
+}
+
+pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
+    let key = event.key();
+    let key = Key::from_key_attribute_value(&key);
+    match &key {
+        Key::Character(text) => Some(text.clone()),
+        Key::Tab => Some(SmolStr::new("\t")),
+        Key::Enter => Some(SmolStr::new("\r")),
+        Key::Space => Some(SmolStr::new(" ")),
+        _ => None,
+    }
+    .map(SmolStr::new)
+}
+
+pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
+    match event.location() {
+        KeyboardEvent::DOM_KEY_LOCATION_LEFT => KeyLocation::Left,
+        KeyboardEvent::DOM_KEY_LOCATION_RIGHT => KeyLocation::Right,
+        KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
+        KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
+        location => {
+            warn!("Unexpected key location: {location}");
+            KeyLocation::Standard
+        }
+    }
 }
 
 pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
-    m
-}
+    let mut state = ModifiersState::empty();
 
-pub fn codepoint(event: &KeyboardEvent) -> char {
-    // `event.key()` always returns a non-empty `String`. Therefore, this should
-    // never panic.
-    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
-    event.key().chars().next().unwrap()
-}
-
-pub fn touch_position(event: &PointerEvent, _canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
-    // TODO: Should this handle more, like `mouse_position_by_client` does?
-    LogicalPosition {
-        x: event.client_x() as f64,
-        y: event.client_y() as f64,
+    if event.shift_key() {
+        state |= ModifiersState::SHIFT;
     }
+    if event.ctrl_key() {
+        state |= ModifiersState::CONTROL;
+    }
+    if event.alt_key() {
+        state |= ModifiersState::ALT;
+    }
+    if event.meta_key() {
+        state |= ModifiersState::SUPER;
+    }
+
+    state
+}
+
+pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
+    let mut state = ModifiersState::empty();
+
+    if event.shift_key() {
+        state |= ModifiersState::SHIFT;
+    }
+    if event.ctrl_key() {
+        state |= ModifiersState::CONTROL;
+    }
+    if event.alt_key() {
+        state |= ModifiersState::ALT;
+    }
+    if event.meta_key() {
+        state |= ModifiersState::SUPER;
+    }
+
+    state
+}
+
+pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
+    mouse_position_by_client(event, canvas)
+}
+
+pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEvent> {
+    // make a single iterator depending on the availability of coalesced events
+    if has_coalesced_events_support(&event) {
+        None.into_iter().chain(
+            Some(
+                event
+                    .get_coalesced_events()
+                    .into_iter()
+                    .map(PointerEvent::unchecked_from_js),
+            )
+            .into_iter()
+            .flatten(),
+        )
+    } else {
+        Some(event).into_iter().chain(None.into_iter().flatten())
+    }
+}
+
+// TODO: Remove when all browsers implement it correctly.
+// See <https://github.com/rust-windowing/winit/issues/2875>.
+pub fn has_pointer_raw_support(window: &web_sys::Window) -> bool {
+    thread_local! {
+        static POINTER_RAW_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    POINTER_RAW_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type PointerRawSupport;
+
+                #[wasm_bindgen(method, getter, js_name = onpointerrawupdate)]
+                fn has_on_pointerrawupdate(this: &PointerRawSupport) -> JsValue;
+            }
+
+            let support: &PointerRawSupport = window.unchecked_ref();
+            !support.has_on_pointerrawupdate().is_undefined()
+        })
+    })
+}
+
+// TODO: Remove when Safari supports `getCoalescedEvents`.
+// See <https://bugs.webkit.org/show_bug.cgi?id=210454>.
+pub fn has_coalesced_events_support(event: &PointerEvent) -> bool {
+    thread_local! {
+        static COALESCED_EVENTS_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    COALESCED_EVENTS_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type PointerCoalescedEventsSupport;
+
+                #[wasm_bindgen(method, getter, js_name = getCoalescedEvents)]
+                fn has_get_coalesced_events(this: &PointerCoalescedEventsSupport) -> JsValue;
+            }
+
+            let support: &PointerCoalescedEventsSupport = event.unchecked_ref();
+            !support.has_get_coalesced_events().is_undefined()
+        })
+    })
 }

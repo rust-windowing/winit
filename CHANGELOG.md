@@ -8,6 +8,40 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Web, allow event loops to be recreated with `spawn`.
+- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
+- On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
+- On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
+- **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
+- **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
+- On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
+- **Breaking:** Remove all deprecated `modifiers` fields.
+- **Breaking:** Overhaul keyboard input handling.
+  - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
+    - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
+    - Change `Event::Key` to contain a `RawKeyEvent`.
+  - Remove `Event::ReceivedCharacter`. In its place, you should use
+    `KeyEvent.text` in combination with `WindowEvent::Ime`.
+  - Replace `VirtualKeyCode` with the `Key` enum.
+  - Replace `ScanCode` with the `KeyCode` enum.
+  - Rename `ModifiersState::LOGO` to `SUPER` and `ModifiersState::CTRL` to `CONTROL`.
+  - Add `KeyCode` to refer to keys (roughly) by their physical location.
+  - Add `NativeKeyCode` to represent raw `KeyCode`s which Winit doesn't
+    understand.
+  - Add `Key` to represent the keys after they've been interpreted by the
+    active (software) keyboard layout.
+  - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
+  - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
+    but can appear simultaneously in different spots on the same keyboard
+    layout.
+  - Add `Window::reset_dead_keys` to enable application-controlled cancellation
+    of dead key sequences.
+  - Add `KeyEventExtModifierSupplement` to expose additional (and less
+    portable) interpretations of a given key-press.
+  - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
+    `KeyCode`.
+  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
+- On Orbital, fix `ModifiersChanged` not being sent.
 - **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
 - **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
 - **Breaking:** `CursorIcon::Arrow` was removed.
@@ -19,7 +53,41 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix forward compatibility issues.
 - On Wayland, add `Window::drag_resize_window` method.
 - On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
-- Bump MSRV from `1.60` to `1.64`.
+- Implement `PartialOrd` and `Ord` on types in the `dpi` module.
+- **Breaking:** Bump MSRV from `1.60` to `1.64`.
+- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
+- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
+- On Web: fix position of touch events to be relative to the canvas.
+- On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
+  a transient activation.
+- On Web, fix pointer button events not being processed when a buttons is already pressed.
+- **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
+- On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
+- **Breaking:** On Web, `instant` is now replaced by `web_time`.
+- On Windows, port to `windows-sys` version 0.48.0.
+- On Web, fix pen treated as mouse input.
+- On Web, send mouse position on button release as well.
+- On Web, fix touch input not gaining or loosing focus.
+- **Breaking:** On Web, dropped support for Safari versions below 13.1.
+- On Web, prevent clicks on the canvas to select text.
+- On Web, `EventLoopProxy` now implements `Send`.
+- On Web, `Window` now implements `Send` and `Sync`.
+- **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
+- On Web, use the correct canvas size when calculating the new size during scale factor change,
+  instead of using the output bitmap size.
+- On Web, scale factor and dark mode detection are now more robust.
+- On Web, fix the bfcache by not using the `beforeunload` event and map bfcache loading/unloading to `Suspended`/`Resumed` events.
+- On Web, fix scale factor resize suggestion always overwriting the canvas size.
+- On macOS, fix crash when dropping `Window`.
+- On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.
+- **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to
+  the canvas size will be reported through `WindowEvent::Resized`.
+- On Web, respect `EventLoopWindowTarget::listen_device_events()` settings.
+- On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
+- On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and
+  `DeviceEvent::Key` support.
+- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
+  on Wayland, X11, Windows, macOS and Web.
 
 # 0.28.6
 
@@ -326,7 +394,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # 0.23.0 (2020-10-02)
 
-- On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
+- On iOS, fixed support for the "Debug View Hierarchy" feature in Xcode.
 - On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
 - On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.

@@ -161,8 +161,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
-
-    /// Set whether the `OptionAsAlt` key is interpreted as the `Alt` modifier.
+    /// Set how the <kbd>Option</kbd> keys are interpreted.
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> WindowBuilder;
@@ -345,7 +344,7 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
 /// Option as alt behavior.
 ///
 /// The default is `None`.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OptionAsAlt {
     /// The left `Option` key is treated as `Alt`.

@@ -5,10 +5,14 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{DeviceEventFilter, EventLoop},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event_loop::{DeviceEvents, EventLoop},
+    keyboard::Key,
     window::{WindowBuilder, WindowButtons},
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -25,7 +29,7 @@ fn main() {
     eprintln!("  (G) Toggle maximize button");
     eprintln!("  (H) Toggle minimize button");
 
-    event_loop.set_device_event_filter(DeviceEventFilter::Never);
+    event_loop.listen_device_events(DeviceEvents::Always);
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
@@ -34,25 +38,25 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(key),
+                        event:
+                            KeyEvent {
+                                logical_key: key,
                                 state: ElementState::Pressed,
                                 ..
                             },
                         ..
                     },
                 ..
-            } => match key {
-                VirtualKeyCode::F => {
+            } => match key.as_ref() {
+                Key::Character("F" | "f") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::CLOSE);
                 }
-                VirtualKeyCode::G => {
+                Key::Character("G" | "g") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::MAXIMIZE);
                 }
-                VirtualKeyCode::H => {
+                Key::Character("H" | "h") => {
                     let buttons = window.enabled_buttons();
                     window.set_enabled_buttons(buttons ^ WindowButtons::MINIMIZE);
                 }
@@ -62,6 +66,9 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => control_flow.set_exit(),
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         }
     });

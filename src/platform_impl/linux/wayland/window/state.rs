@@ -113,6 +113,9 @@ pub struct WindowState {
     /// Whether the CSD fail to create, so we don't try to create them on each iteration.
     csd_fails: bool,
 
+    /// Whether we should decorate the frame.
+    decorate: bool,
+
     /// Min size.
     min_inner_size: LogicalSize<u32>,
     max_inner_size: Option<LogicalSize<u32>>,
@@ -180,8 +183,8 @@ impl WindowState {
             ) {
                 Ok(mut frame) => {
                     frame.set_title(&self.title);
-                    // Ensure that the frame is not hidden.
-                    frame.set_hidden(false);
+                    // Hide the frame if we were asked to not decorate.
+                    frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
                 }
                 Err(err) => {
@@ -391,6 +394,7 @@ impl WindowState {
             connection,
             theme,
             csd_fails: false,
+            decorate: true,
             cursor_grab_mode: GrabState::new(),
             cursor_icon: CursorIcon::Default,
             cursor_visible: true,
@@ -690,18 +694,44 @@ impl WindowState {
     pub fn set_cursor_visible(&mut self, cursor_visible: bool) {
         self.cursor_visible = cursor_visible;
 
-        for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
-            let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
+        if self.cursor_visible {
+            self.set_cursor(self.cursor_icon);
+        } else {
+            for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
+                let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
 
-            pointer
-                .pointer()
-                .set_cursor(latest_enter_serial, None, 0, 0);
+                pointer
+                    .pointer()
+                    .set_cursor(latest_enter_serial, None, 0, 0);
+            }
         }
     }
 
     /// Whether show or hide client side decorations.
     #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
+        if decorate == self.decorate {
+            return;
+        }
+
+        self.decorate = decorate;
+
+        match self
+            .last_configure
+            .as_ref()
+            .map(|configure| configure.decoration_mode)
+        {
+            Some(DecorationMode::Server) if !self.decorate => {
+                // To disable decorations we should request client and hide the frame.
+                self.window
+                    .request_decoration_mode(Some(DecorationMode::Client))
+            }
+            _ if self.decorate => self
+                .window
+                .request_decoration_mode(Some(DecorationMode::Server)),
+            _ => (),
+        }
+
         if let Some(frame) = self.frame.as_mut() {
             frame.set_hidden(!decorate);
             // Force the resize.
@@ -737,13 +767,14 @@ impl WindowState {
     }
 
     /// Set the IME position.
-    pub fn set_ime_position(&self, position: LogicalPosition<u32>) {
+    pub fn set_ime_cursor_area(&self, position: LogicalPosition<u32>, size: LogicalSize<u32>) {
         // XXX This won't fly unless user will have a way to request IME window per seat, since
         // the ime windows will be overlapping, but winit doesn't expose API to specify for
         // which seat we're setting IME position.
         let (x, y) = (position.x as i32, position.y as i32);
+        let (width, height) = (size.width as i32, size.height as i32);
         for text_input in self.text_inputs.iter() {
-            text_input.set_cursor_rectangle(x, y, 0, 0);
+            text_input.set_cursor_rectangle(x, y, width, height);
             text_input.commit();
         }
     }

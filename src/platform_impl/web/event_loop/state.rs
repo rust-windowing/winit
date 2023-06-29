@@ -1,7 +1,7 @@
 use super::backend;
 use crate::event_loop::ControlFlow;
 
-use instant::Instant;
+use web_time::Instant;
 
 #[derive(Debug)]
 pub enum State {
@@ -15,7 +15,7 @@ pub enum State {
         start: Instant,
     },
     Poll {
-        request: backend::AnimationFrameRequest,
+        request: backend::IdleCallback,
     },
     Exit,
 }

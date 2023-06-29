@@ -2,14 +2,16 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{
-        ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
-    },
+    event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::{CursorIcon, ResizeDirection, WindowBuilder},
 };
 
 const BORDER: f64 = 8.0;
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -53,19 +55,22 @@ fn main() {
                 }
             }
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
+                event:
+                    KeyEvent {
                         state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::B),
+                        logical_key: Key::Character(c),
                         ..
                     },
                 ..
-            } => {
+            } if matches!(c.as_ref(), "B" | "b") => {
                 border = !border;
                 window.set_decorations(border);
             }
             _ => (),
         },
+        Event::RedrawRequested(_) => {
+            fill::fill_window(&window);
+        }
         _ => (),
     });
 }

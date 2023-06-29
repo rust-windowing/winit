@@ -17,9 +17,11 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
+mod r#async;
 mod device;
 mod error;
 mod event_loop;
+mod keyboard;
 mod monitor;
 mod window;
 
@@ -34,11 +36,6 @@ pub(crate) use self::event_loop::{
 pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
+pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
-
-#[derive(Clone, Copy)]
-pub(crate) struct ScaleChangeArgs {
-    old_scale: f64,
-    new_scale: f64,
-}

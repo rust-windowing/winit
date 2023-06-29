@@ -253,7 +253,7 @@ impl MonitorHandleExtIOS for MonitorHandle {
 }
 
 /// Valid orientations for a particular [`Window`].
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
     #[default]
@@ -268,7 +268,7 @@ pub enum ValidOrientations {
 /// The device [idiom].
 ///
 /// [idiom]: https://developer.apple.com/documentation/uikit/uidevice/1620037-userinterfaceidiom?language=objc
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Idiom {
     Unspecified,
 
@@ -287,14 +287,14 @@ bitflags! {
     /// The [edges] of a screen.
     ///
     /// [edges]: https://developer.apple.com/documentation/uikit/uirectedge?language=objc
-    #[derive(Default)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ScreenEdge: u8 {
         const NONE   = 0;
         const TOP    = 1 << 0;
         const LEFT   = 1 << 1;
         const BOTTOM = 1 << 2;
         const RIGHT  = 1 << 3;
-        const ALL = ScreenEdge::TOP.bits | ScreenEdge::LEFT.bits
-            | ScreenEdge::BOTTOM.bits | ScreenEdge::RIGHT.bits;
+        const ALL = ScreenEdge::TOP.bits() | ScreenEdge::LEFT.bits()
+            | ScreenEdge::BOTTOM.bits() | ScreenEdge::RIGHT.bits();
     }
 }

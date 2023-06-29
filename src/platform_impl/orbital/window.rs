@@ -167,6 +167,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn reset_dead_keys(&self) {
+        // TODO?
+    }
+
+    #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self
@@ -319,7 +324,7 @@ impl Window {
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {}
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {}

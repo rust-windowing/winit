@@ -547,6 +547,22 @@ impl Window {
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
+
+    /// Reset the dead key state of the keyboard.
+    ///
+    /// This is useful when a dead key is bound to trigger an action. Then
+    /// this function can be called to reset the dead key state so that
+    /// follow-up text input won't be affected by the dead key.
+    ///
+    /// ## Platform-specific
+    /// - **Web, macOS:** Does nothing
+    // ---------------------------
+    // Developers' Note: If this cannot be implemented on every desktop platform
+    // at least, then this function should be provided through a platform specific
+    // extension trait
+    pub fn reset_dead_keys(&self) {
+        self.window.reset_dead_keys();
+    }
 }
 
 /// Position and size functions.
@@ -925,6 +941,10 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
+    /// - **Web:** Does nothing without a [transient activation], but queues the request
+    ///   for the next activation.
+    ///
+    /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen.map(|f| f.into()))
@@ -997,50 +1017,56 @@ impl Window {
         self.window.set_window_icon(window_icon)
     }
 
-    /// Sets location of IME candidate box in client area coordinates relative to the top left.
+    /// Set the IME cursor editing area, where the `position` is the top left corner of that area
+    /// and `size` is the size of this area starting from the position. An example of such area
+    /// could be a input field in the UI or line in the editor.
     ///
-    /// This is the window / popup / overlay that allows you to select the desired characters.
-    /// The look of this box may differ between input devices, even on the same platform.
+    /// The windowing system could place a candidate box close to that area, but try to not obscure
+    /// the specified area, so the user input to it stays visible.
+    ///
+    /// The candidate box is the window / popup / overlay that allows you to select the desired
+    /// characters. The look of this box may differ between input devices, even on the same
+    /// platform.
     ///
     /// (Apple's official term is "candidate window", see their [chinese] and [japanese] guides).
     ///
     /// ## Example
     ///
     /// ```no_run
-    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
     /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the position in logical dimensions like this:
-    /// window.set_ime_position(LogicalPosition::new(400.0, 200.0));
+    /// window.set_ime_cursor_area(LogicalPosition::new(400.0, 200.0), LogicalSize::new(100, 100));
     ///
     /// // Or specify the position in physical dimensions like this:
-    /// window.set_ime_position(PhysicalPosition::new(400, 200));
+    /// window.set_ime_cursor_area(PhysicalPosition::new(400, 200), PhysicalSize::new(100, 100));
     /// ```
     ///
     /// ## Platform-specific
     ///
+    /// - **X11:** - area is not supported, only position.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[inline]
-    pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
-        self.window.set_ime_position(position.into())
+    pub fn set_ime_cursor_area<P: Into<Position>, S: Into<Size>>(&self, position: P, size: S) {
+        self.window
+            .set_ime_cursor_area(position.into(), size.into())
     }
 
     /// Sets whether the window should get IME events
     ///
     /// When IME is allowed, the window will receive [`Ime`] events, and during the
-    /// preedit phase the window will NOT get [`KeyboardInput`] or
-    /// [`ReceivedCharacter`] events. The window should allow IME while it is
-    /// expecting text input.
+    /// preedit phase the window will NOT get [`KeyboardInput`] events. The window
+    /// should allow IME while it is expecting text input.
     ///
     /// When IME is not allowed, the window won't receive [`Ime`] events, and will
-    /// receive [`KeyboardInput`] events for every keypress instead. Without
-    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
-    /// certain keyboard input. Not allowing IME is useful for games for example.
+    /// receive [`KeyboardInput`] events for every keypress instead. Not allowing
+    /// IME is useful for games for example.
     ///
     /// IME is **not** allowed by default.
     ///
@@ -1051,7 +1077,6 @@ impl Window {
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
-    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
         self.window.set_ime_allowed(allowed);
@@ -1116,9 +1141,9 @@ impl Window {
     ///
     /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
-    /// -**x11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
-    /// - **iOS / Android / Web / x11 / Orbital:** Unsupported.
+    ///   Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {
         self.window.set_theme(theme)
@@ -1463,6 +1488,7 @@ pub enum UserAttentionType {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowButtons: u32 {
         const CLOSE  = 1 << 0;
         const MINIMIZE  = 1 << 1;

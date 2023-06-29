@@ -2,10 +2,13 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     window::{CursorIcon, WindowBuilder},
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -23,8 +26,8 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Pressed,
                                 ..
                             },
@@ -45,6 +48,9 @@ fn main() {
                 ..
             } => {
                 control_flow.set_exit();
+            }
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
             }
             _ => (),
         }

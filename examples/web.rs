@@ -1,9 +1,10 @@
-#![allow(clippy::single_match)]
+#![allow(clippy::disallowed_methods, clippy::single_match)]
 
 use winit::{
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    keyboard::KeyCode,
+    window::{Fullscreen, WindowBuilder},
 };
 
 pub fn main() {
@@ -31,6 +32,25 @@ pub fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
+            Event::WindowEvent {
+                window_id,
+                event:
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                physical_key: KeyCode::KeyF,
+                                state: ElementState::Released,
+                                ..
+                            },
+                        ..
+                    },
+            } if window_id == window.id() => {
+                if window.fullscreen().is_some() {
+                    window.set_fullscreen(None);
+                } else {
+                    window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                }
+            }
             _ => (),
         }
     });
@@ -52,14 +72,17 @@ mod wasm {
     pub fn insert_canvas_and_create_log_list(window: &Window) -> web_sys::Element {
         use winit::platform::web::WindowExtWebSys;
 
-        let canvas = window.canvas();
+        let canvas = window.canvas().unwrap();
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let body = document.body().unwrap();
 
         // Set a background color for the canvas to make it easier to tell where the canvas is for debugging purposes.
-        canvas.style().set_css_text("background-color: crimson;");
+        canvas
+            .style()
+            .set_property("background-color", "crimson")
+            .unwrap();
         body.append_child(&canvas).unwrap();
 
         let log_header = document.create_element("h2").unwrap();

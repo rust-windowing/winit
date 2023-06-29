@@ -1,13 +1,21 @@
 #![allow(clippy::single_match)]
 
-use std::{thread, time};
+use std::thread;
+#[cfg(not(wasm_platform))]
+use std::time;
+#[cfg(wasm_platform)]
+use web_time as time;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::WindowBuilder,
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -40,7 +48,7 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{ElementState, StartCause, VirtualKeyCode};
+        use winit::event::StartCause;
         println!("{event:?}");
         match event {
             Event::NewEvents(start_cause) => {
@@ -54,31 +62,33 @@ fn main() {
                     close_requested = true;
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
+                    event:
+                        KeyEvent {
+                            logical_key: key,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
-                } => match virtual_code {
-                    VirtualKeyCode::Key1 => {
+                } => match key.as_ref() {
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    Key::Character("1") => {
                         mode = Mode::Wait;
                         println!("\nmode: {mode:?}\n");
                     }
-                    VirtualKeyCode::Key2 => {
+                    Key::Character("2") => {
                         mode = Mode::WaitUntil;
                         println!("\nmode: {mode:?}\n");
                     }
-                    VirtualKeyCode::Key3 => {
+                    Key::Character("3") => {
                         mode = Mode::Poll;
                         println!("\nmode: {mode:?}\n");
                     }
-                    VirtualKeyCode::R => {
+                    Key::Character("r") => {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {request_redraw}\n");
                     }
-                    VirtualKeyCode::Escape => {
+                    Key::Escape => {
                         close_requested = true;
                     }
                     _ => (),
@@ -93,13 +103,15 @@ fn main() {
                     control_flow.set_exit();
                 }
             }
-            Event::RedrawRequested(_window_id) => {}
+            Event::RedrawRequested(_window_id) => {
+                fill::fill_window(&window);
+            }
             Event::RedrawEventsCleared => {
                 match mode {
                     Mode::Wait => control_flow.set_wait(),
                     Mode::WaitUntil => {
                         if !wait_cancelled {
-                            control_flow.set_wait_until(instant::Instant::now() + WAIT_TIME);
+                            control_flow.set_wait_until(time::Instant::now() + WAIT_TIME);
                         }
                     }
                     Mode::Poll => {

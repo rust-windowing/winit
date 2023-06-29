@@ -1,242 +1,373 @@
 //! The keyboard input handling.
 
 use std::sync::Mutex;
+use std::time::Duration;
 
-use sctk::reexports::client::delegate_dispatch;
+use calloop::timer::{TimeoutAction, Timer};
+use calloop::{LoopHandle, RegistrationToken};
+use log::warn;
+
 use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
+use sctk::reexports::client::protocol::wl_keyboard::{
+    Event as WlKeyboardEvent, KeyState as WlKeyState, KeymapFormat as WlKeymapFormat,
+};
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle, WEnum};
 
-use sctk::seat::keyboard::{KeyEvent, KeyboardData, KeyboardDataExt, KeyboardHandler, Modifiers};
-use sctk::seat::SeatState;
+use crate::event::{ElementState, WindowEvent};
+use crate::keyboard::ModifiersState;
 
-use crate::event::{ElementState, ModifiersState, WindowEvent};
-
+use crate::platform_impl::common::xkb_state::KbdState;
+use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::seat::WinitSeatState;
 use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId, WindowId};
 
-mod keymap;
-
-impl WinitState {
-    pub fn handle_key_input(
-        &mut self,
-        keyboard: &WlKeyboard,
-        event: KeyEvent,
-        state: ElementState,
+impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
+    fn event(
+        state: &mut WinitState,
+        wl_keyboard: &WlKeyboard,
+        event: <WlKeyboard as Proxy>::Event,
+        data: &KeyboardData,
+        _: &Connection,
+        _: &QueueHandle<WinitState>,
     ) {
-        let window_id = match *keyboard.winit_data().window_id.lock().unwrap() {
-            Some(window_id) => window_id,
+        let seat_state = match state.seats.get_mut(&data.seat.id()) {
+            Some(seat_state) => seat_state,
             None => return,
         };
 
-        let virtual_keycode = keymap::keysym_to_vkey(event.keysym);
-
-        let seat_state = self.seats.get(&keyboard.seat().id()).unwrap();
-        let modifiers = seat_state.modifiers;
-
-        self.events_sink.push_window_event(
-            #[allow(deprecated)]
-            WindowEvent::KeyboardInput {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
-                input: crate::event::KeyboardInput {
-                    state,
-                    scancode: event.raw_code,
-                    virtual_keycode,
-                    modifiers,
+        match event {
+            WlKeyboardEvent::Keymap { format, fd, size } => match format {
+                WEnum::Value(format) => match format {
+                    WlKeymapFormat::NoKeymap => {
+                        warn!("non-xkb compatible keymap")
+                    }
+                    WlKeymapFormat::XkbV1 => unsafe {
+                        seat_state
+                            .keyboard_state
+                            .as_mut()
+                            .unwrap()
+                            .xkb_state
+                            .init_with_fd(fd, size as usize);
+                    },
+                    _ => unreachable!(),
                 },
-                is_synthetic: false,
+                WEnum::Unknown(value) => {
+                    warn!("unknown keymap format 0x{:x}", value)
+                }
             },
-            window_id,
-        );
+            WlKeyboardEvent::Enter { surface, .. } => {
+                let window_id = wayland::make_wid(&surface);
 
-        // Don't send utf8 chars on release.
-        if state == ElementState::Released {
-            return;
-        }
+                // Mark the window as focused.
+                match state.windows.get_mut().get(&window_id) {
+                    Some(window) => window.lock().unwrap().set_has_focus(true),
+                    None => return,
+                };
 
-        if let Some(txt) = event.utf8 {
-            for ch in txt.chars() {
-                self.events_sink
-                    .push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
+                // Drop the repeat, if there were any.
+                seat_state.keyboard_state.as_mut().unwrap().current_repeat = None;
+
+                // The keyboard focus is considered as general focus.
+                state
+                    .events_sink
+                    .push_window_event(WindowEvent::Focused(true), window_id);
+
+                *data.window_id.lock().unwrap() = Some(window_id);
+
+                // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
+                if std::mem::take(&mut seat_state.modifiers_pending) {
+                    state.events_sink.push_window_event(
+                        WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                        window_id,
+                    );
+                }
             }
+            WlKeyboardEvent::Leave { surface, .. } => {
+                let window_id = wayland::make_wid(&surface);
+
+                // NOTE: we should drop the repeat regardless whethere it was for the present
+                // window of for the window which just went gone.
+                seat_state.keyboard_state.as_mut().unwrap().current_repeat = None;
+
+                // NOTE: The check whether the window exists is essential as we might get a
+                // nil surface, regardless of what protocol says.
+                match state.windows.get_mut().get(&window_id) {
+                    Some(window) => window.lock().unwrap().set_has_focus(false),
+                    None => return,
+                };
+
+                // Notify that no modifiers are being pressed.
+                state.events_sink.push_window_event(
+                    WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                    window_id,
+                );
+
+                // We don't need to update it above, because the next `Enter` will overwrite
+                // anyway.
+                *data.window_id.lock().unwrap() = None;
+
+                state
+                    .events_sink
+                    .push_window_event(WindowEvent::Focused(false), window_id);
+            }
+            WlKeyboardEvent::Key {
+                key,
+                state: key_state,
+                ..
+            } if key_state == WEnum::Value(WlKeyState::Pressed) => {
+                let key = key + 8;
+
+                key_input(
+                    seat_state,
+                    &mut state.events_sink,
+                    data,
+                    key,
+                    ElementState::Pressed,
+                    false,
+                );
+
+                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
+                let delay = match keyboard_state.repeat_info {
+                    RepeatInfo::Repeat { delay, .. } => delay,
+                    RepeatInfo::Disable => return,
+                };
+
+                if !keyboard_state.xkb_state.key_repeats(key) {
+                    return;
+                }
+
+                keyboard_state.current_repeat = Some(key);
+
+                // NOTE terminate ongoing timer and start a new timer.
+
+                if let Some(token) = keyboard_state.repeat_token.take() {
+                    keyboard_state.loop_handle.remove(token);
+                }
+
+                let timer = Timer::from_duration(delay);
+                let wl_keyboard = wl_keyboard.clone();
+                keyboard_state.repeat_token = keyboard_state
+                    .loop_handle
+                    .insert_source(timer, move |_, _, state| {
+                        let data = wl_keyboard.data::<KeyboardData>().unwrap();
+                        let seat_state = state.seats.get_mut(&data.seat.id()).unwrap();
+
+                        // NOTE: The removed on event source is batched, but key change to
+                        // `None` is instant.
+                        let repeat_keycode =
+                            match seat_state.keyboard_state.as_ref().unwrap().current_repeat {
+                                Some(repeat_keycode) => repeat_keycode,
+                                None => return TimeoutAction::Drop,
+                            };
+
+                        key_input(
+                            seat_state,
+                            &mut state.events_sink,
+                            data,
+                            repeat_keycode,
+                            ElementState::Pressed,
+                            true,
+                        );
+
+                        // NOTE: the gap could change dynamically while repeat is going.
+                        match seat_state.keyboard_state.as_ref().unwrap().repeat_info {
+                            RepeatInfo::Repeat { gap, .. } => TimeoutAction::ToDuration(gap),
+                            RepeatInfo::Disable => TimeoutAction::Drop,
+                        }
+                    })
+                    .ok();
+            }
+            WlKeyboardEvent::Key {
+                key,
+                state: key_state,
+                ..
+            } if key_state == WEnum::Value(WlKeyState::Released) => {
+                let key = key + 8;
+
+                key_input(
+                    seat_state,
+                    &mut state.events_sink,
+                    data,
+                    key,
+                    ElementState::Released,
+                    false,
+                );
+
+                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
+                if keyboard_state.repeat_info != RepeatInfo::Disable
+                    && keyboard_state.xkb_state.key_repeats(key)
+                    && Some(key) == keyboard_state.current_repeat
+                {
+                    keyboard_state.current_repeat = None;
+                }
+            }
+            WlKeyboardEvent::Modifiers {
+                mods_depressed,
+                mods_latched,
+                mods_locked,
+                group,
+                ..
+            } => {
+                let xkb_state = &mut seat_state.keyboard_state.as_mut().unwrap().xkb_state;
+                xkb_state.update_modifiers(mods_depressed, mods_latched, mods_locked, 0, 0, group);
+                seat_state.modifiers = xkb_state.mods_state().into();
+
+                // HACK: part of the workaround from `WlKeyboardEvent::Enter`.
+                let window_id = match *data.window_id.lock().unwrap() {
+                    Some(window_id) => window_id,
+                    None => {
+                        seat_state.modifiers_pending = true;
+                        return;
+                    }
+                };
+
+                state.events_sink.push_window_event(
+                    WindowEvent::ModifiersChanged(seat_state.modifiers.into()),
+                    window_id,
+                );
+            }
+            WlKeyboardEvent::RepeatInfo { rate, delay } => {
+                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
+                keyboard_state.repeat_info = if rate == 0 {
+                    // Stop the repeat once we get a disable event.
+                    keyboard_state.current_repeat = None;
+                    if let Some(repeat_token) = keyboard_state.repeat_token.take() {
+                        keyboard_state.loop_handle.remove(repeat_token);
+                    }
+                    RepeatInfo::Disable
+                } else {
+                    let gap = Duration::from_micros(1_000_000 / rate as u64);
+                    let delay = Duration::from_millis(delay as u64);
+                    RepeatInfo::Repeat { gap, delay }
+                };
+            }
+            _ => unreachable!(),
         }
     }
 }
 
-impl KeyboardHandler for WinitState {
-    fn enter(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        keyboard: &WlKeyboard,
-        surface: &WlSurface,
-        _serial: u32,
-        _raw: &[u32],
-        _keysyms: &[u32],
-    ) {
-        let window_id = wayland::make_wid(surface);
+/// The state of the keyboard on the current seat.
+#[derive(Debug)]
+pub struct KeyboardState {
+    /// The underlying WlKeyboard.
+    pub keyboard: WlKeyboard,
 
-        // Mark the window as focused.
-        match self.windows.get_mut().get(&window_id) {
-            Some(window) => window.lock().unwrap().set_has_focus(true),
-            None => return,
-        };
+    /// Loop handle to handle key repeat.
+    pub loop_handle: LoopHandle<'static, WinitState>,
 
-        // Window gained focus.
-        self.events_sink
-            .push_window_event(WindowEvent::Focused(true), window_id);
+    /// The state of the keyboard.
+    pub xkb_state: KbdState,
 
-        *keyboard.winit_data().window_id.lock().unwrap() = Some(window_id);
+    /// The information about the repeat rate obtained from the compositor.
+    pub repeat_info: RepeatInfo,
 
-        // NOTE: GNOME still hasn't violates the specification wrt ordering of such
-        // events. See https://gitlab.gnome.org/GNOME/mutter/-/issues/2231.
-        let seat_state = self.seats.get_mut(&keyboard.seat().id()).unwrap();
-        if std::mem::take(&mut seat_state.modifiers_pending) {
-            self.events_sink.push_window_event(
-                WindowEvent::ModifiersChanged(seat_state.modifiers),
-                window_id,
-            );
+    /// The token of the current handle inside the calloop's event loop.
+    pub repeat_token: Option<RegistrationToken>,
+
+    /// The current repeat raw key.
+    pub current_repeat: Option<u32>,
+}
+
+impl KeyboardState {
+    pub fn new(keyboard: WlKeyboard, loop_handle: LoopHandle<'static, WinitState>) -> Self {
+        Self {
+            keyboard,
+            loop_handle,
+            xkb_state: KbdState::new().unwrap(),
+            repeat_info: RepeatInfo::default(),
+            repeat_token: None,
+            current_repeat: None,
         }
-    }
-
-    fn leave(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        keyboard: &WlKeyboard,
-        surface: &WlSurface,
-        _serial: u32,
-    ) {
-        let window_id = wayland::make_wid(surface);
-
-        // XXX The check whether the window exists is essential as we might get a nil surface...
-        match self.windows.get_mut().get(&window_id) {
-            Some(window) => window.lock().unwrap().set_has_focus(false),
-            None => return,
-        };
-
-        // Notify that no modifiers are being pressed.
-        self.events_sink.push_window_event(
-            WindowEvent::ModifiersChanged(ModifiersState::empty()),
-            window_id,
-        );
-
-        *keyboard.winit_data().window_id.lock().unwrap() = None;
-
-        // Window lost focus.
-        self.events_sink
-            .push_window_event(WindowEvent::Focused(false), window_id);
-    }
-
-    fn press_key(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        keyboard: &WlKeyboard,
-        _serial: u32,
-        event: KeyEvent,
-    ) {
-        self.handle_key_input(keyboard, event, ElementState::Pressed);
-    }
-
-    fn release_key(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        keyboard: &WlKeyboard,
-        _serial: u32,
-        event: KeyEvent,
-    ) {
-        self.handle_key_input(keyboard, event, ElementState::Released);
-    }
-
-    // FIXME(kchibisov): recent spec suggested that this event could be sent
-    // without any focus to indicate modifiers for the pointer, so update
-    // for will be required once https://github.com/rust-windowing/winit/issues/2768
-    // wrt winit design of the event is resolved.
-    fn update_modifiers(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        keyboard: &WlKeyboard,
-        _serial: u32,
-        modifiers: Modifiers,
-    ) {
-        let modifiers = ModifiersState::from(modifiers);
-        let seat_state = self.seats.get_mut(&keyboard.seat().id()).unwrap();
-        seat_state.modifiers = modifiers;
-
-        // NOTE: part of the workaround from `fn enter`, see it above.
-        let window_id = match *keyboard.winit_data().window_id.lock().unwrap() {
-            Some(window_id) => window_id,
-            None => {
-                seat_state.modifiers_pending = true;
-                return;
-            }
-        };
-
-        self.events_sink
-            .push_window_event(WindowEvent::ModifiersChanged(modifiers), window_id);
     }
 }
 
-/// The extension to KeyboardData used to store the `window_id`.
-pub struct WinitKeyboardData {
+impl Drop for KeyboardState {
+    fn drop(&mut self) {
+        if self.keyboard.version() >= 3 {
+            self.keyboard.release();
+        }
+
+        if let Some(token) = self.repeat_token.take() {
+            self.loop_handle.remove(token);
+        }
+    }
+}
+
+/// The rate at which a pressed key is repeated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepeatInfo {
+    /// Keys will be repeated at the specified rate and delay.
+    Repeat {
+        /// The time between the key repeats.
+        gap: Duration,
+
+        /// Delay (in milliseconds) between a key press and the start of repetition.
+        delay: Duration,
+    },
+
+    /// Keys should not be repeated.
+    Disable,
+}
+
+impl Default for RepeatInfo {
+    /// The default repeat rate is 25 keys per second with the delay of 200ms.
+    ///
+    /// The values are picked based on the default in various compositors and Xorg.
+    fn default() -> Self {
+        Self::Repeat {
+            gap: Duration::from_millis(40),
+            delay: Duration::from_millis(200),
+        }
+    }
+}
+
+/// Keyboard user data.
+#[derive(Debug)]
+pub struct KeyboardData {
     /// The currently focused window surface. Could be `None` on bugged compositors, like mutter.
     window_id: Mutex<Option<WindowId>>,
 
-    /// The original keyboard date.
-    keyboard_data: KeyboardData<WinitState>,
+    /// The seat used to create this keyboard.
+    seat: WlSeat,
 }
 
-impl WinitKeyboardData {
+impl KeyboardData {
     pub fn new(seat: WlSeat) -> Self {
         Self {
             window_id: Default::default(),
-            keyboard_data: KeyboardData::new(seat),
+            seat,
         }
     }
 }
 
-impl KeyboardDataExt for WinitKeyboardData {
-    type State = WinitState;
+fn key_input(
+    seat_state: &mut WinitSeatState,
+    event_sink: &mut EventSink,
+    data: &KeyboardData,
+    keycode: u32,
+    state: ElementState,
+    repeat: bool,
+) {
+    let window_id = match *data.window_id.lock().unwrap() {
+        Some(window_id) => window_id,
+        None => return,
+    };
 
-    fn keyboard_data(&self) -> &KeyboardData<Self::State> {
-        &self.keyboard_data
-    }
+    let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
 
-    fn keyboard_data_mut(&mut self) -> &mut KeyboardData<Self::State> {
-        &mut self.keyboard_data
-    }
+    let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+    let event = keyboard_state
+        .xkb_state
+        .process_key_event(keycode, state, repeat);
+
+    event_sink.push_window_event(
+        WindowEvent::KeyboardInput {
+            device_id,
+            event,
+            is_synthetic: false,
+        },
+        window_id,
+    );
 }
-
-pub trait WinitKeyboardDataExt {
-    fn winit_data(&self) -> &WinitKeyboardData;
-
-    fn seat(&self) -> &WlSeat {
-        self.winit_data().keyboard_data().seat()
-    }
-}
-
-impl WinitKeyboardDataExt for WlKeyboard {
-    fn winit_data(&self) -> &WinitKeyboardData {
-        self.data::<WinitKeyboardData>()
-            .expect("failed to get keyboard data.")
-    }
-}
-
-impl From<Modifiers> for ModifiersState {
-    fn from(mods: Modifiers) -> ModifiersState {
-        let mut wl_mods = ModifiersState::empty();
-        wl_mods.set(ModifiersState::SHIFT, mods.shift);
-        wl_mods.set(ModifiersState::CTRL, mods.ctrl);
-        wl_mods.set(ModifiersState::ALT, mods.alt);
-        wl_mods.set(ModifiersState::LOGO, mods.logo);
-        wl_mods
-    }
-}
-
-delegate_dispatch!(WinitState: [ WlKeyboard: WinitKeyboardData] => SeatState);
