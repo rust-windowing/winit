@@ -201,7 +201,7 @@ fn main() {
             },
             _ => {}
         }
-    })
+    });
 }
 
 #[cfg(wasm_platform)]

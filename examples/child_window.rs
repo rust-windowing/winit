@@ -79,7 +79,7 @@ fn main() {
                 fill::fill_window(window);
             }
         }
-    })
+    });
 }
 
 #[cfg(not(any(x11_platform, macos_platform, windows_platform)))]

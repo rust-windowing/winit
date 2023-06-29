@@ -5,7 +5,6 @@ use std::error::Error;
 use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
-use std::process;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -128,12 +127,13 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
     {
         let exit_code = self.run_return(callback);
-        process::exit(exit_code);
+        // process::exit(exit_code);
+        exit_code
     }
 
     pub fn run_return<F>(&mut self, mut callback: F) -> i32
