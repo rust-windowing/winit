@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.29.0-beta.0
+
 - On Web, allow event loops to be recreated with `spawn`.
 - **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
 - On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
