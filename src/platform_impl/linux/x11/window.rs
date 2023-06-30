@@ -245,6 +245,7 @@ impl UnownedWindow {
                 | ffi::StructureNotifyMask
                 | ffi::VisibilityChangeMask
                 | ffi::KeyPressMask
+                | ffi::KeyReleaseMask
                 | ffi::KeymapStateMask
                 | ffi::ButtonPressMask
                 | ffi::ButtonReleaseMask
@@ -446,8 +447,6 @@ impl UnownedWindow {
             let mask = ffi::XI_MotionMask
                 | ffi::XI_ButtonPressMask
                 | ffi::XI_ButtonReleaseMask
-                | ffi::XI_KeyPressMask
-                | ffi::XI_KeyReleaseMask
                 | ffi::XI_EnterMask
                 | ffi::XI_LeaveMask
                 | ffi::XI_FocusInMask

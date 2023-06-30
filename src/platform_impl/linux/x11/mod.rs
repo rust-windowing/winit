@@ -188,6 +188,15 @@ impl<T: 'static> EventLoop<T> {
                 panic!("X server missing XKB extension");
             }
 
+            // Enable detectable auto repeat.
+            let mut supported = 0;
+            unsafe {
+                (xconn.xlib.XkbSetDetectableAutoRepeat)(xconn.display, 1, &mut supported);
+            }
+            if supported == 0 {
+                warn!("Detectable auto repeart is not supported");
+            }
+
             ext
         };
 
@@ -283,6 +292,7 @@ impl<T: 'static> EventLoop<T> {
             first_touch: None,
             active_window: None,
             is_composing: false,
+            got_key_release: true,
         };
 
         // Register for device hotplug events
