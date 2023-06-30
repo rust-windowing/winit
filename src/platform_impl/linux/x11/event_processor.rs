@@ -31,6 +31,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
+    // Whether we've got a key release for the key press.
+    pub(super) got_key_release: bool,
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
@@ -535,34 +537,54 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             // Note that in compose/pre-edit sequences, we'll always receive KeyRelease events
-            ffi::KeyPress => {
+            ty @ ffi::KeyPress | ty @ ffi::KeyRelease => {
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
-
-                let window = xkev.window;
-                let window_id = mkwid(window);
-
-                let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                    wt.xconn.lookup_utf8(ic, xkev)
-                } else {
-                    return;
+                let window = match self.active_window {
+                    Some(window) => window,
+                    None => return,
                 };
 
-                // If we're composing right now, send the string we've got from X11 via
-                // Ime::Commit.
-                if self.is_composing && xkev.keycode == 0 && !written.is_empty() {
-                    let event = Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    };
-                    callback(event);
+                let window_id = mkwid(window);
+                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
-                    let event = Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Commit(written)),
-                    };
+                let keycode = xkev.keycode as _;
+                let repeat = ty == ffi::KeyPress && !self.got_key_release;
+                // Update state after the repeat setting.
+                let state = if ty == ffi::KeyPress {
+                    self.got_key_release = false;
+                    ElementState::Pressed
+                } else {
+                    self.got_key_release = true;
+                    ElementState::Released
+                };
 
-                    self.is_composing = false;
-                    callback(event);
+                if keycode != 0 && !self.is_composing {
+                    let event = self.kb_state.process_key_event(keycode, state, repeat);
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::KeyboardInput {
+                            device_id,
+                            event,
+                            is_synthetic: false,
+                        },
+                    });
+                } else if let Some(ic) = wt.ime.borrow().get_context(window) {
+                    let written = wt.xconn.lookup_utf8(ic, xkev);
+                    if !written.is_empty() {
+                        let event = Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        };
+                        callback(event);
+
+                        let event = Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Commit(written)),
+                        };
+
+                        self.is_composing = false;
+                        callback(event);
+                    }
                 }
             }
 
@@ -1029,40 +1051,6 @@ impl<T: 'static> EventProcessor<T> {
                             });
                         }
                     }
-
-                    // The regular KeyPress event has a problem where if you press a dead key, a KeyPress
-                    // event won't be emitted. XInput 2 does not have this problem.
-                    ffi::XI_KeyPress | ffi::XI_KeyRelease if !self.is_composing => {
-                        if let Some(active_window) = self.active_window {
-                            let state = if xev.evtype == ffi::XI_KeyPress {
-                                Pressed
-                            } else {
-                                Released
-                            };
-
-                            let xkev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-
-                            // We use `self.active_window` here as `xkev.event` has a completely different
-                            // value for some reason.
-                            let window_id = mkwid(active_window);
-
-                            let device_id = mkdid(xkev.deviceid);
-                            let keycode = xkev.detail as u32;
-
-                            let repeat = xkev.flags & ffi::XIKeyRepeat == ffi::XIKeyRepeat;
-                            let event = self.kb_state.process_key_event(keycode, state, repeat);
-
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::KeyboardInput {
-                                    device_id,
-                                    event,
-                                    is_synthetic: false,
-                                },
-                            });
-                        }
-                    }
-
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
