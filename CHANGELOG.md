@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+
 # 0.29.0-beta.0
 
 - On Web, allow event loops to be recreated with `spawn`.
