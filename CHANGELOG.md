@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
+
 # 0.29.1-beta
 
 - **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `v0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
@@ -46,7 +48,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
 - **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
 - On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
-- Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
 - Add `ElementState::is_pressed`.
 - On Web, implement `WindowEvent::Occluded`.
 - On Web, fix touch location to be as accurate as mouse position.
