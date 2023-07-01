@@ -721,8 +721,7 @@ impl UnownedWindow {
                 if let Some(position) = shared_state_lock.restore_position.take() {
                     drop(shared_state_lock);
                     self.set_position_inner(position.0, position.1)
-                        .expect("Failed to restore window position")
-                        .ignore_error();
+                        .expect_then_ignore_error("Failed to restore window position");
                 }
                 flusher.map(Some)
             }
@@ -934,8 +933,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.set_maximized_inner(maximized)
-            .expect("Failed to change window maximization")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to change window maximization");
         self.xconn
             .flush_requests()
             .expect("Failed to change window maximization");
@@ -989,8 +987,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.set_decorations_inner(decorations)
-            .expect("Failed to set decoration state")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to set decoration state");
         self.xconn
             .flush_requests()
             .expect("Failed to set decoration state");
@@ -1025,8 +1022,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_window_level(&self, level: WindowLevel) {
         self.set_window_level_inner(level)
-            .expect("Failed to set window-level state")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to set window-level state");
         self.xconn
             .flush_requests()
             .expect("Failed to set window-level state");
@@ -1064,8 +1060,7 @@ impl UnownedWindow {
             Some(icon) => self.set_icon_inner(icon),
             None => self.unset_icon_inner(),
         }
-        .expect("Failed to set icons")
-        .ignore_error();
+        .expect_then_ignore_error("Failed to set icons");
 
         self.xconn.flush_requests().expect("Failed to set icons");
     }
@@ -1085,16 +1080,14 @@ impl UnownedWindow {
             self.xconn
                 .xcb_connection()
                 .map_window(self.xwindow)
-                .expect("Failed to call `xcb_map_window`")
-                .ignore_error();
+                .expect_then_ignore_error("Failed to call `xcb_map_window`");
             self.xconn
                 .xcb_connection()
                 .configure_window(
                     self.xwindow,
                     &xproto::ConfigureWindowAux::new().stack_mode(xproto::StackMode::ABOVE),
                 )
-                .expect("Failed to call `xcb_configure_window`")
-                .ignore_error();
+                .expect_then_ignore_error("Failed to call `xcb_configure_window`");
             self.xconn
                 .flush_requests()
                 .expect("Failed to call XMapRaised");
@@ -1103,8 +1096,7 @@ impl UnownedWindow {
             self.xconn
                 .xcb_connection()
                 .unmap_window(self.xwindow)
-                .expect("Failed to call `xcb_unmap_window`")
-                .ignore_error();
+                .expect_then_ignore_error("Failed to call `xcb_unmap_window`");
             self.xconn
                 .flush_requests()
                 .expect("Failed to call XUnmapWindow");
@@ -1191,8 +1183,7 @@ impl UnownedWindow {
 
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
         self.set_position_inner(x, y)
-            .expect("Failed to call `XMoveWindow`")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to call `XMoveWindow`");
     }
 
     #[inline]
@@ -1236,8 +1227,7 @@ impl UnownedWindow {
                     .width(width)
                     .height(height),
             )
-            .expect("Failed to call `xcb_configure_window`")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to call `xcb_configure_window`");
         self.xconn
             .flush_requests()
             .expect("Failed to call XResizeWindow");
@@ -1384,8 +1374,7 @@ impl UnownedWindow {
         self.shared_state_lock().is_resizable = resizable;
 
         self.set_maximizable_inner(resizable)
-            .expect("Failed to call `XSetWMNormalHints`")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to call `XSetWMNormalHints`");
 
         let scale_factor = self.scale_factor();
         let min_inner_size = min_size
@@ -1450,15 +1439,12 @@ impl UnownedWindow {
             return Ok(());
         }
 
-        {
-            // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
-            // Therefore, this is common to both codepaths.
-            self.xconn
-                .xcb_connection()
-                .ungrab_pointer(x11rb::CURRENT_TIME)
-                .expect("Failed to call `xcb_ungrab_pointer`")
-                .ignore_error();
-        }
+        // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
+        // Therefore, this is common to both codepaths.
+        self.xconn
+            .xcb_connection()
+            .ungrab_pointer(x11rb::CURRENT_TIME)
+            .expect_then_ignore_error("Failed to call `xcb_ungrab_pointer`");
 
         let result = match mode {
             CursorGrabMode::None => self.xconn.flush_requests().map_err(|err| {
@@ -1683,20 +1669,18 @@ impl UnownedWindow {
         };
 
         if is_visible && !is_minimized {
-            let atom = atoms[_NET_ACTIVE_WINDOW];
             self.xconn
                 .send_client_msg(
                     self.xwindow,
                     self.root,
-                    atom,
+                    atoms[_NET_ACTIVE_WINDOW],
                     Some(
                         xproto::EventMask::SUBSTRUCTURE_REDIRECT
                             | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                     ),
                     [1, x11rb::CURRENT_TIME, 0, 0, 0],
                 )
-                .expect("Failed to send client message")
-                .ignore_error();
+                .expect_then_ignore_error("Failed to send client message");
             if let Err(e) = self.xconn.flush_requests() {
                 log::error!(
                     "`flush` returned an error when focusing the window. Error was: {}",
@@ -1717,8 +1701,7 @@ impl UnownedWindow {
         wm_hints.urgent = request_type.is_some();
         wm_hints
             .set(self.xconn.xcb_connection(), self.xwindow as xproto::Window)
-            .expect("Failed to set WM hints")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to set WM hints");
     }
 
     #[inline]

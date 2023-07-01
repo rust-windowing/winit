@@ -323,8 +323,7 @@ impl<T: 'static> EventLoop<T> {
                 ffi::XIAllDevices as _,
                 x11rb::protocol::xinput::XIEventMask::HIERARCHY,
             )
-            .expect("Failed to register for XInput2 device hotplug events")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
         get_xtarget(&target)
             .xconn
@@ -626,8 +625,7 @@ impl<T> EventLoopWindowTarget<T> {
 
         self.xconn
             .select_xinput_events(self.root, ffi::XIAllMasterDevices as _, mask)
-            .expect("Failed to update device event filter")
-            .ignore_error();
+            .expect_then_ignore_error("Failed to update device event filter");
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
