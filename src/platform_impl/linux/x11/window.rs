@@ -381,57 +381,55 @@ impl UnownedWindow {
 
             leap!(window.set_window_types(pl_attribs.x11_window_types)).ignore_error();
 
-            // set size hints
-            {
-                let mut min_inner_size = window_attrs
-                    .min_inner_size
-                    .map(|size| size.to_physical::<u32>(scale_factor));
-                let mut max_inner_size = window_attrs
-                    .max_inner_size
-                    .map(|size| size.to_physical::<u32>(scale_factor));
+            // Set size hints.
+            let mut min_inner_size = window_attrs
+                .min_inner_size
+                .map(|size| size.to_physical::<u32>(scale_factor));
+            let mut max_inner_size = window_attrs
+                .max_inner_size
+                .map(|size| size.to_physical::<u32>(scale_factor));
 
-                if !window_attrs.resizable {
-                    if util::wm_name_is_one_of(&["Xfwm4"]) {
-                        warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
-                    } else {
-                        max_inner_size = Some(dimensions.into());
-                        min_inner_size = Some(dimensions.into());
-                    }
+            if !window_attrs.resizable {
+                if util::wm_name_is_one_of(&["Xfwm4"]) {
+                    warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+                } else {
+                    max_inner_size = Some(dimensions.into());
+                    min_inner_size = Some(dimensions.into());
                 }
-
-                let shared_state = window.shared_state.get_mut().unwrap();
-                shared_state.min_inner_size = min_inner_size.map(Into::into);
-                shared_state.max_inner_size = max_inner_size.map(Into::into);
-                shared_state.resize_increments = window_attrs.resize_increments;
-                shared_state.base_size = pl_attribs.base_size;
-
-                let normal_hints = WmSizeHints {
-                    position: position.map(|PhysicalPosition { x, y }| {
-                        (WmSizeHintsSpecification::UserSpecified, x, y)
-                    }),
-                    size: Some((
-                        WmSizeHintsSpecification::UserSpecified,
-                        dimensions.0 as i32,
-                        dimensions.1 as i32,
-                    )),
-                    max_size: max_inner_size.map(Into::into),
-                    min_size: min_inner_size.map(Into::into),
-                    size_increment: window_attrs
-                        .resize_increments
-                        .map(|size| size.to_physical::<i32>(scale_factor).into()),
-                    base_size: pl_attribs
-                        .base_size
-                        .map(|size| size.to_physical::<i32>(scale_factor).into()),
-                    aspect: None,
-                    win_gravity: None,
-                };
-                leap!(leap!(normal_hints.set(
-                    xconn.xcb_connection(),
-                    window.xwindow as xproto::Window,
-                    xproto::AtomEnum::WM_NORMAL_HINTS,
-                ))
-                .check())
             }
+
+            let shared_state = window.shared_state.get_mut().unwrap();
+            shared_state.min_inner_size = min_inner_size.map(Into::into);
+            shared_state.max_inner_size = max_inner_size.map(Into::into);
+            shared_state.resize_increments = window_attrs.resize_increments;
+            shared_state.base_size = pl_attribs.base_size;
+
+            let normal_hints = WmSizeHints {
+                position: position.map(|PhysicalPosition { x, y }| {
+                    (WmSizeHintsSpecification::UserSpecified, x, y)
+                }),
+                size: Some((
+                    WmSizeHintsSpecification::UserSpecified,
+                    cast_dimension_to_hint(dimensions.0),
+                    cast_dimension_to_hint(dimensions.1),
+                )),
+                max_size: max_inner_size.map(cast_physical_size_to_hint),
+                min_size: min_inner_size.map(cast_physical_size_to_hint),
+                size_increment: window_attrs
+                    .resize_increments
+                    .map(|size| cast_size_to_hint(size, scale_factor)),
+                base_size: pl_attribs
+                    .base_size
+                    .map(|size| cast_size_to_hint(size, scale_factor)),
+                aspect: None,
+                win_gravity: None,
+            };
+            leap!(leap!(normal_hints.set(
+                xconn.xcb_connection(),
+                window.xwindow as xproto::Window,
+                xproto::AtomEnum::WM_NORMAL_HINTS,
+            ))
+            .check());
 
             // Set window icons
             if let Some(icon) = window_attrs.window_icon {
@@ -1167,8 +1165,8 @@ impl UnownedWindow {
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
             let extents = self.shared_state_lock().frame_extents.clone();
             if let Some(extents) = extents {
-                x += extents.frame_extents.left as i32;
-                y += extents.frame_extents.top as i32;
+                x += cast_dimension_to_hint(extents.frame_extents.left);
+                y += cast_dimension_to_hint(extents.frame_extents.top);
             } else {
                 self.update_cached_frame_extents();
                 return self.set_position_inner(x, y);
@@ -1272,7 +1270,8 @@ impl UnownedWindow {
 
     pub(crate) fn set_min_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| {
-            normal_hints.min_size = dimensions.map(|(w, h)| (w as i32, h as i32))
+            normal_hints.min_size =
+                dimensions.map(|(w, h)| (cast_dimension_to_hint(w), cast_dimension_to_hint(h)))
         })
         .expect("Failed to call `XSetWMNormalHints`");
     }
@@ -1287,7 +1286,8 @@ impl UnownedWindow {
 
     pub(crate) fn set_max_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| {
-            normal_hints.max_size = dimensions.map(|(w, h)| (w as i32, h as i32))
+            normal_hints.max_size =
+                dimensions.map(|(w, h)| (cast_dimension_to_hint(w), cast_dimension_to_hint(h)))
         })
         .expect("Failed to call `XSetWMNormalHints`");
     }
@@ -1317,7 +1317,7 @@ impl UnownedWindow {
     pub fn set_resize_increments(&self, increments: Option<Size>) {
         self.shared_state_lock().resize_increments = increments;
         let physical_increments =
-            increments.map(|increments| increments.to_physical::<i32>(self.scale_factor()).into());
+            increments.map(|increments| cast_size_to_hint(increments, self.scale_factor()));
         self.update_normal_hints(|hints| hints.size_increment = physical_increments)
             .expect("Failed to call `XSetWMNormalHints`");
     }
@@ -1332,8 +1332,7 @@ impl UnownedWindow {
     ) -> (u32, u32) {
         let scale_factor = new_scale_factor / old_scale_factor;
         self.update_normal_hints(|normal_hints| {
-            let dpi_adjuster =
-                |size: Size| -> (i32, i32) { size.to_physical::<i32>(new_scale_factor).into() };
+            let dpi_adjuster = |size: Size| -> (i32, i32) { cast_size_to_hint(size, scale_factor) };
             let max_size = shared_state.max_inner_size.map(dpi_adjuster);
             let min_size = shared_state.min_inner_size.map(dpi_adjuster);
             let resize_increments = shared_state.resize_increments.map(dpi_adjuster);
@@ -1377,12 +1376,8 @@ impl UnownedWindow {
             .expect_then_ignore_error("Failed to call `XSetWMNormalHints`");
 
         let scale_factor = self.scale_factor();
-        let min_inner_size = min_size
-            .map(|size| size.to_physical::<i32>(scale_factor))
-            .map(Into::into);
-        let max_inner_size = max_size
-            .map(|size| size.to_physical::<i32>(scale_factor))
-            .map(Into::into);
+        let min_inner_size = min_size.map(|size| cast_size_to_hint(size, scale_factor));
+        let max_inner_size = max_size.map(|size| cast_size_to_hint(size, scale_factor));
         self.update_normal_hints(|normal_hints| {
             normal_hints.min_size = min_inner_size;
             normal_hints.max_size = max_inner_size;
@@ -1743,5 +1738,27 @@ impl UnownedWindow {
 
     pub fn title(&self) -> String {
         String::new()
+    }
+}
+
+/// Cast a dimension value into a hinted dimension for `WmSizeHints`, clamping if too large.
+fn cast_dimension_to_hint(val: u32) -> i32 {
+    val.try_into().unwrap_or(i32::MAX)
+}
+
+/// Use the above strategy to cast a physical size into a hinted size.
+fn cast_physical_size_to_hint(size: PhysicalSize<u32>) -> (i32, i32) {
+    let PhysicalSize { width, height } = size;
+    (
+        cast_dimension_to_hint(width),
+        cast_dimension_to_hint(height),
+    )
+}
+
+/// Use the above strategy to cast a size into a hinted size.
+fn cast_size_to_hint(size: Size, scale_factor: f64) -> (i32, i32) {
+    match size {
+        Size::Physical(size) => cast_physical_size_to_hint(size),
+        Size::Logical(size) => size.to_physical::<i32>(scale_factor).into(),
     }
 }
