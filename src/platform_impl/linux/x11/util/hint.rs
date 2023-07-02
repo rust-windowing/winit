@@ -203,8 +203,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_position(&mut self, position: Option<(i32, i32)>) {
         if let Some((x, y)) = position {
             self.size_hints.flags |= ffi::PPosition;
-            self.size_hints.x = to_c_int(x);
-            self.size_hints.y = to_c_int(y);
+            self.size_hints.x = Self::to_c_int(x);
+            self.size_hints.y = Self::to_c_int(y);
         } else {
             self.size_hints.flags &= !ffi::PPosition;
         }
@@ -214,8 +214,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_size(&mut self, size: Option<(u32, u32)>) {
         if let Some((width, height)) = size {
             self.size_hints.flags |= ffi::PSize;
-            self.size_hints.width = to_c_int(width);
-            self.size_hints.height = to_c_int(height);
+            self.size_hints.width = Self::to_c_int(width);
+            self.size_hints.height = Self::to_c_int(height);
         } else {
             self.size_hints.flags &= !ffi::PSize;
         }
@@ -224,8 +224,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_max_size(&mut self, max_size: Option<(u32, u32)>) {
         if let Some((max_width, max_height)) = max_size {
             self.size_hints.flags |= ffi::PMaxSize;
-            self.size_hints.max_width = to_c_int(max_width);
-            self.size_hints.max_height = to_c_int(max_height);
+            self.size_hints.max_width = Self::to_c_int(max_width);
+            self.size_hints.max_height = Self::to_c_int(max_height);
         } else {
             self.size_hints.flags &= !ffi::PMaxSize;
         }
@@ -234,8 +234,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_min_size(&mut self, min_size: Option<(u32, u32)>) {
         if let Some((min_width, min_height)) = min_size {
             self.size_hints.flags |= ffi::PMinSize;
-            self.size_hints.min_width = to_c_int(min_width);
-            self.size_hints.min_height = to_c_int(min_height);
+            self.size_hints.min_width = Self::to_c_int(min_width);
+            self.size_hints.min_height = Self::to_c_int(min_height);
         } else {
             self.size_hints.flags &= !ffi::PMinSize;
         }
@@ -244,8 +244,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_resize_increments(&mut self, resize_increments: Option<(u32, u32)>) {
         if let Some((width_inc, height_inc)) = resize_increments {
             self.size_hints.flags |= ffi::PResizeInc;
-            self.size_hints.width_inc = to_c_int(width_inc);
-            self.size_hints.height_inc = to_c_int(height_inc);
+            self.size_hints.width_inc = Self::to_c_int(width_inc);
+            self.size_hints.height_inc = Self::to_c_int(height_inc);
         } else {
             self.size_hints.flags &= !ffi::PResizeInc;
         }
@@ -254,8 +254,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_base_size(&mut self, base_size: Option<(u32, u32)>) {
         if let Some((base_width, base_height)) = base_size {
             self.size_hints.flags |= ffi::PBaseSize;
-            self.size_hints.base_width = to_c_int(base_width);
-            self.size_hints.base_height = to_c_int(base_height);
+            self.size_hints.base_width = Self::to_c_int(base_width);
+            self.size_hints.base_height = Self::to_c_int(base_height);
         } else {
             self.size_hints.flags &= !ffi::PBaseSize;
         }
