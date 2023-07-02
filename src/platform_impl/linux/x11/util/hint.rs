@@ -203,8 +203,8 @@ impl<'a> NormalHints<'a> {
     pub fn set_position(&mut self, position: Option<(i32, i32)>) {
         if let Some((x, y)) = position {
             self.size_hints.flags |= ffi::PPosition;
-            self.size_hints.x = Self::to_c_int(x);
-            self.size_hints.y = Self::to_c_int(y);
+            self.size_hints.x = x as c_int;
+            self.size_hints.y = y as c_int;
         } else {
             self.size_hints.flags &= !ffi::PPosition;
         }
