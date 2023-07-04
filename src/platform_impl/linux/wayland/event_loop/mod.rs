@@ -16,13 +16,13 @@ use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
-use crate::error::RunLoopError;
+use crate::error::{OsError as RootOsError, RunLoopError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::platform::sticky_exit_callback;
-use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
+use crate::platform_impl::{EventLoopWindowTarget as PlatformEventLoopWindowTarget, OsError};
 
 mod proxy;
 pub mod sink;
@@ -153,7 +153,7 @@ impl<T: 'static> EventLoop<T> {
             return Err(RunLoopError::AlreadyRunning);
         }
 
-        loop {
+        let exit = loop {
             match self.pump_events_with_timeout(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
@@ -165,7 +165,15 @@ impl<T: 'static> EventLoop<T> {
                     continue;
                 }
             }
-        }
+        };
+
+        // Applications aren't allowed to carry windows between separate
+        // `run_ondemand` calls but if they have only just dropped their
+        // windows we need to make sure those last requests are sent to the
+        // compositor.
+        let _ = self.roundtrip().map_err(RunLoopError::Os);
+
+        exit
     }
 
     pub fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
@@ -572,6 +580,22 @@ impl<T: 'static> EventLoop<T> {
         self.event_loop.dispatch(timeout, state).map_err(|error| {
             error!("Error dispatching event loop: {}", error);
             error.into()
+        })
+    }
+
+    fn roundtrip(&mut self) -> Result<usize, RootOsError> {
+        let state = match &mut self.window_target.p {
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
+            #[cfg(feature = "x11")]
+            _ => unreachable!(),
+        };
+
+        let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+        let event_queue = wayland_source.queue();
+        event_queue.roundtrip(state).map_err(|_| {
+            os_error!(OsError::WaylandMisc(
+                "failed to do a final roundtrip before exiting the loop."
+            ))
         })
     }
 }
