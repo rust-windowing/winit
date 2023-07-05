@@ -426,7 +426,9 @@ impl<T: 'static> EventLoop<T> {
                                 phase,
                                 location,
                                 id: pointer.pointer_id() as u64,
-                                force: None,
+                                force: Some(crate::event::Force::Normalized(
+                                    pointer.pressure() as f64
+                                )),
                             }),
                         };
                         callback(event, self.window_target());
