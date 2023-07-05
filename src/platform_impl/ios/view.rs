@@ -201,7 +201,9 @@ impl WinitView {
                 let trait_collection = unsafe { self.traitCollection() };
                 let touch_capability = trait_collection.forceTouchCapability();
                 // Both the OS _and_ the device need to be checked for force touch support.
-                if touch_capability == UIForceTouchCapability::Available {
+                if touch_capability == UIForceTouchCapability::Available
+                    || touch_type == UITouchType::Pencil
+                {
                     let force = touch.force();
                     let max_possible_force = touch.maximumPossibleForce();
                     let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {

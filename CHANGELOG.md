@@ -61,6 +61,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `AboutToWait` event which is emitted when the event loop is about to block and wait for new events ([#2900](https://github.com/rust-windowing/winit/issues/2900))
 - **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
+- On iOS, add force data to touch events when using the Apple Pencil.
 
 # 0.29.0-beta.0
 
