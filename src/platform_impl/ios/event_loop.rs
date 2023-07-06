@@ -19,7 +19,7 @@ use objc2::rc::{Id, Shared};
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
-use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
+use super::uikit::{UIApplication, UIApplicationMain, UIScreen};
 use super::view::WinitUIWindow;
 use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
@@ -28,7 +28,6 @@ use crate::{
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
-    platform::ios::Idiom,
 };
 
 #[derive(Debug)]
@@ -140,15 +139,6 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
         &self.window_target
-    }
-}
-
-// EventLoopExtIOS
-impl<T: 'static> EventLoop<T> {
-    pub fn idiom(&self) -> Idiom {
-        UIDevice::current(MainThreadMarker::new().unwrap())
-            .userInterfaceIdiom()
-            .into()
     }
 }
 

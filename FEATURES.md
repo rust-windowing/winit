@@ -152,7 +152,6 @@ If your PR makes notable changes to Winit's features, please update this section
 * Home indicator visibility
 * Status bar visibility
 * Deferrring system gestures
-* Getting the device idiom
 * Getting the preferred video mode
 
 ### Web

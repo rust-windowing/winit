@@ -3,22 +3,9 @@ use std::os::raw::c_void;
 use objc2::rc::Id;
 
 use crate::{
-    event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
     window::{Window, WindowBuilder},
 };
-
-/// Additional methods on [`EventLoop`] that are specific to iOS.
-pub trait EventLoopExtIOS {
-    /// Returns the [`Idiom`] (phone/tablet/tv/etc) for the current device.
-    fn idiom(&self) -> Idiom;
-}
-
-impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
-    fn idiom(&self) -> Idiom {
-        self.event_loop.idiom()
-    }
-}
 
 /// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
@@ -263,24 +250,6 @@ pub enum ValidOrientations {
 
     /// Excludes `PortraitUpsideDown` on iphone
     Portrait,
-}
-
-/// The device [idiom].
-///
-/// [idiom]: https://developer.apple.com/documentation/uikit/uidevice/1620037-userinterfaceidiom?language=objc
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Idiom {
-    Unspecified,
-
-    /// iPhone and iPod touch.
-    Phone,
-
-    /// iPad.
-    Pad,
-
-    /// tvOS and Apple TV.
-    TV,
-    CarPlay,
 }
 
 bitflags! {

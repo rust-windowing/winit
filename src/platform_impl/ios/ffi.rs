@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use objc2::encode::{Encode, Encoding};
 use objc2::foundation::{NSInteger, NSUInteger};
 
-use crate::platform::ios::{Idiom, ScreenEdge};
+use crate::platform::ios::ScreenEdge;
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -34,36 +34,13 @@ unsafe impl Encode for UIUserInterfaceIdiom {
     const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
+#[allow(dead_code)]
 impl UIUserInterfaceIdiom {
     pub const Unspecified: UIUserInterfaceIdiom = UIUserInterfaceIdiom(-1);
     pub const Phone: UIUserInterfaceIdiom = UIUserInterfaceIdiom(0);
     pub const Pad: UIUserInterfaceIdiom = UIUserInterfaceIdiom(1);
     pub const TV: UIUserInterfaceIdiom = UIUserInterfaceIdiom(2);
     pub const CarPlay: UIUserInterfaceIdiom = UIUserInterfaceIdiom(3);
-}
-
-impl From<Idiom> for UIUserInterfaceIdiom {
-    fn from(idiom: Idiom) -> UIUserInterfaceIdiom {
-        match idiom {
-            Idiom::Unspecified => UIUserInterfaceIdiom::Unspecified,
-            Idiom::Phone => UIUserInterfaceIdiom::Phone,
-            Idiom::Pad => UIUserInterfaceIdiom::Pad,
-            Idiom::TV => UIUserInterfaceIdiom::TV,
-            Idiom::CarPlay => UIUserInterfaceIdiom::CarPlay,
-        }
-    }
-}
-impl From<UIUserInterfaceIdiom> for Idiom {
-    fn from(ui_idiom: UIUserInterfaceIdiom) -> Idiom {
-        match ui_idiom {
-            UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
-            UIUserInterfaceIdiom::Phone => Idiom::Phone,
-            UIUserInterfaceIdiom::Pad => Idiom::Pad,
-            UIUserInterfaceIdiom::TV => Idiom::TV,
-            UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[repr(transparent)]

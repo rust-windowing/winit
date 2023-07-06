@@ -8,6 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Remove `platform::ios::EventLoopExtIOS::idiom` method and related `platform::ios::Idiom` type.
+
+  The equivalent functionality can be trivially achieved outside of `winit` using `[[UIDevice currentDevice] userInterfaceIdiom]`.
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
 
 # 0.29.0-beta.0
