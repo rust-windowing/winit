@@ -15,14 +15,13 @@ use core_foundation::runloop::{
 use objc2::rc::Retained;
 use objc2::{msg_send_id, ClassType};
 use objc2_foundation::{MainThreadMarker, NSString};
-use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
+use objc2_ui_kit::{UIApplication, UIApplicationMain, UIScreen};
 
 use super::app_state::EventLoopHandler;
 use crate::application::ApplicationHandler;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
-use crate::platform::ios::Idiom;
 use crate::window::{CustomCursor, CustomCursorSource};
 
 use super::app_delegate::AppDelegate;
@@ -219,20 +218,6 @@ impl EventLoop {
 
     pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.window_target
-    }
-}
-
-// EventLoopExtIOS
-impl EventLoop {
-    pub fn idiom(&self) -> Idiom {
-        match UIDevice::currentDevice(self.mtm).userInterfaceIdiom() {
-            UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
-            UIUserInterfaceIdiom::Phone => Idiom::Phone,
-            UIUserInterfaceIdiom::Pad => Idiom::Pad,
-            UIUserInterfaceIdiom::TV => Idiom::TV,
-            UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
-            _ => Idiom::Unspecified,
-        }
     }
 }
 
