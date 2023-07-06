@@ -776,9 +776,7 @@ impl WinitWindow {
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
         let view = self.view();
-        let mut cursor_state = view.state.cursor_state.lock().unwrap();
-        cursor_state.cursor = NSCursor::from_icon(icon);
-        drop(cursor_state);
+        view.set_cursor_icon(NSCursor::from_icon(icon));
         self.invalidateCursorRectsForView(&view);
     }
 
@@ -800,10 +798,8 @@ impl WinitWindow {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         let view = self.view();
-        let mut cursor_state = view.state.cursor_state.lock().unwrap();
-        if visible != cursor_state.visible {
-            cursor_state.visible = visible;
-            drop(cursor_state);
+        let state_changed = view.set_cursor_visible(visible);
+        if state_changed {
             self.invalidateCursorRectsForView(&view);
         }
     }

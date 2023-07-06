@@ -6,7 +6,6 @@ use std::collections::{HashMap, VecDeque};
 use std::os::raw::*;
 use std::ptr::{self, NonNull};
 use std::str;
-use std::sync::Mutex;
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
@@ -41,9 +40,9 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct CursorState {
-    pub visible: bool,
-    pub(super) cursor: Id<NSCursor, Shared>,
+struct CursorState {
+    visible: bool,
+    cursor: Id<NSCursor, Shared>,
 }
 
 impl Default for CursorState {
@@ -89,7 +88,7 @@ impl ModLocationMask {
     }
 }
 
-pub fn key_to_modifier(key: &Key) -> ModifiersState {
+fn key_to_modifier(key: &Key) -> ModifiersState {
     match key {
         Key::Alt => ModifiersState::ALT,
         Key::Control => ModifiersState::CONTROL,
@@ -120,8 +119,8 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 }
 
 #[derive(Debug, Default)]
-pub(super) struct ViewState {
-    pub cursor_state: Mutex<CursorState>,
+struct ViewState {
+    cursor_state: RefCell<CursorState>,
     ime_position: Cell<LogicalPosition<f64>>,
     ime_size: Cell<LogicalSize<f64>>,
     modifiers: Cell<Modifiers>,
@@ -149,7 +148,7 @@ declare_class!(
     pub(super) struct WinitView {
         // Weak reference because the window keeps a strong reference to the view
         _ns_window: IvarDrop<Box<WeakId<WinitWindow>>>,
-        pub(super) state: IvarDrop<Box<ViewState>>,
+        state: IvarDrop<Box<ViewState>>,
     }
 
     unsafe impl ClassType for WinitView {
@@ -267,7 +266,7 @@ declare_class!(
         fn reset_cursor_rects(&self) {
             trace_scope!("resetCursorRects");
             let bounds = self.bounds();
-            let cursor_state = self.state.cursor_state.lock().unwrap();
+            let cursor_state = self.state.cursor_state.borrow();
             // We correctly invoke `addCursorRect` only from inside `resetCursorRects`
             if cursor_state.visible {
                 self.addCursorRect(bounds, &cursor_state.cursor);
@@ -850,6 +849,24 @@ impl WinitView {
             .unwrap_or_else(String::new)
     }
 
+    pub(super) fn set_cursor_icon(&self, icon: Id<NSCursor, Shared>) {
+        let mut cursor_state = self.state.cursor_state.borrow_mut();
+        cursor_state.cursor = icon;
+    }
+
+    /// Set whether the cursor should be visible or not.
+    ///
+    /// Returns whether the state changed.
+    pub(super) fn set_cursor_visible(&self, visible: bool) -> bool {
+        let mut cursor_state = self.state.cursor_state.borrow_mut();
+        if visible != cursor_state.visible {
+            cursor_state.visible = visible;
+            true
+        } else {
+            false
+        }
+    }
+
     pub(super) fn set_ime_allowed(&self, ime_allowed: bool) {
         if self.state.ime_allowed.get() == ime_allowed {
             return;
@@ -912,12 +929,8 @@ impl WinitView {
             event.location = code_to_location(keycode);
             let location_mask = ModLocationMask::from_location(event.location);
 
-            let mut phys_mod_state = self
-                .state
-                .phys_modifiers
-                .borrow_mut();
-            let phys_mod =
-                phys_mod_state
+            let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
+            let phys_mod = phys_mod_state
                 .entry(key)
                 .or_insert(ModLocationMask::empty());
 
