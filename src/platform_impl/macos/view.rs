@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::boxed::Box;
+use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::os::raw::*;
 use std::ptr::{self, NonNull};
@@ -127,7 +128,7 @@ pub(super) struct ViewState {
     tracking_rect: Option<NSTrackingRectTag>,
     // phys_modifiers: HashSet<KeyCode>,
     ime_state: ImeState,
-    input_source: String,
+    input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
     ///
@@ -137,6 +138,9 @@ pub(super) struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: bool,
+
+    marked_text: RefCell<Id<NSMutableAttributedString, Owned>>,
+    accepts_first_mouse: bool,
 }
 
 declare_class!(
@@ -146,8 +150,6 @@ declare_class!(
         // Weak reference because the window keeps a strong reference to the view
         _ns_window: IvarDrop<Box<WeakId<WinitWindow>>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
-        marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
-        accepts_first_mouse: bool,
     }
 
     unsafe impl ClassType for WinitView {
@@ -172,9 +174,11 @@ declare_class!(
                     phys_modifiers: Default::default(),
                     tracking_rect: None,
                     ime_state: ImeState::Disabled,
-                    input_source: String::new(),
+                    input_source: RefCell::new(String::new()),
                     ime_allowed: false,
                     forward_key_to_app: false,
+                    marked_text: RefCell::new(NSMutableAttributedString::new()),
+                    accepts_first_mouse,
                 };
 
                 Ivar::write(
@@ -182,8 +186,6 @@ declare_class!(
                     Box::new(WeakId::new(&window.retain())),
                 );
                 Ivar::write(&mut this.state, Box::new(state));
-                Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
-                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
 
                 this.setPostsFrameChangedNotifications(true);
 
@@ -203,7 +205,7 @@ declare_class!(
                     ];
                 }
 
-                this.state.input_source = this.current_input_source();
+                *this.state.input_source.borrow_mut() = this.current_input_source();
                 NonNull::from(this)
             })
         }
@@ -289,13 +291,13 @@ declare_class!(
         #[sel(hasMarkedText)]
         fn has_marked_text(&self) -> bool {
             trace_scope!("hasMarkedText");
-            self.marked_text.len_utf16() > 0
+            self.state.marked_text.borrow().len_utf16() > 0
         }
 
         #[sel(markedRange)]
         fn marked_range(&self) -> NSRange {
             trace_scope!("markedRange");
-            let length = self.marked_text.len_utf16();
+            let length = self.state.marked_text.borrow().len_utf16();
             if length > 0 {
                 NSRange::new(0, length)
             } else {
@@ -338,11 +340,11 @@ declare_class!(
             };
 
             // Update marked text.
-            *self.marked_text = marked_text;
+            *self.state.marked_text.borrow_mut() = marked_text;
 
             // Notify IME is active if application still doesn't know it.
             if self.state.ime_state == ImeState::Disabled {
-                self.state.input_source = self.current_input_source();
+                *self.state.input_source.borrow_mut() = self.current_input_source();
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
@@ -368,7 +370,7 @@ declare_class!(
         #[sel(unmarkText)]
         fn unmark_text(&mut self) {
             trace_scope!("unmarkText");
-            *self.marked_text = NSMutableAttributedString::new();
+            *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
             let input_context = self.inputContext().expect("input context");
             input_context.discardMarkedText();
@@ -471,11 +473,15 @@ declare_class!(
         #[sel(keyDown:)]
         fn key_down(&mut self, event: &NSEvent) {
             trace_scope!("keyDown:");
-            let input_source = self.current_input_source();
-            if self.state.input_source != input_source && self.is_ime_enabled() {
-                self.state.ime_state = ImeState::Disabled;
-                self.state.input_source = input_source;
-                self.queue_event(WindowEvent::Ime(Ime::Disabled));
+            {
+                let mut prev_input_source = self.state.input_source.borrow_mut();
+                let current_input_source = self.current_input_source();
+                if *prev_input_source != current_input_source && self.is_ime_enabled() {
+                    *prev_input_source = current_input_source;
+                    drop(prev_input_source);
+                    self.state.ime_state = ImeState::Disabled;
+                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
+                }
             }
 
             // Get the characters from the event.
@@ -496,7 +502,7 @@ declare_class!(
                 // If the text was commited we must treat the next keyboard event as IME related.
                 if self.state.ime_state == ImeState::Commited {
                     // Remove any marked text, so normal input can continue.
-                    *self.marked_text = NSMutableAttributedString::new();
+                    *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
                 }
             }
 
@@ -790,7 +796,7 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            *self.accepts_first_mouse
+            self.state.accepts_first_mouse
         }
     }
 );
@@ -861,7 +867,7 @@ impl WinitView {
         }
 
         // Clear markedText
-        *self.marked_text = NSMutableAttributedString::new();
+        *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
         if self.state.ime_state != ImeState::Disabled {
             self.state.ime_state = ImeState::Disabled;
