@@ -1192,8 +1192,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        // TODO(madsmtm): Remove the need for this
-        unsafe { Id::from_shared(self.view()) }.set_ime_allowed(allowed);
+        self.view().set_ime_allowed(allowed);
     }
 
     #[inline]

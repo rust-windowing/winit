@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::boxed::Box;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::os::raw::*;
 use std::ptr::{self, NonNull};
@@ -55,8 +55,9 @@ impl Default for CursorState {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
 enum ImeState {
+    #[default]
     /// The IME events are disabled, so only `ReceivedCharacter` is being sent to the user.
     Disabled,
 
@@ -118,26 +119,26 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct ViewState {
     pub cursor_state: Mutex<CursorState>,
     ime_position: LogicalPosition<f64>,
     ime_size: LogicalSize<f64>,
     pub(super) modifiers: Modifiers,
     phys_modifiers: HashMap<Key, ModLocationMask>,
-    tracking_rect: Option<NSTrackingRectTag>,
+    tracking_rect: Cell<Option<NSTrackingRectTag>>,
     // phys_modifiers: HashSet<KeyCode>,
-    ime_state: ImeState,
+    ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
-    ime_allowed: bool,
+    ime_allowed: Cell<bool>,
 
     /// True if the current key event should be forwarded
     /// to the application, even during IME
-    forward_key_to_app: bool,
+    forward_key_to_app: Cell<bool>,
 
     marked_text: RefCell<Id<NSMutableAttributedString, Owned>>,
     accepts_first_mouse: bool,
@@ -167,18 +168,8 @@ declare_class!(
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
-                    cursor_state: Default::default(),
-                    ime_position: LogicalPosition::new(0.0, 0.0),
-                    ime_size: Default::default(),
-                    modifiers: Default::default(),
-                    phys_modifiers: Default::default(),
-                    tracking_rect: None,
-                    ime_state: ImeState::Disabled,
-                    input_source: RefCell::new(String::new()),
-                    ime_allowed: false,
-                    forward_key_to_app: false,
-                    marked_text: RefCell::new(NSMutableAttributedString::new()),
                     accepts_first_mouse,
+                    ..Default::default()
                 };
 
                 Ivar::write(
@@ -213,7 +204,7 @@ declare_class!(
 
     unsafe impl WinitView {
         #[sel(viewDidMoveToWindow)]
-        fn view_did_move_to_window(&mut self) {
+        fn view_did_move_to_window(&self) {
             trace_scope!("viewDidMoveToWindow");
             if let Some(tracking_rect) = self.state.tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
@@ -221,11 +212,11 @@ declare_class!(
 
             let rect = self.visibleRect();
             let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
+            self.state.tracking_rect.set(Some(tracking_rect));
         }
 
         #[sel(frameDidChange:)]
-        fn frame_did_change(&mut self, _event: &NSEvent) {
+        fn frame_did_change(&self, _event: &NSEvent) {
             trace_scope!("frameDidChange:");
             if let Some(tracking_rect) = self.state.tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
@@ -233,7 +224,7 @@ declare_class!(
 
             let rect = self.visibleRect();
             let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
+            self.state.tracking_rect.set(Some(tracking_rect));
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
@@ -244,7 +235,7 @@ declare_class!(
         }
 
         #[sel(drawRect:)]
-        fn draw_rect(&mut self, rect: NSRect) {
+        fn draw_rect(&self, rect: NSRect) {
             trace_scope!("drawRect:");
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
@@ -313,7 +304,7 @@ declare_class!(
 
         #[sel(setMarkedText:selectedRange:replacementRange:)]
         fn set_marked_text(
-            &mut self,
+            &self,
             string: &NSObject,
             _selected_range: NSRange,
             _replacement_range: NSRange,
@@ -343,16 +334,16 @@ declare_class!(
             *self.state.marked_text.borrow_mut() = marked_text;
 
             // Notify IME is active if application still doesn't know it.
-            if self.state.ime_state == ImeState::Disabled {
+            if self.state.ime_state.get() == ImeState::Disabled {
                 *self.state.input_source.borrow_mut() = self.current_input_source();
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
             if self.hasMarkedText() {
-                self.state.ime_state = ImeState::Preedit;
+                self.state.ime_state.set(ImeState::Preedit);
             } else {
                 // In case the preedit was cleared, set IME into the Ground state.
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             }
 
             // Empty string basically means that there's no preedit, so indicate that by sending
@@ -368,7 +359,7 @@ declare_class!(
         }
 
         #[sel(unmarkText)]
-        fn unmark_text(&mut self) {
+        fn unmark_text(&self) {
             trace_scope!("unmarkText");
             *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
@@ -378,7 +369,7 @@ declare_class!(
             self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
                 // Leave the Preedit self.state
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             } else {
                 warn!("Expected to have IME enabled when receiving unmarkText");
             }
@@ -424,7 +415,7 @@ declare_class!(
         }
 
         #[sel(insertText:replacementRange:)]
-        fn insert_text(&mut self, string: &NSObject, _replacement_range: NSRange) {
+        fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
             trace_scope!("insertText:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
@@ -444,27 +435,27 @@ declare_class!(
             if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
-                self.state.ime_state = ImeState::Commited;
+                self.state.ime_state.set(ImeState::Commited);
             }
         }
 
         // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
         // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
         #[sel(doCommandBySelector:)]
-        fn do_command_by_selector(&mut self, _command: Sel) {
+        fn do_command_by_selector(&self, _command: Sel) {
             trace_scope!("doCommandBySelector:");
             // We shouldn't forward any character from just commited text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
-            if self.state.ime_state == ImeState::Commited {
+            if self.state.ime_state.get() == ImeState::Commited {
                 return;
             }
 
-            self.state.forward_key_to_app = true;
+            self.state.forward_key_to_app.set(true);
 
-            if self.hasMarkedText() && self.state.ime_state == ImeState::Preedit {
+            if self.hasMarkedText() && self.state.ime_state.get() == ImeState::Preedit {
                 // Leave preedit so that we also report the key-up for this key.
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             }
         }
     }
@@ -479,14 +470,14 @@ declare_class!(
                 if *prev_input_source != current_input_source && self.is_ime_enabled() {
                     *prev_input_source = current_input_source;
                     drop(prev_input_source);
-                    self.state.ime_state = ImeState::Disabled;
+                    self.state.ime_state.set(ImeState::Disabled);
                     self.queue_event(WindowEvent::Ime(Ime::Disabled));
                 }
             }
 
             // Get the characters from the event.
-            let old_ime_state = self.state.ime_state;
-            self.state.forward_key_to_app = false;
+            let old_ime_state = self.state.ime_state.get();
+            self.state.forward_key_to_app.set(false);
             let event = replace_event(event, self.window().option_as_alt());
 
             // The `interpretKeyEvents` function might call
@@ -495,12 +486,12 @@ declare_class!(
             // we must send the `KeyboardInput` event during IME if it triggered
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
-            if self.state.ime_allowed {
+            if self.state.ime_allowed.get() {
                 let events_for_nsview = NSArray::from_slice(&[event.copy()]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
                 // If the text was commited we must treat the next keyboard event as IME related.
-                if self.state.ime_state == ImeState::Commited {
+                if self.state.ime_state.get() == ImeState::Commited {
                     // Remove any marked text, so normal input can continue.
                     *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
                 }
@@ -508,18 +499,18 @@ declare_class!(
 
             self.update_modifiers(&event, false);
 
-            let had_ime_input = match self.state.ime_state {
+            let had_ime_input = match self.state.ime_state.get() {
                 ImeState::Commited => {
                     // Allow normal input after the commit.
-                    self.state.ime_state = ImeState::Ground;
+                    self.state.ime_state.set(ImeState::Ground);
                     true
                 }
                 ImeState::Preedit => true,
                 // `key_down` could result in preedit clear, so compare old and current state.
-                _ => old_ime_state != self.state.ime_state,
+                _ => old_ime_state != self.state.ime_state.get(),
             };
 
-            if !had_ime_input || self.state.forward_key_to_app {
+            if !had_ime_input || self.state.forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, event.is_a_repeat(), None);
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
@@ -537,7 +528,10 @@ declare_class!(
             self.update_modifiers(&event, false);
 
             // We want to send keyboard input when we are currently in the ground state.
-            if matches!(self.state.ime_state, ImeState::Ground | ImeState::Disabled) {
+            if matches!(
+                self.state.ime_state.get(),
+                ImeState::Ground | ImeState::Disabled
+            ) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
                     event: create_key_event(&event, false, false, None),
@@ -846,7 +840,7 @@ impl WinitView {
     }
 
     fn is_ime_enabled(&self) -> bool {
-        !matches!(self.state.ime_state, ImeState::Disabled)
+        !matches!(self.state.ime_state.get(), ImeState::Disabled)
     }
 
     fn current_input_source(&self) -> String {
@@ -857,20 +851,20 @@ impl WinitView {
             .unwrap_or_else(String::new)
     }
 
-    pub(super) fn set_ime_allowed(&mut self, ime_allowed: bool) {
-        if self.state.ime_allowed == ime_allowed {
+    pub(super) fn set_ime_allowed(&self, ime_allowed: bool) {
+        if self.state.ime_allowed.get() == ime_allowed {
             return;
         }
-        self.state.ime_allowed = ime_allowed;
-        if self.state.ime_allowed {
+        self.state.ime_allowed.set(ime_allowed);
+        if self.state.ime_allowed.get() {
             return;
         }
 
         // Clear markedText
         *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
-        if self.state.ime_state != ImeState::Disabled {
-            self.state.ime_state = ImeState::Disabled;
+        if self.state.ime_state.get() != ImeState::Disabled {
+            self.state.ime_state.set(ImeState::Disabled);
             self.queue_event(WindowEvent::Ime(Ime::Disabled));
         }
     }
