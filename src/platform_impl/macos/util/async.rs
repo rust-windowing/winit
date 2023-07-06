@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
-use objc2::rc::{autoreleasepool, Id};
+use objc2::rc::autoreleasepool;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
@@ -209,8 +209,7 @@ pub(crate) fn set_ime_cursor_area_sync(
 ) {
     let window = MainThreadSafe(window);
     run_on_main(move || {
-        // TODO(madsmtm): Remove the need for this
-        unsafe { Id::from_shared(window.view()) }.set_ime_cursor_area(logical_spot, size);
+        window.view().set_ime_cursor_area(logical_spot, size);
     });
 }
 

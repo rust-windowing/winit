@@ -122,12 +122,11 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 #[derive(Debug, Default)]
 pub(super) struct ViewState {
     pub cursor_state: Mutex<CursorState>,
-    ime_position: LogicalPosition<f64>,
-    ime_size: LogicalSize<f64>,
-    pub(super) modifiers: Modifiers,
-    phys_modifiers: HashMap<Key, ModLocationMask>,
+    ime_position: Cell<LogicalPosition<f64>>,
+    ime_size: Cell<LogicalSize<f64>>,
+    modifiers: Cell<Modifiers>,
+    phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
-    // phys_modifiers: HashSet<KeyCode>,
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
 
@@ -408,9 +407,9 @@ declare_class!(
             let content_rect = window.contentRectForFrameRect(window.frame());
             let base_x = content_rect.origin.x as f64;
             let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
-            let x = base_x + self.state.ime_position.x;
-            let y = base_y - self.state.ime_position.y;
-            let LogicalSize { width, height } = self.state.ime_size;
+            let x = base_x + self.state.ime_position.get().x;
+            let y = base_y - self.state.ime_position.get().y;
+            let LogicalSize { width, height } = self.state.ime_size.get();
             NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(width, height))
         }
 
@@ -462,7 +461,7 @@ declare_class!(
 
     unsafe impl WinitView {
         #[sel(keyDown:)]
-        fn key_down(&mut self, event: &NSEvent) {
+        fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
             {
                 let mut prev_input_source = self.state.input_source.borrow_mut();
@@ -521,7 +520,7 @@ declare_class!(
         }
 
         #[sel(keyUp:)]
-        fn key_up(&mut self, event: &NSEvent) {
+        fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
 
             let event = replace_event(event, self.window().option_as_alt());
@@ -541,7 +540,7 @@ declare_class!(
         }
 
         #[sel(flagsChanged:)]
-        fn flags_changed(&mut self, ns_event: &NSEvent) {
+        fn flags_changed(&self, ns_event: &NSEvent) {
             trace_scope!("flagsChanged:");
 
             self.update_modifiers(ns_event, true);
@@ -572,7 +571,7 @@ declare_class!(
         // Allows us to receive Cmd-. (the shortcut for closing a dialog)
         // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
         #[sel(cancelOperation:)]
-        fn cancel_operation(&mut self, _sender: *const Object) {
+        fn cancel_operation(&self, _sender: *const Object) {
             trace_scope!("cancelOperation:");
 
             let event = NSApp()
@@ -590,42 +589,42 @@ declare_class!(
         }
 
         #[sel(mouseDown:)]
-        fn mouse_down(&mut self, event: &NSEvent) {
+        fn mouse_down(&self, event: &NSEvent) {
             trace_scope!("mouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(mouseUp:)]
-        fn mouse_up(&mut self, event: &NSEvent) {
+        fn mouse_up(&self, event: &NSEvent) {
             trace_scope!("mouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(rightMouseDown:)]
-        fn right_mouse_down(&mut self, event: &NSEvent) {
+        fn right_mouse_down(&self, event: &NSEvent) {
             trace_scope!("rightMouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(rightMouseUp:)]
-        fn right_mouse_up(&mut self, event: &NSEvent) {
+        fn right_mouse_up(&self, event: &NSEvent) {
             trace_scope!("rightMouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(otherMouseDown:)]
-        fn other_mouse_down(&mut self, event: &NSEvent) {
+        fn other_mouse_down(&self, event: &NSEvent) {
             trace_scope!("otherMouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(otherMouseUp:)]
-        fn other_mouse_up(&mut self, event: &NSEvent) {
+        fn other_mouse_up(&self, event: &NSEvent) {
             trace_scope!("otherMouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
@@ -634,22 +633,22 @@ declare_class!(
         // No tracing on these because that would be overly verbose
 
         #[sel(mouseMoved:)]
-        fn mouse_moved(&mut self, event: &NSEvent) {
+        fn mouse_moved(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(mouseDragged:)]
-        fn mouse_dragged(&mut self, event: &NSEvent) {
+        fn mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(rightMouseDragged:)]
-        fn right_mouse_dragged(&mut self, event: &NSEvent) {
+        fn right_mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(otherMouseDragged:)]
-        fn other_mouse_dragged(&mut self, event: &NSEvent) {
+        fn other_mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
@@ -671,7 +670,7 @@ declare_class!(
         }
 
         #[sel(scrollWheel:)]
-        fn scroll_wheel(&mut self, event: &NSEvent) {
+        fn scroll_wheel(&self, event: &NSEvent) {
             trace_scope!("scrollWheel:");
 
             self.mouse_motion(event);
@@ -766,7 +765,7 @@ declare_class!(
         }
 
         #[sel(pressureChangeWithEvent:)]
-        fn pressure_change_with_event(&mut self, event: &NSEvent) {
+        fn pressure_change_with_event(&self, event: &NSEvent) {
             trace_scope!("pressureChangeWithEvent:");
 
             self.mouse_motion(event);
@@ -870,24 +869,31 @@ impl WinitView {
     }
 
     pub(super) fn set_ime_cursor_area(
-        &mut self,
+        &self,
         position: LogicalPosition<f64>,
         size: LogicalSize<f64>,
     ) {
-        self.state.ime_position = position;
-        self.state.ime_size = size;
+        self.state.ime_position.set(position);
+        self.state.ime_size.set(size);
         let input_context = self.inputContext().expect("input context");
         input_context.invalidateCharacterCoordinates();
     }
 
-    // Update `state.modifiers` if `event` has something different
-    fn update_modifiers(&mut self, ns_event: &NSEvent, is_flags_changed_event: bool) {
+    /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
+    pub(super) fn reset_modifiers(&self) {
+        if !self.state.modifiers.get().state().is_empty() {
+            self.state.modifiers.set(Modifiers::default());
+            self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers.get()));
+        }
+    }
+
+    /// Update modifiers if `event` has something different
+    fn update_modifiers(&self, ns_event: &NSEvent, is_flags_changed_event: bool) {
         use ElementState::{Pressed, Released};
 
         let current_modifiers = event_mods(ns_event);
-        let prev_modifiers = self.state.modifiers;
-
-        self.state.modifiers = current_modifiers;
+        let prev_modifiers = self.state.modifiers.get();
+        self.state.modifiers.set(current_modifiers);
 
         // This function was called form the flagsChanged event, which is triggered
         // when the user presses/releases a modifier even if the same kind of modifier
@@ -906,9 +912,12 @@ impl WinitView {
             event.location = code_to_location(keycode);
             let location_mask = ModLocationMask::from_location(event.location);
 
-            let phys_mod = self
+            let mut phys_mod_state = self
                 .state
                 .phys_modifiers
+                .borrow_mut();
+            let phys_mod =
+                phys_mod_state
                 .entry(key)
                 .or_insert(ModLocationMask::empty());
 
@@ -974,6 +983,8 @@ impl WinitView {
                 });
             }
 
+            drop(phys_mod_state);
+
             for event in events {
                 self.queue_event(event);
             }
@@ -983,10 +994,10 @@ impl WinitView {
             return;
         }
 
-        self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers));
+        self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers.get()));
     }
 
-    fn mouse_click(&mut self, event: &NSEvent, button_state: ElementState) {
+    fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         let button = mouse_button(event);
 
         self.update_modifiers(event, false);
@@ -998,7 +1009,7 @@ impl WinitView {
         });
     }
 
-    fn mouse_motion(&mut self, event: &NSEvent) {
+    fn mouse_motion(&self, event: &NSEvent) {
         let window_point = event.locationInWindow();
         let view_point = self.convertPoint_fromView(window_point, None);
         let view_rect = self.frame();

@@ -14,7 +14,6 @@ use super::appkit::{
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
-    keyboard::ModifiersState,
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
@@ -166,17 +165,7 @@ declare_class!(
             // NSWindowDelegate, and as a result a tracked modifiers state can quite
             // easily fall out of synchrony with reality.  This requires us to emit
             // a synthetic ModifiersChanged event when we lose focus.
-
-            // TODO(madsmtm): Remove the need for this unsafety
-            let mut view = unsafe { Id::from_shared(self.window.view()) };
-
-            // Both update the state and emit a ModifiersChanged event.
-            if !view.state.modifiers.state().is_empty() {
-                view.state.modifiers = ModifiersState::empty().into();
-                self.queue_event(WindowEvent::ModifiersChanged(
-                    ModifiersState::empty().into(),
-                ));
-            }
+            self.window.view().reset_modifiers();
 
             self.queue_event(WindowEvent::Focused(false));
         }
