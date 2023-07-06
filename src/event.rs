@@ -353,9 +353,27 @@ pub enum StartCause {
     Init,
 }
 
+/// Represents different attributes that can be associated with a [`Window`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WindowAttribute {
+    /// The window is in normal mode
+    Normal,
+    /// The window is in fullscreen mode
+    Fullscreen,
+    /// The window is minimized
+    Minimized,
+}
+
 /// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
+    /// An event which represents a change in the attribute of a [`Window`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Orbital, X11, Wayland:** Unsupported.
+    Attribute(WindowAttribute),
+
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -573,6 +591,7 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
+            Attribute(attr) => Attribute(*attr),
             Resized(size) => Resized(*size),
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
@@ -676,6 +695,7 @@ impl<'a> WindowEvent<'a> {
     pub fn to_static(self) -> Option<WindowEvent<'static>> {
         use self::WindowEvent::*;
         match self {
+            Attribute(attr) => Some(Attribute(attr)),
             Resized(size) => Some(Resized(size)),
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),

@@ -13,7 +13,7 @@ use super::appkit::{
 };
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{Event, WindowEvent},
+    event::{Event, WindowAttribute, WindowEvent},
     keyboard::ModifiersState,
     platform_impl::platform::{
         app_state::AppState,
@@ -305,6 +305,22 @@ declare_class!(
             options
         }
 
+        /// Invoked when miniaturize
+        #[sel(windowDidMiniaturize:)]
+        fn window_did_miniaturize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowDidMiniaturize:");
+
+            self.queue_event(WindowEvent::Attribute(WindowAttribute::Minimized))
+        }
+
+        /// Invoked when deminiaturize
+        #[sel(windowDidDeminiaturize:)]
+        fn window_did_deminiaturize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowDidDeminiaturize:");
+
+            self.queue_event(WindowEvent::Attribute(WindowAttribute::Normal))
+        }
+
         /// Invoked when entered fullscreen
         #[sel(windowDidEnterFullScreen:)]
         fn window_did_enter_fullscreen(&mut self, _: Option<&Object>) {
@@ -317,6 +333,8 @@ declare_class!(
             if let Some(target_fullscreen) = target_fullscreen {
                 self.window.set_fullscreen(target_fullscreen);
             }
+
+            self.queue_event(WindowEvent::Attribute(WindowAttribute::Fullscreen))
         }
 
         /// Invoked when exited fullscreen
@@ -332,6 +350,8 @@ declare_class!(
             if let Some(target_fullscreen) = target_fullscreen {
                 self.window.set_fullscreen(target_fullscreen);
             }
+
+            self.queue_event(WindowEvent::Attribute(WindowAttribute::Normal))
         }
 
         /// Invoked when fail to enter fullscreen

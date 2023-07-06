@@ -1239,28 +1239,41 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_SIZE => {
+            use crate::event::WindowAttribute::{self, Fullscreen, Minimized, Normal};
             use crate::event::WindowEvent::Resized;
+
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
-            let event = Event::WindowEvent {
+            let resized_event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Resized(physical_size),
+            };
+            let attribute_event = |attr: WindowAttribute| Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::Attribute(attr),
             };
 
             {
                 let mut w = userdata.window_state_lock();
+                let window_flags = w.window_flags();
                 // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
-                if !w
-                    .window_flags()
-                    .contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE)
-                {
+                if !window_flags.contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE) {
                     let maximized = wparam == SIZE_MAXIMIZED as usize;
                     w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
+
+                    if w.fullscreen.is_some() {
+                        userdata.send_event(attribute_event(Fullscreen));
+                    } else if window_flags.contains(WindowFlags::MINIMIZED) {
+                        userdata.send_event(attribute_event(Minimized));
+                    } else {
+                        userdata.send_event(attribute_event(Normal));
+                    } 
                 }
             }
-            userdata.send_event(event);
+
+            userdata.send_event(resized_event);
             result = ProcResult::Value(0);
         }
 
@@ -1383,7 +1396,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 let mut w = userdata.window_state_lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
-            // Send `WindowEvent::Minimized` here if we decide to implement one
 
             if wparam == SC_SCREENSAVE as usize {
                 let window_state = userdata.window_state_lock();
