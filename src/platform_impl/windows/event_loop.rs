@@ -78,7 +78,7 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, Ime, RawKeyEvent, Touch, TouchPhase, WindowEvent},
+    event::{self, DeviceEvent, Event, Force, Ime, RawKeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     keyboard::{KeyCode, ModifiersState},
     platform::scancode::KeyCodeExtScancode,
@@ -1240,29 +1240,39 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_SIZE => {
             use crate::event::WindowEvent::Configured;
+
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
+            let mut state = event::WindowState::default();
+
+            {
+                let mut w = userdata.window_state_lock();
+                let window_flags = w.window_flags();
+                // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
+                if !window_flags.contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE) {
+                    let maximized = wparam == SIZE_MAXIMIZED as usize;
+                    w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
+
+                    if w.fullscreen.is_some() {
+                        state = event::WindowState::FULLSCREEN;
+                    } else if window_flags.contains(WindowFlags::MINIMIZED) {
+                        state = event::WindowState::MINIMIZED;
+                    } else if window_flags.contains(WindowFlags::MAXIMIZED) {
+                        state = event::WindowState::MAXIMIZED;
+                    }
+                }
+            }
+
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Configured {
                     size: physical_size,
-                    state: todo!(),
+                    state,
                 },
             };
 
-            {
-                let mut w = userdata.window_state_lock();
-                // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
-                if !w
-                    .window_flags()
-                    .contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE)
-                {
-                    let maximized = wparam == SIZE_MAXIMIZED as usize;
-                    w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
-                }
-            }
             userdata.send_event(event);
             result = ProcResult::Value(0);
         }
@@ -1386,7 +1396,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 let mut w = userdata.window_state_lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
-            // Send `WindowEvent::Minimized` here if we decide to implement one
 
             if wparam == SC_SCREENSAVE as usize {
                 let window_state = userdata.window_state_lock();

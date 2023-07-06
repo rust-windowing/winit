@@ -13,7 +13,7 @@ use super::appkit::{
 };
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{Event, WindowEvent},
+    event::{Event, WindowEvent, WindowState},
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
@@ -303,6 +303,42 @@ declare_class!(
             options
         }
 
+        /// Invoked when miniaturize
+        #[sel(windowDidMiniaturize:)]
+        fn window_did_miniaturize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowDidMiniaturize:");
+
+            if let Some(screen) = self.window.screen() {
+                let rect = screen.frame();
+                let logical_size =
+                    LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+                let size = logical_size.to_physical::<u32>(self.window.scale_factor());
+
+                self.queue_event(WindowEvent::Configured {
+                    size,
+                    state: WindowState::MINIMIZED,
+                });
+            }
+        }
+
+        /// Invoked when deminiaturize
+        #[sel(windowDidDeminiaturize:)]
+        fn window_did_deminiaturize(&mut self, _: Option<&Object>) {
+            trace_scope!("windowDidDeminiaturize:");
+
+            if let Some(screen) = self.window.screen() {
+                let rect = screen.frame();
+                let logical_size =
+                    LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+                let size = logical_size.to_physical::<u32>(self.window.scale_factor());
+
+                self.queue_event(WindowEvent::Configured {
+                    size,
+                    state: Default::default(),
+                });
+            }
+        }
+
         /// Invoked when entered fullscreen
         #[sel(windowDidEnterFullScreen:)]
         fn window_did_enter_fullscreen(&self, _: Option<&Object>) {
@@ -314,6 +350,18 @@ declare_class!(
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
                 self.window.set_fullscreen(target_fullscreen);
+            }
+
+            if let Some(screen) = self.window.screen() {
+                let rect = screen.frame();
+                let logical_size =
+                    LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+                let size = logical_size.to_physical::<u32>(self.window.scale_factor());
+
+                self.queue_event(WindowEvent::Configured {
+                    size,
+                    state: WindowState::FULLSCREEN,
+                });
             }
         }
 
@@ -329,6 +377,18 @@ declare_class!(
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
                 self.window.set_fullscreen(target_fullscreen);
+            }
+
+            if let Some(screen) = self.window.screen() {
+                let rect = screen.frame();
+                let logical_size =
+                    LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+                let size = logical_size.to_physical::<u32>(self.window.scale_factor());
+
+                self.queue_event(WindowEvent::Configured {
+                    size,
+                    state: Default::default(),
+                });
             }
         }
 
