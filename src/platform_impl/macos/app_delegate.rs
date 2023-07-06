@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 use objc2::foundation::NSObject;
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
@@ -21,18 +23,18 @@ declare_class!(
 
     unsafe impl ApplicationDelegate {
         #[sel(initWithActivationPolicy:defaultMenu:activateIgnoringOtherApps:)]
-        fn init(
+        unsafe fn init(
             &mut self,
             activation_policy: NSApplicationActivationPolicy,
             default_menu: bool,
             activate_ignoring_other_apps: bool,
-        ) -> Option<&mut Self> {
+        ) -> Option<NonNull<Self>> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 *this.activation_policy = activation_policy;
                 *this.default_menu = default_menu;
                 *this.activate_ignoring_other_apps = activate_ignoring_other_apps;
-                this
+                NonNull::from(this)
             })
         }
 

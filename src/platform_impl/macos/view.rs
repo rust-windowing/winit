@@ -1,12 +1,11 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{
-    boxed::Box,
-    collections::{HashMap, VecDeque},
-    os::raw::*,
-    ptr, str,
-    sync::Mutex,
-};
+use std::boxed::Box;
+use std::collections::{HashMap, VecDeque};
+use std::os::raw::*;
+use std::ptr::{self, NonNull};
+use std::str;
+use std::sync::Mutex;
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
@@ -158,11 +157,11 @@ declare_class!(
 
     unsafe impl WinitView {
         #[sel(initWithId:acceptsFirstMouse:)]
-        fn init_with_id(
+        unsafe fn init_with_id(
             &mut self,
             window: &WinitWindow,
             accepts_first_mouse: bool,
-        ) -> Option<&mut Self> {
+        ) -> Option<NonNull<Self>> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
@@ -205,7 +204,7 @@ declare_class!(
                 }
 
                 this.state.input_source = this.current_input_source();
-                this
+                NonNull::from(this)
             })
         }
     }

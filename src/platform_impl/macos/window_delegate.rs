@@ -1,6 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{NSArray, NSObject, NSSize, NSString};
@@ -51,12 +51,12 @@ declare_class!(
 
     unsafe impl WinitWindowDelegate {
         #[sel(initWithWindow:initialFullscreen:)]
-        fn init_with_winit(
+        unsafe fn init_with_winit(
             &mut self,
             window: &WinitWindow,
             initial_fullscreen: bool,
-        ) -> Option<&mut Self> {
-            let this: Option<&mut Self> = unsafe { msg_send![self, init] };
+        ) -> Option<NonNull<Self>> {
+            let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let scale_factor = window.scale_factor();
 
@@ -85,7 +85,7 @@ declare_class!(
                     ]
                 };
 
-                this
+                NonNull::from(this)
             })
         }
     }
