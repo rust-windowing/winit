@@ -1,14 +1,11 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{
-    collections::VecDeque,
-    f64, ops,
-    os::raw::c_void,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex, MutexGuard,
-    },
-};
+use std::collections::VecDeque;
+use std::f64;
+use std::ops;
+use std::os::raw::c_void;
+use std::ptr::NonNull;
+use std::sync::{Mutex, MutexGuard};
 
 use raw_window_handle::{
     AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -43,7 +40,7 @@ use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
     NSString,
 };
-use objc2::rc::{autoreleasepool, Id, Owned, Shared};
+use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
@@ -110,14 +107,46 @@ declare_class!(
     #[derive(Debug)]
     pub(crate) struct WinitWindow {
         // TODO: Fix unnecessary boxing here
-        // SAFETY: These are initialized in WinitWindow::new, right after it is created.
         shared_state: IvarDrop<Box<Mutex<SharedState>>>,
-        decorations: IvarDrop<Box<AtomicBool>>,
     }
 
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
         type Super = NSWindow;
+    }
+
+    unsafe impl WinitWindow {
+        #[sel(initWithContentRect:styleMask:state:)]
+        unsafe fn init(
+            &mut self,
+            frame: NSRect,
+            mask: NSWindowStyleMask,
+            state: *mut c_void,
+        ) -> Option<NonNull<Self>> {
+            let this: Option<&mut Self> = unsafe {
+                msg_send![
+                    super(self),
+                    initWithContentRect: frame,
+                    styleMask: mask,
+                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    defer: false,
+                ]
+            };
+
+            this.map(|this| {
+                // SAFETY: The pointer originally came from `Box::into_raw`.
+                Ivar::write(&mut this.shared_state, unsafe {
+                    Box::from_raw(state as *mut Mutex<SharedState>)
+                });
+
+                // It is imperative to correct memory management that we
+                // disable the extra release that would otherwise happen when
+                // calling `clone` on the window.
+                this.setReleasedWhenClosed(false);
+
+                NonNull::from(this)
+            })
+        }
     }
 
     unsafe impl WinitWindow {
@@ -164,6 +193,8 @@ pub struct SharedState {
     pub(crate) resize_increments: NSSize,
     /// The state of the `Option` as `Alt`.
     pub(crate) option_as_alt: OptionAsAlt,
+
+    decorations: bool,
 }
 
 impl SharedState {
@@ -292,91 +323,83 @@ impl WinitWindow {
                 masks |= NSWindowStyleMask::NSFullSizeContentViewWindowMask;
             }
 
-            let this: Option<Id<Self, Owned>> = unsafe {
+            let state = SharedState {
+                resizable: attrs.resizable,
+                maximized: attrs.maximized,
+                decorations: attrs.decorations,
+                ..Default::default()
+            };
+
+            // Pass the state through FFI to the method declared on the class
+            let state_ptr: *mut c_void = Box::into_raw(Box::new(Mutex::new(state))).cast();
+            let this: Option<Id<Self, Shared>> = unsafe {
                 msg_send_id![
                     msg_send_id![WinitWindow::class(), alloc],
                     initWithContentRect: frame,
                     styleMask: masks,
-                    backing: NSBackingStoreType::NSBackingStoreBuffered,
-                    defer: false,
+                    state: state_ptr,
                 ]
             };
+            let this = this?;
 
-            this.map(|mut this| {
-                let resize_increments = match attrs
-                    .resize_increments
-                    .map(|i| i.to_logical::<f64>(this.scale_factor()))
-                {
-                    Some(LogicalSize { width, height }) if width >= 1. && height >= 1. => {
-                        NSSize::new(width, height)
-                    }
-                    _ => NSSize::new(1., 1.),
-                };
-
-                // Properly initialize the window's variables
-                //
-                // Ideally this should be done in an `init` method,
-                // but for convenience we do it here instead.
-                let state = SharedState {
-                    resizable: attrs.resizable,
-                    maximized: attrs.maximized,
-                    resize_increments,
-                    ..Default::default()
-                };
-                Ivar::write(&mut this.shared_state, Box::new(Mutex::new(state)));
-                Ivar::write(
-                    &mut this.decorations,
-                    Box::new(AtomicBool::new(attrs.decorations)),
-                );
-
-                this.setReleasedWhenClosed(false);
-                this.setTitle(&NSString::from_str(&attrs.title));
-                this.setAcceptsMouseMovedEvents(true);
-
-                if attrs.content_protected {
-                    this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+            let resize_increments = match attrs
+                .resize_increments
+                .map(|i| i.to_logical::<f64>(this.scale_factor()))
+            {
+                Some(LogicalSize { width, height }) if width >= 1. && height >= 1. => {
+                    NSSize::new(width, height)
                 }
+                _ => NSSize::new(1., 1.),
+            };
 
-                if pl_attrs.titlebar_transparent {
-                    this.setTitlebarAppearsTransparent(true);
-                }
-                if pl_attrs.title_hidden {
-                    this.setTitleVisibility(NSWindowTitleVisibility::Hidden);
-                }
-                if pl_attrs.titlebar_buttons_hidden {
-                    for titlebar_button in &[
-                        #[allow(deprecated)]
-                        NSWindowButton::FullScreen,
-                        NSWindowButton::Miniaturize,
-                        NSWindowButton::Close,
-                        NSWindowButton::Zoom,
-                    ] {
-                        if let Some(button) = this.standardWindowButton(*titlebar_button) {
-                            button.setHidden(true);
-                        }
+            this.lock_shared_state("init").resize_increments = resize_increments;
+
+            this.setTitle(&NSString::from_str(&attrs.title));
+            this.setAcceptsMouseMovedEvents(true);
+
+            if attrs.content_protected {
+                this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
+            }
+
+            if pl_attrs.titlebar_transparent {
+                this.setTitlebarAppearsTransparent(true);
+            }
+            if pl_attrs.title_hidden {
+                this.setTitleVisibility(NSWindowTitleVisibility::Hidden);
+            }
+            if pl_attrs.titlebar_buttons_hidden {
+                for titlebar_button in &[
+                    #[allow(deprecated)]
+                    NSWindowButton::FullScreen,
+                    NSWindowButton::Miniaturize,
+                    NSWindowButton::Close,
+                    NSWindowButton::Zoom,
+                ] {
+                    if let Some(button) = this.standardWindowButton(*titlebar_button) {
+                        button.setHidden(true);
                     }
                 }
-                if pl_attrs.movable_by_window_background {
-                    this.setMovableByWindowBackground(true);
-                }
+            }
+            if pl_attrs.movable_by_window_background {
+                this.setMovableByWindowBackground(true);
+            }
 
-                if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
-                    if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
-                        button.setEnabled(false);
-                    }
+            if !attrs.enabled_buttons.contains(WindowButtons::MAXIMIZE) {
+                if let Some(button) = this.standardWindowButton(NSWindowButton::Zoom) {
+                    button.setEnabled(false);
                 }
+            }
 
-                if !pl_attrs.has_shadow {
-                    this.setHasShadow(false);
-                }
-                if attrs.position.is_none() {
-                    this.center();
-                }
+            if !pl_attrs.has_shadow {
+                this.setHasShadow(false);
+            }
+            if attrs.position.is_none() {
+                this.center();
+            }
 
-                this.set_option_as_alt(pl_attrs.option_as_alt);
+            this.set_option_as_alt(pl_attrs.option_as_alt);
 
-                Id::into_shared(this)
-            })
+            Some(this)
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
@@ -1097,45 +1120,44 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        if decorations != self.decorations.load(Ordering::Acquire) {
-            self.decorations.store(decorations, Ordering::Release);
-
-            let (fullscreen, resizable) = {
-                let shared_state_lock = self.lock_shared_state("set_decorations");
-                (
-                    shared_state_lock.fullscreen.is_some(),
-                    shared_state_lock.resizable,
-                )
-            };
-
-            // If we're in fullscreen mode, we wait to apply decoration changes
-            // until we're in `window_did_exit_fullscreen`.
-            if fullscreen {
-                return;
-            }
-
-            let new_mask = {
-                let mut new_mask = if decorations {
-                    NSWindowStyleMask::NSClosableWindowMask
-                        | NSWindowStyleMask::NSMiniaturizableWindowMask
-                        | NSWindowStyleMask::NSResizableWindowMask
-                        | NSWindowStyleMask::NSTitledWindowMask
-                } else {
-                    NSWindowStyleMask::NSBorderlessWindowMask
-                        | NSWindowStyleMask::NSResizableWindowMask
-                };
-                if !resizable {
-                    new_mask &= !NSWindowStyleMask::NSResizableWindowMask;
-                }
-                new_mask
-            };
-            self.set_style_mask_sync(new_mask);
+        let mut shared_state_lock = self.lock_shared_state("set_decorations");
+        if decorations == shared_state_lock.decorations {
+            return;
         }
+
+        shared_state_lock.decorations = decorations;
+
+        let fullscreen = shared_state_lock.fullscreen.is_some();
+        let resizable = shared_state_lock.resizable;
+
+        drop(shared_state_lock);
+
+        // If we're in fullscreen mode, we wait to apply decoration changes
+        // until we're in `window_did_exit_fullscreen`.
+        if fullscreen {
+            return;
+        }
+
+        let new_mask = {
+            let mut new_mask = if decorations {
+                NSWindowStyleMask::NSClosableWindowMask
+                    | NSWindowStyleMask::NSMiniaturizableWindowMask
+                    | NSWindowStyleMask::NSResizableWindowMask
+                    | NSWindowStyleMask::NSTitledWindowMask
+            } else {
+                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask
+            };
+            if !resizable {
+                new_mask &= !NSWindowStyleMask::NSResizableWindowMask;
+            }
+            new_mask
+        };
+        self.set_style_mask_sync(new_mask);
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        self.decorations.load(Ordering::Acquire)
+        self.lock_shared_state("is_decorated").decorations
     }
 
     #[inline]
@@ -1385,12 +1407,12 @@ impl WindowExtMacOS for WinitWindow {
     }
 
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let mut shared_state_lock = self.lock_shared_state("set_option_as_alt");
         shared_state_lock.option_as_alt = option_as_alt;
     }
 
     fn option_as_alt(&self) -> OptionAsAlt {
-        let shared_state_lock = self.shared_state.lock().unwrap();
+        let shared_state_lock = self.lock_shared_state("option_as_alt");
         shared_state_lock.option_as_alt
     }
 }
