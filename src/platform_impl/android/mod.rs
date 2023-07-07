@@ -489,7 +489,10 @@ impl<T: 'static> EventLoop<T> {
                 };
                 let event = event::Event::WindowEvent {
                     window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::Resized(size),
+                    event: event::WindowEvent::Configured {
+                        size,
+                        state: Default::default(),
+                    },
                 };
                 sticky_exit_callback(event, self.window_target(), control_flow, callback);
             }

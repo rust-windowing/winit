@@ -11,6 +11,8 @@ use super::uikit::{
     UIWindow,
 };
 use super::window::WindowId;
+use super::MonitorHandle;
+use crate::event::WindowState;
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
@@ -76,9 +78,11 @@ declare_class!(
             }
 
             unsafe {
+                let mut state = WindowState::empty();
+                state.set(WindowState::FULLSCREEN, window.fullscreen().is_some());
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
-                    event: WindowEvent::Resized(size),
+                    event: WindowEvent::Configured { size, state },
                 }));
             }
         }
@@ -116,6 +120,8 @@ declare_class!(
                 height: screen_frame.size.height as _,
             };
             let window_id = RootWindowId(window.id());
+            let mut state = WindowState::empty();
+            state.set(WindowState::FULLSCREEN, window.fullscreen().is_some());
             unsafe {
                 app_state::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
@@ -126,7 +132,10 @@ declare_class!(
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                            event: WindowEvent::Configured {
+                                size: size.to_physical(scale_factor),
+                                state,
+                            },
                         },
                     ))),
                 );
@@ -470,6 +479,25 @@ impl WinitUIWindow {
         }
 
         this
+    }
+
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        let uiscreen = self.screen();
+        let screen_bounds = uiscreen.bounds();
+
+        // TODO: track fullscreen instead of relying on brittle float comparisons
+        let screen_space = uiscreen.coordinateSpace();
+        let screen_space_bounds = self.convertRect_toCoordinateSpace(self.bounds(), &screen_space);
+
+        if screen_space_bounds.origin.x == screen_bounds.origin.x
+            && screen_space_bounds.origin.y == screen_bounds.origin.y
+            && screen_space_bounds.size.width == screen_bounds.size.width
+            && screen_space_bounds.size.height == screen_bounds.size.height
+        {
+            Some(Fullscreen::Borderless(Some(MonitorHandle::new(uiscreen))))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn id(&self) -> WindowId {

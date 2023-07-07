@@ -1239,14 +1239,17 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_SIZE => {
-            use crate::event::WindowEvent::Resized;
+            use crate::event::WindowEvent::Configured;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Resized(physical_size),
+                event: Configured {
+                    size: physical_size,
+                    state: todo!(),
+                },
             };
 
             {

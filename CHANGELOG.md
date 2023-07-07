@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- **Breaking:** Rename `WindowEvent::Resized` to `WindowEvent::Configured` and expose active window states.
 
 # 0.29.0-beta.0
 

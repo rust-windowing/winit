@@ -50,10 +50,10 @@ This example demonstrates the desired future functionality which will possibly b
 
             match event {
                 Event::WindowEvent {
-                    event: WindowEvent::Resized(resize),
+                    event: WindowEvent::Configured { size, .. },
                     window_id,
                 } if window_id == window.id() => {
-                    render_circle(&canvas, resize);
+                    render_circle(&canvas, size);
                 }
                 _ => (),
             }

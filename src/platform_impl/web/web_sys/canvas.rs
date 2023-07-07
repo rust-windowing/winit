@@ -393,7 +393,7 @@ impl Canvas {
 
         if current_size != new_size {
             // Then we resize the canvas to the new size, a new
-            // `Resized` event will be sent by the `ResizeObserver`:
+            // `Configured` event will be sent by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
             super::set_canvas_size(self.window(), self.raw(), new_size);
 
@@ -407,7 +407,10 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
-                event: crate::event::WindowEvent::Resized(new_size),
+                event: crate::event::WindowEvent::Configured {
+                    size: new_size,
+                    state: todo!(),
+                },
             })
         }
     }
