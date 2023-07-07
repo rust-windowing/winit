@@ -16,13 +16,16 @@ use sctk::output::{OutputHandler, OutputState};
 use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::pointer::ThemedPointer;
 use sctk::seat::SeatState;
-use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
+use sctk::shell::xdg::window::{
+    Window, WindowConfigure, WindowHandler, WindowState as XdgWindowState,
+};
 use sctk::shell::xdg::XdgShell;
 use sctk::shell::WaylandSurface;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
 use crate::dpi::LogicalSize;
+use crate::event::WindowState as WinitWindowState;
 
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
@@ -266,7 +269,7 @@ impl WindowHandler for WinitState {
         // Populate the configure to the window.
         //
         // XXX the size on the window will be updated right before dispatching the size to the user.
-        let new_size = self
+        let configure = self
             .windows
             .get_mut()
             .get_mut(&window_id)
@@ -275,7 +278,7 @@ impl WindowHandler for WinitState {
             .unwrap()
             .configure(configure, &self.shm, &self.subcompositor_state);
 
-        self.window_compositor_updates[pos].size = Some(new_size);
+        self.window_compositor_updates[pos].configure = Some(configure);
     }
 }
 
@@ -339,7 +342,7 @@ pub struct WindowCompositorUpdate {
     pub window_id: WindowId,
 
     /// New window size.
-    pub size: Option<LogicalSize<u32>>,
+    pub configure: Option<WinitWindowConfigure>,
 
     /// New scale factor.
     pub scale_factor: Option<f64>,
@@ -352,10 +355,30 @@ impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
         Self {
             window_id,
-            size: None,
+            configure: None,
             scale_factor: None,
             close_window: false,
         }
+    }
+}
+
+/// The configure delivered by winit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WinitWindowConfigure {
+    /// New window size.
+    pub size: LogicalSize<u32>,
+
+    /// New state of the window.
+    pub state: WinitWindowState,
+}
+
+impl From<XdgWindowState> for WinitWindowState {
+    fn from(value: XdgWindowState) -> Self {
+        let mut state = Self::empty();
+        state.set(Self::MAXIMIZED, value.contains(XdgWindowState::MAXIMIZED));
+        state.set(Self::FULLSCREEN, value.contains(XdgWindowState::FULLSCREEN));
+        // Minimize is not supported.
+        state
     }
 }
 

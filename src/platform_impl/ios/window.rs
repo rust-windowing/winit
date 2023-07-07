@@ -17,7 +17,7 @@ use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::{Event, WindowEvent},
+    event::{Event, WindowEvent, WindowState},
     icon::Icon,
     platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
@@ -261,23 +261,7 @@ impl Inner {
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        unsafe {
-            let monitor = self.current_monitor_inner();
-            let uiscreen = monitor.ui_screen();
-            let screen_space_bounds = self.screen_frame();
-            let screen_bounds = uiscreen.bounds();
-
-            // TODO: track fullscreen instead of relying on brittle float comparisons
-            if screen_space_bounds.origin.x == screen_bounds.origin.x
-                && screen_space_bounds.origin.y == screen_bounds.origin.y
-                && screen_space_bounds.size.width == screen_bounds.size.width
-                && screen_space_bounds.size.height == screen_bounds.size.height
-            {
-                Some(Fullscreen::Borderless(Some(monitor)))
-            } else {
-                None
-            }
-        }
+        self.window.fullscreen()
     }
 
     pub fn set_decorations(&self, _decorations: bool) {}
@@ -465,7 +449,7 @@ impl Window {
 
         unsafe { app_state::set_key_window(&window) };
 
-        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
+        // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Configured`
         // event on window creation if the DPI factor != 1.0
         let scale_factor = view.contentScaleFactor();
         let scale_factor = scale_factor as f64;
@@ -479,6 +463,8 @@ impl Window {
                 height: screen_frame.size.height as _,
             };
             let window_id = RootWindowId(window.id());
+            let mut state = WindowState::empty();
+            state.set(WindowState::FULLSCREEN, fullscreen.is_some());
             unsafe {
                 app_state::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
@@ -489,7 +475,10 @@ impl Window {
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                            event: WindowEvent::Configured {
+                                size: size.to_physical(scale_factor),
+                                state,
+                            },
                         },
                     ))),
                 );
