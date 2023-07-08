@@ -46,6 +46,7 @@ use crate::{
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
+use crate::event::TextInputState;
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -544,6 +545,15 @@ impl Window {
     pub fn set_ime_purpose(&self, purpose: ImePurpose) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_purpose(purpose))
     }
+
+    #[inline]
+    pub fn set_text_input_state(&self, state: TextInputState) {}
+
+    #[inline]
+    pub fn begin_ime_input(&self) {}
+
+    #[inline]
+    pub fn end_ime_input(&self) {}
 
     #[inline]
     pub fn focus_window(&self) {

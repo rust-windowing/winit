@@ -5,6 +5,7 @@ use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
+use crate::event::TextInputState;
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 use web_sys::{Document, HtmlCanvasElement};
@@ -365,6 +366,19 @@ impl Window {
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
         // Currently not implemented
     }
+
+    #[inline]
+    pub fn begin_ime_input(&self) {
+        // Currently not implemented
+    }
+
+    #[inline]
+    pub fn end_ime_input(&self) {
+        // Currently not implemented
+    }
+
+    #[inline]
+    pub fn set_text_input_state(&self, state: TextInputState) {}
 
     #[inline]
     pub fn focus_window(&self) {

@@ -42,6 +42,7 @@ use icrate::Foundation::{
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
+use crate::event::TextInputState;
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
@@ -1198,6 +1199,15 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    #[inline]
+    pub fn begin_ime_input(&self) {}
+
+    #[inline]
+    pub fn end_ime_input(&self) {}
+
+    #[inline]
+    pub fn set_text_input_state(&self, state: TextInputState) {}
 
     #[inline]
     pub fn focus_window(&self) {
