@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- Added support for a new `WindowEvent::WindowAttribute` which tells if the window is in fullscreen, minimize or normal mode.
 
 # 0.29.0-beta.0
 
