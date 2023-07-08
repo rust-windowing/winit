@@ -292,13 +292,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
-        // TODO should we issue the resize event? I don't think other platforms do so.
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let mut window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
         window_state.resize(size.to_logical::<u32>(scale_factor));
 
         self.request_redraw();
+
+        Some(window_state.inner_size().to_physical(scale_factor))
     }
 
     /// Set the minimum inner size for the window.

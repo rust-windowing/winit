@@ -802,8 +802,8 @@ impl Window {
         self.outer_size()
     }
 
-    pub fn set_inner_size(&self, _size: Size) {
-        warn!("Cannot set window size on Android");
+    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.inner_size())
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {

@@ -209,11 +209,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         self.window_socket
             .write(format!("S,{w},{h}").as_bytes())
             .expect("failed to set size");
+        None
     }
 
     #[inline]

@@ -608,9 +608,10 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         util::set_content_size_sync(self, size.to_logical(scale_factor));
+        None
     }
 
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
