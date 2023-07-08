@@ -886,19 +886,21 @@ pub enum Ime {
     /// Notifies when text should be inserted into the editor widget.
     ///
     /// Right before this event winit will send empty [`Self::Preedit`] event.
-    Commit(String),
-
-    /// Notifies when the complete text should be replaced.
-    /// This event should be used in combination with
-    /// [`Window::set_ime_surrounding_text`] to set the initial text of the
-    /// currently selected input field.
-    ///
-    /// ## Platform-specific
-    /// This will only be fired on **Android**.
-    Replace {
-        text: String,
-        selection: (usize, usize),
+    Commit {
+        content: String,
+        /// If selection is Some, the selection / cursor position should be updated after
+        /// placing the `content`.
+        selection: Option<(usize, usize)>,
+        /// If compose_region is Some, the compose region should be updated after replacing the
+        /// text.
         compose_region: Option<(usize, usize)>,
+    },
+
+    /// Notifies when the text around the cursor should be deleted.
+    /// If `before_length` and `after_length` are [usize::MAX], the entire text should be deleted.
+    DeleteSurroundingText {
+        before_length: usize,
+        after_length: usize,
     },
 
     /// Notifies when the IME was disabled.

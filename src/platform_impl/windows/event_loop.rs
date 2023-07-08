@@ -1323,7 +1323,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         });
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
+                            event: WindowEvent::Ime(Ime::Commit {
+                                content: text,
+                                selection: None,
+                                compose_region: None,
+                            }),
                         });
                     }
                 }
@@ -1363,7 +1367,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         });
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
-                            event: WindowEvent::Ime(Ime::Commit(text)),
+                            event: WindowEvent::Ime(Ime::Commit {
+                                content: text,
+                                selection: None,
+                                compose_region: None,
+                            }),
                         });
                     }
                 }

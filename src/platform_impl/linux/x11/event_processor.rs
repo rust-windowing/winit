@@ -653,7 +653,11 @@ impl<T: 'static> EventProcessor<T> {
 
                         let event = Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::Ime(Ime::Commit(written)),
+                            event: WindowEvent::Ime(Ime::Commit {
+                                content: written,
+                                selection: None,
+                                compose_region: None,
+                            }),
                         };
 
                         self.is_composing = false;

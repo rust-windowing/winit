@@ -143,9 +143,14 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
 
                 // Send `Commit`.
                 if let Some(text) = text_input_data.pending_commit.take() {
-                    state
-                        .events_sink
-                        .push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
+                    state.events_sink.push_window_event(
+                        WindowEvent::Ime(Ime::Commit {
+                            content: text,
+                            selection: None,
+                            compose_region: None,
+                        }),
+                        window_id,
+                    );
                 }
 
                 // Send preedit.

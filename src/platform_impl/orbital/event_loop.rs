@@ -354,7 +354,11 @@ impl<T: 'static> EventLoop<T> {
                 });
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Ime(Ime::Commit(character.into())),
+                    event: event::WindowEvent::Ime(Ime::Commit {
+                        content: character.into(),
+                        selection: None,
+                        compose_region: None,
+                    }),
                 });
             }
             EventOption::Mouse(MouseEvent { x, y }) => {

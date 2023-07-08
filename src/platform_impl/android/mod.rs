@@ -470,22 +470,33 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 InputEvent::TextEvent(ime_state) => {
-                    let event = event::Event::WindowEvent {
-                        window_id: window::WindowId(WindowId),
-                        event: event::WindowEvent::Ime(
-                            event::Ime::Replace {
-                                text: ime_state.text.to_string(),
-                                selection: (ime_state.selection.start, ime_state.selection.end),
-                                compose_region: ime_state.compose_region.map(|region| (region.start, region.end))
-                            }
-                        )
-                    };
-                    sticky_exit_callback(
-                        event,
-                        self.window_target(),
-                        control_flow,
-                        callback
-                    );
+                    let events = [
+                        // Send a preedit event so the application knows to expect a commit event
+                        event::Ime::Preedit("".to_string(), None),
+                        // Delete all of the current text
+                        event::Ime::DeleteSurroundingText {
+                            before_length: usize::MAX,
+                            after_length: usize::MAX,
+                        },
+                        // Replace the previously deleted text with our updated text, and set the cursor and compose region
+                        event::Ime::Commit {
+                            content: ime_state.text.to_string(),
+                            selection: Some((ime_state.selection.start, ime_state.selection.end)),
+                            compose_region: ime_state.compose_region.map(|region| (region.start, region.end)),
+                        }
+                    ];
+
+                    events.into_iter().for_each(|event| {
+                        sticky_exit_callback(
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Ime(event),
+                            },
+                            self.window_target(),
+                            control_flow,
+                            callback,
+                        );
+                    });
                 }
                 _ => {
                     warn!("Unknown android_activity input event {event:?}")
