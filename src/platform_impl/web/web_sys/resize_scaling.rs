@@ -12,7 +12,7 @@ use crate::dpi::{LogicalSize, PhysicalSize};
 use super::super::backend;
 use super::canvas::Common;
 use super::media_query_handle::MediaQueryListHandle;
-use super::EventListenerHandle;
+use super::{fullscreen, EventListenerHandle};
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -98,13 +98,14 @@ impl ResizeScaleInternal {
             let observer = Self::create_observer(&canvas, observer_closure.as_ref());
 
             let weak_self = weak_self.clone();
-            let on_fullscreen = canvas_common.add_event("fullscreenchange", move |_| {
-                if let Some(rc_self) = weak_self.upgrade() {
-                    let mut this = rc_self.borrow_mut();
-                    this.notify_fullscreen.set(true);
-                    this.notify();
-                }
-            });
+            let on_fullscreen =
+                canvas_common.add_event(fullscreen::fullscreen_change(&canvas), move |_| {
+                    if let Some(rc_self) = weak_self.upgrade() {
+                        let mut this = rc_self.borrow_mut();
+                        this.notify_fullscreen.set(true);
+                        this.notify();
+                    }
+                });
 
             RefCell::new(Self {
                 window,

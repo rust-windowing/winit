@@ -93,6 +93,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   `DeviceEvent::Key` support.
 - **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
   on Wayland, X11, Windows, macOS and Web.
+- On Web, add Fullscreen API compatibility for Safari.
 
 # 0.28.6
 
