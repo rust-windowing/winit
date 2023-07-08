@@ -5,7 +5,7 @@ use super::pointer::PointerHandler;
 use super::{event, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, MouseButton, MouseScrollDelta};
+use crate::event::{Force, MouseButton, MouseScrollDelta, WindowState};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -352,16 +352,21 @@ impl Canvas {
         ));
     }
 
-    pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
-    where
+    pub(crate) fn on_resize_scale<S, R, F>(
+        &mut self,
+        scale_handler: S,
+        size_handler: R,
+        fullscreen_handler: F,
+    ) where
         S: 'static + FnMut(PhysicalSize<u32>, f64),
         R: 'static + FnMut(PhysicalSize<u32>),
+        F: 'static + FnMut(PhysicalSize<u32>, bool),
     {
         self.on_resize_scale = Some(ResizeScaleHandle::new(
-            self.window().clone(),
-            self.raw().clone(),
+            &self.common,
             scale_handler,
             size_handler,
+            fullscreen_handler,
         ));
     }
 
@@ -409,7 +414,11 @@ impl Canvas {
                 window_id: RootWindowId(self.id),
                 event: crate::event::WindowEvent::Configured {
                     size: new_size,
-                    state: todo!(),
+                    state: if super::is_fullscreen(self.window(), self.raw()) {
+                        WindowState::FULLSCREEN
+                    } else {
+                        WindowState::empty()
+                    },
                 },
             })
         }

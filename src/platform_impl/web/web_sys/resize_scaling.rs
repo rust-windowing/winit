@@ -3,14 +3,16 @@ use once_cell::unsync::Lazy;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
+    Event, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
     ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
 };
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 
 use super::super::backend;
+use super::canvas::Common;
 use super::media_query_handle::MediaQueryListHandle;
+use super::EventListenerHandle;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -18,21 +20,22 @@ use std::rc::Rc;
 pub struct ResizeScaleHandle(Rc<RefCell<ResizeScaleInternal>>);
 
 impl ResizeScaleHandle {
-    pub(crate) fn new<S, R>(
-        window: Window,
-        canvas: HtmlCanvasElement,
+    pub(crate) fn new<S, R, F>(
+        canvas_common: &Common,
         scale_handler: S,
         resize_handler: R,
+        fullscreen_handler: F,
     ) -> Self
     where
         S: 'static + FnMut(PhysicalSize<u32>, f64),
         R: 'static + FnMut(PhysicalSize<u32>),
+        F: 'static + FnMut(PhysicalSize<u32>, bool),
     {
         Self(ResizeScaleInternal::new(
-            window,
-            canvas,
+            canvas_common,
             scale_handler,
             resize_handler,
+            fullscreen_handler,
         ))
     }
 
@@ -51,20 +54,27 @@ struct ResizeScaleInternal {
     _observer_closure: Closure<dyn FnMut(Array, ResizeObserver)>,
     scale_handler: Box<dyn FnMut(PhysicalSize<u32>, f64)>,
     resize_handler: Box<dyn FnMut(PhysicalSize<u32>)>,
+    fullscreen_handler: Box<dyn FnMut(PhysicalSize<u32>, bool)>,
+    _on_fullscreen: EventListenerHandle<dyn FnMut(Event)>,
     notify_scale: Cell<bool>,
+    notify_fullscreen: Cell<bool>,
 }
 
 impl ResizeScaleInternal {
-    fn new<S, R>(
-        window: Window,
-        canvas: HtmlCanvasElement,
+    fn new<S, R, F>(
+        canvas_common: &Common,
         scale_handler: S,
         resize_handler: R,
+        fullscreen_handler: F,
     ) -> Rc<RefCell<Self>>
     where
         S: 'static + FnMut(PhysicalSize<u32>, f64),
         R: 'static + FnMut(PhysicalSize<u32>),
+        F: 'static + FnMut(PhysicalSize<u32>, bool),
     {
+        let window = canvas_common.window.clone();
+        let canvas = canvas_common.raw.clone();
+
         Rc::<RefCell<ResizeScaleInternal>>::new_cyclic(|weak_self| {
             let mql = Self::create_mql(&window, {
                 let weak_self = weak_self.clone();
@@ -75,22 +85,26 @@ impl ResizeScaleInternal {
                 }
             });
 
-            let weak_self = weak_self.clone();
-            let observer_closure = Closure::new(move |entries: Array, _| {
-                if let Some(rc_self) = weak_self.upgrade() {
-                    let mut this = rc_self.borrow_mut();
-
-                    let size = Self::process_entry(&this.window, &this.canvas, entries);
-
-                    if this.notify_scale.replace(false) {
-                        let scale = backend::scale_factor(&this.window);
-                        (this.scale_handler)(size, scale)
-                    } else {
-                        (this.resize_handler)(size)
+            let observer_closure = Closure::new({
+                let weak_self = weak_self.clone();
+                move |entries: Array, _| {
+                    if let Some(rc_self) = weak_self.upgrade() {
+                        let mut this = rc_self.borrow_mut();
+                        let size = Self::process_entry(&this.window, &this.canvas, entries);
+                        this.run(size)
                     }
                 }
             });
             let observer = Self::create_observer(&canvas, observer_closure.as_ref());
+
+            let weak_self = weak_self.clone();
+            let on_fullscreen = canvas_common.add_event("fullscreenchange", move |_| {
+                if let Some(rc_self) = weak_self.upgrade() {
+                    let mut this = rc_self.borrow_mut();
+                    this.notify_fullscreen.set(true);
+                    this.notify();
+                }
+            });
 
             RefCell::new(Self {
                 window,
@@ -100,7 +114,10 @@ impl ResizeScaleInternal {
                 _observer_closure: observer_closure,
                 scale_handler: Box::new(scale_handler),
                 resize_handler: Box::new(resize_handler),
+                fullscreen_handler: Box::new(fullscreen_handler),
+                _on_fullscreen: on_fullscreen,
                 notify_scale: Cell::new(false),
+                notify_fullscreen: Cell::new(false),
             })
         })
     }
@@ -155,14 +172,7 @@ impl ResizeScaleInternal {
             || style.get_property_value("display").unwrap() == "none"
         {
             let size = PhysicalSize::new(0, 0);
-
-            if self.notify_scale.replace(false) {
-                let scale = backend::scale_factor(&self.window);
-                (self.scale_handler)(size, scale)
-            } else {
-                (self.resize_handler)(size)
-            }
-
+            self.run(size);
             return;
         }
 
@@ -191,13 +201,7 @@ impl ResizeScaleInternal {
         }
 
         let size = size.to_physical(backend::scale_factor(&self.window));
-
-        if self.notify_scale.replace(false) {
-            let scale = backend::scale_factor(&self.window);
-            (self.scale_handler)(size, scale)
-        } else {
-            (self.resize_handler)(size)
-        }
+        self.run(size)
     }
 
     fn handle_scale(this: Rc<RefCell<Self>>, mql: &MediaQueryList) {
@@ -285,6 +289,26 @@ impl ResizeScaleInternal {
             PhysicalSize::new(entry.inline_size() as u32, entry.block_size() as u32)
         } else {
             PhysicalSize::new(entry.block_size() as u32, entry.inline_size() as u32)
+        }
+    }
+
+    fn run(&mut self, size: PhysicalSize<u32>) {
+        let mut other_handler = false;
+
+        if self.notify_scale.replace(false) {
+            other_handler = true;
+            let scale = backend::scale_factor(&self.window);
+            (self.scale_handler)(size, scale)
+        }
+
+        if self.notify_fullscreen.replace(false) {
+            other_handler = true;
+            let is_fullscreen = backend::is_fullscreen(&self.window, &self.canvas);
+            (self.fullscreen_handler)(size, is_fullscreen)
+        }
+
+        if !other_handler {
+            (self.resize_handler)(size)
         }
     }
 }

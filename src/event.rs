@@ -1291,6 +1291,10 @@ bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowState: u32 {
         /// The window is maximized.
+        ///
+        /// # Platform-specific
+        ///
+        /// **Web:** Unsupported.
         const MAXIMIZED   = 0b0000_0001;
         /// The window is fullscreened.
         ///
@@ -1302,7 +1306,7 @@ bitflags::bitflags! {
         ///
         /// # Platform-specific
         ///
-        /// **Wayland:** not supported.
+        /// **Wayland / Web:** Unsupported.
         const MINIMIZED   = 0b0000_0100;
     }
 }

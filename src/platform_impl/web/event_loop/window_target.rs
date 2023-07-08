@@ -18,7 +18,7 @@ use super::{
 };
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, RawKeyEvent, Touch,
-    TouchPhase, WindowEvent,
+    TouchPhase, WindowEvent, WindowState,
 };
 use crate::event_loop::DeviceEvents;
 use crate::keyboard::ModifiersState;
@@ -705,9 +705,10 @@ impl<T> EventLoopWindowTarget<T> {
             },
             {
                 let runner = self.runner.clone();
+                let canvas = canvas_clone.clone();
 
                 move |new_size| {
-                    let canvas = RefCell::borrow(&canvas_clone);
+                    let canvas = RefCell::borrow(&canvas);
                     canvas.set_current_size(new_size);
                     if canvas.old_size() != new_size {
                         canvas.set_old_size(new_size);
@@ -715,12 +716,35 @@ impl<T> EventLoopWindowTarget<T> {
                             window_id: RootWindowId(id),
                             event: WindowEvent::Configured {
                                 size: new_size,
-                                // Fullscreen?
-                                state: todo!(),
+                                state: if backend::is_fullscreen(canvas.window(), canvas.raw()) {
+                                    WindowState::FULLSCREEN
+                                } else {
+                                    WindowState::empty()
+                                },
                             },
                         });
                         runner.request_redraw(RootWindowId(id));
                     }
+                }
+            },
+            {
+                let runner = self.runner.clone();
+                move |new_size, is_fullscreen| {
+                    let canvas = RefCell::borrow(&canvas_clone);
+                    canvas.set_current_size(new_size);
+                    canvas.set_old_size(new_size);
+                    runner.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Configured {
+                            size: new_size,
+                            state: if is_fullscreen {
+                                WindowState::FULLSCREEN
+                            } else {
+                                WindowState::empty()
+                            },
+                        },
+                    });
+                    runner.request_redraw(RootWindowId(id));
                 }
             },
         );
