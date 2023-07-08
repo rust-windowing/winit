@@ -121,8 +121,8 @@ pub fn is_fullscreen(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> bo
 
     match document.fullscreen_element() {
         Some(elem) => {
-            let raw: Element = canvas.clone().into();
-            raw == elem
+            let canvas: &Element = canvas;
+            canvas == &elem
         }
         None => false,
     }
