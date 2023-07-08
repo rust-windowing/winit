@@ -362,7 +362,7 @@ pub enum WindowEvent<'a> {
     Configured {
         /// The new size of the window.
         ///
-        /// The size may not actually change.
+        /// The size may not actually have changed.
         size: PhysicalSize<u32>,
 
         /// The state of the window.
