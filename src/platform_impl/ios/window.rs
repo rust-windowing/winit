@@ -23,7 +23,6 @@ use crate::{
     platform_impl::platform::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
-        ffi::UIRectEdge,
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
@@ -538,17 +537,16 @@ impl Inner {
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         self.view_controller
-            .setPrefersHomeIndicatorAutoHidden(hidden);
+            .set_prefers_home_indicator_auto_hidden(hidden);
     }
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        let edges: UIRectEdge = edges.into();
         self.view_controller
-            .setPreferredScreenEdgesDeferringSystemGestures(edges);
+            .set_preferred_screen_edges_deferring_system_gestures(edges.into());
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        self.view_controller.setPrefersStatusBarHidden(hidden);
+        self.view_controller.set_prefers_status_bar_hidden(hidden);
     }
 }
 

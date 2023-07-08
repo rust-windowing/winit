@@ -1,12 +1,11 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{
-    boxed::Box,
-    collections::{HashMap, VecDeque},
-    os::raw::*,
-    ptr, str,
-    sync::Mutex,
-};
+use std::boxed::Box;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, VecDeque};
+use std::os::raw::*;
+use std::ptr::{self, NonNull};
+use std::str;
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
@@ -41,9 +40,9 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct CursorState {
-    pub visible: bool,
-    pub(super) cursor: Id<NSCursor, Shared>,
+struct CursorState {
+    visible: bool,
+    cursor: Id<NSCursor, Shared>,
 }
 
 impl Default for CursorState {
@@ -55,8 +54,9 @@ impl Default for CursorState {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
 enum ImeState {
+    #[default]
     /// The IME events are disabled, so only `ReceivedCharacter` is being sent to the user.
     Disabled,
 
@@ -88,7 +88,7 @@ impl ModLocationMask {
     }
 }
 
-pub fn key_to_modifier(key: &Key) -> ModifiersState {
+fn key_to_modifier(key: &Key) -> ModifiersState {
     match key {
         Key::Alt => ModifiersState::ALT,
         Key::Control => ModifiersState::CONTROL,
@@ -118,26 +118,28 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct ViewState {
-    pub cursor_state: Mutex<CursorState>,
-    ime_position: LogicalPosition<f64>,
-    ime_size: LogicalSize<f64>,
-    pub(super) modifiers: Modifiers,
-    phys_modifiers: HashMap<Key, ModLocationMask>,
-    tracking_rect: Option<NSTrackingRectTag>,
-    // phys_modifiers: HashSet<KeyCode>,
-    ime_state: ImeState,
-    input_source: String,
+#[derive(Debug, Default)]
+struct ViewState {
+    cursor_state: RefCell<CursorState>,
+    ime_position: Cell<LogicalPosition<f64>>,
+    ime_size: Cell<LogicalSize<f64>>,
+    modifiers: Cell<Modifiers>,
+    phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
+    tracking_rect: Cell<Option<NSTrackingRectTag>>,
+    ime_state: Cell<ImeState>,
+    input_source: RefCell<String>,
 
     /// True iff the application wants IME events.
     ///
     /// Can be set using `set_ime_allowed`
-    ime_allowed: bool,
+    ime_allowed: Cell<bool>,
 
     /// True if the current key event should be forwarded
     /// to the application, even during IME
-    forward_key_to_app: bool,
+    forward_key_to_app: Cell<bool>,
+
+    marked_text: RefCell<Id<NSMutableAttributedString, Owned>>,
+    accepts_first_mouse: bool,
 }
 
 declare_class!(
@@ -146,9 +148,7 @@ declare_class!(
     pub(super) struct WinitView {
         // Weak reference because the window keeps a strong reference to the view
         _ns_window: IvarDrop<Box<WeakId<WinitWindow>>>,
-        pub(super) state: IvarDrop<Box<ViewState>>,
-        marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
-        accepts_first_mouse: bool,
+        state: IvarDrop<Box<ViewState>>,
     }
 
     unsafe impl ClassType for WinitView {
@@ -158,24 +158,16 @@ declare_class!(
 
     unsafe impl WinitView {
         #[sel(initWithId:acceptsFirstMouse:)]
-        fn init_with_id(
+        unsafe fn init_with_id(
             &mut self,
             window: &WinitWindow,
             accepts_first_mouse: bool,
-        ) -> Option<&mut Self> {
+        ) -> Option<NonNull<Self>> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
-                    cursor_state: Default::default(),
-                    ime_position: LogicalPosition::new(0.0, 0.0),
-                    ime_size: Default::default(),
-                    modifiers: Default::default(),
-                    phys_modifiers: Default::default(),
-                    tracking_rect: None,
-                    ime_state: ImeState::Disabled,
-                    input_source: String::new(),
-                    ime_allowed: false,
-                    forward_key_to_app: false,
+                    accepts_first_mouse,
+                    ..Default::default()
                 };
 
                 Ivar::write(
@@ -183,8 +175,6 @@ declare_class!(
                     Box::new(WeakId::new(&window.retain())),
                 );
                 Ivar::write(&mut this.state, Box::new(state));
-                Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
-                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
 
                 this.setPostsFrameChangedNotifications(true);
 
@@ -204,15 +194,15 @@ declare_class!(
                     ];
                 }
 
-                this.state.input_source = this.current_input_source();
-                this
+                *this.state.input_source.borrow_mut() = this.current_input_source();
+                NonNull::from(this)
             })
         }
     }
 
     unsafe impl WinitView {
         #[sel(viewDidMoveToWindow)]
-        fn view_did_move_to_window(&mut self) {
+        fn view_did_move_to_window(&self) {
             trace_scope!("viewDidMoveToWindow");
             if let Some(tracking_rect) = self.state.tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
@@ -220,11 +210,11 @@ declare_class!(
 
             let rect = self.visibleRect();
             let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
+            self.state.tracking_rect.set(Some(tracking_rect));
         }
 
         #[sel(frameDidChange:)]
-        fn frame_did_change(&mut self, _event: &NSEvent) {
+        fn frame_did_change(&self, _event: &NSEvent) {
             trace_scope!("frameDidChange:");
             if let Some(tracking_rect) = self.state.tracking_rect.take() {
                 self.removeTrackingRect(tracking_rect);
@@ -232,7 +222,7 @@ declare_class!(
 
             let rect = self.visibleRect();
             let tracking_rect = self.add_tracking_rect(rect, false);
-            self.state.tracking_rect = Some(tracking_rect);
+            self.state.tracking_rect.set(Some(tracking_rect));
 
             // Emit resize event here rather than from windowDidResize because:
             // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
@@ -243,7 +233,7 @@ declare_class!(
         }
 
         #[sel(drawRect:)]
-        fn draw_rect(&mut self, rect: NSRect) {
+        fn draw_rect(&self, rect: NSRect) {
             trace_scope!("drawRect:");
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
@@ -276,7 +266,7 @@ declare_class!(
         fn reset_cursor_rects(&self) {
             trace_scope!("resetCursorRects");
             let bounds = self.bounds();
-            let cursor_state = self.state.cursor_state.lock().unwrap();
+            let cursor_state = self.state.cursor_state.borrow();
             // We correctly invoke `addCursorRect` only from inside `resetCursorRects`
             if cursor_state.visible {
                 self.addCursorRect(bounds, &cursor_state.cursor);
@@ -290,13 +280,13 @@ declare_class!(
         #[sel(hasMarkedText)]
         fn has_marked_text(&self) -> bool {
             trace_scope!("hasMarkedText");
-            self.marked_text.len_utf16() > 0
+            self.state.marked_text.borrow().len_utf16() > 0
         }
 
         #[sel(markedRange)]
         fn marked_range(&self) -> NSRange {
             trace_scope!("markedRange");
-            let length = self.marked_text.len_utf16();
+            let length = self.state.marked_text.borrow().len_utf16();
             if length > 0 {
                 NSRange::new(0, length)
             } else {
@@ -312,7 +302,7 @@ declare_class!(
 
         #[sel(setMarkedText:selectedRange:replacementRange:)]
         fn set_marked_text(
-            &mut self,
+            &self,
             string: &NSObject,
             _selected_range: NSRange,
             _replacement_range: NSRange,
@@ -339,19 +329,19 @@ declare_class!(
             };
 
             // Update marked text.
-            *self.marked_text = marked_text;
+            *self.state.marked_text.borrow_mut() = marked_text;
 
             // Notify IME is active if application still doesn't know it.
-            if self.state.ime_state == ImeState::Disabled {
-                self.state.input_source = self.current_input_source();
+            if self.state.ime_state.get() == ImeState::Disabled {
+                *self.state.input_source.borrow_mut() = self.current_input_source();
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
             if self.hasMarkedText() {
-                self.state.ime_state = ImeState::Preedit;
+                self.state.ime_state.set(ImeState::Preedit);
             } else {
                 // In case the preedit was cleared, set IME into the Ground state.
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             }
 
             // Empty string basically means that there's no preedit, so indicate that by sending
@@ -367,9 +357,9 @@ declare_class!(
         }
 
         #[sel(unmarkText)]
-        fn unmark_text(&mut self) {
+        fn unmark_text(&self) {
             trace_scope!("unmarkText");
-            *self.marked_text = NSMutableAttributedString::new();
+            *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
             let input_context = self.inputContext().expect("input context");
             input_context.discardMarkedText();
@@ -377,7 +367,7 @@ declare_class!(
             self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
             if self.is_ime_enabled() {
                 // Leave the Preedit self.state
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             } else {
                 warn!("Expected to have IME enabled when receiving unmarkText");
             }
@@ -416,14 +406,14 @@ declare_class!(
             let content_rect = window.contentRectForFrameRect(window.frame());
             let base_x = content_rect.origin.x as f64;
             let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
-            let x = base_x + self.state.ime_position.x;
-            let y = base_y - self.state.ime_position.y;
-            let LogicalSize { width, height } = self.state.ime_size;
+            let x = base_x + self.state.ime_position.get().x;
+            let y = base_y - self.state.ime_position.get().y;
+            let LogicalSize { width, height } = self.state.ime_size.get();
             NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(width, height))
         }
 
         #[sel(insertText:replacementRange:)]
-        fn insert_text(&mut self, string: &NSObject, _replacement_range: NSRange) {
+        fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
             trace_scope!("insertText:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
@@ -443,45 +433,49 @@ declare_class!(
             if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
-                self.state.ime_state = ImeState::Commited;
+                self.state.ime_state.set(ImeState::Commited);
             }
         }
 
         // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
         // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
         #[sel(doCommandBySelector:)]
-        fn do_command_by_selector(&mut self, _command: Sel) {
+        fn do_command_by_selector(&self, _command: Sel) {
             trace_scope!("doCommandBySelector:");
             // We shouldn't forward any character from just commited text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
-            if self.state.ime_state == ImeState::Commited {
+            if self.state.ime_state.get() == ImeState::Commited {
                 return;
             }
 
-            self.state.forward_key_to_app = true;
+            self.state.forward_key_to_app.set(true);
 
-            if self.hasMarkedText() && self.state.ime_state == ImeState::Preedit {
+            if self.hasMarkedText() && self.state.ime_state.get() == ImeState::Preedit {
                 // Leave preedit so that we also report the key-up for this key.
-                self.state.ime_state = ImeState::Ground;
+                self.state.ime_state.set(ImeState::Ground);
             }
         }
     }
 
     unsafe impl WinitView {
         #[sel(keyDown:)]
-        fn key_down(&mut self, event: &NSEvent) {
+        fn key_down(&self, event: &NSEvent) {
             trace_scope!("keyDown:");
-            let input_source = self.current_input_source();
-            if self.state.input_source != input_source && self.is_ime_enabled() {
-                self.state.ime_state = ImeState::Disabled;
-                self.state.input_source = input_source;
-                self.queue_event(WindowEvent::Ime(Ime::Disabled));
+            {
+                let mut prev_input_source = self.state.input_source.borrow_mut();
+                let current_input_source = self.current_input_source();
+                if *prev_input_source != current_input_source && self.is_ime_enabled() {
+                    *prev_input_source = current_input_source;
+                    drop(prev_input_source);
+                    self.state.ime_state.set(ImeState::Disabled);
+                    self.queue_event(WindowEvent::Ime(Ime::Disabled));
+                }
             }
 
             // Get the characters from the event.
-            let old_ime_state = self.state.ime_state;
-            self.state.forward_key_to_app = false;
+            let old_ime_state = self.state.ime_state.get();
+            self.state.forward_key_to_app.set(false);
             let event = replace_event(event, self.window().option_as_alt());
 
             // The `interpretKeyEvents` function might call
@@ -490,31 +484,31 @@ declare_class!(
             // we must send the `KeyboardInput` event during IME if it triggered
             // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
             // is not handled by IME and should be handled by the application)
-            if self.state.ime_allowed {
+            if self.state.ime_allowed.get() {
                 let events_for_nsview = NSArray::from_slice(&[event.copy()]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
                 // If the text was commited we must treat the next keyboard event as IME related.
-                if self.state.ime_state == ImeState::Commited {
+                if self.state.ime_state.get() == ImeState::Commited {
                     // Remove any marked text, so normal input can continue.
-                    *self.marked_text = NSMutableAttributedString::new();
+                    *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
                 }
             }
 
             self.update_modifiers(&event, false);
 
-            let had_ime_input = match self.state.ime_state {
+            let had_ime_input = match self.state.ime_state.get() {
                 ImeState::Commited => {
                     // Allow normal input after the commit.
-                    self.state.ime_state = ImeState::Ground;
+                    self.state.ime_state.set(ImeState::Ground);
                     true
                 }
                 ImeState::Preedit => true,
                 // `key_down` could result in preedit clear, so compare old and current state.
-                _ => old_ime_state != self.state.ime_state,
+                _ => old_ime_state != self.state.ime_state.get(),
             };
 
-            if !had_ime_input || self.state.forward_key_to_app {
+            if !had_ime_input || self.state.forward_key_to_app.get() {
                 let key_event = create_key_event(&event, true, event.is_a_repeat(), None);
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
@@ -525,14 +519,17 @@ declare_class!(
         }
 
         #[sel(keyUp:)]
-        fn key_up(&mut self, event: &NSEvent) {
+        fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
 
             let event = replace_event(event, self.window().option_as_alt());
             self.update_modifiers(&event, false);
 
             // We want to send keyboard input when we are currently in the ground state.
-            if matches!(self.state.ime_state, ImeState::Ground | ImeState::Disabled) {
+            if matches!(
+                self.state.ime_state.get(),
+                ImeState::Ground | ImeState::Disabled
+            ) {
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
                     event: create_key_event(&event, false, false, None),
@@ -542,7 +539,7 @@ declare_class!(
         }
 
         #[sel(flagsChanged:)]
-        fn flags_changed(&mut self, ns_event: &NSEvent) {
+        fn flags_changed(&self, ns_event: &NSEvent) {
             trace_scope!("flagsChanged:");
 
             self.update_modifiers(ns_event, true);
@@ -573,7 +570,7 @@ declare_class!(
         // Allows us to receive Cmd-. (the shortcut for closing a dialog)
         // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
         #[sel(cancelOperation:)]
-        fn cancel_operation(&mut self, _sender: *const Object) {
+        fn cancel_operation(&self, _sender: *const Object) {
             trace_scope!("cancelOperation:");
 
             let event = NSApp()
@@ -591,42 +588,42 @@ declare_class!(
         }
 
         #[sel(mouseDown:)]
-        fn mouse_down(&mut self, event: &NSEvent) {
+        fn mouse_down(&self, event: &NSEvent) {
             trace_scope!("mouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(mouseUp:)]
-        fn mouse_up(&mut self, event: &NSEvent) {
+        fn mouse_up(&self, event: &NSEvent) {
             trace_scope!("mouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(rightMouseDown:)]
-        fn right_mouse_down(&mut self, event: &NSEvent) {
+        fn right_mouse_down(&self, event: &NSEvent) {
             trace_scope!("rightMouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(rightMouseUp:)]
-        fn right_mouse_up(&mut self, event: &NSEvent) {
+        fn right_mouse_up(&self, event: &NSEvent) {
             trace_scope!("rightMouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
         }
 
         #[sel(otherMouseDown:)]
-        fn other_mouse_down(&mut self, event: &NSEvent) {
+        fn other_mouse_down(&self, event: &NSEvent) {
             trace_scope!("otherMouseDown:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Pressed);
         }
 
         #[sel(otherMouseUp:)]
-        fn other_mouse_up(&mut self, event: &NSEvent) {
+        fn other_mouse_up(&self, event: &NSEvent) {
             trace_scope!("otherMouseUp:");
             self.mouse_motion(event);
             self.mouse_click(event, ElementState::Released);
@@ -635,22 +632,22 @@ declare_class!(
         // No tracing on these because that would be overly verbose
 
         #[sel(mouseMoved:)]
-        fn mouse_moved(&mut self, event: &NSEvent) {
+        fn mouse_moved(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(mouseDragged:)]
-        fn mouse_dragged(&mut self, event: &NSEvent) {
+        fn mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(rightMouseDragged:)]
-        fn right_mouse_dragged(&mut self, event: &NSEvent) {
+        fn right_mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
         #[sel(otherMouseDragged:)]
-        fn other_mouse_dragged(&mut self, event: &NSEvent) {
+        fn other_mouse_dragged(&self, event: &NSEvent) {
             self.mouse_motion(event);
         }
 
@@ -672,7 +669,7 @@ declare_class!(
         }
 
         #[sel(scrollWheel:)]
-        fn scroll_wheel(&mut self, event: &NSEvent) {
+        fn scroll_wheel(&self, event: &NSEvent) {
             trace_scope!("scrollWheel:");
 
             self.mouse_motion(event);
@@ -767,7 +764,7 @@ declare_class!(
         }
 
         #[sel(pressureChangeWithEvent:)]
-        fn pressure_change_with_event(&mut self, event: &NSEvent) {
+        fn pressure_change_with_event(&self, event: &NSEvent) {
             trace_scope!("pressureChangeWithEvent:");
 
             self.mouse_motion(event);
@@ -791,7 +788,7 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            *self.accepts_first_mouse
+            self.state.accepts_first_mouse
         }
     }
 );
@@ -841,7 +838,7 @@ impl WinitView {
     }
 
     fn is_ime_enabled(&self) -> bool {
-        !matches!(self.state.ime_state, ImeState::Disabled)
+        !matches!(self.state.ime_state.get(), ImeState::Disabled)
     }
 
     fn current_input_source(&self) -> String {
@@ -852,43 +849,68 @@ impl WinitView {
             .unwrap_or_else(String::new)
     }
 
-    pub(super) fn set_ime_allowed(&mut self, ime_allowed: bool) {
-        if self.state.ime_allowed == ime_allowed {
+    pub(super) fn set_cursor_icon(&self, icon: Id<NSCursor, Shared>) {
+        let mut cursor_state = self.state.cursor_state.borrow_mut();
+        cursor_state.cursor = icon;
+    }
+
+    /// Set whether the cursor should be visible or not.
+    ///
+    /// Returns whether the state changed.
+    pub(super) fn set_cursor_visible(&self, visible: bool) -> bool {
+        let mut cursor_state = self.state.cursor_state.borrow_mut();
+        if visible != cursor_state.visible {
+            cursor_state.visible = visible;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn set_ime_allowed(&self, ime_allowed: bool) {
+        if self.state.ime_allowed.get() == ime_allowed {
             return;
         }
-        self.state.ime_allowed = ime_allowed;
-        if self.state.ime_allowed {
+        self.state.ime_allowed.set(ime_allowed);
+        if self.state.ime_allowed.get() {
             return;
         }
 
         // Clear markedText
-        *self.marked_text = NSMutableAttributedString::new();
+        *self.state.marked_text.borrow_mut() = NSMutableAttributedString::new();
 
-        if self.state.ime_state != ImeState::Disabled {
-            self.state.ime_state = ImeState::Disabled;
+        if self.state.ime_state.get() != ImeState::Disabled {
+            self.state.ime_state.set(ImeState::Disabled);
             self.queue_event(WindowEvent::Ime(Ime::Disabled));
         }
     }
 
     pub(super) fn set_ime_cursor_area(
-        &mut self,
+        &self,
         position: LogicalPosition<f64>,
         size: LogicalSize<f64>,
     ) {
-        self.state.ime_position = position;
-        self.state.ime_size = size;
+        self.state.ime_position.set(position);
+        self.state.ime_size.set(size);
         let input_context = self.inputContext().expect("input context");
         input_context.invalidateCharacterCoordinates();
     }
 
-    // Update `state.modifiers` if `event` has something different
-    fn update_modifiers(&mut self, ns_event: &NSEvent, is_flags_changed_event: bool) {
+    /// Reset modifiers and emit a synthetic ModifiersChanged event if deemed necessary.
+    pub(super) fn reset_modifiers(&self) {
+        if !self.state.modifiers.get().state().is_empty() {
+            self.state.modifiers.set(Modifiers::default());
+            self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers.get()));
+        }
+    }
+
+    /// Update modifiers if `event` has something different
+    fn update_modifiers(&self, ns_event: &NSEvent, is_flags_changed_event: bool) {
         use ElementState::{Pressed, Released};
 
         let current_modifiers = event_mods(ns_event);
-        let prev_modifiers = self.state.modifiers;
-
-        self.state.modifiers = current_modifiers;
+        let prev_modifiers = self.state.modifiers.get();
+        self.state.modifiers.set(current_modifiers);
 
         // This function was called form the flagsChanged event, which is triggered
         // when the user presses/releases a modifier even if the same kind of modifier
@@ -907,9 +929,8 @@ impl WinitView {
             event.location = code_to_location(keycode);
             let location_mask = ModLocationMask::from_location(event.location);
 
-            let phys_mod = self
-                .state
-                .phys_modifiers
+            let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
+            let phys_mod = phys_mod_state
                 .entry(key)
                 .or_insert(ModLocationMask::empty());
 
@@ -975,6 +996,8 @@ impl WinitView {
                 });
             }
 
+            drop(phys_mod_state);
+
             for event in events {
                 self.queue_event(event);
             }
@@ -984,10 +1007,10 @@ impl WinitView {
             return;
         }
 
-        self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers));
+        self.queue_event(WindowEvent::ModifiersChanged(self.state.modifiers.get()));
     }
 
-    fn mouse_click(&mut self, event: &NSEvent, button_state: ElementState) {
+    fn mouse_click(&self, event: &NSEvent, button_state: ElementState) {
         let button = mouse_button(event);
 
         self.update_modifiers(event, false);
@@ -999,7 +1022,7 @@ impl WinitView {
         });
     }
 
-    fn mouse_motion(&mut self, event: &NSEvent) {
+    fn mouse_motion(&self, event: &NSEvent) {
         let window_point = event.locationInWindow();
         let view_point = self.convertPoint_fromView(window_point, None);
         let view_rect = self.frame();
