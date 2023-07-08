@@ -70,6 +70,10 @@ impl From<UIUserInterfaceIdiom> for Idiom {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIRectEdge(NSUInteger);
 
+impl UIRectEdge {
+    pub(crate) const NONE: Self = Self(0);
+}
+
 unsafe impl Encode for UIRectEdge {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }

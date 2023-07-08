@@ -66,7 +66,7 @@ extern_methods!(
         pub fn setWantsLayer(&self, wants_layer: bool);
 
         #[sel(setPostsFrameChangedNotifications:)]
-        pub fn setPostsFrameChangedNotifications(&mut self, value: bool);
+        pub fn setPostsFrameChangedNotifications(&self, value: bool);
 
         #[sel(removeTrackingRect:)]
         pub fn removeTrackingRect(&self, tag: NSTrackingRectTag);
