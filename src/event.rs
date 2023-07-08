@@ -129,7 +129,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
     /// with the property [`persisted`] being true, which means that the page is being
-    /// put in the [´bfcache`] (back/forward cache) - an in-memory cache that stores a
+    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
     /// complete snapshot of a page (including the JavaScript heap) as the user is
     /// navigating away.
     ///
@@ -195,7 +195,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
     /// with the property [`persisted`] being true, which means that the page is being
-    /// restored from the [´bfcache`] (back/forward cache) - an in-memory cache that
+    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
     /// stores a complete snapshot of a page (including the JavaScript heap) as the
     /// user is navigating away.
     ///
