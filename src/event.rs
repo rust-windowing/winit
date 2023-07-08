@@ -358,7 +358,7 @@ pub enum StartCause {
 pub enum WindowEvent<'a> {
     /// The state of the window was changed.
     ///
-    /// This event is being delivered when the window is being resized.
+    /// This event is delivered when the window is being resized.
     Configured {
         /// The new size of the window.
         ///
