@@ -100,11 +100,25 @@ mod wasm {
         // Getting access to browser logs requires a lot of setup on mobile devices.
         // So we implement this basic logging system into the page to give developers an easy alternative.
         // As a bonus its also kind of handy on desktop.
-        if let Event::WindowEvent { event, .. } = &event {
+        let event = match event {
+            Event::WindowEvent { event, .. } => Some(format!("{event:?}")),
+            Event::Resumed | Event::Suspended => Some(format!("{event:?}")),
+            _ => None,
+        };
+        if let Some(event) = event {
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
             let log = document.create_element("li").unwrap();
-            log.set_text_content(Some(&format!("{event:?}")));
+
+            let date = js_sys::Date::new_0();
+            log.set_text_content(Some(&format!(
+                "{:02}:{:02}:{:02}.{:03}: {event}",
+                date.get_hours(),
+                date.get_minutes(),
+                date.get_seconds(),
+                date.get_milliseconds(),
+            )));
+
             log_list
                 .insert_before(&log, log_list.first_child().as_ref())
                 .unwrap();

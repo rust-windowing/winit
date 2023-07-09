@@ -720,6 +720,16 @@ impl<T> EventLoopWindowTarget<T> {
                 }
             },
         );
+
+        let runner = self.runner.clone();
+        canvas.on_intersection(move |is_intersecting| {
+            if backend::is_visible(runner.window()) {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Occluded(!is_intersecting),
+                });
+            }
+        })
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {

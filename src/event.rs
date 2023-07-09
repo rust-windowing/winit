@@ -565,7 +565,7 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Unsupported.
+    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
     Occluded(bool),
 }
 
