@@ -100,9 +100,9 @@ impl Window {
         // Intentionally a no-op
     }
 
+    #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        self.inner
-            .queue(|inner| Some(backend::is_visible(&inner.window)))
+        None
     }
 
     pub fn request_redraw(&self) {
