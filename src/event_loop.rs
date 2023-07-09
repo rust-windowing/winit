@@ -334,6 +334,17 @@ unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
     }
 }
 
+unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoop<T> {
+    fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
+        let result = HasRawDisplayHandle::raw_display_handle(self);
+
+        match result {
+            Ok(handle) => cvt_rdh_06_to_05(handle),
+            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+        }
+    }
+}
+
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
@@ -387,6 +398,17 @@ unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
         Ok(self.p.raw_display_handle())
+    }
+}
+
+unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
+    fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
+        let result = HasRawDisplayHandle::raw_display_handle(self);
+
+        match result {
+            Ok(handle) => cvt_rdh_06_to_05(handle),
+            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+        }
     }
 }
 
@@ -472,5 +494,82 @@ impl AsyncRequestSerial {
         // in the loop u64::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
+    }
+}
+
+/// Convert a `raw_window_handle` v0.6 `RawDisplayHandle` to a `raw_window_handle` v0.5
+/// `RawDisplayHandle`.
+pub(crate) fn cvt_rdh_06_to_05(handle: RawDisplayHandle) -> raw_window_handle_05::RawDisplayHandle {
+    use raw_window_handle_05 as v5;
+
+    match handle {
+        RawDisplayHandle::Android(_handle) => {
+            let result = v5::AndroidDisplayHandle::empty();
+            v5::RawDisplayHandle::Android(result)
+        }
+
+        RawDisplayHandle::AppKit(_handle) => {
+            let result = v5::AppKitDisplayHandle::empty();
+            v5::RawDisplayHandle::AppKit(result)
+        }
+
+        RawDisplayHandle::Drm(handle) => {
+            let mut result = v5::DrmDisplayHandle::empty();
+            result.fd = handle.fd;
+            v5::RawDisplayHandle::Drm(result)
+        }
+
+        RawDisplayHandle::Gbm(handle) => {
+            let mut result = v5::GbmDisplayHandle::empty();
+            result.gbm_device = handle.gbm_device;
+            v5::RawDisplayHandle::Gbm(result)
+        }
+
+        RawDisplayHandle::Haiku(_handle) => {
+            let result = v5::HaikuDisplayHandle::empty();
+            v5::RawDisplayHandle::Haiku(result)
+        }
+
+        RawDisplayHandle::Orbital(_handle) => {
+            let result = v5::OrbitalDisplayHandle::empty();
+            v5::RawDisplayHandle::Orbital(result)
+        }
+
+        RawDisplayHandle::UiKit(_handle) => {
+            let result = v5::UiKitDisplayHandle::empty();
+            v5::RawDisplayHandle::UiKit(result)
+        }
+
+        RawDisplayHandle::Wayland(handle) => {
+            let mut result = v5::WaylandDisplayHandle::empty();
+            result.display = handle.display;
+            v5::RawDisplayHandle::Wayland(result)
+        }
+
+        RawDisplayHandle::Web(_handle) => {
+            let result = v5::WebDisplayHandle::empty();
+            v5::RawDisplayHandle::Web(result)
+        }
+
+        RawDisplayHandle::Windows(_handle) => {
+            let result = v5::WindowsDisplayHandle::empty();
+            v5::RawDisplayHandle::Windows(result)
+        }
+
+        RawDisplayHandle::Xcb(handle) => {
+            let mut result = v5::XcbDisplayHandle::empty();
+            result.connection = handle.connection;
+            result.screen = handle.screen;
+            v5::RawDisplayHandle::Xcb(result)
+        }
+
+        RawDisplayHandle::Xlib(handle) => {
+            let mut result = v5::XlibDisplayHandle::empty();
+            result.display = handle.display;
+            result.screen = handle.screen;
+            v5::RawDisplayHandle::Xlib(result)
+        }
+
+        handle => panic!("Unsupported raw_display_handle: {:?}", handle),
     }
 }

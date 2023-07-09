@@ -8,7 +8,7 @@ use raw_window_handle::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
-    event_loop::EventLoopWindowTarget,
+    event_loop::{cvt_rdh_06_to_05, EventLoopWindowTarget},
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
@@ -1395,6 +1395,17 @@ unsafe impl HasRawWindowHandle for Window {
     }
 }
 
+unsafe impl raw_window_handle_05::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> raw_window_handle_05::RawWindowHandle {
+        let result = HasRawWindowHandle::raw_window_handle(self);
+
+        match result {
+            Ok(result) => cvt_rwh_06_to_05(result),
+            Err(e) => panic!("Error while getting raw window handle: {:?}", e),
+        }
+    }
+}
+
 unsafe impl HasRawDisplayHandle for Window {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
@@ -1402,6 +1413,17 @@ unsafe impl HasRawDisplayHandle for Window {
     /// [`EventLoop`]: crate::event_loop::EventLoop
     fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
         Ok(self.window.raw_display_handle())
+    }
+}
+
+unsafe impl raw_window_handle_05::HasRawDisplayHandle for Window {
+    fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
+        let result = HasRawDisplayHandle::raw_display_handle(self);
+
+        match result {
+            Ok(result) => cvt_rdh_06_to_05(result),
+            Err(e) => panic!("Error while getting raw display handle: {:?}", e),
+        }
     }
 }
 
@@ -1578,5 +1600,100 @@ pub struct ActivationToken {
 impl ActivationToken {
     pub(crate) fn _new(_token: String) -> Self {
         Self { _token }
+    }
+}
+
+/// Convert a `raw-window-handle` v0.6 `RawWindowHandle` to a `raw-window-handle` v0.5
+/// `RawWindowHandle`.
+fn cvt_rwh_06_to_05(handle: RawWindowHandle) -> raw_window_handle_05::RawWindowHandle {
+    use raw_window_handle_05 as v5;
+
+    match handle {
+        RawWindowHandle::AndroidNdk(ndk) => {
+            let mut handle = v5::AndroidNdkWindowHandle::empty();
+            handle.a_native_window = ndk.a_native_window;
+            v5::RawWindowHandle::AndroidNdk(handle)
+        }
+
+        RawWindowHandle::AppKit(app_kit) => {
+            let mut handle = v5::AppKitWindowHandle::empty();
+            handle.ns_window = app_kit.ns_window;
+            handle.ns_view = app_kit.ns_view;
+            v5::RawWindowHandle::AppKit(handle)
+        }
+
+        RawWindowHandle::Drm(drm) => {
+            let mut handle = v5::DrmWindowHandle::empty();
+            handle.plane = drm.plane;
+            v5::RawWindowHandle::Drm(handle)
+        }
+
+        RawWindowHandle::Gbm(gbm) => {
+            let mut handle = v5::GbmWindowHandle::empty();
+            handle.gbm_surface = gbm.gbm_surface;
+            v5::RawWindowHandle::Gbm(handle)
+        }
+
+        RawWindowHandle::Haiku(haiku) => {
+            let mut handle = v5::HaikuWindowHandle::empty();
+            handle.b_direct_window = haiku.b_direct_window;
+            handle.b_window = haiku.b_window;
+            v5::RawWindowHandle::Haiku(handle)
+        }
+
+        RawWindowHandle::Orbital(orbital) => {
+            let mut handle = v5::OrbitalWindowHandle::empty();
+            handle.window = orbital.window;
+            v5::RawWindowHandle::Orbital(handle)
+        }
+
+        RawWindowHandle::UiKit(ui_kit) => {
+            let mut handle = v5::UiKitWindowHandle::empty();
+            handle.ui_window = ui_kit.ui_window;
+            handle.ui_view = ui_kit.ui_view;
+            handle.ui_view_controller = ui_kit.ui_view_controller;
+            v5::RawWindowHandle::UiKit(handle)
+        }
+
+        RawWindowHandle::Wayland(wayland) => {
+            let mut handle = v5::WaylandWindowHandle::empty();
+            handle.surface = wayland.surface;
+            v5::RawWindowHandle::Wayland(handle)
+        }
+
+        RawWindowHandle::Web(web) => {
+            let mut handle = v5::WebWindowHandle::empty();
+            handle.id = web.id;
+            v5::RawWindowHandle::Web(handle)
+        }
+
+        RawWindowHandle::Win32(win32) => {
+            let mut handle = v5::Win32WindowHandle::empty();
+            handle.hinstance = win32.hinstance;
+            handle.hwnd = win32.hwnd;
+            v5::RawWindowHandle::Win32(handle)
+        }
+
+        RawWindowHandle::WinRt(winrt) => {
+            let mut handle = v5::WinRtWindowHandle::empty();
+            handle.core_window = winrt.core_window;
+            v5::RawWindowHandle::WinRt(handle)
+        }
+
+        RawWindowHandle::Xcb(xcb) => {
+            let mut handle = v5::XcbWindowHandle::empty();
+            handle.window = xcb.window;
+            handle.visual_id = xcb.visual_id;
+            v5::RawWindowHandle::Xcb(handle)
+        }
+
+        RawWindowHandle::Xlib(xlib) => {
+            let mut handle = v5::XlibWindowHandle::empty();
+            handle.window = xlib.window;
+            handle.visual_id = xlib.visual_id;
+            v5::RawWindowHandle::Xlib(handle)
+        }
+
+        handle => panic!("Unsupported raw window handle type: {:?}", handle),
     }
 }
