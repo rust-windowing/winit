@@ -12,9 +12,19 @@ impl IntersectionObserverHandle {
     where
         F: 'static + FnMut(bool),
     {
+        let mut skip = true;
         let closure = Closure::new(move |entries: Array| {
             let entry: IntersectionObserverEntry = entries.get(0).unchecked_into();
-            callback(entry.is_intersecting())
+
+            let is_intersecting = entry.is_intersecting();
+
+            // skip first intersection
+            if skip && is_intersecting {
+                skip = false;
+                return;
+            }
+
+            callback(is_intersecting);
         });
         let observer = IntersectionObserver::new(closure.as_ref().unchecked_ref())
             // we don't provide any `options`
