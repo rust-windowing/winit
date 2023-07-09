@@ -565,7 +565,12 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`] or [`padding`].
     /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     Occluded(bool),
 }
 
