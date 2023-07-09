@@ -31,8 +31,11 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
-    // Whether we've got a key release for the key press.
-    pub(super) got_key_release: bool,
+    // This is the last pressed key that is repeatable (if it hasn't been
+    // released).
+    //
+    // Used to detect key repeats.
+    pub(super) held_key_press: Option<u32>,
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
@@ -548,13 +551,39 @@ impl<T: 'static> EventProcessor<T> {
                 let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
                 let keycode = xkev.keycode as _;
-                let repeat = ty == ffi::KeyPress && !self.got_key_release;
-                // Update state after the repeat setting.
+
+                // Update state to track key repeats and determine whether this key was a repeat.
+                //
+                // Note, when a key is held before focusing on this window the first
+                // (non-synthetic) event will not be flagged as a repeat (also note that the
+                // synthetic press event that is generated before this when the window gains focus
+                // will also not be flagged as a repeat).
+                //
+                // Only keys that can repeat should change the held_key_press state since a
+                // continuously held repeatable key may continue repeating after the press of a
+                // non-repeatable key.
+                let repeat = if self.kb_state.key_repeats(keycode) {
+                    let is_latest_held = self.held_key_press == Some(keycode);
+
+                    if ty == ffi::KeyPress {
+                        self.held_key_press = Some(keycode);
+                        is_latest_held
+                    } else {
+                        // Check that the released key is the latest repeatable key that has been
+                        // pressed, since repeats will continue for the latest key press if a
+                        // different previously pressed key is released.
+                        if is_latest_held {
+                            self.held_key_press = None;
+                        }
+                        false
+                    }
+                } else {
+                    false
+                };
+
                 let state = if ty == ffi::KeyPress {
-                    self.got_key_release = false;
                     ElementState::Pressed
                 } else {
-                    self.got_key_release = true;
                     ElementState::Released
                 };
 
@@ -926,6 +955,9 @@ impl<T: 'static> EventProcessor<T> {
                                 &mut self.kb_state,
                                 &mut callback,
                             );
+                            // Clear this so detecting key repeats is consistently handled when the
+                            // window regains focus.
+                            self.held_key_press = None;
 
                             callback(Event::WindowEvent {
                                 window_id,
