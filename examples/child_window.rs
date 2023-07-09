@@ -19,7 +19,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event_loop: &EventLoopWindowTarget<()>,
         windows: &mut HashMap<WindowId, Window>,
     ) {
-        let parent = parent.raw_window_handle();
+        let parent = parent.raw_window_handle().unwrap();
         let mut builder = WindowBuilder::new()
             .with_title("child window")
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))

@@ -2,7 +2,7 @@
 use std::fmt;
 
 use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+    HandleError, HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -1373,6 +1373,7 @@ impl Window {
             .map(|inner| MonitorHandle { inner })
     }
 }
+
 unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
@@ -1389,8 +1390,8 @@ unsafe impl HasRawWindowHandle for Window {
     ///
     /// [`Event::Resumed`]: crate::event::Event::Resumed
     /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        self.window.raw_window_handle()
+    fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
+        Ok(self.window.raw_window_handle())
     }
 }
 
@@ -1399,8 +1400,8 @@ unsafe impl HasRawDisplayHandle for Window {
     /// created a window.
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.window.raw_display_handle()
+    fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
+        Ok(self.window.raw_display_handle())
     }
 }
 

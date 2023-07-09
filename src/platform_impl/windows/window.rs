@@ -1,7 +1,7 @@
 #![cfg(windows_platform)]
 
 use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
+    HandleError, RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
 };
 use std::{
     cell::Cell,
@@ -325,11 +325,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let mut window_handle = Win32WindowHandle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
         window_handle.hinstance = self.hinstance() as *mut _;
-        RawWindowHandle::Win32(window_handle)
+        Ok(RawWindowHandle::Win32(window_handle))
     }
 
     #[inline]

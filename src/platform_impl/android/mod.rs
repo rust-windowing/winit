@@ -16,7 +16,7 @@ use android_activity::{
 };
 use once_cell::sync::Lazy;
 use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+    AndroidDisplayHandle, AndroidNdkWindowHandle, HandleError, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -942,11 +942,15 @@ impl Window {
         ))
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         if let Some(native_window) = self.app.native_window().as_ref() {
-            native_window.raw_window_handle()
+            // TODO: Port the ndk-rs crate to rwh v0.6
+            let mut handle = AndroidNdkWindowHandle::empty();
+            handle.a_native_window = native_window.ptr().as_ptr().cast();
+            Ok(handle.into())
         } else {
-            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            Err(HandleError::Unavailable)
         }
     }
 

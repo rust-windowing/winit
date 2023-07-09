@@ -8,7 +8,7 @@ use std::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
 use raw_window_handle::{
-    AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
+    AppKitDisplayHandle, AppKitWindowHandle, HandleError, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -1245,11 +1245,11 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let mut window_handle = AppKitWindowHandle::empty();
         window_handle.ns_window = self.ns_window();
         window_handle.ns_view = self.ns_view();
-        RawWindowHandle::AppKit(window_handle)
+        Ok(RawWindowHandle::AppKit(window_handle))
     }
 
     #[inline]

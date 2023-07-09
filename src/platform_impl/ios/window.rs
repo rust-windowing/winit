@@ -10,7 +10,9 @@ use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
 use objc2::rc::Id;
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
+use raw_window_handle::{
+    HandleError, RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle,
+};
 
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
@@ -337,12 +339,12 @@ impl Inner {
         self.window.id()
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let mut window_handle = UiKitWindowHandle::empty();
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = Id::as_ptr(&self.view) as _;
         window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
-        RawWindowHandle::UiKit(window_handle)
+        Ok(RawWindowHandle::UiKit(window_handle))
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

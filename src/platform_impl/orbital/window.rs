@@ -4,7 +4,7 @@ use std::{
 };
 
 use raw_window_handle::{
-    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
+    HandleError, OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -384,10 +384,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let mut handle = OrbitalWindowHandle::empty();
         handle.window = self.window_socket.fd as *mut _;
-        RawWindowHandle::Orbital(handle)
+        Ok(RawWindowHandle::Orbital(handle))
     }
 
     #[inline]
