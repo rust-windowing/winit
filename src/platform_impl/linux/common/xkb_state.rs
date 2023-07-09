@@ -354,7 +354,6 @@ impl KbdState {
         self.post_init(state, keymap);
     }
 
-    #[cfg(feature = "wayland")]
     pub fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
         unsafe { (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1 }
     }

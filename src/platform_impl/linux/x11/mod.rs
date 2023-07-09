@@ -289,10 +289,10 @@ impl<T: 'static> EventLoop<T> {
             xkbext,
             kb_state,
             num_touch: 0,
+            held_key_press: None,
             first_touch: None,
             active_window: None,
             is_composing: false,
-            got_key_release: true,
         };
 
         // Register for device hotplug events
