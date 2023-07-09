@@ -84,7 +84,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// Not all platforms support the notion of suspending applications, and there may be no
     /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
     /// Winit does not currently try to emit pseudo `Suspended` events before the application
     /// quits on platforms without an application lifecycle.
     ///
@@ -1153,7 +1153,7 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+ and **Windows** 8+.
+    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,

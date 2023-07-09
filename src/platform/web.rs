@@ -2,6 +2,19 @@
 //! allow end users to determine how the page should be laid out. Use the [`WindowExtWebSys`] trait
 //! to retrieve the canvas from the Window. Alternatively, use the [`WindowBuilderExtWebSys`] trait
 //! to provide your own canvas.
+//!
+//! It is recommended **not** to apply certain CSS properties to the canvas:
+//! - [`transform`] - which causes [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`] to
+//!   be inaccurate.
+//! - [`border`] - which causes [`WindowEvent::Occluded`] to be inaccurate.
+//! - [`padding`] - which causes [`WindowEvent::Occluded`] to be inaccurate.
+//!
+//! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+//! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size()
+//! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
+//! [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
+//! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+//! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
 use crate::event::Event;
 use crate::event_loop::ControlFlow;
