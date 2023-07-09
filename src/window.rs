@@ -1391,7 +1391,7 @@ unsafe impl HasRawWindowHandle for Window {
     /// [`Event::Resumed`]: crate::event::Event::Resumed
     /// [`Event::Suspended`]: crate::event::Event::Suspended
     fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
-        Ok(self.window.raw_window_handle())
+        self.window.raw_window_handle()
     }
 }
 

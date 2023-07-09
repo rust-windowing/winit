@@ -40,6 +40,7 @@ skip = [
     { name = "num_enum"},       # See above ^, waiting for release
     { name = "num_enum_derive"},# See above ^, waiting for release
     { name = "miniz_oxide"},    # https://github.com/rust-lang/flate2-rs/issues/340
+    { name = "raw-window-handle" }, # https://github.com/rust-windowing/raw-window-handle/issues/125, slow transition
     { name = "redox_syscall" }, # https://gitlab.redox-os.org/redox-os/orbclient/-/issues/46
 ]
 skip-tree = []
