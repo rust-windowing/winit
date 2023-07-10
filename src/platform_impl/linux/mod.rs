@@ -367,8 +367,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
-        x11_or_wayland!(match self; Window(w) => w.set_inner_size(size))
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        x11_or_wayland!(match self; Window(w) => w.request_inner_size(size))
     }
 
     #[inline]

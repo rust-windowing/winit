@@ -137,13 +137,15 @@ fn main() {
                                 }),
                                 "q" => window.request_redraw(),
                                 "r" => window.set_resizable(state),
-                                "s" => window.set_inner_size(match state {
-                                    true => PhysicalSize::new(
-                                        WINDOW_SIZE.width + 100,
-                                        WINDOW_SIZE.height + 100,
-                                    ),
-                                    false => WINDOW_SIZE,
-                                }),
+                                "s" => {
+                                    let _ = window.request_inner_size(match state {
+                                        true => PhysicalSize::new(
+                                            WINDOW_SIZE.width + 100,
+                                            WINDOW_SIZE.height + 100,
+                                        ),
+                                        false => WINDOW_SIZE,
+                                    });
+                                }
                                 "w" => {
                                     if let Size::Physical(size) = WINDOW_SIZE.into() {
                                         window
