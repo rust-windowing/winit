@@ -411,6 +411,14 @@ unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
     }
 }
 
+impl<T> HasDisplayHandle for EventLoopWindowTarget<T> {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: The returned display handle is always valid for this lifetime.
+        self.raw_display_handle()
+            .map(|handle| unsafe { DisplayHandle::borrow_raw(handle) })
+    }
+}
+
 unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
     fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
         let result = HasRawDisplayHandle::raw_display_handle(self);
