@@ -12,6 +12,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   between presses.
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
 - On Web, implement `WindowEvent::Occluded`.
+- On Web, fix touch location to be as accurate as mouse position.
 
 # 0.29.0-beta.0
 
