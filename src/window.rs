@@ -644,9 +644,10 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
-    /// - **Web:** Returns the size of the canvas element.
+    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
@@ -683,9 +684,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Sets the size of the canvas element.
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
-    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized.
+    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     #[must_use]
     pub fn request_inner_size<S: Into<Size>>(&self, size: S) -> Option<PhysicalSize<u32>> {
