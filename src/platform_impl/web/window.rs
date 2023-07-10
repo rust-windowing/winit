@@ -368,7 +368,9 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        // Currently a no-op as it does not seem there is good support for this on web
+        self.inner.dispatch(|inner| {
+            let _ = inner.canvas.borrow().raw().focus();
+        })
     }
 
     #[inline]

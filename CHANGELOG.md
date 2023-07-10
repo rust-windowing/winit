@@ -18,6 +18,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, implement `Window::set_(min|max)_inner_size()`.
 - On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
 - On Web, fix some `WindowBuilder` methods doing nothing.
+- On Web, implement `Window::focus_window()`.
 
 # 0.29.0-beta.0
 

@@ -122,6 +122,10 @@ impl Canvas {
             common.request_fullscreen();
         }
 
+        if attr.active {
+            let _ = common.raw.focus();
+        }
+
         Ok(Canvas {
             common,
             id,
