@@ -16,7 +16,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
 - On Web, add Fullscreen API compatibility for Safari.
 - On Web, implement `Window::set_(min|max)_inner_size()`.
-- On Web, fix `Window::set_outer_position()` using HTML attributes instead of CSS properties.
+- On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
 - On Web, fix some `WindowBuilder` methods doing nothing.
 
 # 0.29.0-beta.0

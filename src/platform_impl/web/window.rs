@@ -262,12 +262,13 @@ impl Window {
     pub fn set_cursor_visible(&self, visible: bool) {
         self.inner.dispatch(move |inner| {
             if !visible {
-                inner.canvas.borrow().set_attribute("cursor", "none");
+                backend::set_canvas_style_property(inner.canvas.borrow().raw(), "cursor", "none");
             } else {
-                inner
-                    .canvas
-                    .borrow()
-                    .set_attribute("cursor", &inner.previous_pointer.borrow());
+                backend::set_canvas_style_property(
+                    inner.canvas.borrow().raw(),
+                    "cursor",
+                    &inner.previous_pointer.borrow(),
+                );
             }
         });
     }
