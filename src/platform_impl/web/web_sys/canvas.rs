@@ -3,7 +3,7 @@ use super::event_handle::EventListenerHandle;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, ButtonsState, ResizeScaleHandle};
+use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
@@ -18,8 +18,7 @@ use std::sync::Arc;
 
 use js_sys::Promise;
 use smol_str::SmolStr;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
@@ -504,27 +503,15 @@ impl Common {
             handler(event);
 
             if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
+                fullscreen::request_fullscreen(&canvas).expect("Failed to enter fullscreen");
                 *wants_fullscreen.borrow_mut() = false;
             }
         })
     }
 
     pub fn request_fullscreen(&self) {
-        #[wasm_bindgen]
-        extern "C" {
-            type ElementExt;
-
-            #[wasm_bindgen(catch, method, js_name = requestFullscreen)]
-            fn request_fullscreen(this: &ElementExt) -> Result<JsValue, JsValue>;
-        }
-
-        let raw: &ElementExt = self.raw.unchecked_ref();
-
         // This should return a `Promise`, but Safari v<16.4 is not up-to-date with the spec.
-        match raw.request_fullscreen() {
+        match fullscreen::request_fullscreen(&self.raw) {
             Ok(value) if !value.is_undefined() => {
                 let promise: Promise = value.unchecked_into();
                 let wants_fullscreen = self.wants_fullscreen.clone();
