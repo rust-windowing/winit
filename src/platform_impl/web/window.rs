@@ -127,9 +127,29 @@ impl Window {
 
     pub fn set_outer_position(&self, position: Position) {
         self.inner.dispatch(move |inner| {
-            let position = position.to_logical::<f64>(inner.scale_factor());
+            let mut position = position.to_logical::<f64>(inner.scale_factor());
 
             let canvas = inner.canvas.borrow();
+            let document = inner.window.document().expect("Failed to obtain document");
+
+            if document.contains(Some(canvas.raw())) {
+                let style = inner
+                    .window
+                    .get_computed_style(canvas.raw())
+                    .expect("Failed to obtain computed style")
+                    // this can't fail: we aren't using a pseudo-element
+                    .expect("Invalid pseudo-element");
+
+                if style.get_property_value("display").unwrap() != "none" {
+                    position.x -= backend::style_size_property(&style, "margin-left")
+                        + backend::style_size_property(&style, "border-left-width")
+                        + backend::style_size_property(&style, "padding-left");
+                    position.y -= backend::style_size_property(&style, "margin-top")
+                        + backend::style_size_property(&style, "border-top-width")
+                        + backend::style_size_property(&style, "padding-top");
+                }
+            }
+
             canvas.set_attribute("position", "fixed");
             canvas.set_attribute("left", &position.x.to_string());
             canvas.set_attribute("top", &position.y.to_string());
