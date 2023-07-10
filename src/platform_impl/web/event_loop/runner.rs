@@ -19,7 +19,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use wasm_bindgen::prelude::Closure;
-use web_sys::{KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
+use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -41,6 +41,7 @@ pub struct Execution<T: 'static> {
     events: RefCell<VecDeque<EventWrapper<T>>>,
     id: RefCell<u32>,
     window: web_sys::Window,
+    document: Document,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
@@ -141,13 +142,18 @@ impl<T: 'static> Runner<T> {
 
 impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
+        #[allow(clippy::disallowed_methods)]
+        let window = web_sys::window().expect("only callable from inside the `Window`");
+        #[allow(clippy::disallowed_methods)]
+        let document = window.document().expect("Failed to obtain document");
+
         Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
             suspended: Cell::new(false),
             event_loop_recreation: Cell::new(false),
             events: RefCell::new(VecDeque::new()),
-            #[allow(clippy::disallowed_methods)]
-            window: web_sys::window().expect("only callable from inside the `Window`"),
+            window,
+            document,
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
@@ -166,6 +172,10 @@ impl<T: 'static> Shared<T> {
 
     pub fn window(&self) -> &web_sys::Window {
         &self.0.window
+    }
+
+    pub fn document(&self) -> &Document {
+        &self.0.document
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -394,13 +404,13 @@ impl<T: 'static> Shared<T> {
         let runner = self.clone();
         *self.0.on_visibility_change.borrow_mut() = Some(EventListenerHandle::new(
             // Safari <14 doesn't support the `visibilitychange` event on `Window`.
-            &self.window().document().expect("Failed to obtain document"),
+            self.document(),
             "visibilitychange",
             Closure::new(move |_| {
                 if !runner.0.suspended.get() {
                     for (id, canvas) in &*runner.0.all_canvases.borrow() {
                         if let Some(canvas) = canvas.upgrade() {
-                            let is_visible = backend::is_visible(runner.window());
+                            let is_visible = backend::is_visible(runner.document());
                             // only fire if:
                             // - not visible and intersects
                             // - not visible and we don't know if it intersects yet

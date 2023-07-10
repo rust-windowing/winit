@@ -725,7 +725,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_intersection(move |is_intersecting| {
             // only fire if visible while skipping the first event if it's intersecting
-            if backend::is_visible(runner.window())
+            if backend::is_visible(runner.document())
                 && !(is_intersecting && canvas_clone.borrow().is_intersecting.is_none())
             {
                 runner.send_event(Event::WindowEvent {
