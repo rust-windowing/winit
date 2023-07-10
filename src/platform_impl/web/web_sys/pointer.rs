@@ -80,7 +80,6 @@ impl PointerHandler {
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        let canvas = canvas_common.raw.clone();
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
@@ -90,8 +89,7 @@ impl PointerHandler {
                     "touch" => touch_handler(
                         modifiers,
                         event.pointer_id(),
-                        event::touch_position(&event, &canvas)
-                            .to_physical(super::scale_factor(&window)),
+                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     ),
                     "mouse" => mouse_handler(
@@ -137,8 +135,7 @@ impl PointerHandler {
                         touch_handler(
                             modifiers,
                             event.pointer_id(),
-                            event::touch_position(&event, &canvas)
-                                .to_physical(super::scale_factor(&window)),
+                            event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                             Force::Normalized(event.pressure() as f64),
                         );
                     }
@@ -247,7 +244,7 @@ impl PointerHandler {
                         id,
                         &mut event::pointer_move_event(event).map(|event| {
                             (
-                                event::touch_position(&event, &canvas).to_physical(scale),
+                                event::mouse_position(&event).to_physical(scale),
                                 Force::Normalized(event.pressure() as f64),
                             )
                         }),
@@ -263,15 +260,13 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        let canvas = canvas_common.raw.clone();
         self.on_touch_cancel = Some(canvas_common.add_event(
             "pointercancel",
             move |event: PointerEvent| {
                 if event.pointer_type() == "touch" {
                     handler(
                         event.pointer_id(),
-                        event::touch_position(&event, &canvas)
-                            .to_physical(super::scale_factor(&window)),
+                        event::mouse_position(&event).to_physical(super::scale_factor(&window)),
                         Force::Normalized(event.pressure() as f64),
                     );
                 }
