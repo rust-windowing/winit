@@ -1,6 +1,7 @@
 mod canvas;
 pub mod event;
 mod event_handle;
+mod fullscreen;
 mod intersection_handle;
 mod media_query_handle;
 mod pointer;
@@ -26,7 +27,7 @@ pub fn throw(msg: &str) {
 }
 
 pub fn exit_fullscreen(document: &Document) {
-    document.exit_fullscreen();
+    fullscreen::exit_fullscreen(document);
 }
 
 pub struct PageTransitionEventHandle {
@@ -115,7 +116,7 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
 }
 
 pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
-    match document.fullscreen_element() {
+    match fullscreen::fullscreen_element(document) {
         Some(elem) => {
             let canvas: &Element = canvas;
             canvas == &elem
