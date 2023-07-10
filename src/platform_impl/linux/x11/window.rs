@@ -1143,7 +1143,7 @@ impl UnownedWindow {
         }
     }
 
-    pub(crate) fn set_inner_size_physical(&self, width: u32, height: u32) {
+    pub(crate) fn request_inner_size_physical(&self, width: u32, height: u32) {
         unsafe {
             (self.xconn.xlib.XResizeWindow)(
                 self.xconn.display,
@@ -1157,7 +1157,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let size = size.to_physical::<u32>(scale_factor).into();
         if !self.shared_state_lock().is_resizable {
@@ -1167,7 +1167,9 @@ impl UnownedWindow {
             })
             .expect("Failed to call `XSetWMNormalHints`");
         }
-        self.set_inner_size_physical(size.0, size.1);
+        self.request_inner_size_physical(size.0, size.1);
+
+        None
     }
 
     fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>

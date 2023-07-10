@@ -210,7 +210,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let physical_size = size.to_physical::<u32>(scale_factor);
 
@@ -225,6 +225,7 @@ impl Window {
 
         let window_flags = self.window_state_lock().window_flags;
         window_flags.set_size(self.hwnd(), physical_size);
+        None
     }
 
     #[inline]
@@ -232,7 +233,7 @@ impl Window {
         self.window_state_lock().min_size = size;
         // Make windows re-check the window size bounds.
         let size = self.inner_size();
-        self.set_inner_size(size.into());
+        self.request_inner_size(size.into());
     }
 
     #[inline]
@@ -240,7 +241,7 @@ impl Window {
         self.window_state_lock().max_size = size;
         // Make windows re-check the window size bounds.
         let size = self.inner_size();
-        self.set_inner_size(size.into());
+        self.request_inner_size(size.into());
     }
 
     #[inline]
@@ -1051,11 +1052,11 @@ impl<'a, T: 'static> InitData<'a, T> {
                 .min_inner_size
                 .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
             let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-            win.set_inner_size(clamped_size);
+            win.request_inner_size(clamped_size);
 
             if attributes.maximized {
                 // Need to set MAXIMIZED after setting `inner_size` as
-                // `Window::set_inner_size` changes MAXIMIZED to false.
+                // `Window::request_inner_size` changes MAXIMIZED to false.
                 win.set_maximized(true);
             }
         }
