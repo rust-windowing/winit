@@ -356,8 +356,23 @@ pub enum StartCause {
 /// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
-    /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(PhysicalSize<u32>),
+    /// The state of the window was changed.
+    ///
+    /// This event is delivered when the window is being resized.
+    Configured {
+        /// The new size of the window.
+        ///
+        /// The size may not actually have changed.
+        size: PhysicalSize<u32>,
+
+        /// The state of the window.
+        ///
+        /// This could be used to prevent active polling of [`Window::fullscreen`] or
+        /// [`Window::is_maximized`].
+        ///
+        /// See [`WindowState`] for details.
+        state: WindowState,
+    },
 
     /// The position of the window has changed. Contains the window's new position.
     ///
@@ -608,7 +623,10 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
-            Resized(size) => Resized(*size),
+            Configured { size, state } => Configured {
+                size: *size,
+                state: *state,
+            },
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
@@ -711,7 +729,7 @@ impl<'a> WindowEvent<'a> {
     pub fn to_static(self) -> Option<WindowEvent<'static>> {
         use self::WindowEvent::*;
         match self {
-            Resized(size) => Some(Resized(size)),
+            Configured { size, state } => Some(Configured { size, state }),
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
             Destroyed => Some(Destroyed),
@@ -1307,4 +1325,28 @@ pub enum MouseScrollDelta {
     /// this means moving your fingers right and down should give positive values,
     /// and move the content right and down (to reveal more things left and up).
     PixelDelta(PhysicalPosition<f64>),
+}
+
+bitflags::bitflags! {
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct WindowState: u32 {
+        /// The window is maximized.
+        ///
+        /// # Platform-specific
+        ///
+        /// **Web:** Unsupported.
+        const MAXIMIZED   = 0b0000_0001;
+        /// The window is fullscreened.
+        ///
+        /// # Platform-specific
+        ///
+        /// **Wayland:** you should draw the background of the window fully opaque.
+        const FULLSCREEN  = 0b0000_0010;
+        /// The window is minimized.
+        ///
+        /// # Platform-specific
+        ///
+        /// **Wayland / Web:** Unsupported.
+        const MINIMIZED   = 0b0000_0100;
+    }
 }

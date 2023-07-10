@@ -28,6 +28,7 @@ pub mod sink;
 pub use proxy::EventLoopProxy;
 use sink::EventSink;
 
+use super::state::WinitWindowConfigure;
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::{DeviceId, WindowId};
 
@@ -286,14 +287,24 @@ impl<T: 'static> EventLoop<T> {
             for mut compositor_update in compositor_updates.drain(..) {
                 let window_id = compositor_update.window_id;
                 if let Some(scale_factor) = compositor_update.scale_factor {
-                    let mut physical_size = self.with_state(|state| {
+                    let (mut physical_size, state) = self.with_state(|state| {
                         let windows = state.windows.get_mut();
                         let mut window = windows.get(&window_id).unwrap().lock().unwrap();
 
                         // Set the new scale factor.
                         window.set_scale_factor(scale_factor);
-                        let window_size = compositor_update.size.unwrap_or(window.inner_size());
-                        logical_to_physical_rounded(window_size, scale_factor)
+                        let window_size = compositor_update
+                            .configure
+                            .map(|configure| configure.size)
+                            .unwrap_or(window.inner_size());
+                        (
+                            logical_to_physical_rounded(window_size, scale_factor),
+                            window
+                                .last_configure
+                                .as_ref()
+                                .map(|configure| configure.state.into())
+                                .unwrap_or_default(),
+                        )
                     });
 
                     // Stash the old window size.
@@ -324,10 +335,15 @@ impl<T: 'static> EventLoop<T> {
                     }
 
                     // Make it queue resize.
-                    compositor_update.size = Some(new_logical_size);
+                    compositor_update.configure = Some(WinitWindowConfigure {
+                        size: new_logical_size,
+                        state,
+                    });
                 }
 
-                if let Some(size) = compositor_update.size.take() {
+                if let Some(WinitWindowConfigure { size, state }) =
+                    compositor_update.configure.take()
+                {
                     let physical_size = self.with_state(|state| {
                         let windows = state.windows.get_mut();
                         let window = windows.get(&window_id).unwrap().lock().unwrap();
@@ -352,7 +368,10 @@ impl<T: 'static> EventLoop<T> {
                     sticky_exit_callback(
                         Event::WindowEvent {
                             window_id: crate::window::WindowId(window_id),
-                            event: WindowEvent::Resized(physical_size),
+                            event: WindowEvent::Configured {
+                                size: physical_size,
+                                state,
+                            },
                         },
                         &self.window_target,
                         &mut control_flow,

@@ -122,7 +122,7 @@ declare_class!(
         #[sel(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&Object>) {
             trace_scope!("windowDidResize:");
-            // NOTE: WindowEvent::Resized is reported in frameDidChange.
+            // NOTE: WindowEvent::Configured is reported in frameDidChange.
             self.emit_move_event();
         }
 

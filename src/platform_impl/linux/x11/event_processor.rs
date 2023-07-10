@@ -7,6 +7,7 @@ use super::{
     GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId, XExtension,
 };
 
+use crate::event::WindowState;
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -302,7 +303,7 @@ impl<T: 'static> EventProcessor<T> {
                     // `XSendEvent` (synthetic `ConfigureNotify`) -> position relative to root
                     // `XConfigureNotify` (real `ConfigureNotify`) -> position relative to parent
                     // https://tronche.com/gui/x/icccm/sec-4.html#s-4.1.5
-                    // We don't want to send `Moved` when this is false, since then every `Resized`
+                    // We don't want to send `Moved` when this is false, since then every `Configured`
                     // (whether the window moved or not) is accompanied by an extraneous `Moved` event
                     // that has a position relative to the parent window.
                     let is_synthetic = xev.send_event == ffi::True;
@@ -311,12 +312,10 @@ impl<T: 'static> EventProcessor<T> {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x, xev.y);
 
-                    let (mut resized, moved) = {
+                    let moved = {
                         let mut shared_state_lock = window.shared_state_lock();
 
-                        let resized =
-                            util::maybe_change(&mut shared_state_lock.size, new_inner_size);
-                        let moved = if is_synthetic {
+                        if is_synthetic {
                             util::maybe_change(
                                 &mut shared_state_lock.inner_position,
                                 new_inner_position,
@@ -336,8 +335,7 @@ impl<T: 'static> EventProcessor<T> {
                                 shared_state_lock.frame_extents = None;
                             }
                             false
-                        };
-                        (resized, moved)
+                        }
                     };
 
                     let position = window.shared_state_lock().position;
@@ -425,9 +423,6 @@ impl<T: 'static> EventProcessor<T> {
                                 );
                                 window.shared_state_lock().dpi_adjusted =
                                     Some(new_inner_size.into());
-                                // if the DPI factor changed, force a resize event to ensure the logical
-                                // size is computed with the right DPI factor
-                                resized = true;
                             }
                         }
                     }
@@ -450,12 +445,23 @@ impl<T: 'static> EventProcessor<T> {
                     // Unlock shared state to prevent deadlock in callback below
                     drop(shared_state_lock);
 
-                    if resized {
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(new_inner_size.into()),
-                        });
-                    }
+                    let mut state = WindowState::empty();
+                    state.set(
+                        WindowState::MINIMIZED,
+                        window.is_minimized().unwrap_or_default(),
+                    );
+                    state.set(WindowState::MAXIMIZED, window.is_maximized());
+                    state.set(WindowState::FULLSCREEN, window.fullscreen().is_some());
+
+                    // Always send a configure, users can decide on their own whether they need to
+                    // change anything or not, since they do track the state regardless.
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Configured {
+                            size: new_inner_size.into(),
+                            state,
+                        },
+                    });
                 }
             }
 

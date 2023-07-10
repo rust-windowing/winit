@@ -843,9 +843,10 @@ impl Window {
 
     /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling [`WindowEvent::Resized`], as that
-    /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
-    /// window could still be resized by calling [`Window::request_inner_size`].
+    /// Note that making the window unresizable doesn't exempt you from handling
+    /// [`WindowEvent::Configured`], as that event can still be triggered by DPI
+    /// scaling, entering fullscreen mode, etc. Also, the window could still be
+    /// resized by calling [`Window::set_inner_size`].
     ///
     /// ## Platform-specific
     ///
@@ -854,7 +855,7 @@ impl Window {
     /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
-    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+    /// [`WindowEvent::Configured`]: crate::event::WindowEvent::Configured
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)

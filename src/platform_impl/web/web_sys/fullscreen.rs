@@ -97,3 +97,11 @@ pub fn fullscreen_element(document: &Document) -> Option<Element> {
         document.webkit_fullscreen_element()
     }
 }
+
+pub fn fullscreen_change(canvas: &HtmlCanvasElement) -> &'static str {
+    if canvas_has_fullscreen_api_support(canvas) {
+        "fullscreenchange"
+    } else {
+        "webkitfullscreenchange"
+    }
+}

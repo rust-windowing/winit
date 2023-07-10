@@ -421,7 +421,10 @@ impl<T: 'static> EventLoop<T> {
             EventOption::Resize(ResizeEvent { width, height }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Resized((width, height).into()),
+                    event: event::WindowEvent::Configured {
+                        size: (width, height).into(),
+                        state: Default::default(),
+                    },
                 });
 
                 // Acknowledge resize after event loop.
@@ -508,7 +511,10 @@ impl<T: 'static> EventLoop<T> {
                 event_handler(
                     event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::Resized((properties.w, properties.h).into()),
+                        event: event::WindowEvent::Configured {
+                            size: (properties.w, properties.h).into(),
+                            state: Default::default(),
+                        },
                     },
                     &self.window_target,
                     &mut control_flow,

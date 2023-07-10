@@ -6,7 +6,7 @@ use super::pointer::PointerHandler;
 use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{Force, MouseButton, MouseScrollDelta};
+use crate::event::{Force, MouseButton, MouseScrollDelta, WindowState};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -48,7 +48,7 @@ pub struct Common {
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
-    style: CssStyleDeclaration,
+    pub style: CssStyleDeclaration,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
@@ -173,11 +173,6 @@ impl Canvas {
     #[inline]
     pub fn set_current_size(&self, size: PhysicalSize<u32>) {
         self.common.current_size.set(size)
-    }
-
-    #[inline]
-    pub fn window(&self) -> &web_sys::Window {
-        &self.common.window
     }
 
     #[inline]
@@ -385,18 +380,21 @@ impl Canvas {
         ));
     }
 
-    pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
-    where
+    pub(crate) fn on_resize_scale<S, R, F>(
+        &mut self,
+        scale_handler: S,
+        size_handler: R,
+        fullscreen_handler: F,
+    ) where
         S: 'static + FnMut(PhysicalSize<u32>, f64),
         R: 'static + FnMut(PhysicalSize<u32>),
+        F: 'static + FnMut(PhysicalSize<u32>, bool),
     {
         self.on_resize_scale = Some(ResizeScaleHandle::new(
-            self.window().clone(),
-            self.document().clone(),
-            self.raw().clone(),
-            self.style().clone(),
+            &self.common,
             scale_handler,
             size_handler,
+            fullscreen_handler,
         ));
     }
 
@@ -435,7 +433,7 @@ impl Canvas {
 
         if current_size != new_size {
             // Then we resize the canvas to the new size, a new
-            // `Resized` event will be sent by the `ResizeObserver`:
+            // `Configured` event will be sent by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
@@ -449,7 +447,14 @@ impl Canvas {
             self.set_old_size(new_size);
             runner.send_event(crate::event::Event::WindowEvent {
                 window_id: RootWindowId(self.id),
-                event: crate::event::WindowEvent::Resized(new_size),
+                event: crate::event::WindowEvent::Configured {
+                    size: new_size,
+                    state: if super::is_fullscreen(self.document(), self.raw()) {
+                        WindowState::FULLSCREEN
+                    } else {
+                        WindowState::empty()
+                    },
+                },
             })
         }
     }

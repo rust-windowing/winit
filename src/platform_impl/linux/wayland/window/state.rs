@@ -32,7 +32,9 @@ use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, The
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
 };
-use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
+use crate::platform_impl::wayland::state::{
+    WindowCompositorUpdate, WinitState, WinitWindowConfigure,
+};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -168,7 +170,7 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Arc<SubcompositorState>,
-    ) -> LogicalSize<u32> {
+    ) -> WinitWindowConfigure {
         if configure.decoration_mode == DecorationMode::Client
             && self.frame.is_none()
             && !self.csd_fails
@@ -223,13 +225,18 @@ impl WindowState {
             }
         };
 
+        let state = configure.state.into();
+
         // XXX Set the configure before doing a resize.
         self.last_configure = Some(configure);
 
         // XXX Update the new size right away.
         self.resize(new_size);
 
-        new_size
+        WinitWindowConfigure {
+            size: new_size,
+            state,
+        }
     }
 
     #[inline]
