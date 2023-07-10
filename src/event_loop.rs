@@ -12,7 +12,9 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
-use raw_window_handle::{HandleError, HasRawDisplayHandle, RawDisplayHandle};
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasRawDisplayHandle, RawDisplayHandle,
+};
 #[cfg(not(wasm_platform))]
 use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
@@ -331,6 +333,14 @@ unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
         Ok(self.event_loop.window_target().p.raw_display_handle())
+    }
+}
+
+impl<T> HasDisplayHandle for EventLoop<T> {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: The returned display handle is always valid for this lifetime.
+        self.raw_display_handle()
+            .map(|handle| unsafe { DisplayHandle::borrow_raw(handle) })
     }
 }
 
