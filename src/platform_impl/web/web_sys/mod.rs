@@ -67,33 +67,85 @@ pub fn scale_factor(window: &web_sys::Window) -> f64 {
     window.device_pixel_ratio()
 }
 
-pub fn set_canvas_size(
-    document: &Document,
-    raw: &HtmlCanvasElement,
-    style: &CssStyleDeclaration,
-    mut new_size: LogicalSize<f64>,
-) {
-    if !document.contains(Some(raw)) {
-        return;
-    }
-
-    if style.get_property_value("display").unwrap() == "none" {
-        return;
-    }
-
+fn fix_canvas_size(style: &CssStyleDeclaration, mut size: LogicalSize<f64>) -> LogicalSize<f64> {
     if style.get_property_value("box-sizing").unwrap() == "border-box" {
-        new_size.width += style_size_property(style, "border-left-width")
+        size.width += style_size_property(style, "border-left-width")
             + style_size_property(style, "border-right-width")
             + style_size_property(style, "padding-left")
             + style_size_property(style, "padding-right");
-        new_size.height += style_size_property(style, "border-top-width")
+        size.height += style_size_property(style, "border-top-width")
             + style_size_property(style, "border-bottom-width")
             + style_size_property(style, "padding-top")
             + style_size_property(style, "padding-bottom");
     }
 
+    size
+}
+
+pub fn set_canvas_size(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    new_size: LogicalSize<f64>,
+) {
+    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+        return;
+    }
+
+    let new_size = fix_canvas_size(style, new_size);
+
     set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
     set_canvas_style_property(raw, "height", &format!("{}px", new_size.height));
+}
+
+pub fn set_canvas_min_size(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    dimensions: Option<LogicalSize<f64>>,
+) {
+    if let Some(dimensions) = dimensions {
+        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+            return;
+        }
+
+        let new_size = fix_canvas_size(style, dimensions);
+
+        set_canvas_style_property(raw, "min-width", &format!("{}px", new_size.width));
+        set_canvas_style_property(raw, "min-height", &format!("{}px", new_size.height));
+    } else {
+        style
+            .remove_property("min-width")
+            .expect("Property is read only");
+        style
+            .remove_property("min-height")
+            .expect("Property is read only");
+    }
+}
+
+pub fn set_canvas_max_size(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    dimensions: Option<LogicalSize<f64>>,
+) {
+    if let Some(dimensions) = dimensions {
+        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+            return;
+        }
+
+        let new_size = fix_canvas_size(style, dimensions);
+
+        set_canvas_style_property(raw, "max-width", &format!("{}px", new_size.width));
+        set_canvas_style_property(raw, "max-height", &format!("{}px", new_size.height));
+    } else {
+        style
+            .remove_property("max-width")
+            .expect("Property is read only");
+        style
+            .remove_property("max-height")
+            .expect("Property is read only");
+    }
 }
 
 /// This function will panic if the element is not inserted in the DOM

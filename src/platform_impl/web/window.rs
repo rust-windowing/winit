@@ -178,13 +178,33 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_min_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_max_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]

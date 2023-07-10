@@ -93,6 +93,16 @@ impl Canvas {
             super::set_canvas_size(&document, &canvas, &style, size);
         }
 
+        if let Some(size) = attr.min_inner_size {
+            let size = size.to_logical(super::scale_factor(&window));
+            super::set_canvas_min_size(&document, &canvas, &style, Some(size));
+        }
+
+        if let Some(size) = attr.max_inner_size {
+            let size = size.to_logical(super::scale_factor(&window));
+            super::set_canvas_max_size(&document, &canvas, &style, Some(size));
+        }
+
         Ok(Canvas {
             common: Common {
                 window,

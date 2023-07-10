@@ -15,6 +15,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix touch location to be as accurate as mouse position.
 - On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
 - On Web, add Fullscreen API compatibility for Safari.
+- On Web, implement `Window::set_(min|max)_inner_size()`.
 
 # 0.29.0-beta.0
 
