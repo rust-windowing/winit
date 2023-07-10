@@ -136,11 +136,31 @@ impl Canvas {
 
     pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.common.raw.get_bounding_client_rect();
-
-        LogicalPosition {
+        let mut position = LogicalPosition {
             x: bounds.x(),
             y: bounds.y(),
+        };
+
+        let document = self.window().document().expect("Failed to obtain document");
+
+        if document.contains(Some(self.raw())) {
+            let style = self
+                .window()
+                .get_computed_style(self.raw())
+                .expect("Failed to obtain computed style")
+                // this can't fail: we aren't using a pseudo-element
+                .expect("Invalid pseudo-element");
+            if style.get_property_value("display").unwrap() != "none"
+                && style.get_property_value("box-sizing").unwrap() == "border-box"
+            {
+                position.x -= super::style_size_property(&style, "border-left-width")
+                    + super::style_size_property(&style, "padding-left");
+                position.y -= super::style_size_property(&style, "border-top-width")
+                    + super::style_size_property(&style, "padding-top");
+            }
         }
+
+        position
     }
 
     pub fn old_size(&self) -> PhysicalSize<u32> {

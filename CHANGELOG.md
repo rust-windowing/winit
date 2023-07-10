@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
 - On Web, implement `WindowEvent::Occluded`.
 - On Web, fix touch location to be as accurate as mouse position.
+- On Web, account for CSS `border` and `padding` when getting or setting the canvas position.
 
 # 0.29.0-beta.0
 

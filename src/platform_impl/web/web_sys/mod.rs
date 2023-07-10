@@ -75,13 +75,17 @@ pub fn set_canvas_size(
 ) {
     let document = window.document().expect("Failed to obtain document");
 
+    if !document.contains(Some(raw)) {
+        return;
+    }
+
     let style = window
         .get_computed_style(raw)
         .expect("Failed to obtain computed style")
         // this can't fail: we aren't using a pseudo-element
         .expect("Invalid pseudo-element");
 
-    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+    if style.get_property_value("display").unwrap() == "none" {
         return;
     }
 
