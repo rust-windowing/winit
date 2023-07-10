@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::HtmlCanvasElement;
+use web_sys::{Document, HtmlCanvasElement};
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -27,6 +27,7 @@ pub struct Window {
 
 pub struct Inner {
     pub window: web_sys::Window,
+    document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
@@ -46,7 +47,9 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let window = target.runner.window();
-        let canvas = backend::Canvas::create(id, window.clone(), &attr, platform_attr)?;
+        let document = target.runner.document();
+        let canvas =
+            backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -62,6 +65,7 @@ impl Window {
             has_focus,
             inner: Dispatcher::new(Inner {
                 window: window.clone(),
+                document: document.clone(),
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
@@ -130,9 +134,8 @@ impl Window {
             let mut position = position.to_logical::<f64>(inner.scale_factor());
 
             let canvas = inner.canvas.borrow();
-            let document = inner.window.document().expect("Failed to obtain document");
 
-            if document.contains(Some(canvas.raw())) {
+            if inner.document.contains(Some(canvas.raw())) {
                 let style = inner
                     .window
                     .get_computed_style(canvas.raw())
@@ -172,7 +175,7 @@ impl Window {
         self.inner.dispatch(move |inner| {
             let size = size.to_logical(inner.scale_factor());
             let canvas = inner.canvas.borrow();
-            backend::set_canvas_size(canvas.window(), canvas.raw(), size);
+            backend::set_canvas_size(canvas.window(), canvas.document(), canvas.raw(), size);
         });
 
         None
@@ -324,7 +327,7 @@ impl Window {
             if fullscreen.is_some() {
                 inner.canvas.borrow().request_fullscreen();
             } else if inner.canvas.borrow().is_fullscreen() {
-                backend::exit_fullscreen(&inner.window);
+                backend::exit_fullscreen(&inner.document);
             }
         });
     }

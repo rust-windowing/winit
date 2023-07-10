@@ -21,7 +21,7 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
+use web_sys::{Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -44,6 +44,7 @@ pub struct Canvas {
 
 pub struct Common {
     pub window: web_sys::Window,
+    pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
@@ -55,21 +56,16 @@ impl Canvas {
     pub fn create(
         id: WindowId,
         window: web_sys::Window,
+        document: Document,
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let canvas = match platform_attr.canvas {
             Some(canvas) => canvas,
-            None => {
-                let document = window
-                    .document()
-                    .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
-
-                document
-                    .create_element("canvas")
-                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-                    .unchecked_into()
-            }
+            None => document
+                .create_element("canvas")
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .unchecked_into(),
         };
 
         // A tabindex is needed in order to capture local keyboard events.
@@ -85,12 +81,13 @@ impl Canvas {
 
         if let Some(size) = attr.inner_size {
             let size = size.to_logical(super::scale_factor(&window));
-            super::set_canvas_size(&window, &canvas, size);
+            super::set_canvas_size(&window, &document, &canvas, size);
         }
 
         Ok(Canvas {
             common: Common {
                 window,
+                document,
                 raw: canvas,
                 old_size: Rc::default(),
                 current_size: Rc::default(),
@@ -117,12 +114,7 @@ impl Canvas {
         if lock {
             self.raw().request_pointer_lock();
         } else {
-            let document = self
-                .common
-                .window
-                .document()
-                .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
-            document.exit_pointer_lock();
+            self.common.document.exit_pointer_lock();
         }
         Ok(())
     }
@@ -141,9 +133,7 @@ impl Canvas {
             y: bounds.y(),
         };
 
-        let document = self.window().document().expect("Failed to obtain document");
-
-        if document.contains(Some(self.raw())) {
+        if self.document().contains(Some(self.raw())) {
             let style = self
                 .window()
                 .get_computed_style(self.raw())
@@ -179,6 +169,10 @@ impl Canvas {
 
     pub fn window(&self) -> &web_sys::Window {
         &self.common.window
+    }
+
+    pub fn document(&self) -> &Document {
+        &self.common.document
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -382,6 +376,7 @@ impl Canvas {
     {
         self.on_resize_scale = Some(ResizeScaleHandle::new(
             self.window().clone(),
+            self.document().clone(),
             self.raw().clone(),
             scale_handler,
             size_handler,
@@ -425,7 +420,7 @@ impl Canvas {
             // Then we resize the canvas to the new size, a new
             // `Resized` event will be sent by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
-            super::set_canvas_size(self.window(), self.raw(), new_size);
+            super::set_canvas_size(self.window(), self.document(), self.raw(), new_size);
 
             // Set the size might not trigger the event because the calculation is inaccurate.
             self.on_resize_scale
@@ -527,6 +522,6 @@ impl Common {
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        super::is_fullscreen(&self.window, &self.raw)
+        super::is_fullscreen(&self.document, &self.raw)
     }
 }

@@ -4,4 +4,5 @@ disallowed-methods = [
     { path = "web_sys::HtmlCanvasElement::height", reason = "Winit shouldn't touch the internal canvas size" },
     { path = "web_sys::HtmlCanvasElement::set_width", reason = "Winit shouldn't touch the internal canvas size" },
     { path = "web_sys::HtmlCanvasElement::set_height", reason = "Winit shouldn't touch the internal canvas size" },
+    { path = "web_sys::Window::document", reason = "cache this to reduce calls to JS" },
 ]

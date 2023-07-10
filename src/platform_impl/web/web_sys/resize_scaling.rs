@@ -3,7 +3,7 @@ use once_cell::unsync::Lazy;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
+    Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
     ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
 };
 
@@ -20,6 +20,7 @@ pub struct ResizeScaleHandle(Rc<RefCell<ResizeScaleInternal>>);
 impl ResizeScaleHandle {
     pub(crate) fn new<S, R>(
         window: Window,
+        document: Document,
         canvas: HtmlCanvasElement,
         scale_handler: S,
         resize_handler: R,
@@ -30,6 +31,7 @@ impl ResizeScaleHandle {
     {
         Self(ResizeScaleInternal::new(
             window,
+            document,
             canvas,
             scale_handler,
             resize_handler,
@@ -45,6 +47,7 @@ impl ResizeScaleHandle {
 /// changes of the `devicePixelRatio`.
 struct ResizeScaleInternal {
     window: Window,
+    document: Document,
     canvas: HtmlCanvasElement,
     mql: MediaQueryListHandle,
     observer: ResizeObserver,
@@ -57,6 +60,7 @@ struct ResizeScaleInternal {
 impl ResizeScaleInternal {
     fn new<S, R>(
         window: Window,
+        document: Document,
         canvas: HtmlCanvasElement,
         scale_handler: S,
         resize_handler: R,
@@ -94,6 +98,7 @@ impl ResizeScaleInternal {
 
             RefCell::new(Self {
                 window,
+                document,
                 canvas,
                 mql,
                 observer,
@@ -149,9 +154,7 @@ impl ResizeScaleInternal {
             // this can't fail: we aren't using a pseudo-element
             .expect("Invalid pseudo-element");
 
-        let document = self.window.document().expect("Failed to obtain document");
-
-        if !document.contains(Some(&self.canvas))
+        if !self.document.contains(Some(&self.canvas))
             || style.get_property_value("display").unwrap() == "none"
         {
             let size = PhysicalSize::new(0, 0);
