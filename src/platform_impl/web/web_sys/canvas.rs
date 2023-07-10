@@ -103,6 +103,11 @@ impl Canvas {
             super::set_canvas_max_size(&document, &canvas, &style, Some(size));
         }
 
+        if let Some(position) = attr.position {
+            let position = position.to_logical(super::scale_factor(&window));
+            super::set_canvas_position(&document, &canvas, &style, position);
+        }
+
         Ok(Canvas {
             common: Common {
                 window,

@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::{CssStyleDeclaration, Document, HtmlCanvasElement};
+use web_sys::{Document, HtmlCanvasElement};
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -28,7 +28,6 @@ pub struct Window {
 pub struct Inner {
     pub window: web_sys::Window,
     document: Document,
-    style: CssStyleDeclaration,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
@@ -51,7 +50,6 @@ impl Window {
         let document = target.runner.document();
         let canvas =
             backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
-        let style = canvas.style().clone();
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -68,7 +66,6 @@ impl Window {
             inner: Dispatcher::new(Inner {
                 window: window.clone(),
                 document: document.clone(),
-                style,
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
@@ -134,24 +131,10 @@ impl Window {
 
     pub fn set_outer_position(&self, position: Position) {
         self.inner.dispatch(move |inner| {
-            let mut position = position.to_logical::<f64>(inner.scale_factor());
-
             let canvas = inner.canvas.borrow();
+            let position = position.to_logical::<f64>(inner.scale_factor());
 
-            if inner.document.contains(Some(canvas.raw()))
-                && inner.style.get_property_value("display").unwrap() != "none"
-            {
-                position.x -= backend::style_size_property(&inner.style, "margin-left")
-                    + backend::style_size_property(&inner.style, "border-left-width")
-                    + backend::style_size_property(&inner.style, "padding-left");
-                position.y -= backend::style_size_property(&inner.style, "margin-top")
-                    + backend::style_size_property(&inner.style, "border-top-width")
-                    + backend::style_size_property(&inner.style, "padding-top");
-            }
-
-            canvas.set_attribute("position", "fixed");
-            canvas.set_attribute("left", &position.x.to_string());
-            canvas.set_attribute("top", &position.y.to_string());
+            backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
         });
     }
 

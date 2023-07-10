@@ -14,7 +14,7 @@ pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
-use crate::dpi::LogicalSize;
+use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
@@ -146,6 +146,26 @@ pub fn set_canvas_max_size(
             .remove_property("max-height")
             .expect("Property is read only");
     }
+}
+
+pub fn set_canvas_position(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    mut position: LogicalPosition<f64>,
+) {
+    if document.contains(Some(raw)) && style.get_property_value("display").unwrap() != "none" {
+        position.x -= style_size_property(style, "margin-left")
+            + style_size_property(style, "border-left-width")
+            + style_size_property(style, "padding-left");
+        position.y -= style_size_property(style, "margin-top")
+            + style_size_property(style, "border-top-width")
+            + style_size_property(style, "padding-top");
+    }
+
+    set_canvas_style_property(raw, "position", "fixed");
+    set_canvas_style_property(raw, "left", &format!("{}px", position.x));
+    set_canvas_style_property(raw, "top", &format!("{}px", position.y));
 }
 
 /// This function will panic if the element is not inserted in the DOM
