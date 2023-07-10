@@ -148,12 +148,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         self.inner.dispatch(move |inner| {
             let size = size.to_logical(inner.scale_factor());
             let canvas = inner.canvas.borrow();
             backend::set_canvas_size(canvas.window(), canvas.raw(), size);
         });
+
+        None
     }
 
     #[inline]

@@ -419,7 +419,7 @@ impl<T: 'static> EventProcessor<T> {
                             });
 
                             if new_inner_size != old_inner_size {
-                                window.set_inner_size_physical(
+                                window.request_inner_size_physical(
                                     new_inner_size.width,
                                     new_inner_size.height,
                                 );
@@ -443,7 +443,7 @@ impl<T: 'static> EventProcessor<T> {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
                         } else {
-                            window.set_inner_size_physical(adjusted_size.0, adjusted_size.1);
+                            window.request_inner_size_physical(adjusted_size.0, adjusted_size.1);
                         }
                     }
 
@@ -1232,8 +1232,9 @@ impl<T: 'static> EventProcessor<T> {
 
                                             if new_inner_size != old_inner_size {
                                                 let (new_width, new_height) = new_inner_size.into();
-                                                window
-                                                    .set_inner_size_physical(new_width, new_height);
+                                                window.request_inner_size_physical(
+                                                    new_width, new_height,
+                                                );
                                             }
                                         }
                                     }
