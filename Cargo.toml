@@ -145,6 +145,8 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'IntersectionObserver',
+    'IntersectionObserverEntry',
     'KeyboardEvent',
     'MediaQueryList',
     'Node',
@@ -155,6 +157,7 @@ features = [
     'ResizeObserverEntry',
     'ResizeObserverOptions',
     'ResizeObserverSize',
+    'VisibilityState',
     'Window',
     'WheelEvent'
 ]
