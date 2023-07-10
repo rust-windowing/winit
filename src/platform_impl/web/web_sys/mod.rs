@@ -75,13 +75,17 @@ pub fn set_canvas_size(
 ) {
     let document = window.document().expect("Failed to obtain document");
 
+    if !document.contains(Some(raw)) {
+        return;
+    }
+
     let style = window
         .get_computed_style(raw)
         .expect("Failed to obtain computed style")
         // this can't fail: we aren't using a pseudo-element
         .expect("Invalid pseudo-element");
 
-    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+    if style.get_property_value("display").unwrap() == "none" {
         return;
     }
 
@@ -142,22 +146,6 @@ pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {
 pub fn is_visible(window: &web_sys::Window) -> bool {
     let document = window.document().expect("Failed to obtain document");
     document.visibility_state() == VisibilityState::Visible
-}
-
-pub fn is_intersecting(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> bool {
-    let rect = canvas.get_bounding_client_rect();
-    // This should never panic.
-    let window_width = window.inner_width().unwrap().as_f64().unwrap() as i32;
-    let window_height = window.inner_height().unwrap().as_f64().unwrap() as i32;
-    let left = rect.left() as i32;
-    let width = rect.width() as i32;
-    let top = rect.top() as i32;
-    let height = rect.height() as i32;
-
-    let horizontal = left <= window_width && left + width >= 0;
-    let vertical = top <= window_height && top + height >= 0;
-
-    horizontal && vertical
 }
 
 pub type RawCanvasType = HtmlCanvasElement;

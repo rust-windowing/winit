@@ -629,8 +629,11 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
-    /// - **Web:** Sets the top-left coordinates relative to the viewport.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport. Doesn't account for CSS
+    ///   [`transform`].
     /// - **Android / Wayland:** Unsupported.
+    ///
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
         self.window.set_outer_position(position.into())

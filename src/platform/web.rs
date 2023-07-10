@@ -13,6 +13,7 @@
 //! - [`WindowEvent::Occluded`]
 //! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`],
 //!   and [`WindowEvent::Touch`].
+//! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
 //! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size()
@@ -21,6 +22,7 @@
 //! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
 //! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
 //! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
+//! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position()
 //! [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding

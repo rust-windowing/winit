@@ -400,12 +400,17 @@ impl<T: 'static> Shared<T> {
                 if !runner.0.suspended.get() {
                     for (id, canvas) in &*runner.0.all_canvases.borrow() {
                         if let Some(canvas) = canvas.upgrade() {
-                            if backend::is_intersecting(runner.window(), canvas.borrow().raw()) {
+                            let is_visible = backend::is_visible(runner.window());
+                            // only fire if:
+                            // - not visible and intersects
+                            // - not visible and we don't know if it intersects yet
+                            // - visible and intersects
+                            if let (false, Some(true) | None) | (true, Some(true)) =
+                                (is_visible, canvas.borrow().is_intersecting)
+                            {
                                 runner.send_event(Event::WindowEvent {
                                     window_id: *id,
-                                    event: WindowEvent::Occluded(!backend::is_visible(
-                                        runner.window(),
-                                    )),
+                                    event: WindowEvent::Occluded(!is_visible),
                                 });
                             }
                         }
