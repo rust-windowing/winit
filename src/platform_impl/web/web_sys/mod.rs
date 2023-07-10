@@ -18,16 +18,14 @@ use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
 use web_sys::{
-    CssStyleDeclaration, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
+    CssStyleDeclaration, Document, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
 };
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
 }
 
-pub fn exit_fullscreen(window: &web_sys::Window) {
-    let document = window.document().expect("Failed to obtain document");
-
+pub fn exit_fullscreen(document: &Document) {
     document.exit_fullscreen();
 }
 
@@ -69,35 +67,28 @@ pub fn scale_factor(window: &web_sys::Window) -> f64 {
 }
 
 pub fn set_canvas_size(
-    window: &web_sys::Window,
+    document: &Document,
     raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
     mut new_size: LogicalSize<f64>,
 ) {
-    let document = window.document().expect("Failed to obtain document");
-
     if !document.contains(Some(raw)) {
         return;
     }
-
-    let style = window
-        .get_computed_style(raw)
-        .expect("Failed to obtain computed style")
-        // this can't fail: we aren't using a pseudo-element
-        .expect("Invalid pseudo-element");
 
     if style.get_property_value("display").unwrap() == "none" {
         return;
     }
 
     if style.get_property_value("box-sizing").unwrap() == "border-box" {
-        new_size.width += style_size_property(&style, "border-left-width")
-            + style_size_property(&style, "border-right-width")
-            + style_size_property(&style, "padding-left")
-            + style_size_property(&style, "padding-right");
-        new_size.height += style_size_property(&style, "border-top-width")
-            + style_size_property(&style, "border-bottom-width")
-            + style_size_property(&style, "padding-top")
-            + style_size_property(&style, "padding-bottom");
+        new_size.width += style_size_property(style, "border-left-width")
+            + style_size_property(style, "border-right-width")
+            + style_size_property(style, "padding-left")
+            + style_size_property(style, "padding-right");
+        new_size.height += style_size_property(style, "border-top-width")
+            + style_size_property(style, "border-bottom-width")
+            + style_size_property(style, "padding-top")
+            + style_size_property(style, "padding-bottom");
     }
 
     set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
@@ -123,9 +114,7 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
         .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
 }
 
-pub fn is_fullscreen(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> bool {
-    let document = window.document().expect("Failed to obtain document");
-
+pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
     match document.fullscreen_element() {
         Some(elem) => {
             let canvas: &Element = canvas;
@@ -143,8 +132,7 @@ pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {
         .map(|media| media.matches())
 }
 
-pub fn is_visible(window: &web_sys::Window) -> bool {
-    let document = window.document().expect("Failed to obtain document");
+pub fn is_visible(document: &Document) -> bool {
     document.visibility_state() == VisibilityState::Visible
 }
 
