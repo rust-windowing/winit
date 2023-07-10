@@ -1,5 +1,6 @@
 use super::super::WindowId;
 use super::event_handle::EventListenerHandle;
+use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
 use super::{event, ButtonsState, ResizeScaleHandle};
@@ -37,6 +38,7 @@ pub struct Canvas {
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
+    on_intersect: Option<IntersectionObserverHandle>,
 }
 
 pub struct Common {
@@ -105,6 +107,7 @@ impl Canvas {
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
             on_resize_scale: None,
+            on_intersect: None,
         })
     }
 
@@ -365,6 +368,13 @@ impl Canvas {
         ));
     }
 
+    pub(crate) fn on_intersection<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(bool),
+    {
+        self.on_intersect = Some(IntersectionObserverHandle::new(self.raw(), handler));
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.request_fullscreen()
     }
@@ -421,6 +431,7 @@ impl Canvas {
         self.on_dark_mode = None;
         self.pointer_handler.remove_listeners();
         self.on_resize_scale = None;
+        self.on_intersect = None;
     }
 }
 

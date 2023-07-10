@@ -3,6 +3,7 @@ use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
+    WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform_impl::platform::backend::EventListenerHandle;
@@ -35,6 +36,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
+    suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<EventWrapper<T>>>,
     id: RefCell<u32>,
@@ -50,6 +52,7 @@ pub struct Execution<T: 'static> {
     on_mouse_release: OnEventHandle<PointerEvent>,
     on_key_press: OnEventHandle<KeyboardEvent>,
     on_key_release: OnEventHandle<KeyboardEvent>,
+    on_visibility_change: OnEventHandle<web_sys::Event>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -140,6 +143,7 @@ impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
         Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
+            suspended: Cell::new(false),
             event_loop_recreation: Cell::new(false),
             events: RefCell::new(VecDeque::new()),
             #[allow(clippy::disallowed_methods)]
@@ -156,6 +160,7 @@ impl<T: 'static> Shared<T> {
             on_mouse_release: RefCell::new(None),
             on_key_press: RefCell::new(None),
             on_key_release: RefCell::new(None),
+            on_visibility_change: RefCell::new(None),
         }))
     }
 
@@ -191,6 +196,7 @@ impl<T: 'static> Shared<T> {
                 let runner = self.clone();
                 move |event: PageTransitionEvent| {
                     if event.persisted() {
+                        runner.0.suspended.set(false);
                         runner.send_event(Event::Resumed);
                     }
                 }
@@ -198,6 +204,7 @@ impl<T: 'static> Shared<T> {
             {
                 let runner = self.clone();
                 move |event: PageTransitionEvent| {
+                    runner.0.suspended.set(true);
                     if event.persisted() {
                         runner.send_event(Event::Suspended);
                     } else {
@@ -382,6 +389,28 @@ impl<T: 'static> Shared<T> {
                         state: ElementState::Released,
                     }),
                 });
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_visibility_change.borrow_mut() = Some(EventListenerHandle::new(
+            // Safari <14 doesn't support the `visibilitychange` event on `Window`.
+            &self.window().document().expect("Failed to obtain document"),
+            "visibilitychange",
+            Closure::new(move |_| {
+                if !runner.0.suspended.get() {
+                    for (id, canvas) in &*runner.0.all_canvases.borrow() {
+                        if let Some(canvas) = canvas.upgrade() {
+                            if backend::is_intersecting(runner.window(), canvas.borrow().raw()) {
+                                runner.send_event(Event::WindowEvent {
+                                    window_id: *id,
+                                    event: WindowEvent::Occluded(!backend::is_visible(
+                                        runner.window(),
+                                    )),
+                                });
+                            }
+                        }
+                    }
+                }
             }),
         ));
     }
@@ -630,6 +659,7 @@ impl<T: 'static> Shared<T> {
         *self.0.on_mouse_release.borrow_mut() = None;
         *self.0.on_key_press.borrow_mut() = None;
         *self.0.on_key_release.borrow_mut() = None;
+        *self.0.on_visibility_change.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
