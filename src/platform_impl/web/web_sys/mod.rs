@@ -144,20 +144,4 @@ pub fn is_visible(window: &web_sys::Window) -> bool {
     document.visibility_state() == VisibilityState::Visible
 }
 
-pub fn is_intersecting(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> bool {
-    let rect = canvas.get_bounding_client_rect();
-    // This should never panic.
-    let window_width = window.inner_width().unwrap().as_f64().unwrap() as i32;
-    let window_height = window.inner_height().unwrap().as_f64().unwrap() as i32;
-    let left = rect.left() as i32;
-    let width = rect.width() as i32;
-    let top = rect.top() as i32;
-    let height = rect.height() as i32;
-
-    let horizontal = left <= window_width && left + width >= 0;
-    let vertical = top <= window_height && top + height >= 0;
-
-    horizontal && vertical
-}
-
 pub type RawCanvasType = HtmlCanvasElement;

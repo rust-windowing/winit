@@ -705,9 +705,10 @@ impl<T> EventLoopWindowTarget<T> {
             },
             {
                 let runner = self.runner.clone();
+                let canvas = canvas_clone.clone();
 
                 move |new_size| {
-                    let canvas = RefCell::borrow(&canvas_clone);
+                    let canvas = canvas.borrow();
                     canvas.set_current_size(new_size);
                     if canvas.old_size() != new_size {
                         canvas.set_old_size(new_size);
@@ -723,12 +724,17 @@ impl<T> EventLoopWindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_intersection(move |is_intersecting| {
-            if backend::is_visible(runner.window()) {
+            // only fire if visible while skipping the first event if it's intersecting
+            if backend::is_visible(runner.window())
+                && !(is_intersecting && canvas_clone.borrow().is_intersecting.is_none())
+            {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Occluded(!is_intersecting),
                 });
             }
+
+            canvas_clone.borrow_mut().is_intersecting = Some(is_intersecting);
         })
     }
 
