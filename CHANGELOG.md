@@ -11,6 +11,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix false positive flagging of key repeats when pressing different keys with no release
   between presses.
 - Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- On Web, implement `WindowEvent::Occluded`.
 
 # 0.29.0-beta.0
 
