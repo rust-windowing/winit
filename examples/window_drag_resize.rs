@@ -1,6 +1,7 @@
 //! Demonstrates capability to create in-app draggable regions for client-side decoration support.
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -17,12 +18,14 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_inner_size(winit::dpi::LogicalSize::new(600.0, 400.0))
-        .with_min_inner_size(winit::dpi::LogicalSize::new(400.0, 200.0))
-        .with_decorations(false)
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_inner_size(winit::dpi::LogicalSize::new(600.0, 400.0))
+            .with_min_inner_size(winit::dpi::LogicalSize::new(400.0, 200.0))
+            .with_decorations(false)
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let mut border = false;
     let mut cursor_location = None;

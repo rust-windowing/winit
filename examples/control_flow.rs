@@ -1,5 +1,6 @@
 #![allow(clippy::single_match)]
 
+use std::rc::Rc;
 use std::thread;
 #[cfg(not(wasm_platform))]
 use std::time;
@@ -37,10 +38,14 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title(
+                "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
+            )
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let mut mode = Mode::Wait;
     let mut request_redraw = false;

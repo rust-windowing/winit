@@ -1,6 +1,8 @@
 #![allow(clippy::single_match)]
 
+use std::rc::Rc;
 use std::time::Duration;
+
 #[cfg(not(wasm_platform))]
 use std::time::Instant;
 #[cfg(wasm_platform)]
@@ -20,10 +22,12 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let timer_length = Duration::new(1, 0);
 

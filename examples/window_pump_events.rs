@@ -8,8 +8,9 @@
     wayland_platform,
     android_platform,
 ))]
+
 fn main() -> std::process::ExitCode {
-    use std::{process::ExitCode, thread::sleep, time::Duration};
+    use std::{process::ExitCode, thread::sleep, time::Duration, rc::Rc};
 
     use simple_logger::SimpleLogger;
     use winit::{
@@ -25,10 +26,12 @@ fn main() -> std::process::ExitCode {
     let mut event_loop = EventLoop::new();
 
     SimpleLogger::new().init().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     'main: loop {
         let timeout = Some(Duration::ZERO);

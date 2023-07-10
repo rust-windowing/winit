@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use simple_logger::SimpleLogger;
 use winit::{
@@ -19,7 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut windows = HashMap::new();
     for _ in 0..3 {
-        let window = Window::new(&event_loop).unwrap();
+        let window = Rc::new(Window::new(&event_loop).unwrap());
         println!("Opened a new window: {:?}", window.id());
         windows.insert(window.id(), window);
     }
@@ -52,7 +53,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         is_synthetic: false,
                         ..
                     } if matches!(c.as_ref(), "n" | "N") => {
-                        let window = Window::new(event_loop).unwrap();
+                        let window = Rc::new(Window::new(event_loop).unwrap());
                         println!("Opened a new window: {:?}", window.id());
                         windows.insert(window.id(), window);
                     }

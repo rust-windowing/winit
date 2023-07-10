@@ -1,6 +1,9 @@
 #![allow(clippy::single_match)]
 
 #[cfg(target_os = "macos")]
+use std::rc::Rc;
+
+#[cfg(target_os = "macos")]
 use winit::platform::macos::{OptionAsAlt, WindowExtMacOS};
 
 #[cfg(target_os = "macos")]
@@ -21,11 +24,13 @@ mod fill;
 fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     window.set_ime_allowed(true);
 

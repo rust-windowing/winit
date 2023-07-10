@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::EventLoop,
@@ -15,8 +16,8 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window_1 = WindowBuilder::new().build(&event_loop).unwrap();
-    let window_2 = WindowBuilder::new().build(&event_loop).unwrap();
+    let window_1 = Rc::new(WindowBuilder::new().build(&event_loop).unwrap());
+    let window_2 = Rc::new(WindowBuilder::new().build(&event_loop).unwrap());
 
     let mut switched = false;
     let mut entered_id = window_2.id();

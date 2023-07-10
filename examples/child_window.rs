@@ -5,6 +5,7 @@ mod fill;
 #[cfg(any(x11_platform, macos_platform, windows_platform))]
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
+    use std::rc::Rc;
 
     use raw_window_handle::HasRawWindowHandle;
     use winit::{
@@ -17,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
     fn spawn_child_window(
         parent: &Window,
         event_loop: &EventLoopWindowTarget<()>,
-        windows: &mut HashMap<WindowId, Window>,
+        windows: &mut HashMap<WindowId, Rc<Window>>,
     ) {
         let parent = parent.raw_window_handle().unwrap();
         let mut builder = WindowBuilder::new()
@@ -27,7 +28,7 @@ fn main() -> Result<(), impl std::error::Error> {
             .with_visible(true);
         // `with_parent_window` is unsafe. Parent window must be a valid window.
         builder = unsafe { builder.with_parent_window(Some(parent)) };
-        let child_window = builder.build(event_loop).unwrap();
+        let child_window = Rc::new(builder.build(event_loop).unwrap());
 
         let id = child_window.id();
         windows.insert(id, child_window);
@@ -37,12 +38,14 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut windows = HashMap::new();
 
     let event_loop: EventLoop<()> = EventLoop::new();
-    let parent_window = WindowBuilder::new()
-        .with_title("parent window")
-        .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-        .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
-        .build(&event_loop)
-        .unwrap();
+    let parent_window = Rc::new(
+        WindowBuilder::new()
+            .with_title("parent window")
+            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
+            .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     println!("parent window: {parent_window:?})");
 

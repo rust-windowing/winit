@@ -3,6 +3,7 @@
 #[cfg(not(wasm_platform))]
 fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
+    use std::rc::Rc;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::EventLoopBuilder,
@@ -20,10 +21,12 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     // `EventLoopProxy` allows you to dispatch custom events to the main Winit event
     // loop from any thread.

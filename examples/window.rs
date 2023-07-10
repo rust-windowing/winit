@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -14,11 +15,13 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();

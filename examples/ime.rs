@@ -2,6 +2,7 @@
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
@@ -26,10 +27,12 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_inner_size(winit::dpi::LogicalSize::new(256f64, 128f64))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_inner_size(winit::dpi::LogicalSize::new(256f64, 128f64))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let mut ime_purpose = ImePurpose::Normal;
     let mut ime_allowed = true;

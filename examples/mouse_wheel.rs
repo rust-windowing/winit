@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -14,10 +15,12 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("Mouse Wheel events")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("Mouse Wheel events")
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     println!(
         r"

@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use std::path::Path;
+use std::rc::Rc;
 
 use simple_logger::SimpleLogger;
 use winit::{
@@ -25,13 +26,15 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("An iconic window!")
-        // At present, this only does anything on Windows and X11, so if you want to save load
-        // time, you can put icon loading behind a function that returns `None` on other platforms.
-        .with_window_icon(Some(icon))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("An iconic window!")
+            // At present, this only does anything on Windows and X11, so if you want to save load
+            // time, you can put icon loading behind a function that returns `None` on other platforms.
+            .with_window_icon(Some(icon))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();

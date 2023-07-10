@@ -1,5 +1,6 @@
 use log::debug;
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
@@ -15,12 +16,14 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .with_inner_size(LogicalSize::new(128.0, 128.0))
-        .with_resize_increments(LogicalSize::new(25.0, 25.0))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .with_inner_size(LogicalSize::new(128.0, 128.0))
+            .with_resize_increments(LogicalSize::new(25.0, 25.0))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let mut has_increments = true;
 

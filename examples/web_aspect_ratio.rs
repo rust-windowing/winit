@@ -6,6 +6,7 @@ pub fn main() {
 
 #[cfg(wasm_platform)]
 mod wasm {
+    use std::rc::Rc;
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlCanvasElement;
@@ -33,14 +34,16 @@ This example demonstrates the desired future functionality which will possibly b
         console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
         let event_loop = EventLoop::new();
 
-        let window = WindowBuilder::new()
-            .with_title("A fantastic window!")
-            // When running in a non-wasm environment this would set the window size to 100x100.
-            // However in this example it just sets a default initial size of 100x100 that is immediately overwritten due to the layout + styling of the page.
-            .with_inner_size(PhysicalSize::new(100, 100))
-            .with_append(true)
-            .build(&event_loop)
-            .unwrap();
+        let window = Rc::new(
+            WindowBuilder::new()
+                .with_title("A fantastic window!")
+                // When running in a non-wasm environment this would set the window size to 100x100.
+                // However in this example it just sets a default initial size of 100x100 that is immediately overwritten due to the layout + styling of the page.
+                .with_inner_size(PhysicalSize::new(100, 100))
+                .with_append(true)
+                .build(&event_loop)
+                .unwrap(),
+        );
 
         let canvas = create_canvas(&window);
 

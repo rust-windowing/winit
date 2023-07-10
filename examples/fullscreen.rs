@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
@@ -22,10 +23,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut with_min_size = false;
     let mut with_max_size = false;
 
-    let window = WindowBuilder::new()
-        .with_title("Hello world!")
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("Hello world!")
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     let mut monitor_index = 0;
     let mut monitor = event_loop

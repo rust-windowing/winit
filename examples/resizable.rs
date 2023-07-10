@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
@@ -18,14 +19,16 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut resizable = false;
 
-    let window = WindowBuilder::new()
-        .with_title("Hit space to toggle resizability.")
-        .with_inner_size(LogicalSize::new(600.0, 300.0))
-        .with_min_inner_size(LogicalSize::new(400.0, 200.0))
-        .with_max_inner_size(LogicalSize::new(800.0, 400.0))
-        .with_resizable(resizable)
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("Hit space to toggle resizability.")
+            .with_inner_size(LogicalSize::new(600.0, 300.0))
+            .with_min_inner_size(LogicalSize::new(400.0, 200.0))
+            .with_max_inner_size(LogicalSize::new(800.0, 400.0))
+            .with_resizable(resizable)
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();

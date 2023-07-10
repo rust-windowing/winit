@@ -3,6 +3,7 @@
 // This example is used by developers to test various window functions.
 
 use simple_logger::SimpleLogger;
+use std::rc::Rc;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
@@ -18,11 +19,13 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .with_inner_size(LogicalSize::new(300.0, 300.0))
-        .build(&event_loop)
-        .unwrap();
+    let window = Rc::new(
+        WindowBuilder::new()
+            .with_title("A fantastic window!")
+            .with_inner_size(LogicalSize::new(300.0, 300.0))
+            .build(&event_loop)
+            .unwrap(),
+    );
 
     eprintln!("Window Button keys:");
     eprintln!("  (F) Toggle close button");

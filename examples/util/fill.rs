@@ -7,38 +7,53 @@
 //! The `softbuffer` crate is used, largely because of its ease of use. `glutin` or `wgpu` could
 //! also be used to fill the window buffer, but they are more complicated to use.
 
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
 
+// Abstract over Rc<Window> and Arc<Window>
+pub(super) trait FullHandleTy:
+    AsRef<Window> + HasDisplayHandle + HasWindowHandle + 'static
+{
+}
+impl<T: AsRef<Window> + HasDisplayHandle + HasWindowHandle + 'static> FullHandleTy for T {}
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub(super) fn fill_window(window: &Window) {
+pub(super) fn fill_window(window: &(impl FullHandleTy + Clone)) {
     use softbuffer::{Context, Surface};
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
+    use std::rc::Rc;
     use winit::window::WindowId;
+
+    type FullHandle = Rc<dyn FullHandleTy>;
 
     /// The graphics context used to draw to a window.
     struct GraphicsContext {
         /// The global softbuffer context.
-        context: Context,
+        context: Context<FullHandle>,
 
         /// The hash map of window IDs to surfaces.
-        surfaces: HashMap<WindowId, Surface>,
+        surfaces: HashMap<WindowId, Surface<FullHandle, FullHandle>>,
     }
 
     impl GraphicsContext {
-        fn new(w: &Window) -> Self {
+        fn new(w: &(impl FullHandleTy + Clone)) -> Self {
+            let x: FullHandle = Rc::new(w.clone());
             Self {
-                context: unsafe { Context::new(w) }.expect("Failed to create a softbuffer context"),
+                context: Context::new(x).expect("Failed to create a softbuffer context"),
                 surfaces: HashMap::new(),
             }
         }
 
-        fn surface(&mut self, w: &Window) -> &mut Surface {
-            self.surfaces.entry(w.id()).or_insert_with(|| {
-                unsafe { Surface::new(&self.context, w) }
-                    .expect("Failed to create a softbuffer surface")
+        fn surface(
+            &mut self,
+            w: &(impl FullHandleTy + Clone),
+        ) -> &mut Surface<FullHandle, FullHandle> {
+            self.surfaces.entry(w.as_ref().id()).or_insert_with(|| {
+                let x: FullHandle = Rc::new(w.clone());
+                Surface::new(&self.context, x).expect("Failed to create a softbuffer surface")
             })
         }
     }
@@ -61,7 +76,7 @@ pub(super) fn fill_window(window: &Window) {
 
         // Fill a buffer with a solid color.
         const DARK_GRAY: u32 = 0xFF181818;
-        let size = window.inner_size();
+        let size = window.as_ref().inner_size();
 
         surface
             .resize(
@@ -81,6 +96,6 @@ pub(super) fn fill_window(window: &Window) {
 }
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
-pub(super) fn fill_window(_window: &Window) {
+pub(super) fn fill_window(_window: &impl FullHandleTy) {
     // No-op on mobile platforms.
 }

@@ -2,7 +2,12 @@
 
 #[cfg(not(wasm_platform))]
 fn main() -> Result<(), impl std::error::Error> {
-    use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
+    use std::{
+        collections::HashMap,
+        sync::{mpsc, Arc},
+        thread,
+        time::Duration,
+    };
 
     use simple_logger::SimpleLogger;
     use winit::{
@@ -20,10 +25,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
-        let window = WindowBuilder::new()
-            .with_inner_size(WINDOW_SIZE)
-            .build(&event_loop)
-            .unwrap();
+        let window = Arc::new(
+            WindowBuilder::new()
+                .with_inner_size(WINDOW_SIZE)
+                .build(&event_loop)
+                .unwrap(),
+        );
 
         let mut video_modes: Vec<_> = window.current_monitor().unwrap().video_modes().collect();
         let mut video_mode_id = 0usize;
