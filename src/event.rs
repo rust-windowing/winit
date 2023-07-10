@@ -430,6 +430,14 @@ pub enum WindowEvent<'a> {
     Ime(Ime),
 
     /// The cursor has moved on the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorMoved {
         device_id: DeviceId,
 
@@ -440,9 +448,25 @@ pub enum WindowEvent<'a> {
     },
 
     /// The cursor has entered the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
@@ -528,7 +552,12 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
     /// - **macOS:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -566,11 +595,12 @@ pub enum WindowEvent<'a> {
     ///
     /// Platform-specific behavior:
     ///
-    /// - **Web:** Doesn't take into account CSS [`border`] or [`padding`].
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
     /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
     ///
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
 }
 
@@ -1142,7 +1172,12 @@ pub enum TouchPhase {
 ///
 /// ## Platform-specific
 ///
+/// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
 /// - **macOS:** Unsupported.
+///
+/// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+/// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+/// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,

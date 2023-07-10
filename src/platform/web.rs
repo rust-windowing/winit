@@ -4,14 +4,23 @@
 //! to provide your own canvas.
 //!
 //! It is recommended **not** to apply certain CSS properties to the canvas:
-//! - [`transform`] - which causes [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`] to
-//!   be inaccurate.
-//! - [`border`] - which causes [`WindowEvent::Occluded`] to be inaccurate.
-//! - [`padding`] - which causes [`WindowEvent::Occluded`] to be inaccurate.
+//! - [`transform`]
+//! - [`border`]
+//! - [`padding`]
+//!
+//! The following APIs can't take them into account and will therefore provide inaccurate results:
+//! - [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`]
+//! - [`WindowEvent::Occluded`]
+//! - [`WindowEvent::CursorMoved`], [`WindowEvent::CursorEntered`], [`WindowEvent::CursorLeft`],
+//!   and [`WindowEvent::Touch`].
 //!
 //! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
 //! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size()
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
+//! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
+//! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
+//! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
+//! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
 //! [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
