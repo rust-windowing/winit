@@ -655,7 +655,7 @@ impl Window {
     /// Request the new size for the window.
     ///
     /// On platforms where the size is entirely controlled by the user the
-    /// applied size will be returned immediatelly, resize event in such case
+    /// applied size will be returned immediately, resize event in such case
     /// may not be generated.
     ///
     /// On platforms where resizing is disallowed by the windowing system, the current
