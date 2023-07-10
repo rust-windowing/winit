@@ -67,34 +67,28 @@ pub fn scale_factor(window: &web_sys::Window) -> f64 {
 }
 
 pub fn set_canvas_size(
-    window: &web_sys::Window,
     document: &Document,
     raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
     mut new_size: LogicalSize<f64>,
 ) {
     if !document.contains(Some(raw)) {
         return;
     }
 
-    let style = window
-        .get_computed_style(raw)
-        .expect("Failed to obtain computed style")
-        // this can't fail: we aren't using a pseudo-element
-        .expect("Invalid pseudo-element");
-
     if style.get_property_value("display").unwrap() == "none" {
         return;
     }
 
     if style.get_property_value("box-sizing").unwrap() == "border-box" {
-        new_size.width += style_size_property(&style, "border-left-width")
-            + style_size_property(&style, "border-right-width")
-            + style_size_property(&style, "padding-left")
-            + style_size_property(&style, "padding-right");
-        new_size.height += style_size_property(&style, "border-top-width")
-            + style_size_property(&style, "border-bottom-width")
-            + style_size_property(&style, "padding-top")
-            + style_size_property(&style, "padding-bottom");
+        new_size.width += style_size_property(style, "border-left-width")
+            + style_size_property(style, "border-right-width")
+            + style_size_property(style, "padding-left")
+            + style_size_property(style, "padding-right");
+        new_size.height += style_size_property(style, "border-top-width")
+            + style_size_property(style, "border-bottom-width")
+            + style_size_property(style, "padding-top")
+            + style_size_property(style, "padding-bottom");
     }
 
     set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));

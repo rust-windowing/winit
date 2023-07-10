@@ -21,7 +21,9 @@ use smol_str::SmolStr;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
+use web_sys::{
+    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
+};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -47,6 +49,7 @@ pub struct Common {
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
+    style: CssStyleDeclaration,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
@@ -79,9 +82,16 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
+        #[allow(clippy::disallowed_methods)]
+        let style = window
+            .get_computed_style(&canvas)
+            .expect("Failed to obtain computed style")
+            // this can't fail: we aren't using a pseudo-element
+            .expect("Invalid pseudo-element");
+
         if let Some(size) = attr.inner_size {
             let size = size.to_logical(super::scale_factor(&window));
-            super::set_canvas_size(&window, &document, &canvas, size);
+            super::set_canvas_size(&document, &canvas, &style, size);
         }
 
         Ok(Canvas {
@@ -89,6 +99,7 @@ impl Canvas {
                 window,
                 document,
                 raw: canvas,
+                style,
                 old_size: Rc::default(),
                 current_size: Rc::default(),
                 wants_fullscreen: Rc::new(RefCell::new(false)),
@@ -133,50 +144,56 @@ impl Canvas {
             y: bounds.y(),
         };
 
-        if self.document().contains(Some(self.raw())) {
-            let style = self
-                .window()
-                .get_computed_style(self.raw())
-                .expect("Failed to obtain computed style")
-                // this can't fail: we aren't using a pseudo-element
-                .expect("Invalid pseudo-element");
-            if style.get_property_value("display").unwrap() != "none" {
-                position.x += super::style_size_property(&style, "border-left-width")
-                    + super::style_size_property(&style, "padding-left");
-                position.y += super::style_size_property(&style, "border-top-width")
-                    + super::style_size_property(&style, "padding-top");
-            }
+        if self.document().contains(Some(self.raw()))
+            && self.style().get_property_value("display").unwrap() != "none"
+        {
+            position.x += super::style_size_property(self.style(), "border-left-width")
+                + super::style_size_property(self.style(), "padding-left");
+            position.y += super::style_size_property(self.style(), "border-top-width")
+                + super::style_size_property(self.style(), "padding-top");
         }
 
         position
     }
 
+    #[inline]
     pub fn old_size(&self) -> PhysicalSize<u32> {
         self.common.old_size.get()
     }
 
+    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
+    #[inline]
     pub fn set_old_size(&self, size: PhysicalSize<u32>) {
         self.common.old_size.set(size)
     }
 
+    #[inline]
     pub fn set_current_size(&self, size: PhysicalSize<u32>) {
         self.common.current_size.set(size)
     }
 
+    #[inline]
     pub fn window(&self) -> &web_sys::Window {
         &self.common.window
     }
 
+    #[inline]
     pub fn document(&self) -> &Document {
         &self.common.document
     }
 
+    #[inline]
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.common.raw
+    }
+
+    #[inline]
+    pub fn style(&self) -> &CssStyleDeclaration {
+        &self.common.style
     }
 
     pub fn on_touch_start(&mut self, prevent_default: bool) {
@@ -378,6 +395,7 @@ impl Canvas {
             self.window().clone(),
             self.document().clone(),
             self.raw().clone(),
+            self.style().clone(),
             scale_handler,
             size_handler,
         ));
@@ -420,7 +438,7 @@ impl Canvas {
             // Then we resize the canvas to the new size, a new
             // `Resized` event will be sent by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
-            super::set_canvas_size(self.window(), self.document(), self.raw(), new_size);
+            super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
             // Set the size might not trigger the event because the calculation is inaccurate.
             self.on_resize_scale

@@ -3,8 +3,9 @@ use once_cell::unsync::Lazy;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
-    ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
+    CssStyleDeclaration, Document, HtmlCanvasElement, MediaQueryList, ResizeObserver,
+    ResizeObserverBoxOptions, ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize,
+    Window,
 };
 
 use crate::dpi::{LogicalSize, PhysicalSize};
@@ -22,6 +23,7 @@ impl ResizeScaleHandle {
         window: Window,
         document: Document,
         canvas: HtmlCanvasElement,
+        style: CssStyleDeclaration,
         scale_handler: S,
         resize_handler: R,
     ) -> Self
@@ -33,6 +35,7 @@ impl ResizeScaleHandle {
             window,
             document,
             canvas,
+            style,
             scale_handler,
             resize_handler,
         ))
@@ -49,6 +52,7 @@ struct ResizeScaleInternal {
     window: Window,
     document: Document,
     canvas: HtmlCanvasElement,
+    style: CssStyleDeclaration,
     mql: MediaQueryListHandle,
     observer: ResizeObserver,
     _observer_closure: Closure<dyn FnMut(Array, ResizeObserver)>,
@@ -62,6 +66,7 @@ impl ResizeScaleInternal {
         window: Window,
         document: Document,
         canvas: HtmlCanvasElement,
+        style: CssStyleDeclaration,
         scale_handler: S,
         resize_handler: R,
     ) -> Rc<RefCell<Self>>
@@ -84,7 +89,7 @@ impl ResizeScaleInternal {
                 if let Some(rc_self) = weak_self.upgrade() {
                     let mut this = rc_self.borrow_mut();
 
-                    let size = Self::process_entry(&this.window, &this.canvas, entries);
+                    let size = this.process_entry(entries);
 
                     if this.notify_scale.replace(false) {
                         let scale = backend::scale_factor(&this.window);
@@ -100,6 +105,7 @@ impl ResizeScaleInternal {
                 window,
                 document,
                 canvas,
+                style,
                 mql,
                 observer,
                 _observer_closure: observer_closure,
@@ -147,15 +153,8 @@ impl ResizeScaleInternal {
     }
 
     fn notify(&mut self) {
-        let style = self
-            .window
-            .get_computed_style(&self.canvas)
-            .expect("Failed to obtain computed style")
-            // this can't fail: we aren't using a pseudo-element
-            .expect("Invalid pseudo-element");
-
         if !self.document.contains(Some(&self.canvas))
-            || style.get_property_value("display").unwrap() == "none"
+            || self.style.get_property_value("display").unwrap() == "none"
         {
             let size = PhysicalSize::new(0, 0);
 
@@ -178,19 +177,19 @@ impl ResizeScaleInternal {
         }
 
         let mut size = LogicalSize::new(
-            backend::style_size_property(&style, "width"),
-            backend::style_size_property(&style, "height"),
+            backend::style_size_property(&self.style, "width"),
+            backend::style_size_property(&self.style, "height"),
         );
 
-        if style.get_property_value("box-sizing").unwrap() == "border-box" {
-            size.width -= backend::style_size_property(&style, "border-left-width")
-                + backend::style_size_property(&style, "border-right-width")
-                + backend::style_size_property(&style, "padding-left")
-                + backend::style_size_property(&style, "padding-right");
-            size.height -= backend::style_size_property(&style, "border-top-width")
-                + backend::style_size_property(&style, "border-bottom-width")
-                + backend::style_size_property(&style, "padding-top")
-                + backend::style_size_property(&style, "padding-bottom");
+        if self.style.get_property_value("box-sizing").unwrap() == "border-box" {
+            size.width -= backend::style_size_property(&self.style, "border-left-width")
+                + backend::style_size_property(&self.style, "border-right-width")
+                + backend::style_size_property(&self.style, "padding-left")
+                + backend::style_size_property(&self.style, "padding-right");
+            size.height -= backend::style_size_property(&self.style, "border-top-width")
+                + backend::style_size_property(&self.style, "border-bottom-width")
+                + backend::style_size_property(&self.style, "padding-top")
+                + backend::style_size_property(&self.style, "padding-bottom");
         }
 
         let size = size.to_physical(backend::scale_factor(&self.window));
@@ -232,11 +231,7 @@ impl ResizeScaleInternal {
         this.notify();
     }
 
-    fn process_entry(
-        window: &Window,
-        canvas: &HtmlCanvasElement,
-        entries: Array,
-    ) -> PhysicalSize<u32> {
+    fn process_entry(&self, entries: Array) -> PhysicalSize<u32> {
         let entry: ResizeObserverEntry = entries.get(0).unchecked_into();
 
         // Safari doesn't support `devicePixelContentBoxSize`
@@ -244,7 +239,7 @@ impl ResizeScaleInternal {
             let rect = entry.content_rect();
 
             return LogicalSize::new(rect.width(), rect.height())
-                .to_physical(backend::scale_factor(window));
+                .to_physical(backend::scale_factor(&self.window));
         }
 
         let entry: ResizeObserverSize = entry
@@ -252,13 +247,8 @@ impl ResizeScaleInternal {
             .get(0)
             .unchecked_into();
 
-        let style = window
-            .get_computed_style(canvas)
-            .expect("Failed to get computed style of canvas")
-            // this can only be empty if we provided an invalid `pseudoElt`
-            .expect("`getComputedStyle` can not be empty");
-
-        let writing_mode = style
+        let writing_mode = self
+            .style
             .get_property_value("writing-mode")
             .expect("`writing-mode` is a valid CSS property");
 

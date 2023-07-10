@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::{Document, HtmlCanvasElement};
+use web_sys::{CssStyleDeclaration, Document, HtmlCanvasElement};
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -28,6 +28,7 @@ pub struct Window {
 pub struct Inner {
     pub window: web_sys::Window,
     document: Document,
+    style: CssStyleDeclaration,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
@@ -50,6 +51,7 @@ impl Window {
         let document = target.runner.document();
         let canvas =
             backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
+        let style = canvas.style().clone();
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -66,6 +68,7 @@ impl Window {
             inner: Dispatcher::new(Inner {
                 window: window.clone(),
                 document: document.clone(),
+                style,
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
@@ -135,22 +138,15 @@ impl Window {
 
             let canvas = inner.canvas.borrow();
 
-            if inner.document.contains(Some(canvas.raw())) {
-                let style = inner
-                    .window
-                    .get_computed_style(canvas.raw())
-                    .expect("Failed to obtain computed style")
-                    // this can't fail: we aren't using a pseudo-element
-                    .expect("Invalid pseudo-element");
-
-                if style.get_property_value("display").unwrap() != "none" {
-                    position.x -= backend::style_size_property(&style, "margin-left")
-                        + backend::style_size_property(&style, "border-left-width")
-                        + backend::style_size_property(&style, "padding-left");
-                    position.y -= backend::style_size_property(&style, "margin-top")
-                        + backend::style_size_property(&style, "border-top-width")
-                        + backend::style_size_property(&style, "padding-top");
-                }
+            if inner.document.contains(Some(canvas.raw()))
+                && inner.style.get_property_value("display").unwrap() != "none"
+            {
+                position.x -= backend::style_size_property(&inner.style, "margin-left")
+                    + backend::style_size_property(&inner.style, "border-left-width")
+                    + backend::style_size_property(&inner.style, "padding-left");
+                position.y -= backend::style_size_property(&inner.style, "margin-top")
+                    + backend::style_size_property(&inner.style, "border-top-width")
+                    + backend::style_size_property(&inner.style, "padding-top");
             }
 
             canvas.set_attribute("position", "fixed");
@@ -175,7 +171,7 @@ impl Window {
         self.inner.dispatch(move |inner| {
             let size = size.to_logical(inner.scale_factor());
             let canvas = inner.canvas.borrow();
-            backend::set_canvas_size(canvas.window(), canvas.document(), canvas.raw(), size);
+            backend::set_canvas_size(canvas.document(), canvas.raw(), canvas.style(), size);
         });
 
         None
