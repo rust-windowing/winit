@@ -140,12 +140,12 @@ impl Window {
                     // this can't fail: we aren't using a pseudo-element
                     .expect("Invalid pseudo-element");
 
-                if style.get_property_value("display").unwrap() != "none"
-                    && style.get_property_value("box-sizing").unwrap() == "border-box"
-                {
-                    position.x += backend::style_size_property(&style, "border-left-width")
+                if style.get_property_value("display").unwrap() != "none" {
+                    position.x -= backend::style_size_property(&style, "margin-left")
+                        + backend::style_size_property(&style, "border-left-width")
                         + backend::style_size_property(&style, "padding-left");
-                    position.y += backend::style_size_property(&style, "border-top-width")
+                    position.y -= backend::style_size_property(&style, "margin-top")
+                        + backend::style_size_property(&style, "border-top-width")
                         + backend::style_size_property(&style, "padding-top");
                 }
             }

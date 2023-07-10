@@ -150,12 +150,10 @@ impl Canvas {
                 .expect("Failed to obtain computed style")
                 // this can't fail: we aren't using a pseudo-element
                 .expect("Invalid pseudo-element");
-            if style.get_property_value("display").unwrap() != "none"
-                && style.get_property_value("box-sizing").unwrap() == "border-box"
-            {
-                position.x -= super::style_size_property(&style, "border-left-width")
+            if style.get_property_value("display").unwrap() != "none" {
+                position.x += super::style_size_property(&style, "border-left-width")
                     + super::style_size_property(&style, "padding-left");
-                position.y -= super::style_size_property(&style, "border-top-width")
+                position.y += super::style_size_property(&style, "border-top-width")
                     + super::style_size_property(&style, "padding-top");
             }
         }
