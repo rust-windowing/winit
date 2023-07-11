@@ -369,10 +369,6 @@ impl WinitWindow {
                 this.setTabbingIdentifier(&NSString::from_str(&identifier));
             }
 
-            if attrs.always_on_top {
-                this.setLevel(NSWindowLevel::Floating);
-            }
-
             if attrs.content_protected {
                 this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
             }
