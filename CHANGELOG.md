@@ -19,6 +19,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
 - On Web, fix some `WindowBuilder` methods doing nothing.
 - On Web, implement `Window::focus_window()`.
+- On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 
 # 0.29.0-beta.0
 
