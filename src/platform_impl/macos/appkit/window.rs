@@ -176,6 +176,7 @@ extern_methods!(
 
         #[sel(setTabbingIdentifier:)]
         pub fn setTabbingIdentifier(&self, identifier: &NSString);
+
         #[sel(setDocumentEdited:)]
         pub fn setDocumentEdited(&self, val: bool);
 
