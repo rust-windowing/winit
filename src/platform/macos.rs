@@ -277,6 +277,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
         self.platform_specific
             .tabbing_identifier
             .replace(tabbing_identifier.to_string());
+        self
     }
 
     #[inline]
