@@ -38,9 +38,6 @@ use web_sys::HtmlCanvasElement;
 pub trait WindowExtWebSys {
     /// Only returns the canvas if called from inside the window.
     fn canvas(&self) -> Option<HtmlCanvasElement>;
-
-    /// Whether the browser reports the preferred color scheme to be "dark".
-    fn is_dark_mode(&self) -> bool;
 }
 
 pub trait WindowBuilderExtWebSys {
