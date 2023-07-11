@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::{CssStyleDeclaration, Document, HtmlCanvasElement};
+use web_sys::{Document, HtmlCanvasElement};
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -28,7 +28,6 @@ pub struct Window {
 pub struct Inner {
     pub window: web_sys::Window,
     document: Document,
-    style: CssStyleDeclaration,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
@@ -51,7 +50,6 @@ impl Window {
         let document = target.runner.document();
         let canvas =
             backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
-        let style = canvas.style().clone();
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -68,7 +66,6 @@ impl Window {
             inner: Dispatcher::new(Inner {
                 window: window.clone(),
                 document: document.clone(),
-                style,
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
@@ -134,24 +131,10 @@ impl Window {
 
     pub fn set_outer_position(&self, position: Position) {
         self.inner.dispatch(move |inner| {
-            let mut position = position.to_logical::<f64>(inner.scale_factor());
-
             let canvas = inner.canvas.borrow();
+            let position = position.to_logical::<f64>(inner.scale_factor());
 
-            if inner.document.contains(Some(canvas.raw()))
-                && inner.style.get_property_value("display").unwrap() != "none"
-            {
-                position.x -= backend::style_size_property(&inner.style, "margin-left")
-                    + backend::style_size_property(&inner.style, "border-left-width")
-                    + backend::style_size_property(&inner.style, "padding-left");
-                position.y -= backend::style_size_property(&inner.style, "margin-top")
-                    + backend::style_size_property(&inner.style, "border-top-width")
-                    + backend::style_size_property(&inner.style, "padding-top");
-            }
-
-            canvas.set_attribute("position", "fixed");
-            canvas.set_attribute("left", &position.x.to_string());
-            canvas.set_attribute("top", &position.y.to_string());
+            backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
         });
     }
 
@@ -178,13 +161,33 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_min_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_max_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]
@@ -259,12 +262,13 @@ impl Window {
     pub fn set_cursor_visible(&self, visible: bool) {
         self.inner.dispatch(move |inner| {
             if !visible {
-                inner.canvas.borrow().set_attribute("cursor", "none");
+                backend::set_canvas_style_property(inner.canvas.borrow().raw(), "cursor", "none");
             } else {
-                inner
-                    .canvas
-                    .borrow()
-                    .set_attribute("cursor", &inner.previous_pointer.borrow());
+                backend::set_canvas_style_property(
+                    inner.canvas.borrow().raw(),
+                    "cursor",
+                    &inner.previous_pointer.borrow(),
+                );
             }
         });
     }
@@ -364,7 +368,9 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        // Currently a no-op as it does not seem there is good support for this on web
+        self.inner.dispatch(|inner| {
+            let _ = inner.canvas.borrow().raw().focus();
+        })
     }
 
     #[inline]
