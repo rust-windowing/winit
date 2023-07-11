@@ -53,6 +53,7 @@ pub trait WindowExtMacOS {
 
     /// Returns the window's tabbing identifier.
     fn tabbing_identifier(&self) -> String;
+
     /// Get the window's edit state.
     ///
     /// # Examples
@@ -135,6 +136,7 @@ impl WindowExtMacOS for Window {
         self.window.tabbing_identifier()
     }
 
+    #[inline]
     fn is_document_edited(&self) -> bool {
         self.window.is_document_edited()
     }
@@ -277,6 +279,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
             .replace(tabbing_identifier.to_string());
     }
 
+    #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> WindowBuilder {
         self.platform_specific.option_as_alt = option_as_alt;
         self
