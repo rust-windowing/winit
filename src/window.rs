@@ -445,7 +445,7 @@ impl WindowBuilder {
     /// to the client area of its parent window. For more information, see
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland:** Unsupported.
+    /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[inline]
     pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
         self.window.parent_window = parent_window;
