@@ -88,21 +88,46 @@ impl Canvas {
             // this can't fail: we aren't using a pseudo-element
             .expect("Invalid pseudo-element");
 
+        let common = Common {
+            window,
+            document,
+            raw: canvas,
+            style,
+            old_size: Rc::default(),
+            current_size: Rc::default(),
+            wants_fullscreen: Rc::new(RefCell::new(false)),
+        };
+
         if let Some(size) = attr.inner_size {
-            let size = size.to_logical(super::scale_factor(&window));
-            super::set_canvas_size(&document, &canvas, &style, size);
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_size(&common.document, &common.raw, &common.style, size);
+        }
+
+        if let Some(size) = attr.min_inner_size {
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
+        }
+
+        if let Some(size) = attr.max_inner_size {
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
+        }
+
+        if let Some(position) = attr.position {
+            let position = position.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_position(&common.document, &common.raw, &common.style, position);
+        }
+
+        if attr.fullscreen.is_some() {
+            common.request_fullscreen();
+        }
+
+        if attr.active {
+            let _ = common.raw.focus();
         }
 
         Ok(Canvas {
-            common: Common {
-                window,
-                document,
-                raw: canvas,
-                style,
-                old_size: Rc::default(),
-                current_size: Rc::default(),
-                wants_fullscreen: Rc::new(RefCell::new(false)),
-            },
+            common,
             id,
             has_focus: Arc::new(AtomicBool::new(false)),
             is_intersecting: None,
