@@ -55,12 +55,6 @@ impl WindowExtWebSys for Window {
     fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.window.canvas()
     }
-
-    fn is_dark_mode(&self) -> bool {
-        self.window
-            .inner
-            .queue(|inner| is_dark_mode(&inner.window).unwrap_or(false))
-    }
 }
 
 pub fn scale_factor(window: &web_sys::Window) -> f64 {
