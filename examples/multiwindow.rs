@@ -4,10 +4,14 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     window::Window,
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -29,7 +33,7 @@ fn main() {
             Event::WindowEvent { event, window_id } => {
                 match event {
                     WindowEvent::CloseRequested => {
-                        println!("Window {:?} has received the signal to close", window_id);
+                        println!("Window {window_id:?} has received the signal to close");
 
                         // This drops the window, causing it to close.
                         windows.remove(&window_id);
@@ -39,20 +43,25 @@ fn main() {
                         }
                     }
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::N),
+                                logical_key: Key::Character(c),
                                 ..
                             },
                         is_synthetic: false,
                         ..
-                    } => {
+                    } if matches!(c.as_ref(), "n" | "N") => {
                         let window = Window::new(event_loop).unwrap();
                         println!("Opened a new window: {:?}", window.id());
                         windows.insert(window.id(), window);
                     }
                     _ => (),
+                }
+            }
+            Event::RedrawRequested(window_id) => {
+                if let Some(window) = windows.get(&window_id) {
+                    fill::fill_window(window);
                 }
             }
             _ => (),

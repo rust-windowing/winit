@@ -26,13 +26,13 @@ pub enum Modifier {
 }
 
 #[derive(Debug, Default)]
-pub struct ModifierKeymap {
+pub(crate) struct ModifierKeymap {
     // Maps keycodes to modifiers
     keys: HashMap<ffi::KeyCode, Modifier>,
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct ModifierKeyState {
+pub(crate) struct ModifierKeyState {
     // Contains currently pressed modifier keys and their corresponding modifiers
     keys: HashMap<ffi::KeyCode, Modifier>,
     state: ModifiersState,

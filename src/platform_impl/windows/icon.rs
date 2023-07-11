@@ -90,8 +90,8 @@ impl WinIcon {
                 0,
                 wide_path.as_ptr(),
                 IMAGE_ICON,
-                width as i32,
-                height as i32,
+                width,
+                height,
                 LR_DEFAULTSIZE | LR_LOADFROMFILE,
             )
         };
@@ -113,8 +113,8 @@ impl WinIcon {
                 util::get_instance_handle(),
                 resource_id as PCWSTR,
                 IMAGE_ICON,
-                width as i32,
-                height as i32,
+                width,
+                height,
                 LR_DEFAULTSIZE,
             )
         };

@@ -34,13 +34,18 @@
 //!
 //! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
-use instant::Instant;
+use smol_str::SmolStr;
 use std::path::PathBuf;
+#[cfg(not(wasm_platform))]
+use std::time::Instant;
+#[cfg(wasm_platform)]
+use web_time::Instant;
 
 #[cfg(doc)]
 use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -79,7 +84,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// Not all platforms support the notion of suspending applications, and there may be no
     /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
     /// Winit does not currently try to emit pseudo `Suspended` events before the application
     /// quits on platforms without an application lifecycle.
     ///
@@ -119,6 +124,18 @@ pub enum Event<'a, T: 'static> {
     ///
     /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ## Web
+    ///
+    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
+    /// complete snapshot of a page (including the JavaScript heap) as the user is
+    /// navigating away.
+    ///
+    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
     ///
     /// [`Resumed`]: Self::Resumed
     Suspended,
@@ -174,6 +191,18 @@ pub enum Event<'a, T: 'static> {
     /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
+    /// ## Web
+    ///
+    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// stores a complete snapshot of a page (including the JavaScript heap) as the
+    /// user is navigating away.
+    ///
+    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
+    ///
     /// [`Suspended`]: Self::Suspended
     Resumed,
 
@@ -202,7 +231,16 @@ pub enum Event<'a, T: 'static> {
     /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
     /// something changes, like most non-game GUIs.
     ///
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS / iOS:** Due to implementation difficulties, this will often, but not always, be
+    ///   emitted directly inside `drawRect:`, with neither a preceding [`MainEventsCleared`] nor
+    ///   subsequent `RedrawEventsCleared`. See [#2640] for work on this.
+    ///
     /// [`MainEventsCleared`]: Self::MainEventsCleared
+    /// [`RedrawEventsCleared`]: Self::RedrawEventsCleared
+    /// [#2640]: https://github.com/rust-windowing/winit/issues/2640
     RedrawRequested(WindowId),
 
     /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
@@ -218,7 +256,7 @@ pub enum Event<'a, T: 'static> {
     /// Emitted when the event loop is being shut down.
     ///
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
-    /// gets emitted. You generally want to treat this as an "do on quit" event.
+    /// gets emitted. You generally want to treat this as a "do on quit" event.
     LoopDestroyed,
 }
 
@@ -247,6 +285,7 @@ impl<T: Clone> Clone for Event<'static, T> {
 }
 
 impl<'a, T> Event<'a, T> {
+    #[allow(clippy::result_large_err)]
     pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
         match self {
@@ -351,20 +390,21 @@ pub enum WindowEvent<'a> {
     /// hovered.
     HoveredFileCancelled,
 
-    /// The window received a unicode character.
-    ///
-    /// See also the [`Ime`](Self::Ime) event for more complex character sequences.
-    ReceivedCharacter(char),
-
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
     Focused(bool),
 
     /// An event from the keyboard has been received.
+    ///
+    /// ## Platform-specific
+    /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
+    ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
+    ///   events which are not marked as `is_synthetic`.
     KeyboardInput {
         device_id: DeviceId,
-        input: KeyboardInput,
+        event: KeyEvent,
+
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
@@ -378,12 +418,7 @@ pub enum WindowEvent<'a> {
     },
 
     /// The keyboard modifiers have changed.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
+    ModifiersChanged(Modifiers),
 
     /// An event from an input method.
     ///
@@ -391,10 +426,18 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorMoved {
         device_id: DeviceId,
 
@@ -402,14 +445,28 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// The cursor has entered the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
@@ -417,8 +474,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// An mouse button press has been received.
@@ -426,8 +481,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// Touchpad magnification event with two-finger pinch gesture.
@@ -443,6 +496,25 @@ pub enum WindowEvent<'a> {
         delta: f64,
         phase: TouchPhase,
     },
+
+    /// Smart magnification event.
+    ///
+    /// On a Mac, smart magnification is triggered by a double tap with two fingers
+    /// on the trackpad and is commonly used to zoom on a certain object
+    /// (e.g. a paragraph of a PDF) or (sort of like a toggle) to reset any zoom.
+    /// The gesture is also supported in Safari, Pages, etc.
+    ///
+    /// The event is general enough that its generating gesture is allowed to vary
+    /// across platforms. It could also be generated by another device.
+    ///
+    /// Unfortunatly, neither [Windows](https://support.microsoft.com/en-us/windows/touch-gestures-for-windows-a9d28305-4818-a5df-4e2b-e5590f850741)
+    /// nor [Wayland](https://wayland.freedesktop.org/libinput/doc/latest/gestures.html)
+    /// support this gesture or any other gesture with the same effect.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS 10.8** and later.
+    SmartMagnify { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -477,6 +549,15 @@ pub enum WindowEvent<'a> {
     },
 
     /// Touch event has been received
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    /// - **macOS:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -504,7 +585,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / X11 / Wayland:** Unsupported.
+    /// - **iOS / Android / X11 / Wayland / Orbital:** Unsupported.
     ThemeChanged(Theme),
 
     /// The window has been occluded (completely hidden from view).
@@ -513,7 +594,13 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
 }
 
@@ -528,28 +615,24 @@ impl Clone for WindowEvent<'static> {
             DroppedFile(file) => DroppedFile(file.clone()),
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
             KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             } => KeyboardInput {
                 device_id: *device_id,
-                input: *input,
+                event: event.clone(),
                 is_synthetic: *is_synthetic,
             },
             Ime(preedit_state) => Ime(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => CursorMoved {
                 device_id: *device_id,
                 position: *position,
-                modifiers: *modifiers,
             },
             CursorEntered { device_id } => CursorEntered {
                 device_id: *device_id,
@@ -557,29 +640,23 @@ impl Clone for WindowEvent<'static> {
             CursorLeft { device_id } => CursorLeft {
                 device_id: *device_id,
             },
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => MouseWheel {
                 device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
-                modifiers: *modifiers,
             },
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => MouseInput {
                 device_id: *device_id,
                 state: *state,
                 button: *button,
-                modifiers: *modifiers,
             },
             TouchpadMagnify {
                 device_id,
@@ -589,6 +666,9 @@ impl Clone for WindowEvent<'static> {
                 device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
+            },
+            SmartMagnify { device_id } => SmartMagnify {
+                device_id: *device_id,
             },
             TouchpadRotate {
                 device_id,
@@ -638,54 +718,44 @@ impl<'a> WindowEvent<'a> {
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             } => Some(KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             }),
-            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            ModifiersChanged(modifers) => Some(ModifiersChanged(modifers)),
             Ime(event) => Some(Ime(event)),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => Some(CursorMoved {
                 device_id,
                 position,
-                modifiers,
             }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => Some(MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             }),
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => Some(MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             }),
             TouchpadMagnify {
                 device_id,
@@ -696,6 +766,7 @@ impl<'a> WindowEvent<'a> {
                 delta,
                 phase,
             }),
+            SmartMagnify { device_id } => Some(SmartMagnify { device_id }),
             TouchpadRotate {
                 device_id,
                 delta,
@@ -795,50 +866,224 @@ pub enum DeviceEvent {
         state: ElementState,
     },
 
-    Key(KeyboardInput),
+    Key(RawKeyEvent),
 
     Text {
         codepoint: char,
     },
 }
 
-/// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Describes a keyboard input as a raw device event.
+///
+/// Note that holding down a key may produce repeated `RawKeyEvent`s. The
+/// operating system doesn't provide information whether such an event is a
+/// repeat or the initial keypress. An application may emulate this by, for
+/// example keeping a Map/Set of pressed keys and determining whether a keypress
+/// corresponds to an already pressed key.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct KeyboardInput {
-    /// Identifies the physical key pressed
-    ///
-    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
-    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
-    /// game.
-    pub scancode: ScanCode,
+pub struct RawKeyEvent {
+    pub physical_key: keyboard::KeyCode,
+    pub state: ElementState,
+}
 
+/// Describes a keyboard input targeting a window.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEvent {
+    /// Represents the position of a key independent of the currently active layout.
+    ///
+    /// It also uniquely identifies the physical key (i.e. it's mostly synonymous with a scancode).
+    /// The most prevalent use case for this is games. For example the default keys for the player
+    /// to move around might be the W, A, S, and D keys on a US layout. The position of these keys
+    /// is more important than their label, so they should map to Z, Q, S, and D on an "AZERTY"
+    /// layout. (This value is `KeyCode::KeyW` for the Z key on an AZERTY layout.)
+    ///
+    /// ## Caveats
+    ///
+    /// - Certain niche hardware will shuffle around physical key positions, e.g. a keyboard that
+    /// implements DVORAK in hardware (or firmware)
+    /// - Your application will likely have to handle keyboards which are missing keys that your
+    /// own keyboard has.
+    /// - Certain `KeyCode`s will move between a couple of different positions depending on what
+    /// layout the keyboard was manufactured to support.
+    ///
+    ///  **Because of these caveats, it is important that you provide users with a way to configure
+    ///  most (if not all) keybinds in your application.**
+    ///
+    /// ## `Fn` and `FnLock`
+    ///
+    /// `Fn` and `FnLock` key events are *exceedingly unlikely* to be emitted by Winit. These keys
+    /// are usually handled at the hardware or OS level, and aren't surfaced to applications. If
+    /// you somehow see this in the wild, we'd like to know :)
+    pub physical_key: keyboard::KeyCode,
+
+    // Allowing `broken_intra_doc_links` for `logical_key`, because
+    // `key_without_modifiers` is not available on all platforms
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        allow(rustdoc::broken_intra_doc_links)
+    )]
+    /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
+    ///
+    /// This has two use cases:
+    /// - Allows querying whether the current input is a Dead key.
+    /// - Allows handling key-bindings on platforms which don't
+    /// support [`key_without_modifiers`].
+    ///
+    /// If you use this field (or [`key_without_modifiers`] for that matter) for keyboard
+    /// shortcuts, **it is important that you provide users with a way to configure your
+    /// application's shortcuts so you don't render your application unusable for users with an
+    /// incompatible keyboard layout.**
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Dead keys might be reported as the real key instead
+    /// of `Dead` depending on the browser/OS.
+    ///
+    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
+    pub logical_key: keyboard::Key,
+
+    /// Contains the text produced by this keypress.
+    ///
+    /// In most cases this is identical to the content
+    /// of the `Character` variant of `logical_key`.
+    /// However, on Windows when a dead key was pressed earlier
+    /// but cannot be combined with the character from this
+    /// keypress, the produced text will consist of two characters:
+    /// the dead-key-character followed by the character resulting
+    /// from this keypress.
+    ///
+    /// An additional difference from `logical_key` is that
+    /// this field stores the text representation of any key
+    /// that has such a representation. For example when
+    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    ///
+    /// This is `None` if the current keypress cannot
+    /// be interpreted as text.
+    ///
+    /// See also: `text_with_all_modifiers()`
+    pub text: Option<SmolStr>,
+
+    /// Contains the location of this key on the keyboard.
+    ///
+    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift" key
+    /// appears on the left side of the QWERTY keyboard as well as the right side. However, both keys
+    /// have the same symbolic value. Another example of this phenomenon is the "1" key, which appears
+    /// both above the "Q" key and as the "Keypad 1" key.
+    ///
+    /// This field allows the user to differentiate between keys like this that have the same symbolic
+    /// value but different locations on the keyboard.
+    ///
+    /// See the [`KeyLocation`] type for more details.
+    ///
+    /// [`KeyLocation`]: crate::keyboard::KeyLocation
+    pub location: keyboard::KeyLocation,
+
+    /// Whether the key is being pressed or released.
+    ///
+    /// See the [`ElementState`] type for more details.
     pub state: ElementState,
 
-    /// Identifies the semantic meaning of the key
+    /// Whether or not this key is a key repeat event.
     ///
-    /// Use when the semantics of the key are more important than the physical location of the key, such as when
-    /// implementing appropriate behavior for "page up."
-    pub virtual_keycode: Option<VirtualKeyCode>,
+    /// On some systems, holding down a key for some period of time causes that key to be repeated
+    /// as though it were being pressed and released repeatedly. This field is `true` if and only if
+    /// this event is the result of one of those repeats.
+    pub repeat: bool,
 
-    /// Modifier keys active at the time of this input.
+    /// Platform-specific key event information.
     ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-    pub modifiers: ModifiersState,
+    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with all
+    /// modifiers applied.
+    ///
+    /// On Android, iOS, Redox and Web, this type is a no-op.
+    pub(crate) platform_specific: platform_impl::KeyEventExtra,
+}
+
+/// Describes keyboard modifiers event.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Modifiers {
+    pub(crate) state: ModifiersState,
+
+    // NOTE: Currently pressed modifiers keys.
+    //
+    // The field providing a metadata, it shouldn't be used as a source of truth.
+    pub(crate) pressed_mods: ModifiersKeys,
+}
+
+impl Modifiers {
+    /// The state of the modifiers.
+    pub fn state(&self) -> ModifiersState {
+        self.state
+    }
+
+    /// The state of the left shift key.
+    pub fn lshift_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::LSHIFT)
+    }
+
+    /// The state of the right shift key.
+    pub fn rshift_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::RSHIFT)
+    }
+
+    /// The state of the left alt key.
+    pub fn lalt_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::LALT)
+    }
+
+    /// The state of the right alt key.
+    pub fn ralt_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::RALT)
+    }
+
+    /// The state of the left control key.
+    pub fn lcontrol_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::LCONTROL)
+    }
+
+    /// The state of the right control key.
+    pub fn rcontrol_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::RCONTROL)
+    }
+
+    /// The state of the left super key.
+    pub fn lsuper_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::LSUPER)
+    }
+
+    /// The state of the right super key.
+    pub fn rsuper_state(&self) -> ModifiersKeyState {
+        self.mod_state(ModifiersKeys::RSUPER)
+    }
+
+    fn mod_state(&self, modifier: ModifiersKeys) -> ModifiersKeyState {
+        if self.pressed_mods.contains(modifier) {
+            ModifiersKeyState::Pressed
+        } else {
+            ModifiersKeyState::Unknown
+        }
+    }
+}
+
+impl From<ModifiersState> for Modifiers {
+    fn from(value: ModifiersState) -> Self {
+        Self {
+            state: value,
+            pressed_mods: Default::default(),
+        }
+    }
 }
 
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
 ///
 /// This is also called a "composition event".
 ///
-/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::ReceivedCharacter`].
+/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::KeyboardInput`].
 /// However, one couldn't possibly have a key for every single unicode character that the user might want to type
 /// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
 ///
 /// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
-/// the character you want to apply the accent to. This will generate the following event sequence:
+/// the character you want to apply the accent to. In this case, some platforms will generate the following event sequence:
 /// ```ignore
 /// // Press "`" key
 /// Ime::Preedit("`", Some((0, 0)))
@@ -848,9 +1093,9 @@ pub struct KeyboardInput {
 /// ```
 ///
 /// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
-/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
+/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_cursor_area`].)
 ///
-/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keybaord the following event
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the following event
 /// sequence could be obtained:
 /// ```ignore
 /// // Press "A" key
@@ -872,7 +1117,7 @@ pub enum Ime {
     ///
     /// After getting this event you could receive [`Preedit`](Self::Preedit) and
     /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
-    /// like [`Window::set_ime_position`].
+    /// like [`Window::set_ime_cursor_area`].
     Enabled,
 
     /// Notifies when a new composing text should be set at the cursor position.
@@ -893,7 +1138,7 @@ pub enum Ime {
     ///
     /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
     /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You should
-    /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
+    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear pending
     /// preedit text.
     Disabled,
 }
@@ -924,6 +1169,15 @@ pub enum TouchPhase {
 /// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
+///
+/// ## Platform-specific
+///
+/// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+/// - **macOS:** Unsupported.
+///
+/// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+/// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+/// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,
@@ -934,7 +1188,7 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+ and **Windows** 8+.
+    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
@@ -997,9 +1251,6 @@ impl Force {
     }
 }
 
-/// Hardware-dependent keyboard scan code.
-pub type ScanCode = u32;
-
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;
 
@@ -1015,12 +1266,19 @@ pub enum ElementState {
 }
 
 /// Describes a button of a mouse controller.
+///
+/// ## Platform-specific
+///
+/// **macOS:** `Back` and `Forward` might not work with all hardware.
+/// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
     Right,
     Middle,
+    Back,
+    Forward,
     Other(u16),
 }
 
@@ -1049,304 +1307,4 @@ pub enum MouseScrollDelta {
     /// this means moving your fingers right and down should give positive values,
     /// and move the content right and down (to reveal more things left and up).
     PixelDelta(PhysicalPosition<f64>),
-}
-
-/// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
-#[repr(u32)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum VirtualKeyCode {
-    /// The '1' key over the letters.
-    Key1,
-    /// The '2' key over the letters.
-    Key2,
-    /// The '3' key over the letters.
-    Key3,
-    /// The '4' key over the letters.
-    Key4,
-    /// The '5' key over the letters.
-    Key5,
-    /// The '6' key over the letters.
-    Key6,
-    /// The '7' key over the letters.
-    Key7,
-    /// The '8' key over the letters.
-    Key8,
-    /// The '9' key over the letters.
-    Key9,
-    /// The '0' key over the 'O' and 'P' keys.
-    Key0,
-
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-
-    /// The Escape key, next to F1.
-    Escape,
-
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-
-    /// Print Screen/SysRq.
-    Snapshot,
-    /// Scroll Lock.
-    Scroll,
-    /// Pause/Break key, next to Scroll lock.
-    Pause,
-
-    /// `Insert`, next to Backspace.
-    Insert,
-    Home,
-    Delete,
-    End,
-    PageDown,
-    PageUp,
-
-    Left,
-    Up,
-    Right,
-    Down,
-
-    /// The Backspace key, right over Enter.
-    // TODO: rename
-    Back,
-    /// The Enter key.
-    Return,
-    /// The space bar.
-    Space,
-
-    /// The "Compose" key on Linux.
-    Compose,
-
-    Caret,
-
-    Numlock,
-    Numpad0,
-    Numpad1,
-    Numpad2,
-    Numpad3,
-    Numpad4,
-    Numpad5,
-    Numpad6,
-    Numpad7,
-    Numpad8,
-    Numpad9,
-    NumpadAdd,
-    NumpadDivide,
-    NumpadDecimal,
-    NumpadComma,
-    NumpadEnter,
-    NumpadEquals,
-    NumpadMultiply,
-    NumpadSubtract,
-
-    AbntC1,
-    AbntC2,
-    Apostrophe,
-    Apps,
-    Asterisk,
-    At,
-    Ax,
-    Backslash,
-    Calculator,
-    Capital,
-    Colon,
-    Comma,
-    Convert,
-    Equals,
-    Grave,
-    Kana,
-    Kanji,
-    LAlt,
-    LBracket,
-    LControl,
-    LShift,
-    LWin,
-    Mail,
-    MediaSelect,
-    MediaStop,
-    Minus,
-    Mute,
-    MyComputer,
-    // also called "Next"
-    NavigateForward,
-    // also called "Prior"
-    NavigateBackward,
-    NextTrack,
-    NoConvert,
-    OEM102,
-    Period,
-    PlayPause,
-    Plus,
-    Power,
-    PrevTrack,
-    RAlt,
-    RBracket,
-    RControl,
-    RShift,
-    RWin,
-    Semicolon,
-    Slash,
-    Sleep,
-    Stop,
-    Sysrq,
-    Tab,
-    Underline,
-    Unlabeled,
-    VolumeDown,
-    VolumeUp,
-    Wake,
-    WebBack,
-    WebFavorites,
-    WebForward,
-    WebHome,
-    WebRefresh,
-    WebSearch,
-    WebStop,
-    Yen,
-    Copy,
-    Paste,
-    Cut,
-}
-
-impl ModifiersState {
-    /// Returns `true` if the shift key is pressed.
-    pub fn shift(&self) -> bool {
-        self.intersects(Self::SHIFT)
-    }
-    /// Returns `true` if the control key is pressed.
-    pub fn ctrl(&self) -> bool {
-        self.intersects(Self::CTRL)
-    }
-    /// Returns `true` if the alt key is pressed.
-    pub fn alt(&self) -> bool {
-        self.intersects(Self::ALT)
-    }
-    /// Returns `true` if the logo key is pressed.
-    pub fn logo(&self) -> bool {
-        self.intersects(Self::LOGO)
-    }
-}
-
-bitflags! {
-    /// Represents the current state of the keyboard modifiers
-    ///
-    /// Each flag represents a modifier and is set if this modifier is active.
-    #[derive(Default)]
-    pub struct ModifiersState: u32 {
-        // left and right modifiers are currently commented out, but we should be able to support
-        // them in a future release
-        /// The "shift" key.
-        const SHIFT = 0b100;
-        // const LSHIFT = 0b010;
-        // const RSHIFT = 0b001;
-        /// The "control" key.
-        const CTRL = 0b100 << 3;
-        // const LCTRL = 0b010 << 3;
-        // const RCTRL = 0b001 << 3;
-        /// The "alt" key.
-        const ALT = 0b100 << 6;
-        // const LALT = 0b010 << 6;
-        // const RALT = 0b001 << 6;
-        /// This is the "windows" key on PC and "command" key on Mac.
-        const LOGO = 0b100 << 9;
-        // const LLOGO = 0b010 << 9;
-        // const RLOGO = 0b001 << 9;
-    }
-}
-
-#[cfg(feature = "serde")]
-mod modifiers_serde {
-    use super::ModifiersState;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    #[derive(Default, Serialize, Deserialize)]
-    #[serde(default)]
-    #[serde(rename = "ModifiersState")]
-    pub struct ModifiersStateSerialize {
-        pub shift: bool,
-        pub ctrl: bool,
-        pub alt: bool,
-        pub logo: bool,
-    }
-
-    impl Serialize for ModifiersState {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            let s = ModifiersStateSerialize {
-                shift: self.shift(),
-                ctrl: self.ctrl(),
-                alt: self.alt(),
-                logo: self.logo(),
-            };
-            s.serialize(serializer)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for ModifiersState {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            let ModifiersStateSerialize {
-                shift,
-                ctrl,
-                alt,
-                logo,
-            } = ModifiersStateSerialize::deserialize(deserializer)?;
-            let mut m = ModifiersState::empty();
-            m.set(ModifiersState::SHIFT, shift);
-            m.set(ModifiersState::CTRL, ctrl);
-            m.set(ModifiersState::ALT, alt);
-            m.set(ModifiersState::LOGO, logo);
-            Ok(m)
-        }
-    }
 }

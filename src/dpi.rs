@@ -167,7 +167,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
 /// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
     pub x: P,
@@ -246,7 +246,7 @@ impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
 }
 
 /// A position represented in physical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,
@@ -325,7 +325,7 @@ impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
 }
 
 /// A size represented in logical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
     pub width: P,
@@ -407,7 +407,7 @@ impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
 }
 
 /// A size represented in physical pixels.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize<P> {
     pub width: P,
@@ -519,18 +519,8 @@ impl Size {
             max.into().to_physical::<f64>(scale_factor),
         );
 
-        let clamp = |input: f64, min: f64, max: f64| {
-            if input < min {
-                min
-            } else if input > max {
-                max
-            } else {
-                input
-            }
-        };
-
-        let width = clamp(input.width, min.width, max.width);
-        let height = clamp(input.height, min.height, max.height);
+        let width = input.width.clamp(min.width, max.width);
+        let height = input.height.clamp(min.height, max.height);
 
         PhysicalSize::new(width, height).into()
     }

@@ -1,5 +1,5 @@
 mod proxy;
-mod runner;
+pub(crate) mod runner;
 mod state;
 mod window_target;
 
@@ -33,7 +33,7 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.spawn(event_handler);
+        self.spawn_inner(event_handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -44,7 +44,14 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn<F>(self, mut event_handler: F)
+    pub fn spawn<F>(self, event_handler: F)
+    where
+        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        self.spawn_inner(event_handler, true);
+    }
+
+    fn spawn_inner<F>(self, mut event_handler: F, event_loop_recreation: bool)
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -53,9 +60,10 @@ impl<T> EventLoop<T> {
             _marker: PhantomData,
         };
 
-        self.elw.p.run(Box::new(move |event, flow| {
-            event_handler(event, &target, flow)
-        }));
+        self.elw.p.run(
+            Box::new(move |event, flow| event_handler(event, &target, flow)),
+            event_loop_recreation,
+        );
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {

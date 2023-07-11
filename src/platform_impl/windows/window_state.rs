@@ -1,7 +1,7 @@
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Size},
-    event::ModifiersState,
     icon::Icon,
+    keyboard::ModifiersState,
     platform_impl::platform::{event_loop, util, Fullscreen},
     window::{CursorIcon, Theme, WindowAttributes},
 };
@@ -11,15 +11,16 @@ use windows_sys::Win32::{
     Foundation::{HWND, RECT},
     Graphics::Gdi::InvalidateRgn,
     UI::WindowsAndMessaging::{
-        AdjustWindowRectEx, GetMenu, GetWindowLongW, SendMessageW, SetWindowLongW, SetWindowPos,
-        ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS,
-        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
-        SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE,
-        WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
-        WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
-        WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX,
-        WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU,
-        WS_VISIBLE,
+        AdjustWindowRectEx, EnableMenuItem, GetMenu, GetSystemMenu, GetWindowLongW, SendMessageW,
+        SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_BOTTOM,
+        HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE,
+        SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION,
+        SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
+        SW_SHOWNOACTIVATE, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION,
+        WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW,
+        WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+        WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX,
+        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
     },
 };
 
@@ -41,7 +42,7 @@ pub(crate) struct WindowState {
     pub fullscreen: Option<Fullscreen>,
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
-    pub high_surrogate: Option<u16>,
+
     pub window_flags: WindowFlags,
 
     pub ime_state: ImeState,
@@ -50,6 +51,8 @@ pub(crate) struct WindowState {
     // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
     pub is_active: bool,
     pub is_focused: bool,
+
+    pub dragging: bool,
 
     pub skip_taskbar: bool,
 }
@@ -68,6 +71,7 @@ pub struct MouseProperties {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CursorFlags: u8 {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
@@ -75,41 +79,48 @@ bitflags! {
     }
 }
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowFlags: u32 {
-        const RESIZABLE      = 1 << 0;
-        const VISIBLE        = 1 << 1;
-        const ON_TASKBAR     = 1 << 2;
-        const ALWAYS_ON_TOP  = 1 << 3;
-        const NO_BACK_BUFFER = 1 << 4;
-        const TRANSPARENT    = 1 << 5;
-        const CHILD          = 1 << 6;
-        const MAXIMIZED      = 1 << 7;
-        const POPUP          = 1 << 8;
+        const RESIZABLE         = 1 << 0;
+        const MINIMIZABLE       = 1 << 1;
+        const MAXIMIZABLE       = 1 << 2;
+        const CLOSABLE          = 1 << 3;
+        const VISIBLE           = 1 << 4;
+        const ON_TASKBAR        = 1 << 5;
+        const ALWAYS_ON_TOP     = 1 << 6;
+        const ALWAYS_ON_BOTTOM  = 1 << 7;
+        const NO_BACK_BUFFER    = 1 << 8;
+        const TRANSPARENT       = 1 << 9;
+        const CHILD             = 1 << 10;
+        const MAXIMIZED         = 1 << 11;
+        const POPUP             = 1 << 12;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
-        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 9;
-        const MARKER_BORDERLESS_FULLSCREEN = 1 << 10;
+        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 13;
+        const MARKER_BORDERLESS_FULLSCREEN = 1 << 14;
 
         /// The `WM_SIZE` event contains some parameters that can effect the state of `WindowFlags`.
         /// In most cases, it's okay to let those parameters change the state. However, when we're
         /// running the `WindowFlags::apply_diff` function, we *don't* want those parameters to
         /// effect our stored state, because the purpose of `apply_diff` is to update the actual
         /// window's state to match our stored state. This controls whether to accept those changes.
-        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 11;
+        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 15;
 
-        const MARKER_IN_SIZE_MOVE = 1 << 12;
+        const MARKER_IN_SIZE_MOVE = 1 << 16;
 
-        const MINIMIZED = 1 << 13;
+        const MINIMIZED = 1 << 17;
 
-        const IGNORE_CURSOR_EVENT = 1 << 14;
+        const IGNORE_CURSOR_EVENT = 1 << 18;
 
         /// Fully decorated window (incl. caption, border and drop shadow).
-        const MARKER_DECORATIONS = 1 << 15;
+        const MARKER_DECORATIONS = 1 << 19;
         /// Drop shadow for undecorated windows.
-        const MARKER_UNDECORATED_SHADOW = 1 << 16;
+        const MARKER_UNDECORATED_SHADOW = 1 << 20;
 
-        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const MARKER_ACTIVATE = 1 << 21;
+
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
 
@@ -148,7 +159,6 @@ impl WindowState {
             fullscreen: None,
             current_theme,
             preferred_theme,
-            high_surrogate: None,
             window_flags: WindowFlags::empty(),
 
             ime_state: ImeState::Disabled,
@@ -156,6 +166,8 @@ impl WindowState {
 
             is_active: false,
             is_focused: false,
+
+            dragging: false,
 
             skip_taskbar: false,
         }
@@ -236,16 +248,17 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CAPTION
-            | WS_MINIMIZEBOX
-            | WS_BORDER
-            | WS_CLIPSIBLINGS
-            | WS_CLIPCHILDREN
-            | WS_SYSMENU;
+        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
 
         if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+            style |= WS_SIZEBOX;
+        }
+        if self.contains(WindowFlags::MAXIMIZABLE) {
+            style |= WS_MAXIMIZEBOX;
+        }
+        if self.contains(WindowFlags::MINIMIZABLE) {
+            style |= WS_MINIMIZEBOX;
         }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
@@ -289,25 +302,36 @@ impl WindowFlags {
         self = self.mask();
         new = new.mask();
 
-        let diff = self ^ new;
+        let mut diff = self ^ new;
 
         if diff == WindowFlags::empty() {
             return;
         }
 
         if new.contains(WindowFlags::VISIBLE) {
+            let flag = if !self.contains(WindowFlags::MARKER_ACTIVATE) {
+                self.set(WindowFlags::MARKER_ACTIVATE, true);
+                SW_SHOWNOACTIVATE
+            } else {
+                SW_SHOW
+            };
             unsafe {
-                ShowWindow(window, SW_SHOW);
+                ShowWindow(window, flag);
             }
         }
 
-        if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
+        if diff.intersects(WindowFlags::ALWAYS_ON_TOP | WindowFlags::ALWAYS_ON_BOTTOM) {
             unsafe {
                 SetWindowPos(
                     window,
-                    match new.contains(WindowFlags::ALWAYS_ON_TOP) {
-                        true => HWND_TOPMOST,
-                        false => HWND_NOTOPMOST,
+                    match (
+                        new.contains(WindowFlags::ALWAYS_ON_TOP),
+                        new.contains(WindowFlags::ALWAYS_ON_BOTTOM),
+                    ) {
+                        (true, false) => HWND_TOPMOST,
+                        (false, false) => HWND_NOTOPMOST,
+                        (false, true) => HWND_BOTTOM,
+                        (true, true) => unreachable!(),
                     },
                     0,
                     0,
@@ -342,6 +366,21 @@ impl WindowFlags {
                     },
                 );
             }
+
+            diff.remove(WindowFlags::MINIMIZED);
+        }
+
+        if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {
+            let flags = MF_BYCOMMAND
+                | if new.contains(WindowFlags::CLOSABLE) {
+                    MF_ENABLED
+                } else {
+                    MF_DISABLED
+                };
+
+            unsafe {
+                EnableMenuItem(GetSystemMenu(window, 0), SC_CLOSE, flags);
+            }
         }
 
         if !new.contains(WindowFlags::VISIBLE) {
@@ -354,7 +393,12 @@ impl WindowFlags {
             let (style, style_ex) = new.to_window_styles();
 
             unsafe {
-                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
+                SendMessageW(
+                    window,
+                    event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(),
+                    1,
+                    0,
+                );
 
                 // This condition is necessary to avoid having an unrestorable window
                 if !new.contains(WindowFlags::MINIMIZED) {
@@ -375,7 +419,12 @@ impl WindowFlags {
 
                 // Refresh the window frame
                 SetWindowPos(window, 0, 0, 0, 0, 0, flags);
-                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
+                SendMessageW(
+                    window,
+                    event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID.get(),
+                    0,
+                    0,
+                );
             }
         }
     }

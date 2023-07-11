@@ -2,14 +2,12 @@
 
 // Limit this example to only compatible platforms.
 #[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd",
-    target_os = "android",
+    windows_platform,
+    macos_platform,
+    x11_platform,
+    wayland_platform,
+    android_platform,
+    orbital_platform,
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
@@ -21,10 +19,14 @@ fn main() {
         platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
+
+    #[path = "util/fill.rs"]
+    mod fill;
+
     let mut event_loop = EventLoop::new();
 
     SimpleLogger::new().init().unwrap();
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
@@ -37,7 +39,7 @@ fn main() {
 
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
-                println!("{:?}", event);
+                println!("{event:?}");
             }
 
             match event {
@@ -50,6 +52,9 @@ fn main() {
                 Event::MainEventsCleared => {
                     control_flow.set_exit();
                 }
+                Event::RedrawRequested(_) => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
             }
         });
@@ -60,7 +65,7 @@ fn main() {
     }
 }
 
-#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+#[cfg(any(ios_platform, wasm_platform))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

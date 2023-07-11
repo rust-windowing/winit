@@ -2,10 +2,14 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
+    keyboard::{Key, ModifiersState},
     window::{CursorGrabMode, WindowBuilder},
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -25,45 +29,48 @@ fn main() {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: key,
                             state: ElementState::Released,
-                            virtual_keycode: Some(key),
                             ..
                         },
                     ..
                 } => {
-                    use winit::event::VirtualKeyCode::*;
                     let result = match key {
-                        Escape => {
+                        Key::Escape => {
                             control_flow.set_exit();
                             Ok(())
                         }
-                        G => window.set_cursor_grab(CursorGrabMode::Confined),
-                        L => window.set_cursor_grab(CursorGrabMode::Locked),
-                        A => window.set_cursor_grab(CursorGrabMode::None),
-                        H => {
-                            window.set_cursor_visible(modifiers.shift());
-                            Ok(())
-                        }
+                        Key::Character(ch) => match ch.to_lowercase().as_str() {
+                            "g" => window.set_cursor_grab(CursorGrabMode::Confined),
+                            "l" => window.set_cursor_grab(CursorGrabMode::Locked),
+                            "a" => window.set_cursor_grab(CursorGrabMode::None),
+                            "h" => {
+                                window.set_cursor_visible(modifiers.shift_key());
+                                Ok(())
+                            }
+                            _ => Ok(()),
+                        },
                         _ => Ok(()),
                     };
 
                     if let Err(err) = result {
-                        println!("error: {}", err);
+                        println!("error: {err}");
                     }
                 }
-                WindowEvent::ModifiersChanged(m) => modifiers = m,
+                WindowEvent::ModifiersChanged(new) => modifiers = new.state(),
                 _ => (),
             },
             Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
+                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {delta:?}"),
                 DeviceEvent::Button { button, state } => match state {
-                    ElementState::Pressed => println!("mouse button {} pressed", button),
-                    ElementState::Released => println!("mouse button {} released", button),
+                    ElementState::Pressed => println!("mouse button {button} pressed"),
+                    ElementState::Released => println!("mouse button {button} released"),
                 },
                 _ => (),
             },
+            Event::RedrawRequested(_) => fill::fill_window(&window),
             _ => (),
         }
     });

@@ -1,208 +1,212 @@
-//! Seat handling and managing.
+//! Seat handling.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
-use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
-use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
+use fnv::FnvHashMap;
 
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
-use sctk::reexports::client::Attached;
+use sctk::reexports::client::protocol::wl_touch::WlTouch;
+use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
+use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 
-use sctk::environment::Environment;
-use sctk::reexports::calloop::LoopHandle;
-use sctk::seat::pointer::ThemeManager;
-use sctk::seat::{SeatData, SeatListener};
+use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
+use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 
-use super::env::WinitEnv;
-use super::event_loop::WinitState;
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
+use crate::platform_impl::wayland::state::WinitState;
 
 mod keyboard;
-pub mod pointer;
-pub mod text_input;
+mod pointer;
+mod text_input;
 mod touch;
 
-use keyboard::Keyboard;
-use pointer::Pointers;
-use text_input::TextInput;
-use touch::Touch;
+pub use pointer::relative_pointer::RelativePointerState;
+pub use pointer::{PointerConstraintsState, WinitPointerData, WinitPointerDataExt};
+pub use text_input::{TextInputState, ZwpTextInputV3Ext};
 
-pub struct SeatManager {
-    /// Listener for seats.
-    _seat_listener: SeatListener,
+use keyboard::{KeyboardData, KeyboardState};
+use text_input::TextInputData;
+use touch::TouchPoint;
+
+#[derive(Debug)]
+pub struct WinitSeatState {
+    /// The pointer bound on the seat.
+    pointer: Option<Arc<ThemedPointer<WinitPointerData>>>,
+
+    /// The touch bound on the seat.
+    touch: Option<WlTouch>,
+
+    /// The mapping from touched points to the surfaces they're present.
+    touch_map: FnvHashMap<i32, TouchPoint>,
+
+    /// The text input bound on the seat.
+    text_input: Option<Arc<ZwpTextInputV3>>,
+
+    /// The relative pointer bound on the seat.
+    relative_pointer: Option<ZwpRelativePointerV1>,
+
+    /// The keyboard bound on the seat.
+    keyboard_state: Option<KeyboardState>,
+
+    /// The current modifiers state on the seat.
+    modifiers: ModifiersState,
+
+    /// Wether we have pending modifiers.
+    modifiers_pending: bool,
 }
 
-impl SeatManager {
-    pub fn new(
-        env: &Environment<WinitEnv>,
-        loop_handle: LoopHandle<'static, WinitState>,
-        theme_manager: ThemeManager,
-    ) -> Self {
-        let relative_pointer_manager = env.get_global::<ZwpRelativePointerManagerV1>();
-        let pointer_constraints = env.get_global::<ZwpPointerConstraintsV1>();
-        let text_input_manager = env.get_global::<ZwpTextInputManagerV3>();
-
-        let mut inner = SeatManagerInner::new(
-            theme_manager,
-            relative_pointer_manager,
-            pointer_constraints,
-            text_input_manager,
-            loop_handle,
-        );
-
-        // Handle existing seats.
-        for seat in env.get_all_seats() {
-            let seat_data = match sctk::seat::clone_seat_data(&seat) {
-                Some(seat_data) => seat_data,
-                None => continue,
-            };
-
-            inner.process_seat_update(&seat, &seat_data);
-        }
-
-        let seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
-            inner.process_seat_update(&seat, seat_data);
-        });
-
+impl WinitSeatState {
+    pub fn new() -> Self {
         Self {
-            _seat_listener: seat_listener,
-        }
-    }
-}
-
-/// Inner state of the seat manager.
-struct SeatManagerInner {
-    /// Currently observed seats.
-    seats: Vec<SeatInfo>,
-
-    /// Loop handle.
-    loop_handle: LoopHandle<'static, WinitState>,
-
-    /// Relative pointer manager.
-    relative_pointer_manager: Option<Attached<ZwpRelativePointerManagerV1>>,
-
-    /// Pointer constraints.
-    pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
-
-    /// Text input manager.
-    text_input_manager: Option<Attached<ZwpTextInputManagerV3>>,
-
-    /// A theme manager.
-    theme_manager: ThemeManager,
-}
-
-impl SeatManagerInner {
-    fn new(
-        theme_manager: ThemeManager,
-        relative_pointer_manager: Option<Attached<ZwpRelativePointerManagerV1>>,
-        pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
-        text_input_manager: Option<Attached<ZwpTextInputManagerV3>>,
-        loop_handle: LoopHandle<'static, WinitState>,
-    ) -> Self {
-        Self {
-            seats: Vec::new(),
-            loop_handle,
-            relative_pointer_manager,
-            pointer_constraints,
-            text_input_manager,
-            theme_manager,
-        }
-    }
-
-    /// Handle seats update from the `SeatListener`.
-    pub fn process_seat_update(&mut self, seat: &Attached<WlSeat>, seat_data: &SeatData) {
-        let detached_seat = seat.detach();
-
-        let position = self.seats.iter().position(|si| si.seat == detached_seat);
-        let index = position.unwrap_or_else(|| {
-            self.seats.push(SeatInfo::new(detached_seat));
-            self.seats.len() - 1
-        });
-
-        let seat_info = &mut self.seats[index];
-
-        // Pointer handling.
-        if seat_data.has_pointer && !seat_data.defunct {
-            if seat_info.pointer.is_none() {
-                seat_info.pointer = Some(Pointers::new(
-                    seat,
-                    &self.theme_manager,
-                    &self.relative_pointer_manager,
-                    &self.pointer_constraints,
-                    seat_info.modifiers_state.clone(),
-                ));
-            }
-        } else {
-            seat_info.pointer = None;
-        }
-
-        // Handle keyboard.
-        if seat_data.has_keyboard && !seat_data.defunct {
-            if seat_info.keyboard.is_none() {
-                seat_info.keyboard = Keyboard::new(
-                    seat,
-                    self.loop_handle.clone(),
-                    seat_info.modifiers_state.clone(),
-                );
-            }
-        } else {
-            seat_info.keyboard = None;
-        }
-
-        // Handle touch.
-        if seat_data.has_touch && !seat_data.defunct {
-            if seat_info.touch.is_none() {
-                seat_info.touch = Some(Touch::new(seat));
-            }
-        } else {
-            seat_info.touch = None;
-        }
-
-        // Handle text input.
-        if let Some(text_input_manager) = self.text_input_manager.as_ref() {
-            if seat_data.defunct {
-                seat_info.text_input = None;
-            } else if seat_info.text_input.is_none() {
-                seat_info.text_input = Some(TextInput::new(seat, text_input_manager));
-            }
-        }
-    }
-}
-
-/// Resources associtated with a given seat.
-struct SeatInfo {
-    /// Seat to which this `SeatInfo` belongs.
-    seat: WlSeat,
-
-    /// A keyboard handle with its repeat rate handling.
-    keyboard: Option<Keyboard>,
-
-    /// All pointers we're using on a seat.
-    pointer: Option<Pointers>,
-
-    /// Touch handling.
-    touch: Option<Touch>,
-
-    /// Text input handling aka IME.
-    text_input: Option<TextInput>,
-
-    /// The current state of modifiers observed in keyboard handler.
-    ///
-    /// We keep modifiers state on a seat, since it's being used by pointer events as well.
-    modifiers_state: Rc<RefCell<ModifiersState>>,
-}
-
-impl SeatInfo {
-    pub fn new(seat: WlSeat) -> Self {
-        Self {
-            seat,
-            keyboard: None,
             pointer: None,
             touch: None,
+            relative_pointer: None,
             text_input: None,
-            modifiers_state: Rc::new(RefCell::new(ModifiersState::default())),
+            touch_map: Default::default(),
+            keyboard_state: None,
+            modifiers: ModifiersState::empty(),
+            modifiers_pending: false,
         }
     }
 }
+
+impl SeatHandler for WinitState {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_capability(
+        &mut self,
+        _: &Connection,
+        queue_handle: &QueueHandle<Self>,
+        seat: WlSeat,
+        capability: SeatCapability,
+    ) {
+        let seat_state = self.seats.get_mut(&seat.id()).unwrap();
+
+        match capability {
+            SeatCapability::Touch if seat_state.touch.is_none() => {
+                seat_state.touch = self.seat_state.get_touch(queue_handle, &seat).ok();
+            }
+            SeatCapability::Keyboard if seat_state.keyboard_state.is_none() => {
+                let keyboard = seat.get_keyboard(queue_handle, KeyboardData::new(seat.clone()));
+                seat_state.keyboard_state =
+                    Some(KeyboardState::new(keyboard, self.loop_handle.clone()));
+            }
+            SeatCapability::Pointer if seat_state.pointer.is_none() => {
+                let surface = self.compositor_state.create_surface(queue_handle);
+                let surface_id = surface.id();
+                let pointer_data = WinitPointerData::new(seat.clone(), surface);
+                let themed_pointer = self
+                    .seat_state
+                    .get_pointer_with_theme_and_data(
+                        queue_handle,
+                        &seat,
+                        ThemeSpec::System,
+                        pointer_data,
+                    )
+                    .expect("failed to create pointer with present capability.");
+
+                seat_state.relative_pointer = self.relative_pointer.as_ref().map(|manager| {
+                    manager.get_relative_pointer(
+                        themed_pointer.pointer(),
+                        queue_handle,
+                        sctk::globals::GlobalData,
+                    )
+                });
+
+                let themed_pointer = Arc::new(themed_pointer);
+
+                // Register cursor surface.
+                self.pointer_surfaces
+                    .insert(surface_id, themed_pointer.clone());
+
+                seat_state.pointer = Some(themed_pointer);
+            }
+            _ => (),
+        }
+
+        if let Some(text_input_state) = seat_state
+            .text_input
+            .is_none()
+            .then_some(self.text_input_state.as_ref())
+            .flatten()
+        {
+            seat_state.text_input = Some(Arc::new(text_input_state.get_text_input(
+                &seat,
+                queue_handle,
+                TextInputData::default(),
+            )));
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _: &Connection,
+        _queue_handle: &QueueHandle<Self>,
+        seat: WlSeat,
+        capability: SeatCapability,
+    ) {
+        let seat_state = self.seats.get_mut(&seat.id()).unwrap();
+
+        match capability {
+            SeatCapability::Touch => {
+                if let Some(touch) = seat_state.touch.take() {
+                    if touch.version() >= 3 {
+                        touch.release();
+                    }
+                }
+            }
+            SeatCapability::Pointer => {
+                if let Some(relative_pointer) = seat_state.relative_pointer.take() {
+                    relative_pointer.destroy();
+                }
+
+                if let Some(pointer) = seat_state.pointer.take() {
+                    let pointer_data = pointer.pointer().winit_data();
+
+                    // Remove the cursor from the mapping.
+                    let surface_id = pointer_data.cursor_surface().id();
+                    let _ = self.pointer_surfaces.remove(&surface_id);
+
+                    // Remove the inner locks/confines before dropping the pointer.
+                    pointer_data.unlock_pointer();
+                    pointer_data.unconfine_pointer();
+
+                    if pointer.pointer().version() >= 3 {
+                        pointer.pointer().release();
+                    }
+                }
+            }
+            SeatCapability::Keyboard => {
+                seat_state.keyboard_state = None;
+            }
+            _ => (),
+        }
+
+        if let Some(text_input) = seat_state.text_input.take() {
+            text_input.destroy();
+        }
+    }
+
+    fn new_seat(
+        &mut self,
+        _connection: &Connection,
+        _queue_handle: &QueueHandle<Self>,
+        seat: WlSeat,
+    ) {
+        self.seats.insert(seat.id(), WinitSeatState::new());
+    }
+
+    fn remove_seat(
+        &mut self,
+        _connection: &Connection,
+        _queue_handle: &QueueHandle<Self>,
+        seat: WlSeat,
+    ) {
+        let _ = self.seats.remove(&seat.id());
+    }
+}
+
+sctk::delegate_seat!(WinitState);

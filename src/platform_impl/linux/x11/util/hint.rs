@@ -23,7 +23,7 @@ impl From<bool> for StateOperation {
 
 /// X window type. Maps directly to
 /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowType {
     /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
@@ -61,13 +61,8 @@ pub enum WindowType {
     /// This property is typically used on override-redirect windows.
     Dnd,
     /// This is a normal, top-level window.
+    #[default]
     Normal,
-}
-
-impl Default for WindowType {
-    fn default() -> Self {
-        WindowType::Normal
-    }
 }
 
 impl WindowType {
@@ -185,7 +180,7 @@ impl MwmHints {
     }
 }
 
-pub struct NormalHints<'a> {
+pub(crate) struct NormalHints<'a> {
     size_hints: XSmartPointer<'a, ffi::XSizeHints>,
 }
 
@@ -196,13 +191,8 @@ impl<'a> NormalHints<'a> {
         }
     }
 
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        has_flag(self.size_hints.flags, ffi::PPosition)
-            .then(|| (self.size_hints.x as i32, self.size_hints.y as i32))
-    }
-
     pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
-        has_flag(self.size_hints.flags, ffi::PResizeInc).then(|| {
+        has_flag(self.size_hints.flags, ffi::PResizeInc).then_some({
             (
                 self.size_hints.width_inc as u32,
                 self.size_hints.height_inc as u32,

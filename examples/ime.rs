@@ -3,11 +3,15 @@
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use winit::{
-    dpi::PhysicalPosition,
-    event::{ElementState, Event, Ime, VirtualKeyCode, WindowEvent},
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{ElementState, Event, Ime, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    keyboard::{Key, KeyCode},
+    window::{ImePurpose, WindowBuilder},
 };
+
+#[path = "util/fill.rs"]
+mod fill;
 
 fn main() {
     SimpleLogger::new()
@@ -18,6 +22,7 @@ fn main() {
     println!("IME position will system default");
     println!("Click to set IME position to cursor's");
     println!("Press F2 to toggle IME. See the documentation of `set_ime_allowed` for more info");
+    println!("Press F3 to cycle through IME purposes.");
 
     let event_loop = EventLoop::new();
 
@@ -26,6 +31,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    let mut ime_purpose = ImePurpose::Normal;
     let mut ime_allowed = true;
     window.set_ime_allowed(ime_allowed);
 
@@ -60,38 +66,42 @@ fn main() {
                 );
                 ime_pos = cursor_position;
                 if may_show_ime {
-                    window.set_ime_position(ime_pos);
+                    window.set_ime_cursor_area(ime_pos, PhysicalSize::new(10, 10));
                 }
             }
             Event::WindowEvent {
                 event: WindowEvent::Ime(event),
                 ..
             } => {
-                println!("{:?}", event);
+                println!("{event:?}");
                 may_show_ime = event != Ime::Disabled;
                 if may_show_ime {
-                    window.set_ime_position(ime_pos);
+                    window.set_ime_cursor_area(ime_pos, PhysicalSize::new(10, 10));
                 }
             }
             Event::WindowEvent {
-                event: WindowEvent::ReceivedCharacter(ch),
+                event: WindowEvent::KeyboardInput { event, .. },
                 ..
             } => {
-                println!("ch: {:?}", ch);
-            }
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } => {
-                println!("key: {:?}", input);
+                println!("key: {event:?}");
 
-                if input.state == ElementState::Pressed
-                    && input.virtual_keycode == Some(VirtualKeyCode::F2)
-                {
+                if event.state == ElementState::Pressed && event.physical_key == KeyCode::F2 {
                     ime_allowed = !ime_allowed;
                     window.set_ime_allowed(ime_allowed);
-                    println!("\nIME: {}\n", ime_allowed);
+                    println!("\nIME allowed: {ime_allowed}\n");
                 }
+                if event.state == ElementState::Pressed && event.logical_key == Key::F3 {
+                    ime_purpose = match ime_purpose {
+                        ImePurpose::Normal => ImePurpose::Password,
+                        ImePurpose::Password => ImePurpose::Terminal,
+                        _ => ImePurpose::Normal,
+                    };
+                    window.set_ime_purpose(ime_purpose);
+                    println!("\nIME purpose: {ime_purpose:?}\n");
+                }
+            }
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
             }
             _ => (),
         }

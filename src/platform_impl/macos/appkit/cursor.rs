@@ -197,8 +197,7 @@ impl NSCursor {
     pub fn from_icon(icon: CursorIcon) -> Id<Self, Shared> {
         match icon {
             CursorIcon::Default => Default::default(),
-            CursorIcon::Arrow => Self::arrowCursor(),
-            CursorIcon::Hand => Self::pointingHandCursor(),
+            CursorIcon::Pointer => Self::pointingHandCursor(),
             CursorIcon::Grab => Self::openHandCursor(),
             CursorIcon::Grabbing => Self::closedHandCursor(),
             CursorIcon::Text => Self::IBeamCursor(),
@@ -228,6 +227,7 @@ impl NSCursor {
             CursorIcon::Wait | CursorIcon::Progress => Self::busyButClickableCursor(),
             CursorIcon::Move | CursorIcon::AllScroll => Self::moveCursor(),
             CursorIcon::Cell => Self::cellCursor(),
+            _ => Default::default(),
         }
     }
 }

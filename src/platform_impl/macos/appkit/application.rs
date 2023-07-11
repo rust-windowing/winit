@@ -87,7 +87,7 @@ extern_methods!(
         }
 
         #[sel(setAppearance:)]
-        pub fn setAppearance(&self, appearance: &NSAppearance);
+        pub fn setAppearance(&self, appearance: Option<&NSAppearance>);
 
         #[sel(run)]
         pub unsafe fn run(&self);
@@ -109,6 +109,7 @@ unsafe impl Encode for NSApplicationActivationPolicy {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct NSApplicationPresentationOptions: NSUInteger {
         const NSApplicationPresentationDefault = 0;
         const NSApplicationPresentationAutoHideDock = 1 << 0;

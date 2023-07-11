@@ -9,11 +9,14 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{error, fmt};
 
-use instant::Instant;
-use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
+#[cfg(not(wasm_platform))]
+use std::time::{Duration, Instant};
+#[cfg(wasm_platform)]
+use web_time::{Duration, Instant};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -66,6 +69,8 @@ impl EventLoopBuilder<()> {
     }
 }
 
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+
 impl<T> EventLoopBuilder<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
@@ -97,20 +102,35 @@ impl<T> EventLoopBuilder<T> {
     ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
     ///   will fall back on X11. If this variable is set with any other value, winit will panic.
+    /// - **Android:** Must be configured with an `AndroidApp` from `android_main()` by calling
+    ///     [`.with_android_app(app)`] before calling `.build()`.
     ///
     /// [`platform`]: crate::platform
+    #[cfg_attr(
+        android,
+        doc = "[`.with_android_app(app)`]: crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
+    )]
+    #[cfg_attr(
+        not(android),
+        doc = "[`.with_android_app(app)`]: #only-available-on-android"
+    )]
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
-        static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
-        if EVENT_LOOP_CREATED.set(()).is_err() {
+        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             panic!("Creating EventLoop multiple times is not supported.");
         }
+
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
             event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
         }
+    }
+
+    #[cfg(wasm_platform)]
+    pub(crate) fn allow_event_loop_recreation() {
+        EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
 }
 
@@ -145,16 +165,11 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
-    ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
-    ///   example when the scaling of the page has changed. This should be treated as an implementation
-    ///   detail which should not be relied on.
     Poll,
+
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
+
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     ///
@@ -164,6 +179,7 @@ pub enum ControlFlow {
     ///
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
+
     /// Send a [`LoopDestroyed`] event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
@@ -209,6 +225,20 @@ impl ControlFlow {
     /// [`WaitUntil`]: Self::WaitUntil
     pub fn set_wait_until(&mut self, instant: Instant) {
         *self = Self::WaitUntil(instant);
+    }
+
+    /// Sets this to wait until a timeout has expired.
+    ///
+    /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
+    /// instead set to [`Wait`].
+    ///
+    /// [`WaitUntil`]: Self::WaitUntil
+    /// [`Wait`]: Self::Wait
+    pub fn set_wait_timeout(&mut self, timeout: Duration) {
+        match Instant::now().checked_add(timeout) {
+            Some(instant) => self.set_wait_until(instant),
+            None => self.set_wait(),
+        }
     }
 
     /// Sets this to [`ExitWithCode`]`(code)`.
@@ -286,6 +316,13 @@ impl<T> EventLoop<T> {
     }
 }
 
+unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.event_loop.window_target().p.raw_display_handle()
+    }
+}
+
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
@@ -297,6 +334,7 @@ impl<T> EventLoopWindowTarget<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
         self.p
             .available_monitors()
             .into_iter()
@@ -317,27 +355,20 @@ impl<T> EventLoopWindowTarget<T> {
             .map(|inner| MonitorHandle { inner })
     }
 
-    /// Change [`DeviceEvent`] filter mode.
+    /// Change if or when [`DeviceEvent`]s are captured.
     ///
     /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
     /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
-    /// this filter at runtime to explicitly capture them again.
+    /// this at runtime to explicitly capture them again.
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / macOS / iOS / Android / Web:** Unsupported.
+    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
-        #[cfg(any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "windows"
-        ))]
-        self.p.set_device_event_filter(_filter);
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
+        #[cfg(any(x11_platform, wasm_platform, wayland_platform, windows))]
+        self.p.listen_device_events(_allowed);
     }
 }
 
@@ -395,19 +426,14 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
 
-/// Filter controlling the propagation of device events.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum DeviceEventFilter {
-    /// Always filter out device events.
+/// Control when device events are captured.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+pub enum DeviceEvents {
+    /// Report device events regardless of window focus.
     Always,
-    /// Filter out device events while the window is not focused.
-    Unfocused,
-    /// Report all device events regardless of window focus.
+    /// Only capture device events while the window is focused.
+    #[default]
+    WhenFocused,
+    /// Never capture device events.
     Never,
-}
-
-impl Default for DeviceEventFilter {
-    fn default() -> Self {
-        Self::Unfocused
-    }
 }

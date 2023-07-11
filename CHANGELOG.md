@@ -9,6 +9,162 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On MacOS, add `WindowExtMacOS::set_allows_automatic_window_tabbing`, `WindowExtMacOS::allows_automatic_window_tabbing`, `WindowBuilderExtMacOS::with_automatic_window_tabbing`, `WindowExtMacOS::set_tabbing_identifier`, `WindowExtMacOS::tabbing_identifier` and `WindowBuilderExtMacOS::with_tabbing_identifier` APIs.
+- **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
+- On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
+- Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- On Web, implement `WindowEvent::Occluded`.
+- On Web, fix touch location to be as accurate as mouse position.
+- On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
+- On Web, add Fullscreen API compatibility for Safari.
+- On Web, implement `Window::set_(min|max)_inner_size()`.
+- On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
+- On Web, fix some `WindowBuilder` methods doing nothing.
+- On Web, implement `Window::focus_window()`.
+
+# 0.29.0-beta.0
+
+- On Web, allow event loops to be recreated with `spawn`.
+- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
+- On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
+- On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
+- **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
+- **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
+- On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
+- **Breaking:** Remove all deprecated `modifiers` fields.
+- **Breaking:** Overhaul keyboard input handling.
+  - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
+    - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
+    - Change `Event::Key` to contain a `RawKeyEvent`.
+  - Remove `Event::ReceivedCharacter`. In its place, you should use
+    `KeyEvent.text` in combination with `WindowEvent::Ime`.
+  - Replace `VirtualKeyCode` with the `Key` enum.
+  - Replace `ScanCode` with the `KeyCode` enum.
+  - Rename `ModifiersState::LOGO` to `SUPER` and `ModifiersState::CTRL` to `CONTROL`.
+  - Add `KeyCode` to refer to keys (roughly) by their physical location.
+  - Add `NativeKeyCode` to represent raw `KeyCode`s which Winit doesn't
+    understand.
+  - Add `Key` to represent the keys after they've been interpreted by the
+    active (software) keyboard layout.
+  - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
+  - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
+    but can appear simultaneously in different spots on the same keyboard
+    layout.
+  - Add `Window::reset_dead_keys` to enable application-controlled cancellation
+    of dead key sequences.
+  - Add `KeyEventExtModifierSupplement` to expose additional (and less
+    portable) interpretations of a given key-press.
+  - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
+    `KeyCode`.
+  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
+- On Orbital, fix `ModifiersChanged` not being sent.
+- **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
+- **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
+- **Breaking:** `CursorIcon::Arrow` was removed.
+- On Wayland, fix maximized startup not taking full size on GNOME.
+- On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
+- On Wayland, `Window::outer_size` now accounts for **client side** decorations.
+- On Wayland, fix window not checking that it actually got initial configure event.
+- On Wayland, fix maximized window creation and window geometry handling.
+- On Wayland, fix forward compatibility issues.
+- On Wayland, add `Window::drag_resize_window` method.
+- On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
+- Implement `PartialOrd` and `Ord` on types in the `dpi` module.
+- **Breaking:** Bump MSRV from `1.60` to `1.64`.
+- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
+- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
+- On Web: fix position of touch events to be relative to the canvas.
+- On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
+  a transient activation.
+- On Web, fix pointer button events not being processed when a buttons is already pressed.
+- **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
+- On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
+- **Breaking:** On Web, `instant` is now replaced by `web_time`.
+- On Windows, port to `windows-sys` version 0.48.0.
+- On Web, fix pen treated as mouse input.
+- On Web, send mouse position on button release as well.
+- On Web, fix touch input not gaining or loosing focus.
+- **Breaking:** On Web, dropped support for Safari versions below 13.1.
+- On Web, prevent clicks on the canvas to select text.
+- On Web, `EventLoopProxy` now implements `Send`.
+- On Web, `Window` now implements `Send` and `Sync`.
+- **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
+- On Web, use the correct canvas size when calculating the new size during scale factor change,
+  instead of using the output bitmap size.
+- On Web, scale factor and dark mode detection are now more robust.
+- On Web, fix the bfcache by not using the `beforeunload` event and map bfcache loading/unloading to `Suspended`/`Resumed` events.
+- On Web, fix scale factor resize suggestion always overwriting the canvas size.
+- On macOS, fix crash when dropping `Window`.
+- On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.
+- **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to
+  the canvas size will be reported through `WindowEvent::Resized`.
+- On Web, respect `EventLoopWindowTarget::listen_device_events()` settings.
+- On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
+- On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and
+  `DeviceEvent::Key` support.
+- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
+  on Wayland, X11, Windows, macOS and Web.
+
+# 0.28.6
+
+- On macOS, fixed memory leak when getting monitor handle.
+- On macOS, fix `Backspace` being emitted when clearing preedit with it.
+
+# 0.28.5
+
+- On macOS, fix `key_up` being ignored when `Ime` is disabled.
+
+# 0.28.4
+
+- On macOS, fix empty marked text blocking regular input.
+- On macOS, fix potential panic when getting refresh rate.
+- On macOS, fix crash when calling `Window::set_ime_position` from another thread.
+
+# 0.28.3
+
+- Fix macOS memory leaks.
+
+# 0.28.2
+
+- Implement `HasRawDisplayHandle` for `EventLoop`.
+- On macOS, set resize increments only for live resizes.
+- On Wayland, fix rare crash on DPI change
+- Web: Added support for `Window::theme`.
+- On Wayland, fix rounding issues when doing resize.
+- On macOS, fix wrong focused state on startup.
+- On Windows, fix crash on setting taskbar when using Visual Studio debugger.
+- On macOS, resize simple fullscreen windows on windowDidChangeScreen events.
+
+# 0.28.1
+
+- On Wayland, fix crash when dropping a window in multi-window setup.
+
+# 0.28.0
+
+- On macOS, fixed `Ime::Commit` persisting for all input after interacting with `Ime`.
+- On macOS, added `WindowExtMacOS::option_as_alt` and `WindowExtMacOS::set_option_as_alt`.
+- On Windows, fix window size for maximized, undecorated windows.
+- On Windows and macOS, add `WindowBuilder::with_active`.
+- Add `Window::is_minimized`.
+- On X11, fix errors handled during `register_xlib_error_hook` invocation bleeding into winit.
+- Add `Window::has_focus`.
+- On Windows, fix `Window::set_minimized(false)` not working for windows minimized by `Win + D` hotkey.
+- **Breaking:** On Web, touch input no longer fires `WindowEvent::Cursor*`, `WindowEvent::MouseInput`, or `DeviceEvent::MouseMotion` like other platforms, but instead it fires `WindowEvent::Touch`.
+- **Breaking:** Removed platform specific `WindowBuilder::with_parent` API in favor of `WindowBuilder::with_parent_window`.
+- On Windows, retain `WS_MAXIMIZE` window style when un-minimizing a maximized window.
+- On Windows, fix left mouse button release event not being sent after `Window::drag_window`.
+- On macOS, run most actions on the main thread, which is strictly more correct, but might make multithreaded applications block slightly more.
+- On macOS, fix panic when getting current monitor without any monitor attached.
+- On Windows and MacOS, add API to enable/disable window buttons (close, minimize, ...etc).
+- On Windows, macOS, X11 and Wayland, add `Window::set_theme`.
+- **Breaking:** Remove `WindowExtWayland::wayland_set_csd_theme` and `WindowBuilderExtX11::with_gtk_theme_variant`.
+- On Windows, revert window background to an empty brush to avoid white flashes when changing scaling.
+- **Breaking:** Removed `Window::set_always_on_top` and related APIs in favor of `Window::set_window_level`.
+- On Windows, MacOS and X11, add always on bottom APIs.
+- On Windows, fix the value in `MouseButton::Other`.
+- On macOS, add `WindowExtMacOS::is_document_edited` and `WindowExtMacOS::set_document_edited` APIs.
+- **Breaking:** Removed `WindowBuilderExtIOS::with_root_view_class`; instead, you should use `[[view layer] addSublayer: ...]` to add an instance of the desired layer class (e.g. `CAEAGLLayer` or `CAMetalLayer`). See `vulkano-win` or `wgpu` for examples of this.
+- On MacOS and Windows, add `Window::set_content_protected`.
+- On MacOS, add `EventLoopBuilderExtMacOS::with_activate_ignoring_other_apps`.
 - On Windows, fix icons specified on `WindowBuilder` not taking effect for windows created after the first one.
 - On Windows and macOS, add `Window::title` to query the current window title.
 - On Windows, fix focusing menubar when pressing `Alt`.
@@ -20,7 +176,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
 - **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - Removed `parking_lot` dependency.
-- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
+- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`. Also add support for touchpad smart-magnification gesture with a new event `WindowEvent::SmartMagnify`.
 - **Breaking:** On web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
@@ -31,7 +187,19 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Removed `WindowBuilderExtWindows::with_theme` and `WindowBuilderExtWayland::with_wayland_csd_theme` in favour of `WindowBuilder::with_theme`.
 - **Breaking:** Removed `WindowExtWindows::theme` in favour of `Window::theme`.
 - Enabled `doc_auto_cfg` when generating docs on docs.rs for feature labels.
-- On macOS, fix panic when getting current monitor without any monitor attached.
+- **Breaking:** On Android, switched to using [`android-activity`](https://github.com/rib/android-activity) crate as a glue layer instead of [`ndk-glue`](https://github.com/rust-windowing/android-ndk-rs/tree/master/ndk-glue). See [README.md#Android](https://github.com/rust-windowing/winit#Android) for more details. ([#2444](https://github.com/rust-windowing/winit/pull/2444))
+- **Breaking:** Removed support for `raw-window-handle` version `0.4`
+- On Wayland, `RedrawRequested` not emitted during resize.
+- Add a `set_wait_timeout` function to `ControlFlow` to allow waiting for a `Duration`.
+- **Breaking:** Remove the unstable `xlib_xconnection()` function from the private interface.
+- Added Orbital support for Redox OS
+- On X11, added `drag_resize_window` method.
+- Added `Window::set_transparent` to provide a hint about transparency of the window on Wayland and macOS.
+- On macOS, fix the mouse buttons other than left/right/middle being reported as middle.
+- On Wayland, support fractional scaling via the wp-fractional-scale protocol.
+- On web, fix removal of mouse event listeners from the global object upon window distruction.
+- Add WindowAttributes getter to WindowBuilder to allow introspection of default values.
+- Added `Window::set_ime_purpose` for setting the IME purpose, currently implemented on Wayland only.
 
 # 0.27.5
 
@@ -139,6 +307,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
 - All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
 - **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
+- On MacOS, fix deadlock when calling `set_maximized` from event loop.
 
 # 0.26.1 (2022-01-05)
 
@@ -240,7 +409,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # 0.23.0 (2020-10-02)
 
-- On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
+- On iOS, fixed support for the "Debug View Hierarchy" feature in Xcode.
 - On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
 - On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.

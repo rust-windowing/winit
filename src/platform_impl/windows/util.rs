@@ -13,7 +13,7 @@ use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HINSTANCE, HWND, RECT},
+        Foundation::{BOOL, HMODULE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
@@ -23,10 +23,11 @@ use windows_sys::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
-                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowRect,
-                ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
-                IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
-                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
+                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
+                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
+                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
             },
         },
     },
@@ -90,6 +91,15 @@ impl WindowArea {
     }
 }
 
+pub fn is_maximized(window: HWND) -> bool {
+    unsafe {
+        let mut placement: WINDOWPLACEMENT = mem::zeroed();
+        placement.length = mem::size_of::<WINDOWPLACEMENT>() as u32;
+        GetWindowPlacement(window, &mut placement);
+        placement.showCmd == SW_MAXIMIZE
+    }
+}
+
 pub fn set_cursor_hidden(hidden: bool) {
     static HIDDEN: AtomicBool = AtomicBool::new(false);
     let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
@@ -135,7 +145,11 @@ pub fn is_focused(window: HWND) -> bool {
     window == unsafe { GetActiveWindow() }
 }
 
-pub fn get_instance_handle() -> HINSTANCE {
+pub fn is_minimized(window: HWND) -> bool {
+    unsafe { IsIconic(window) != false.into() }
+}
+
+pub fn get_instance_handle() -> HMODULE {
     // Gets the instance handle by taking the address of the
     // pseudo-variable created by the microsoft linker:
     // https://devblogs.microsoft.com/oldnewthing/20041025-00/?p=37483
@@ -150,32 +164,30 @@ pub fn get_instance_handle() -> HINSTANCE {
     unsafe { &__ImageBase as *const _ as _ }
 }
 
-impl CursorIcon {
-    pub(crate) fn to_windows_cursor(self) -> PCWSTR {
-        match self {
-            CursorIcon::Arrow | CursorIcon::Default => IDC_ARROW,
-            CursorIcon::Hand => IDC_HAND,
-            CursorIcon::Crosshair => IDC_CROSS,
-            CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
-            CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
-            CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-                IDC_SIZEALL
-            }
-            CursorIcon::EResize
-            | CursorIcon::WResize
-            | CursorIcon::EwResize
-            | CursorIcon::ColResize => IDC_SIZEWE,
-            CursorIcon::NResize
-            | CursorIcon::SResize
-            | CursorIcon::NsResize
-            | CursorIcon::RowResize => IDC_SIZENS,
-            CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
-            CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
-            CursorIcon::Wait => IDC_WAIT,
-            CursorIcon::Progress => IDC_APPSTARTING,
-            CursorIcon::Help => IDC_HELP,
-            _ => IDC_ARROW, // use arrow for the missing cases.
+pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
+    match cursor {
+        CursorIcon::Default => IDC_ARROW,
+        CursorIcon::Pointer => IDC_HAND,
+        CursorIcon::Crosshair => IDC_CROSS,
+        CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
+        CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
+        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
+            IDC_SIZEALL
         }
+        CursorIcon::EResize
+        | CursorIcon::WResize
+        | CursorIcon::EwResize
+        | CursorIcon::ColResize => IDC_SIZEWE,
+        CursorIcon::NResize
+        | CursorIcon::SResize
+        | CursorIcon::NsResize
+        | CursorIcon::RowResize => IDC_SIZENS,
+        CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
+        CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
+        CursorIcon::Wait => IDC_WAIT,
+        CursorIcon::Progress => IDC_APPSTARTING,
+        CursorIcon::Help => IDC_HELP,
+        _ => IDC_ARROW, // use arrow for the missing cases.
     }
 }
 

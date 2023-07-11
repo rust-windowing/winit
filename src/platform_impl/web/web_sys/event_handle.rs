@@ -1,7 +1,7 @@
 use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::{AddEventListenerOptions, EventTarget};
+use web_sys::EventTarget;
 
-pub(super) struct EventListenerHandle<T: ?Sized> {
+pub struct EventListenerHandle<T: ?Sized> {
     target: EventTarget,
     event_type: &'static str,
     listener: Closure<T>,
@@ -15,30 +15,6 @@ impl<T: ?Sized> EventListenerHandle<T> {
         let target = target.clone().into();
         target
             .add_event_listener_with_callback(event_type, listener.as_ref().unchecked_ref())
-            .expect("Failed to add event listener");
-        EventListenerHandle {
-            target,
-            event_type,
-            listener,
-        }
-    }
-
-    pub fn with_options<U>(
-        target: &U,
-        event_type: &'static str,
-        listener: Closure<T>,
-        options: &AddEventListenerOptions,
-    ) -> Self
-    where
-        U: Clone + Into<EventTarget>,
-    {
-        let target = target.clone().into();
-        target
-            .add_event_listener_with_callback_and_add_event_listener_options(
-                event_type,
-                listener.as_ref().unchecked_ref(),
-                options,
-            )
             .expect("Failed to add event listener");
         EventListenerHandle {
             target,

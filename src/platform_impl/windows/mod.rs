@@ -1,5 +1,6 @@
-#![cfg(target_os = "windows")]
+#![cfg(windows_platform)]
 
+use smol_str::SmolStr;
 use windows_sys::Win32::{
     Foundation::{HANDLE, HWND},
     UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX},
@@ -19,17 +20,11 @@ pub(self) use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
-
-#[derive(Clone)]
-pub enum Parent {
-    None,
-    ChildOf(HWND),
-    OwnedBy(HWND),
-}
+use crate::keyboard::Key;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Parent,
+    pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
@@ -41,7 +36,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: Parent::None,
+            owner: None,
             menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,
@@ -89,6 +84,12 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
 
 pub type OsError = std::io::Error;
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub text_with_all_modifers: Option<SmolStr>,
+    pub key_without_modifiers: Key,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
@@ -120,7 +121,7 @@ impl From<u64> for WindowId {
 
 #[inline(always)]
 const fn get_xbutton_wparam(x: u32) -> u16 {
-    loword(x)
+    hiword(x)
 }
 
 #[inline(always)]
@@ -134,7 +135,12 @@ const fn get_y_lparam(x: u32) -> i16 {
 }
 
 #[inline(always)]
-const fn loword(x: u32) -> u16 {
+pub(crate) const fn primarylangid(lgid: u16) -> u16 {
+    lgid & 0x3FF
+}
+
+#[inline(always)]
+pub(crate) const fn loword(x: u32) -> u16 {
     (x & 0xFFFF) as u16
 }
 
@@ -169,10 +175,11 @@ mod dark_mode;
 mod definitions;
 mod dpi;
 mod drop_handler;
-mod event;
 mod event_loop;
 mod icon;
 mod ime;
+mod keyboard;
+mod keyboard_layout;
 mod monitor;
 mod raw_input;
 mod window;

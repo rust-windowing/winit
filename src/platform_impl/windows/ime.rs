@@ -1,12 +1,11 @@
 use std::{
     ffi::{c_void, OsString},
-    mem::zeroed,
     os::windows::prelude::OsStringExt,
     ptr::null_mut,
 };
 
 use windows_sys::Win32::{
-    Foundation::POINT,
+    Foundation::{POINT, RECT},
     Globalization::HIMC,
     UI::{
         Input::Ime::{
@@ -19,7 +18,10 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::{dpi::Position, platform::windows::HWND};
+use crate::{
+    dpi::{Position, Size},
+    platform::windows::HWND,
+};
 
 pub struct ImeContext {
     hwnd: HWND,
@@ -109,17 +111,24 @@ impl ImeContext {
         }
     }
 
-    pub unsafe fn set_ime_position(&self, spot: Position, scale_factor: f64) {
+    pub unsafe fn set_ime_cursor_area(&self, spot: Position, size: Size, scale_factor: f64) {
         if !ImeContext::system_has_ime() {
             return;
         }
 
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
+        let (width, height): (i32, i32) = size.to_physical::<i32>(scale_factor).into();
+        let rc_area = RECT {
+            left: x,
+            top: y,
+            right: x + width,
+            bottom: y - height,
+        };
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
             dwStyle: CFS_EXCLUDE,
             ptCurrentPos: POINT { x, y },
-            rcArea: zeroed(),
+            rcArea: rc_area,
         };
 
         ImmSetCandidateWindow(self.himc, &candidate_form);

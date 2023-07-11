@@ -1,5 +1,6 @@
-use objc2::rc::Id;
 use std::os::raw::c_void;
+
+use objc2::rc::Id;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
@@ -52,6 +53,35 @@ pub trait WindowExtMacOS {
 
     /// Returns the window's tabbing identifier.
     fn tabbing_identifier(&self) -> String;
+    /// Get the window's edit state.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// WindowEvent::CloseRequested => {
+    ///     if window.is_document_edited() {
+    ///         // Show the user a save pop-up or similar
+    ///     } else {
+    ///         // Close the window
+    ///         drop(window);
+    ///     }
+    /// }
+    /// ```
+    fn is_document_edited(&self) -> bool;
+
+    /// Put the window in a state which indicates a file save is required.
+    fn set_document_edited(&self, edited: bool);
+
+    /// Set option as alt behavior as described in [`OptionAsAlt`].
+    ///
+    /// This will ignore diacritical marks and accent characters from
+    /// being processed as received characters. Instead, the input
+    /// device's raw character will be placed in event queues with the
+    /// Alt modifier set.
+    fn set_option_as_alt(&self, option_as_alt: OptionAsAlt);
+
+    /// Getter for the [`WindowExtMacOS::set_option_as_alt`].
+    fn option_as_alt(&self) -> OptionAsAlt;
 }
 
 impl WindowExtMacOS for Window {
@@ -104,23 +134,39 @@ impl WindowExtMacOS for Window {
     fn tabbing_identifier(&self) -> String {
         self.window.tabbing_identifier()
     }
+
+    fn is_document_edited(&self) -> bool {
+        self.window.is_document_edited()
+    }
+
+    #[inline]
+    fn set_document_edited(&self, edited: bool) {
+        self.window.set_document_edited(edited)
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
+        self.window.set_option_as_alt(option_as_alt)
+    }
+
+    #[inline]
+    fn option_as_alt(&self) -> OptionAsAlt {
+        self.window.option_as_alt()
+    }
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
+    #[default]
     Regular,
+
     /// Corresponds to `NSApplicationActivationPolicyAccessory`.
     Accessory,
+
     /// Corresponds to `NSApplicationActivationPolicyProhibited`.
     Prohibited,
-}
-
-impl Default for ActivationPolicy {
-    fn default() -> Self {
-        ActivationPolicy::Regular
-    }
 }
 
 /// Additional methods on [`WindowBuilder`] that are specific to MacOS.
@@ -154,6 +200,10 @@ pub trait WindowBuilderExtMacOS {
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
     fn with_tabbing_identifier(self, identifier: &str) -> WindowBuilder;
+    /// Set how the <kbd>Option</kbd> keys are interpreted.
+    ///
+    /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
+    fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -225,6 +275,10 @@ impl WindowBuilderExtMacOS for WindowBuilder {
         self.platform_specific
             .tabbing_identifier
             .replace(tabbing_identifier.to_string());
+    }
+
+    fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> WindowBuilder {
+        self.platform_specific.option_as_alt = option_as_alt;
         self
     }
 }
@@ -273,6 +327,12 @@ pub trait EventLoopBuilderExtMacOS {
     /// # }
     /// ```
     fn with_default_menu(&mut self, enable: bool) -> &mut Self;
+
+    /// Used to prevent the application from automatically activating when launched if
+    /// another application is already active.
+    ///
+    /// The default behavior is to ignore other applications and activate when launched.
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
@@ -285,6 +345,12 @@ impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     #[inline]
     fn with_default_menu(&mut self, enable: bool) -> &mut Self {
         self.platform_specific.default_menu = enable;
+        self
+    }
+
+    #[inline]
+    fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self {
+        self.platform_specific.activate_ignoring_other_apps = ignore;
         self
     }
 }
@@ -324,4 +390,24 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_other_applications(&self) {
         self.p.hide_other_applications()
     }
+}
+
+/// Option as alt behavior.
+///
+/// The default is `None`.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum OptionAsAlt {
+    /// The left `Option` key is treated as `Alt`.
+    OnlyLeft,
+
+    /// The right `Option` key is treated as `Alt`.
+    OnlyRight,
+
+    /// Both `Option` keys are treated as `Alt`.
+    Both,
+
+    /// No special handling is applied for `Option` key.
+    #[default]
+    None,
 }

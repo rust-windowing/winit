@@ -55,7 +55,7 @@
 //!
 //! Also note that app may not receive the LoopDestroyed event if suspended; it might be SIGKILL'ed.
 
-#![cfg(target_os = "ios")]
+#![cfg(ios_platform)]
 #![allow(clippy::let_unit_value)]
 
 // TODO: (mtak-) UIKit requires main thread for virtually all function/method calls. This could be
@@ -87,24 +87,28 @@ pub(crate) use self::{
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
+use self::uikit::UIScreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {
-    uiscreen: ffi::id,
+    uiscreen: *const UIScreen,
 }
 
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         DeviceId {
-            uiscreen: std::ptr::null_mut(),
+            uiscreen: std::ptr::null(),
         }
     }
 }
 
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyEventExtra {}
 
 #[derive(Debug)]
 pub enum OsError {}

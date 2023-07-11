@@ -1,23 +1,19 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 
-use libc::{c_char, c_int, c_long, c_uint, c_ulong};
+use libc::{c_char, c_int, c_long, c_ulong};
 
 use super::{
-    events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
-    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
+    ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd, DndState,
+    GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId, XExtension,
 };
-
-use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{
-        DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, TouchPhase,
-        WindowEvent,
-    },
+    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
+    keyboard::ModifiersState,
+    platform_impl::platform::common::{keymap, xkb_state::KbdState},
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
@@ -30,11 +26,16 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
+    pub(super) xkbext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
-    pub(super) mod_keymap: ModifierKeymap,
-    pub(super) device_mod_state: ModifierKeyState,
+    pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
+    // This is the last pressed key that is repeatable (if it hasn't been
+    // released).
+    //
+    // Used to detect key repeats.
+    pub(super) held_key_press: Option<u32>,
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
@@ -57,7 +58,7 @@ impl<T: 'static> EventProcessor<T> {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId(window_id as u64);
+        let window_id = WindowId(window_id as _);
         let wt = get_xtarget(&self.target);
         let result = wt
             .windows
@@ -134,47 +135,8 @@ impl<T: 'static> EventProcessor<T> {
             return;
         }
 
-        // We can't call a `&mut self` method because of the above borrow,
-        // so we use this macro for repeated modifier state updates.
-        macro_rules! update_modifiers {
-            ( $state:expr , $modifier:expr ) => {{
-                match ($state, $modifier) {
-                    (state, modifier) => {
-                        if let Some(modifiers) =
-                            self.device_mod_state.update_state(&state, modifier)
-                        {
-                            if let Some(window_id) = self.active_window {
-                                callback(Event::WindowEvent {
-                                    window_id: mkwid(window_id),
-                                    event: WindowEvent::ModifiersChanged(modifiers),
-                                });
-                            }
-                        }
-                    }
-                }
-            }};
-        }
-
         let event_type = xev.get_type();
         match event_type {
-            ffi::MappingNotify => {
-                let mapping: &ffi::XMappingEvent = xev.as_ref();
-
-                if mapping.request == ffi::MappingModifier
-                    || mapping.request == ffi::MappingKeyboard
-                {
-                    unsafe {
-                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
-                    }
-                    wt.xconn
-                        .check_errors()
-                        .expect("Failed to call XRefreshKeyboardMapping");
-
-                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
-                    self.device_mod_state.update_keymap(&self.mod_keymap);
-                }
-            }
-
             ffi::ClientMessage => {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
 
@@ -347,7 +309,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     // These are both in physical space.
                     let new_inner_size = (xev.width as u32, xev.height as u32);
-                    let new_inner_position = (xev.x as i32, xev.y as i32);
+                    let new_inner_position = (xev.x, xev.y);
 
                     let (mut resized, moved) = {
                         let mut shared_state_lock = window.shared_state_lock();
@@ -457,7 +419,7 @@ impl<T: 'static> EventProcessor<T> {
                             });
 
                             if new_inner_size != old_inner_size {
-                                window.set_inner_size_physical(
+                                window.request_inner_size_physical(
                                     new_inner_size.width,
                                     new_inner_size.height,
                                 );
@@ -481,7 +443,7 @@ impl<T: 'static> EventProcessor<T> {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
                         } else {
-                            window.set_inner_size_physical(adjusted_size.0, adjusted_size.1);
+                            window.request_inner_size_physical(adjusted_size.0, adjusted_size.1);
                         }
                     }
 
@@ -511,7 +473,24 @@ impl<T: 'static> EventProcessor<T> {
                     window.invalidate_cached_frame_extents();
                 });
             }
+            ffi::MapNotify => {
+                let xev: &ffi::XMapEvent = xev.as_ref();
+                let window = xev.window;
+                let window_id = mkwid(window);
 
+                // XXX re-issue the focus state when mapping the window.
+                //
+                // The purpose of it is to deliver initial focused state of the newly created
+                // window, given that we can't rely on `CreateNotify`, due to it being not
+                // sent.
+                let focus = self
+                    .with_window(window, |window| window.has_focus())
+                    .unwrap_or_default();
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Focused(focus),
+                });
+            }
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
 
@@ -520,7 +499,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window as u64));
+                wt.windows.borrow_mut().remove(&WindowId(window as _));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
@@ -560,67 +539,67 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
 
-            ffi::KeyPress | ffi::KeyRelease => {
-                use crate::event::ElementState::{Pressed, Released};
-
-                // Note that in compose/pre-edit sequences, this will always be Released.
-                let state = if xev.get_type() == ffi::KeyPress {
-                    Pressed
-                } else {
-                    Released
+            // Note that in compose/pre-edit sequences, we'll always receive KeyRelease events
+            ty @ ffi::KeyPress | ty @ ffi::KeyRelease => {
+                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+                let window = match self.active_window {
+                    Some(window) => window,
+                    None => return,
                 };
 
-                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
-
-                let window = xkev.window;
                 let window_id = mkwid(window);
+                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
-                // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
-                // value, though this should only be an issue under multiseat configurations.
-                let device = util::VIRTUAL_CORE_KEYBOARD;
-                let device_id = mkdid(device);
-                let keycode = xkev.keycode;
+                let keycode = xkev.keycode as _;
 
-                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
-                // a keycode of 0.
+                // Update state to track key repeats and determine whether this key was a repeat.
+                //
+                // Note, when a key is held before focusing on this window the first
+                // (non-synthetic) event will not be flagged as a repeat (also note that the
+                // synthetic press event that is generated before this when the window gains focus
+                // will also not be flagged as a repeat).
+                //
+                // Only keys that can repeat should change the held_key_press state since a
+                // continuously held repeatable key may continue repeating after the press of a
+                // non-repeatable key.
+                let repeat = if self.kb_state.key_repeats(keycode) {
+                    let is_latest_held = self.held_key_press == Some(keycode);
+
+                    if ty == ffi::KeyPress {
+                        self.held_key_press = Some(keycode);
+                        is_latest_held
+                    } else {
+                        // Check that the released key is the latest repeatable key that has been
+                        // pressed, since repeats will continue for the latest key press if a
+                        // different previously pressed key is released.
+                        if is_latest_held {
+                            self.held_key_press = None;
+                        }
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                let state = if ty == ffi::KeyPress {
+                    ElementState::Pressed
+                } else {
+                    ElementState::Released
+                };
+
                 if keycode != 0 && !self.is_composing {
-                    let scancode = keycode - KEYCODE_OFFSET as u32;
-                    let keysym = wt.xconn.lookup_keysym(xkev);
-                    let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-
-                    update_modifiers!(
-                        ModifiersState::from_x11_mask(xkev.state),
-                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
-                    );
-
-                    let modifiers = self.device_mod_state.modifiers();
-
-                    #[allow(deprecated)]
+                    let event = self.kb_state.process_key_event(keycode, state, repeat);
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
                             device_id,
-                            input: KeyboardInput {
-                                state,
-                                scancode,
-                                virtual_keycode,
-                                modifiers,
-                            },
+                            event,
                             is_synthetic: false,
                         },
                     });
-                }
-
-                if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
-                    };
-
-                    // If we're composing right now, send the string we've got from X11 via
-                    // Ime::Commit.
-                    if self.is_composing && keycode == 0 && !written.is_empty() {
+                } else if let Some(ic) = wt.ime.borrow().get_context(window) {
+                    let written = wt.xconn.lookup_utf8(ic, xkev);
+                    if !written.is_empty() {
                         let event = Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
@@ -634,15 +613,6 @@ impl<T: 'static> EventProcessor<T> {
 
                         self.is_composing = false;
                         callback(event);
-                    } else {
-                        for chr in written.chars() {
-                            let event = Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ReceivedCharacter(chr),
-                            };
-
-                            callback(event);
-                        }
                     }
                 }
             }
@@ -660,7 +630,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 use crate::event::{
                     ElementState::{Pressed, Released},
-                    MouseButton::{Left, Middle, Other, Right},
+                    MouseButton::{Back, Forward, Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
                     Touch,
                     WindowEvent::{
@@ -679,9 +649,6 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
-
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
                         } else {
@@ -694,7 +661,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Left,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button2 => callback(Event::WindowEvent {
@@ -703,7 +669,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Middle,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button3 => callback(Event::WindowEvent {
@@ -712,7 +677,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Right,
-                                    modifiers,
                                 },
                             }),
 
@@ -733,11 +697,27 @@ impl<T: 'static> EventProcessor<T> {
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
-                                            modifiers,
                                         },
                                     });
                                 }
                             }
+
+                            8 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Back,
+                                },
+                            }),
+                            9 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Forward,
+                                },
+                            }),
 
                             x => callback(Event::WindowEvent {
                                 window_id,
@@ -745,7 +725,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Other(x as u16),
-                                    modifiers,
                                 },
                             }),
                         }
@@ -755,9 +734,6 @@ impl<T: 'static> EventProcessor<T> {
                         let device_id = mkdid(xev.deviceid);
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
-
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state_lock();
@@ -771,7 +747,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         } else if cursor_moved.is_none() {
@@ -818,7 +793,6 @@ impl<T: 'static> EventProcessor<T> {
                                                     }
                                                 },
                                                 phase: TouchPhase::Moved,
-                                                modifiers,
                                             },
                                         });
                                     } else {
@@ -872,25 +846,11 @@ impl<T: 'static> EventProcessor<T> {
 
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            // The mods field on this event isn't actually populated, so query the
-                            // pointer device. In the future, we can likely remove this round-trip by
-                            // relying on `Xkb` for modifier values.
-                            //
-                            // This needs to only be done after confirming the window still exists,
-                            // since otherwise we risk getting a `BadWindow` error if the window was
-                            // dropped with queued events.
-                            let modifiers = wt
-                                .xconn
-                                .query_pointer(xev.event, xev.deviceid)
-                                .expect("Failed to query pointer device")
-                                .get_modifier_state();
-
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         }
@@ -918,27 +878,29 @@ impl<T: 'static> EventProcessor<T> {
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-
-                        self.device_mod_state.update_state(&modifiers, None);
-
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
 
-                            wt.update_device_event_filter(true);
+                            wt.update_listen_device_events(true);
 
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
+
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = true;
+                            }
 
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: Focused(true),
                             });
 
+                            let modifiers: crate::keyboard::ModifiersState =
+                                self.kb_state.mods_state().into();
                             if !modifiers.is_empty() {
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: WindowEvent::ModifiersChanged(modifiers),
+                                    event: WindowEvent::ModifiersChanged(modifiers.into()),
                                 });
                             }
 
@@ -956,7 +918,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id: mkdid(pointer_id),
                                     position,
-                                    modifiers,
                                 },
                             });
 
@@ -965,8 +926,7 @@ impl<T: 'static> EventProcessor<T> {
                                 wt,
                                 window_id,
                                 ElementState::Pressed,
-                                &self.mod_keymap,
-                                &mut self.device_mod_state,
+                                &mut self.kb_state,
                                 &mut callback,
                             );
                         }
@@ -985,22 +945,30 @@ impl<T: 'static> EventProcessor<T> {
                         if self.active_window.take() == Some(xev.event) {
                             let window_id = mkwid(xev.event);
 
-                            wt.update_device_event_filter(false);
+                            wt.update_listen_device_events(false);
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
                                 wt,
                                 window_id,
                                 ElementState::Released,
-                                &self.mod_keymap,
-                                &mut self.device_mod_state,
+                                &mut self.kb_state,
                                 &mut callback,
                             );
+                            // Clear this so detecting key repeats is consistently handled when the
+                            // window regains focus.
+                            self.held_key_press = None;
 
                             callback(Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::ModifiersChanged(ModifiersState::empty()),
+                                event: WindowEvent::ModifiersChanged(
+                                    ModifiersState::empty().into(),
+                                ),
                             });
+
+                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                                window.shared_state_lock().has_focus = false;
+                            }
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -1020,9 +988,7 @@ impl<T: 'static> EventProcessor<T> {
                         };
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
-                            let modifiers = self.device_mod_state.modifiers();
-                            let location =
-                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                            let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // Mouse cursor position changes when touch events are received.
                             // Only the first concurrently active touch ID moves the mouse cursor.
@@ -1033,7 +999,6 @@ impl<T: 'static> EventProcessor<T> {
                                     event: WindowEvent::CursorMoved {
                                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                                         position: location.cast(),
-                                        modifiers,
                                     },
                                 });
                             }
@@ -1118,7 +1083,6 @@ impl<T: 'static> EventProcessor<T> {
                             });
                         }
                     }
-
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
@@ -1129,46 +1093,19 @@ impl<T: 'static> EventProcessor<T> {
                         };
 
                         let device_id = mkdid(xev.sourceid);
-                        let keycode = xev.detail;
-                        let scancode = keycode - KEYCODE_OFFSET as i32;
-                        if scancode < 0 {
+                        let keycode = xev.detail as u32;
+                        if keycode < KEYCODE_OFFSET as u32 {
                             return;
                         }
-                        let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
-                        let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-                        let modifiers = self.device_mod_state.modifiers();
+                        let physical_key = keymap::raw_keycode_to_keycode(keycode);
 
-                        #[allow(deprecated)]
                         callback(Event::DeviceEvent {
                             device_id,
-                            event: DeviceEvent::Key(KeyboardInput {
-                                scancode: scancode as u32,
-                                virtual_keycode,
+                            event: DeviceEvent::Key(RawKeyEvent {
+                                physical_key,
                                 state,
-                                modifiers,
                             }),
                         });
-
-                        if let Some(modifier) =
-                            self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
-                        {
-                            self.device_mod_state.key_event(
-                                state,
-                                keycode as ffi::KeyCode,
-                                modifier,
-                            );
-
-                            let new_modifiers = self.device_mod_state.modifiers();
-
-                            if modifiers != new_modifiers {
-                                if let Some(window_id) = self.active_window {
-                                    callback(Event::WindowEvent {
-                                        window_id: mkwid(window_id),
-                                        event: WindowEvent::ModifiersChanged(new_modifiers),
-                                    });
-                                }
-                            }
-                        }
                     }
 
                     ffi::XI_HierarchyChanged => {
@@ -1198,6 +1135,55 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
+                if event_type == self.xkbext.first_event_id {
+                    let xev = unsafe { &*(xev as *const _ as *const ffi::XkbAnyEvent) };
+                    match xev.xkb_type {
+                        ffi::XkbNewKeyboardNotify => {
+                            let xev = unsafe {
+                                &*(xev as *const _ as *const ffi::XkbNewKeyboardNotifyEvent)
+                            };
+                            let keycodes_changed_flag = 0x1;
+                            let geometry_changed_flag = 0x1 << 1;
+
+                            let keycodes_changed =
+                                util::has_flag(xev.changed, keycodes_changed_flag);
+                            let geometry_changed =
+                                util::has_flag(xev.changed, geometry_changed_flag);
+
+                            if xev.device == self.kb_state.core_keyboard_id
+                                && (keycodes_changed || geometry_changed)
+                            {
+                                unsafe { self.kb_state.init_with_x11_keymap() };
+                            }
+                        }
+                        ffi::XkbStateNotify => {
+                            let xev =
+                                unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
+
+                            let prev_mods = self.kb_state.mods_state();
+                            self.kb_state.update_modifiers(
+                                xev.base_mods,
+                                xev.latched_mods,
+                                xev.locked_mods,
+                                xev.base_group as u32,
+                                xev.latched_group as u32,
+                                xev.locked_group as u32,
+                            );
+                            let new_mods = self.kb_state.mods_state();
+                            if prev_mods != new_mods {
+                                if let Some(window) = self.active_window {
+                                    callback(Event::WindowEvent {
+                                        window_id: mkwid(window),
+                                        event: WindowEvent::ModifiersChanged(
+                                            Into::<ModifiersState>::into(new_mods).into(),
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();
@@ -1228,7 +1214,7 @@ impl<T: 'static> EventProcessor<T> {
                                                 new_monitor.scale_factor,
                                                 width,
                                                 height,
-                                                &*window.shared_state_lock(),
+                                                &window.shared_state_lock(),
                                             );
 
                                             let window_id = crate::window::WindowId(*window_id);
@@ -1246,8 +1232,9 @@ impl<T: 'static> EventProcessor<T> {
 
                                             if new_inner_size != old_inner_size {
                                                 let (new_width, new_height) = new_inner_size.into();
-                                                window
-                                                    .set_inner_size_physical(new_width, new_height);
+                                                window.request_inner_size_physical(
+                                                    new_width, new_height,
+                                                );
                                             }
                                         }
                                     }
@@ -1321,14 +1308,12 @@ impl<T: 'static> EventProcessor<T> {
         wt: &super::EventLoopWindowTarget<T>,
         window_id: crate::window::WindowId,
         state: ElementState,
-        mod_keymap: &ModifierKeymap,
-        device_mod_state: &mut ModifierKeyState,
+        kb_state: &mut KbdState,
         callback: &mut F,
     ) where
         F: FnMut(Event<'_, T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = device_mod_state.modifiers();
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt
@@ -1337,29 +1322,13 @@ impl<T: 'static> EventProcessor<T> {
             .into_iter()
             .filter(|k| *k >= KEYCODE_OFFSET)
         {
-            let scancode = (keycode - KEYCODE_OFFSET) as u32;
-            let keysym = wt.xconn.keycode_to_keysym(keycode);
-            let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-
-            if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
-                device_mod_state.key_event(
-                    ElementState::Pressed,
-                    keycode as ffi::KeyCode,
-                    modifier,
-                );
-            }
-
-            #[allow(deprecated)]
+            let keycode = keycode as u32;
+            let event = kb_state.process_key_event(keycode, state, false);
             callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id,
-                    input: KeyboardInput {
-                        scancode,
-                        state,
-                        virtual_keycode,
-                        modifiers,
-                    },
+                    event,
                     is_synthetic: true,
                 },
             });

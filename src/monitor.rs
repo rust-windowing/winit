@@ -32,12 +32,9 @@ impl PartialOrd for VideoMode {
 
 impl Ord for VideoMode {
     fn cmp(&self, other: &VideoMode) -> std::cmp::Ordering {
-        // TODO: we can impl `Ord` for `PhysicalSize` once we switch from `f32`
-        // to `u32` there
-        let size: (u32, u32) = self.size().into();
-        let other_size: (u32, u32) = other.size().into();
         self.monitor().cmp(&other.monitor()).then(
-            size.cmp(&other_size)
+            self.size()
+                .cmp(&other.size())
                 .then(
                     self.refresh_rate_millihertz()
                         .cmp(&other.refresh_rate_millihertz())
@@ -61,7 +58,7 @@ impl VideoMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland:** Always returns 32.
+    /// - **Wayland / Orbital:** Always returns 32.
     /// - **iOS:** Always returns 32.
     #[inline]
     pub fn bit_depth(&self) -> u16 {
@@ -142,6 +139,9 @@ impl MonitorHandle {
     }
 
     /// The monitor refresh rate used by the system.
+    ///
+    /// Return `Some` if succeed, or `None` if failed, which usually happens when the monitor
+    /// the window is on is removed.
     ///
     /// When using exclusive fullscreen, the refresh rate of the [`VideoMode`] that was used to
     /// enter fullscreen should be used instead.

@@ -1,8 +1,10 @@
+#![allow(clippy::disallowed_methods)]
+
 pub fn main() {
     println!("This example must be run with cargo run-wasm --example web_aspect_ratio")
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 mod wasm {
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
@@ -66,7 +68,7 @@ This example demonstrates the desired future functionality which will possibly b
         let body = document.body().unwrap();
 
         // Set a background color for the canvas to make it easier to tell the where the canvas is for debugging purposes.
-        let canvas = window.canvas();
+        let canvas = window.canvas().unwrap();
         canvas
             .style()
             .set_css_text("display: block; background-color: crimson; margin: auto; width: 50%; aspect-ratio: 4 / 1;");

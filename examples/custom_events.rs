@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(wasm_platform))]
 fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
@@ -8,6 +8,9 @@ fn main() {
         event_loop::EventLoopBuilder,
         window::WindowBuilder,
     };
+
+    #[path = "util/fill.rs"]
+    mod fill;
 
     #[derive(Debug, Clone, Copy)]
     enum CustomEvent {
@@ -17,7 +20,7 @@ fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
@@ -39,17 +42,20 @@ fn main() {
         control_flow.set_wait();
 
         match event {
-            Event::UserEvent(event) => println!("user event: {:?}", event),
+            Event::UserEvent(event) => println!("user event: {event:?}"),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => control_flow.set_exit(),
+            Event::RedrawRequested(_) => {
+                fill::fill_window(&window);
+            }
             _ => (),
         }
     });
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(wasm_platform)]
 fn main() {
     panic!("This example is not supported on web.");
 }
