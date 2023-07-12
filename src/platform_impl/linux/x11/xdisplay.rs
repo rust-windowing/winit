@@ -1,8 +1,14 @@
-use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr, sync::Mutex};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt, ptr,
+    sync::{Arc, Mutex},
+};
 
 use crate::window::CursorIcon;
 
-use super::ffi;
+use super::{atoms::Atoms, ffi};
+use x11rb::{connection::Connection, protocol::xproto, xcb_ffi::XCBConnection};
 
 /// A connection to an X server.
 pub(crate) struct XConnection {
@@ -11,9 +17,21 @@ pub(crate) struct XConnection {
     pub xrandr: ffi::Xrandr_2_2_0,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
-    pub xlib_xcb: ffi::Xlib_xcb,
     pub display: *mut ffi::Display,
-    pub x11_fd: c_int,
+    /// The manager for the XCB connection.
+    ///
+    /// The `Option` ensures that we can drop it before we close the `Display`.
+    xcb: Option<XCBConnection>,
+
+    /// The atoms used by `winit`.
+    ///
+    /// This is a large structure, so I've elected to Box it to make accessing the fields of
+    /// this struct easier. Feel free to unbox it if you like kicking puppies.
+    atoms: Box<Atoms>,
+
+    /// The index of the default screen.
+    default_screen: usize,
+
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
 }
@@ -45,17 +63,38 @@ impl XConnection {
             display
         };
 
-        // Get X11 socket file descriptor
-        let fd = unsafe { (xlib.XConnectionNumber)(display) };
+        // Open the x11rb XCB connection.
+        let xcb = {
+            // Get a pointer to the underlying XCB connection
+            let xcb_connection =
+                unsafe { (xlib_xcb.XGetXCBConnection)(display as *mut ffi::Display) };
+            assert!(!xcb_connection.is_null());
+
+            // Wrap the XCB connection in an x11rb XCB connection
+            let conn =
+                unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
+
+            conn.map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
+        };
+
+        // Get the default screen.
+        let default_screen = unsafe { (xlib.XDefaultScreen)(display) } as usize;
+
+        // Fetch the atoms.
+        let atoms = Atoms::new(&xcb)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .reply()
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         Ok(XConnection {
             xlib,
             xrandr,
             xcursor,
             xinput2,
-            xlib_xcb,
             display,
-            x11_fd: fd,
+            xcb: Some(xcb),
+            atoms: Box::new(atoms),
+            default_screen,
             latest_error: Mutex::new(None),
             cursor_cache: Default::default(),
         })
@@ -71,6 +110,32 @@ impl XConnection {
             Ok(())
         }
     }
+
+    /// Get the underlying XCB connection.
+    #[inline]
+    pub fn xcb_connection(&self) -> &XCBConnection {
+        self.xcb
+            .as_ref()
+            .expect("xcb_connection somehow called after drop?")
+    }
+
+    /// Get the list of atoms.
+    #[inline]
+    pub fn atoms(&self) -> &Atoms {
+        &self.atoms
+    }
+
+    /// Get the index of the default screen.
+    #[inline]
+    pub fn default_screen_index(&self) -> usize {
+        self.default_screen
+    }
+
+    /// Get the default screen.
+    #[inline]
+    pub fn default_root(&self) -> &xproto::Screen {
+        &self.xcb_connection().setup().roots[self.default_screen]
+    }
 }
 
 impl fmt::Debug for XConnection {
@@ -82,6 +147,7 @@ impl fmt::Debug for XConnection {
 impl Drop for XConnection {
     #[inline]
     fn drop(&mut self) {
+        self.xcb = None;
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
     }
 }
@@ -112,8 +178,12 @@ impl fmt::Display for XError {
 pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
     LibraryOpenError(ffi::OpenError),
+
     /// Connecting to the X server with `XOpenDisplay` failed.
-    XOpenDisplayFailed, // TODO: add better message
+    XOpenDisplayFailed, // TODO: add better message.
+
+    /// We encountered an error while converting the connection to XCB.
+    XcbConversionError(Arc<dyn Error + Send + Sync + 'static>),
 }
 
 impl From<ffi::OpenError> for XNotSupported {
@@ -128,6 +198,7 @@ impl XNotSupported {
         match self {
             XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
             XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
+            XNotSupported::XcbConversionError(_) => "Failed to convert Xlib connection to XCB",
         }
     }
 }
@@ -137,6 +208,7 @@ impl Error for XNotSupported {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),
+            XNotSupported::XcbConversionError(ref err) => Some(&**err),
             _ => None,
         }
     }
@@ -146,4 +218,20 @@ impl fmt::Display for XNotSupported {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         formatter.write_str(self.description())
     }
+}
+
+/// A newtype wrapper around a `ConnectError` that can't be accessed by downstream libraries.
+///
+/// Without this, `x11rb` would become a public dependency.
+#[derive(Debug)]
+struct WrapConnectError(x11rb::rust_connection::ConnectError);
+
+impl fmt::Display for WrapConnectError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl Error for WrapConnectError {
+    // We can't implement `source()` here or otherwise risk exposing `x11rb`.
 }

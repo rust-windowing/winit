@@ -1,11 +1,13 @@
 use std::ffi::CString;
 
+use x11rb::connection::Connection;
+
 use crate::window::CursorIcon;
 
 use super::*;
 
 impl XConnection {
-    pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
+    pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
         let cursor = *self
             .cursor_cache
             .lock()
@@ -13,7 +15,8 @@ impl XConnection {
             .entry(cursor)
             .or_insert_with(|| self.get_cursor(cursor));
 
-        self.update_cursor(window, cursor);
+        self.update_cursor(window, cursor)
+            .expect("Failed to set cursor");
     }
 
     fn create_empty_cursor(&self) -> ffi::Cursor {
@@ -59,11 +62,15 @@ impl XConnection {
         }
     }
 
-    fn update_cursor(&self, window: ffi::Window, cursor: ffi::Cursor) {
-        unsafe {
-            (self.xlib.XDefineCursor)(self.display, window, cursor);
+    fn update_cursor(&self, window: xproto::Window, cursor: ffi::Cursor) -> Result<(), X11Error> {
+        self.xcb_connection()
+            .change_window_attributes(
+                window,
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor as xproto::Cursor),
+            )?
+            .ignore_error();
 
-            self.flush_requests().expect("Failed to set the cursor");
-        }
+        self.xcb_connection().flush()?;
+        Ok(())
     }
 }

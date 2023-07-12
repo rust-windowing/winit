@@ -2,9 +2,13 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_ulong};
 
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::x11_utils::Serialize;
+
 use super::{
-    ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd, DndState,
-    GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId, XExtension,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, monitor, util, CookieResultExt, Device, DeviceId,
+    DeviceInfo, Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
+    WindowId, XExtension,
 };
 
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
@@ -38,7 +42,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) held_key_press: Option<u32>,
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
-    pub(super) active_window: Option<ffi::Window>,
+    pub(super) active_window: Option<xproto::Window>,
     pub(super) is_composing: bool,
 }
 
@@ -53,7 +57,7 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn with_window<F, Ret>(&self, window_id: ffi::Window, callback: F) -> Option<Ret>
+    fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
     where
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
@@ -77,7 +81,7 @@ impl<T: 'static> EventProcessor<T> {
         result
     }
 
-    fn window_exists(&self, window_id: ffi::Window) -> bool {
+    fn window_exists(&self, window_id: xproto::Window) -> bool {
         self.with_window(window_id, |_| ()).is_some()
     }
 
@@ -120,6 +124,7 @@ impl<T: 'static> EventProcessor<T> {
         F: FnMut(Event<'_, T>),
     {
         let wt = get_xtarget(&self.target);
+        let atoms = wt.x_connection().atoms();
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
         // along with an extra copy of the KeyRelease events. This also prevents backspace and
@@ -140,42 +145,57 @@ impl<T: 'static> EventProcessor<T> {
             ffi::ClientMessage => {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
 
-                let window = client_msg.window;
+                let window = client_msg.window as xproto::Window;
                 let window_id = mkwid(window);
 
-                if client_msg.data.get_long(0) as ffi::Atom == wt.wm_delete_window {
+                if client_msg.data.get_long(0) as xproto::Atom == wt.wm_delete_window {
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::CloseRequested,
                     });
-                } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
+                } else if client_msg.data.get_long(0) as xproto::Atom == wt.net_wm_ping {
                     let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
-                    response_msg.window = wt.root;
+                    let client_msg = xproto::ClientMessageEvent {
+                        response_type: xproto::CLIENT_MESSAGE_EVENT,
+                        format: response_msg.format as _,
+                        sequence: response_msg.serial as _,
+                        window: wt.root,
+                        type_: response_msg.message_type as _,
+                        data: xproto::ClientMessageData::from({
+                            let [a, b, c, d, e]: [c_long; 5] =
+                                response_msg.data.as_longs().try_into().unwrap();
+                            [a as u32, b as u32, c as u32, d as u32, e as u32]
+                        }),
+                    };
+
                     wt.xconn
+                        .xcb_connection()
                         .send_event(
+                            false,
                             wt.root,
-                            Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
-                            *response_msg,
+                            xproto::EventMask::SUBSTRUCTURE_NOTIFY
+                                | xproto::EventMask::SUBSTRUCTURE_REDIRECT,
+                            client_msg.serialize(),
                         )
-                        .queue();
-                } else if client_msg.message_type == self.dnd.atoms.enter {
-                    let source_window = client_msg.data.get_long(0) as c_ulong;
+                        .expect_then_ignore_error("Failed to send `ClientMessage` event.");
+                } else if client_msg.message_type == atoms[XdndEnter] as c_ulong {
+                    let source_window = client_msg.data.get_long(0) as xproto::Window;
                     let flags = client_msg.data.get_long(1);
                     let version = flags >> 24;
                     self.dnd.version = Some(version);
                     let has_more_types = flags - (flags & (c_long::max_value() - 1)) == 1;
                     if !has_more_types {
                         let type_list = vec![
-                            client_msg.data.get_long(2) as c_ulong,
-                            client_msg.data.get_long(3) as c_ulong,
-                            client_msg.data.get_long(4) as c_ulong,
+                            client_msg.data.get_long(2) as xproto::Atom,
+                            client_msg.data.get_long(3) as xproto::Atom,
+                            client_msg.data.get_long(4) as xproto::Atom,
                         ];
                         self.dnd.type_list = Some(type_list);
                     } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) }
                     {
                         self.dnd.type_list = Some(more_types);
                     }
-                } else if client_msg.message_type == self.dnd.atoms.position {
+                } else if client_msg.message_type == atoms[XdndPosition] as c_ulong {
                     // This event occurs every time the mouse moves while a file's being dragged
                     // over our window. We emit HoveredFile in response; while the macOS backend
                     // does that upon a drag entering, XDND doesn't have access to the actual drop
@@ -184,7 +204,7 @@ impl<T: 'static> EventProcessor<T> {
                     // supply position updates with `HoveredFile` or another event, implementing
                     // that here would be trivial.
 
-                    let source_window = client_msg.data.get_long(0) as c_ulong;
+                    let source_window = client_msg.data.get_long(0) as xproto::Window;
 
                     // Equivalent to `(x << shift) | y`
                     // where `shift = mem::size_of::<c_short>() * 8`
@@ -202,7 +222,7 @@ impl<T: 'static> EventProcessor<T> {
                     //let action = client_msg.data.get_long(4);
 
                     let accepted = if let Some(ref type_list) = self.dnd.type_list {
-                        type_list.contains(&self.dnd.atoms.uri_list)
+                        type_list.contains(&atoms[TextUriList])
                     } else {
                         false
                     };
@@ -212,10 +232,10 @@ impl<T: 'static> EventProcessor<T> {
                         unsafe {
                             if self.dnd.result.is_none() {
                                 let time = if version >= 1 {
-                                    client_msg.data.get_long(3) as c_ulong
+                                    client_msg.data.get_long(3) as xproto::Timestamp
                                 } else {
                                     // In version 0, time isn't specified
-                                    ffi::CurrentTime
+                                    x11rb::CURRENT_TIME
                                 };
                                 // This results in the `SelectionNotify` event below
                                 self.dnd.convert_selection(window, time);
@@ -232,7 +252,7 @@ impl<T: 'static> EventProcessor<T> {
                         }
                         self.dnd.reset();
                     }
-                } else if client_msg.message_type == self.dnd.atoms.drop {
+                } else if client_msg.message_type == atoms[XdndDrop] as c_ulong {
                     let (source_window, state) = if let Some(source_window) = self.dnd.source_window
                     {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
@@ -247,7 +267,7 @@ impl<T: 'static> EventProcessor<T> {
                     } else {
                         // `source_window` won't be part of our DND state if we already rejected the drop in our
                         // `XdndPosition` handler.
-                        let source_window = client_msg.data.get_long(0) as c_ulong;
+                        let source_window = client_msg.data.get_long(0) as xproto::Window;
                         (source_window, DndState::Rejected)
                     };
                     unsafe {
@@ -256,7 +276,7 @@ impl<T: 'static> EventProcessor<T> {
                             .expect("Failed to send `XdndFinished` message.");
                     }
                     self.dnd.reset();
-                } else if client_msg.message_type == self.dnd.atoms.leave {
+                } else if client_msg.message_type == atoms[XdndLeave] as c_ulong {
                     self.dnd.reset();
                     callback(Event::WindowEvent {
                         window_id,
@@ -268,10 +288,10 @@ impl<T: 'static> EventProcessor<T> {
             ffi::SelectionNotify => {
                 let xsel: &ffi::XSelectionEvent = xev.as_ref();
 
-                let window = xsel.requestor;
+                let window = xsel.requestor as xproto::Window;
                 let window_id = mkwid(window);
 
-                if xsel.property == self.dnd.atoms.selection {
+                if xsel.property == atoms[XdndSelection] as c_ulong {
                     let mut result = None;
 
                     // This is where we receive data from drag and drop
@@ -294,7 +314,7 @@ impl<T: 'static> EventProcessor<T> {
 
             ffi::ConfigureNotify => {
                 let xev: &ffi::XConfigureEvent = xev.as_ref();
-                let xwindow = xev.window;
+                let xwindow = xev.window as xproto::Window;
                 let window_id = mkwid(xwindow);
 
                 if let Some(window) = self.with_window(xwindow, Arc::clone) {
@@ -469,13 +489,13 @@ impl<T: 'static> EventProcessor<T> {
                 // effect is that we waste some time trying to query unsupported properties.
                 wt.xconn.update_cached_wm_info(wt.root);
 
-                self.with_window(xev.window, |window| {
+                self.with_window(xev.window as xproto::Window, |window| {
                     window.invalidate_cached_frame_extents();
                 });
             }
             ffi::MapNotify => {
                 let xev: &ffi::XMapEvent = xev.as_ref();
-                let window = xev.window;
+                let window = xev.window as xproto::Window;
                 let window_id = mkwid(window);
 
                 // XXX re-issue the focus state when mapping the window.
@@ -494,7 +514,7 @@ impl<T: 'static> EventProcessor<T> {
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
 
-                let window = xev.window;
+                let window = xev.window as xproto::Window;
                 let window_id = mkwid(window);
 
                 // In the event that the window's been destroyed without being dropped first, we
@@ -505,7 +525,7 @@ impl<T: 'static> EventProcessor<T> {
                 // context here instead of when dropping the window.
                 wt.ime
                     .borrow_mut()
-                    .remove_context(window)
+                    .remove_context(window as ffi::Window)
                     .expect("Failed to destroy input context");
 
                 callback(Event::WindowEvent {
@@ -516,7 +536,7 @@ impl<T: 'static> EventProcessor<T> {
 
             ffi::VisibilityNotify => {
                 let xev: &ffi::XVisibilityEvent = xev.as_ref();
-                let xwindow = xev.window;
+                let xwindow = xev.window as xproto::Window;
                 callback(Event::WindowEvent {
                     window_id: mkwid(xwindow),
                     event: WindowEvent::Occluded(xev.state == ffi::VisibilityFullyObscured),
@@ -532,7 +552,7 @@ impl<T: 'static> EventProcessor<T> {
                 // Multiple Expose events may be received for subareas of a window.
                 // We issue `RedrawRequested` only for the last event of such a series.
                 if xev.count == 0 {
-                    let window = xev.window;
+                    let window = xev.window as xproto::Window;
                     let window_id = mkwid(window);
 
                     callback(Event::RedrawRequested(window_id));
@@ -548,7 +568,7 @@ impl<T: 'static> EventProcessor<T> {
                 };
 
                 let window_id = mkwid(window);
-                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
 
                 let keycode = xkev.keycode as _;
 
@@ -597,7 +617,7 @@ impl<T: 'static> EventProcessor<T> {
                             is_synthetic: false,
                         },
                     });
-                } else if let Some(ic) = wt.ime.borrow().get_context(window) {
+                } else if let Some(ic) = wt.ime.borrow().get_context(window as ffi::Window) {
                     let written = wt.xconn.lookup_utf8(ic, xkev);
                     if !written.is_empty() {
                         let event = Event::WindowEvent {
@@ -642,7 +662,7 @@ impl<T: 'static> EventProcessor<T> {
                 match xev.evtype {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let window_id = mkwid(xev.event);
+                        let window_id = mkwid(xev.event as xproto::Window);
                         let device_id = mkdid(xev.deviceid);
                         if (xev.flags & ffi::XIPointerEmulated) != 0 {
                             // Deliver multi-touch events instead of emulated mouse events.
@@ -732,10 +752,11 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_Motion => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let device_id = mkdid(xev.deviceid);
-                        let window_id = mkwid(xev.event);
+                        let window = xev.event as xproto::Window;
+                        let window_id = mkwid(window);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
-                        let cursor_moved = self.with_window(xev.event, |window| {
+                        let cursor_moved = self.with_window(window, |window| {
                             let mut shared_state_lock = window.shared_state_lock();
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
@@ -817,7 +838,8 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_Enter => {
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
 
-                        let window_id = mkwid(xev.event);
+                        let window = xev.event as xproto::Window;
+                        let window_id = mkwid(window);
                         let device_id = mkdid(xev.deviceid);
 
                         if let Some(all_info) = DeviceInfo::get(&wt.xconn, ffi::XIAllDevices) {
@@ -838,7 +860,7 @@ impl<T: 'static> EventProcessor<T> {
                             }
                         }
 
-                        if self.window_exists(xev.event) {
+                        if self.window_exists(window) {
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorEntered { device_id },
@@ -857,13 +879,14 @@ impl<T: 'static> EventProcessor<T> {
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
+                        let window = xev.event as xproto::Window;
 
                         // Leave, FocusIn, and FocusOut can be received by a window that's already
                         // been destroyed, which the user presumably doesn't want to deal with.
-                        let window_closed = !self.window_exists(xev.event);
+                        let window_closed = !self.window_exists(window);
                         if !window_closed {
                             callback(Event::WindowEvent {
-                                window_id: mkwid(xev.event),
+                                window_id: mkwid(window),
                                 event: CursorLeft {
                                     device_id: mkdid(xev.deviceid),
                                 },
@@ -872,21 +895,22 @@ impl<T: 'static> EventProcessor<T> {
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
+                        let window = xev.event as xproto::Window;
 
                         wt.ime
                             .borrow_mut()
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        if self.active_window != Some(xev.event) {
-                            self.active_window = Some(xev.event);
+                        if self.active_window != Some(window) {
+                            self.active_window = Some(window);
 
                             wt.update_listen_device_events(true);
 
-                            let window_id = mkwid(xev.event);
+                            let window_id = mkwid(window);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                            if let Some(window) = self.with_window(window, Arc::clone) {
                                 window.shared_state_lock().has_focus = true;
                             }
 
@@ -933,7 +957,8 @@ impl<T: 'static> EventProcessor<T> {
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-                        if !self.window_exists(xev.event) {
+                        let window = xev.event as xproto::Window;
+                        if !self.window_exists(window) {
                             return;
                         }
 
@@ -942,8 +967,8 @@ impl<T: 'static> EventProcessor<T> {
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
 
-                        if self.active_window.take() == Some(xev.event) {
-                            let window_id = mkwid(xev.event);
+                        if self.active_window.take() == Some(window) {
+                            let window_id = mkwid(window);
 
                             wt.update_listen_device_events(false);
 
@@ -966,7 +991,7 @@ impl<T: 'static> EventProcessor<T> {
                                 ),
                             });
 
-                            if let Some(window) = self.with_window(xev.event, Arc::clone) {
+                            if let Some(window) = self.with_window(window, Arc::clone) {
                                 window.shared_state_lock().has_focus = false;
                             }
 
@@ -979,14 +1004,15 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let window_id = mkwid(xev.event);
+                        let window = xev.event as xproto::Window;
+                        let window_id = mkwid(window);
                         let phase = match xev.evtype {
                             ffi::XI_TouchBegin => TouchPhase::Started,
                             ffi::XI_TouchUpdate => TouchPhase::Moved,
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!(),
                         };
-                        if self.window_exists(xev.event) {
+                        if self.window_exists(window) {
                             let id = xev.detail as u64;
                             let location = PhysicalPosition::new(xev.event_x, xev.event_y);
 
@@ -997,7 +1023,7 @@ impl<T: 'static> EventProcessor<T> {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
-                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
+                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER.into()),
                                         position: location.cast(),
                                     },
                                 });
@@ -1260,7 +1286,7 @@ impl<T: 'static> EventProcessor<T> {
         }
 
         let (window, event) = match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => (window, event),
+            Ok((window, event)) => (window as xproto::Window, event),
             Err(_) => return,
         };
 
@@ -1313,7 +1339,7 @@ impl<T: 'static> EventProcessor<T> {
     ) where
         F: FnMut(Event<'_, T>),
     {
-        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt
