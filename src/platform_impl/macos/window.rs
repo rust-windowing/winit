@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::f64;
+use std::num::NonZeroUsize;
 use std::ops;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
@@ -82,6 +83,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
+    pub allows_automatic_window_tabbing: bool,
+    pub tabbing_identifier: Option<String>,
     pub option_as_alt: OptionAsAlt,
 }
 
@@ -98,6 +101,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
+            allows_automatic_window_tabbing: true,
+            tabbing_identifier: None,
             option_as_alt: Default::default(),
         }
     }
@@ -356,6 +361,12 @@ impl WinitWindow {
 
             this.setTitle(&NSString::from_str(&attrs.title));
             this.setAcceptsMouseMovedEvents(true);
+
+            if let Some(identifier) = pl_attrs.tabbing_identifier {
+                this.setTabbingIdentifier(&NSString::from_str(&identifier));
+            }
+
+            NSWindow::setAllowsAutomaticWindowTabbing(pl_attrs.allows_automatic_window_tabbing);
 
             if attrs.content_protected {
                 this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
@@ -1392,6 +1403,46 @@ impl WindowExtMacOS for WinitWindow {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
+    }
+
+    #[inline]
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        NSWindow::setAllowsAutomaticWindowTabbing(enabled);
+    }
+
+    #[inline]
+    fn allows_automatic_window_tabbing(&self) -> bool {
+        NSWindow::allowsAutomaticWindowTabbing()
+    }
+
+    #[inline]
+    fn set_tabbing_identifier(&self, identifier: &str) {
+        self.setTabbingIdentifier(&NSString::from_str(identifier))
+    }
+
+    #[inline]
+    fn tabbing_identifier(&self) -> String {
+        self.tabbingIdentifier().to_string()
+    }
+
+    #[inline]
+    fn select_next_tab(&self) {
+        self.tabGroup().selectNextTab();
+    }
+
+    #[inline]
+    fn select_previous_tab(&self) {
+        self.tabGroup().selectPreviousTab();
+    }
+
+    #[inline]
+    fn select_tab_at_index(&self, index: NonZeroUsize) {
+        let tab_group = self.tabGroup();
+        let windows = tab_group.tabbedWindows();
+        let index = index.get() - 1;
+        if index < windows.len() {
+            tab_group.setSelectedWindow(&windows[index]);
+        }
     }
 
     fn is_document_edited(&self) -> bool {
