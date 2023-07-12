@@ -41,6 +41,12 @@ pub trait WindowExtWebSys {
 }
 
 pub trait WindowBuilderExtWebSys {
+    /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`](crate::window::Window). If
+    /// [`None`], [`WindowBuilder::build()`] will create one.
+    ///
+    /// In any case, the canvas won't be automatically inserted into the web page.
+    ///
+    /// [`None`] by default.
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
     /// Whether `event.preventDefault` should be automatically called to prevent event propagation
@@ -51,10 +57,14 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
     /// context menu with Shift+Rightclick.
+    ///
+    /// Enabled by default.
     fn with_prevent_default(self, prevent_default: bool) -> Self;
 
     /// Whether the canvas should be focusable using the tab key. This is necessary to capture
     /// canvas keyboard events.
+    ///
+    /// Enabled by default.
     fn with_focusable(self, focusable: bool) -> Self;
 }
 
