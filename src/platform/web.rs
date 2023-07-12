@@ -66,6 +66,11 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// Enabled by default.
     fn with_focusable(self, focusable: bool) -> Self;
+
+    /// On window creation, append the canvas element to the web page if it isn't already.
+    ///
+    /// Disabled by default.
+    fn with_append(self, append: bool) -> Self;
 }
 
 impl WindowBuilderExtWebSys for WindowBuilder {
@@ -83,6 +88,12 @@ impl WindowBuilderExtWebSys for WindowBuilder {
 
     fn with_focusable(mut self, focusable: bool) -> Self {
         self.platform_specific.focusable = focusable;
+
+        self
+    }
+
+    fn with_append(mut self, append: bool) -> Self {
+        self.platform_specific.append = append;
 
         self
     }

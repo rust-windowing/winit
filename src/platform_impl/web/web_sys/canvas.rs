@@ -70,6 +70,14 @@ impl Canvas {
                 .unchecked_into(),
         };
 
+        if platform_attr.append && !document.contains(Some(&canvas)) {
+            document
+                .body()
+                .expect("Failed to get body from document")
+                .append_child(&canvas)
+                .expect("Failed to append canvas to body");
+        }
+
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
         // sequential keyboard navigation, but its order is defined by the
