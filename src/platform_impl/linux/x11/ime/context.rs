@@ -274,7 +274,7 @@ impl ImeContext {
         client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
         let preedit_callbacks = PreeditCallbacks::new(client_data);
-        let preedit_attr = util::XSmartPointer::new(
+        let preedit_attr = util::memory::XSmartPointer::new(
             xconn,
             (xconn.xlib.XVaCreateNestedList)(
                 0,
@@ -354,7 +354,7 @@ impl ImeContext {
         self.ic_spot = ffi::XPoint { x, y };
 
         unsafe {
-            let preedit_attr = util::XSmartPointer::new(
+            let preedit_attr = util::memory::XSmartPointer::new(
                 xconn,
                 (xconn.xlib.XVaCreateNestedList)(
                     0,

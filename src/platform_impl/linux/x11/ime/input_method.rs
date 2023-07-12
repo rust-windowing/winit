@@ -7,9 +7,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use super::{super::atoms::*, ffi, util, XConnection, XError};
 use once_cell::sync::Lazy;
-
-use super::{ffi, util, XConnection, XError};
+use x11rb::protocol::xproto;
 
 static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
 
@@ -162,6 +162,12 @@ enum GetXimServersError {
     InvalidUtf8(IntoStringError),
 }
 
+impl From<util::GetPropertyError> for GetXimServersError {
+    fn from(error: util::GetPropertyError) -> Self {
+        GetXimServersError::GetPropertyError(error)
+    }
+}
+
 // The root window has a property named XIM_SERVERS, which contains a list of atoms represeting
 // the availabile XIM servers. For instance, if you're using ibus, it would contain an atom named
 // "@server=ibus". It's possible for this property to contain multiple atoms, though presumably
@@ -169,13 +175,21 @@ enum GetXimServersError {
 // modifiers, since we don't want a user who's looking at logs to ask "am I supposed to set
 // XMODIFIERS to `@server=ibus`?!?"
 unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXimServersError> {
-    let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
+    let atoms = xconn.atoms();
+    let servers_atom = atoms[XIM_SERVERS];
 
     let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
 
     let mut atoms: Vec<ffi::Atom> = xconn
-        .get_property(root, servers_atom, ffi::XA_ATOM)
-        .map_err(GetXimServersError::GetPropertyError)?;
+        .get_property::<xproto::Atom>(
+            root as xproto::Window,
+            servers_atom,
+            xproto::Atom::from(xproto::AtomEnum::ATOM),
+        )
+        .map_err(GetXimServersError::GetPropertyError)?
+        .into_iter()
+        .map(ffi::Atom::from)
+        .collect::<Vec<_>>();
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
     (xconn.xlib.XGetAtomNames)(
