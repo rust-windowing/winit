@@ -45,9 +45,10 @@ use web_time::Instant;
 use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    event_loop::AsyncRequestSerial,
     keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
     platform_impl,
-    window::{Theme, WindowId},
+    window::{ActivationToken, Theme, WindowId},
 };
 
 /// Describes a generic event.
@@ -356,6 +357,20 @@ pub enum StartCause {
 /// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
+    /// The activation token was delivered back and now could be used.
+    ///
+    #[cfg_attr(
+        not(any(x11_platform, wayland_platfrom)),
+        allow(rustdoc::broken_intra_doc_links)
+    )]
+    /// Delivered in response to [`request_activation_token`].
+    ///
+    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
+    ActivationTokenDone {
+        serial: AsyncRequestSerial,
+        token: ActivationToken,
+    },
+
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -608,6 +623,10 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
+            ActivationTokenDone { serial, token } => ActivationTokenDone {
+                serial: *serial,
+                token: token.clone(),
+            },
             Resized(size) => Resized(*size),
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
@@ -711,6 +730,7 @@ impl<'a> WindowEvent<'a> {
     pub fn to_static(self) -> Option<WindowEvent<'static>> {
         use self::WindowEvent::*;
         match self {
+            ActivationTokenDone { serial, token } => Some(ActivationTokenDone { serial, token }),
             Resized(size) => Some(Resized(size)),
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),

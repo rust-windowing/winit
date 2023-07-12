@@ -22,6 +22,7 @@ use sctk::shell::WaylandSurface;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
+use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
@@ -167,6 +168,14 @@ impl Window {
             _ if attributes.maximized => window.set_maximized(),
             _ => (),
         };
+
+        // Activate the window when the token is passed.
+        if let (Some(xdg_activation), Some(token)) = (
+            xdg_activation.as_ref(),
+            platform_attributes.activation_token,
+        ) {
+            xdg_activation.activate(token._token, &surface);
+        }
 
         // XXX Do initial commit.
         window.commit();
@@ -496,11 +505,29 @@ impl Window {
 
         self.attention_requested.store(true, Ordering::Relaxed);
         let surface = self.surface().clone();
-        let data =
-            XdgActivationTokenData::new(surface.clone(), Arc::downgrade(&self.attention_requested));
+        let data = XdgActivationTokenData::Attention((
+            surface.clone(),
+            Arc::downgrade(&self.attention_requested),
+        ));
         let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
         xdg_activation_token.set_surface(&surface);
         xdg_activation_token.commit();
+    }
+
+    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+        let xdg_activation = match self.xdg_activation.as_ref() {
+            Some(xdg_activation) => xdg_activation,
+            None => return Err(NotSupportedError::new()),
+        };
+
+        let serial = AsyncRequestSerial::get();
+
+        let data = XdgActivationTokenData::Obtain((self.window_id, serial));
+        let xdg_activation_token = xdg_activation.get_activation_token(&self.queue_handle, data);
+        xdg_activation_token.set_surface(self.surface());
+        xdg_activation_token.commit();
+
+        Ok(serial)
     }
 
     #[inline]

@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
 - On Wayland, make double clicking and moving the CSD frame more reliable.
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
 - **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
