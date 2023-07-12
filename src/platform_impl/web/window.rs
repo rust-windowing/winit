@@ -483,6 +483,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
+    pub(crate) append: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -491,6 +492,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             canvas: None,
             prevent_default: true,
             focusable: true,
+            append: false,
         }
     }
 }

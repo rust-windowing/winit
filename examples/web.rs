@@ -10,10 +10,13 @@ use winit::{
 pub fn main() {
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let builder = WindowBuilder::new().with_title("A fantastic window!");
+    #[cfg(wasm_platform)]
+    let builder = {
+        use winit::platform::web::WindowBuilderExtWebSys;
+        builder.with_append(true)
+    };
+    let window = builder.build(&event_loop).unwrap();
 
     #[cfg(wasm_platform)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
@@ -96,7 +99,6 @@ mod wasm {
         // Use to test interactions with border and padding.
         //style.set_property("border", "50px solid black").unwrap();
         //style.set_property("padding", "50px").unwrap();
-        body.append_child(&canvas).unwrap();
 
         let log_header = document.create_element("h2").unwrap();
         log_header.set_text_content(Some("Event Log"));
