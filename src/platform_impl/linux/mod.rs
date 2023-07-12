@@ -23,7 +23,7 @@ use smol_str::SmolStr;
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
 #[cfg(x11_platform)]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, X11Error, XConnection, XError};
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
@@ -124,7 +124,7 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
 #[derive(Debug, Clone)]
 pub enum OsError {
     #[cfg(x11_platform)]
-    XError(XError),
+    XError(Arc<X11Error>),
     #[cfg(x11_platform)]
     XMisc(&'static str),
     #[cfg(wayland_platform)]
@@ -135,7 +135,7 @@ impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             #[cfg(x11_platform)]
-            OsError::XError(ref e) => _f.pad(&e.description),
+            OsError::XError(ref e) => fmt::Display::fmt(e, _f),
             #[cfg(x11_platform)]
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(wayland_platform)]
