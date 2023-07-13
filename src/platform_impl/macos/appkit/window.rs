@@ -6,7 +6,9 @@ use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
-use super::{NSButton, NSColor, NSEvent, NSPasteboardType, NSResponder, NSScreen, NSView};
+use super::{
+    NSButton, NSColor, NSEvent, NSPasteboardType, NSResponder, NSScreen, NSView, NSWindowTabGroup,
+};
 
 extern_class!(
     /// Main-Thread-Only!
@@ -171,6 +173,12 @@ extern_methods!(
         #[sel(setLevel:)]
         pub fn setLevel(&self, level: NSWindowLevel);
 
+        #[sel(setAllowsAutomaticWindowTabbing:)]
+        pub fn setAllowsAutomaticWindowTabbing(val: bool);
+
+        #[sel(setTabbingIdentifier:)]
+        pub fn setTabbingIdentifier(&self, identifier: &NSString);
+
         #[sel(setDocumentEdited:)]
         pub fn setDocumentEdited(&self, val: bool);
 
@@ -200,6 +208,20 @@ extern_methods!(
 
         #[sel(isZoomed)]
         pub fn isZoomed(&self) -> bool;
+
+        #[sel(allowsAutomaticWindowTabbing)]
+        pub fn allowsAutomaticWindowTabbing() -> bool;
+
+        #[sel(selectNextTab)]
+        pub fn selectNextTab(&self);
+
+        pub fn tabbingIdentifier(&self) -> Id<NSString, Shared> {
+            unsafe { msg_send_id![self, tabbingIdentifier] }
+        }
+
+        pub fn tabGroup(&self) -> Id<NSWindowTabGroup, Shared> {
+            unsafe { msg_send_id![self, tabGroup] }
+        }
 
         #[sel(isDocumentEdited)]
         pub fn isDocumentEdited(&self) -> bool;
