@@ -83,7 +83,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
     pub accepts_first_mouse: bool,
-    pub allows_automatic_window_tabbing: bool,
     pub tabbing_identifier: Option<String>,
     pub option_as_alt: OptionAsAlt,
 }
@@ -101,7 +100,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             disallow_hidpi: false,
             has_shadow: true,
             accepts_first_mouse: true,
-            allows_automatic_window_tabbing: true,
             tabbing_identifier: None,
             option_as_alt: Default::default(),
         }
@@ -365,8 +363,6 @@ impl WinitWindow {
             if let Some(identifier) = pl_attrs.tabbing_identifier {
                 this.setTabbingIdentifier(&NSString::from_str(&identifier));
             }
-
-            NSWindow::setAllowsAutomaticWindowTabbing(pl_attrs.allows_automatic_window_tabbing);
 
             if attrs.content_protected {
                 this.setSharingType(NSWindowSharingType::NSWindowSharingNone);
@@ -1403,16 +1399,6 @@ impl WindowExtMacOS for WinitWindow {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.setHasShadow(has_shadow)
-    }
-
-    #[inline]
-    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        NSWindow::setAllowsAutomaticWindowTabbing(enabled);
-    }
-
-    #[inline]
-    fn allows_automatic_window_tabbing(&self) -> bool {
-        NSWindow::allowsAutomaticWindowTabbing()
     }
 
     #[inline]

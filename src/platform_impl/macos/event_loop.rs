@@ -21,7 +21,7 @@ use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
-use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
+use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent, NSWindow};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
@@ -100,6 +100,14 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn hide_other_applications(&self) {
         NSApp().hideOtherApplications(None)
+    }
+
+    pub(crate) fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        NSWindow::setAllowsAutomaticWindowTabbing(enabled)
+    }
+
+    pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
+        NSWindow::allowsAutomaticWindowTabbing()
     }
 }
 
