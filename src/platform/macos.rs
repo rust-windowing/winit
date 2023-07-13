@@ -38,14 +38,6 @@ pub trait WindowExtMacOS {
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
 
-    /// Sets whether the system can automatically organize windows into tabs.
-    ///
-    /// <https://developer.apple.com/documentation/appkit/nswindow/1646657-allowsautomaticwindowtabbing>
-    fn set_allows_automatic_window_tabbing(&self, enabled: bool);
-
-    /// Returns whether the system can automatically organize windows into tabs.
-    fn allows_automatic_window_tabbing(&self) -> bool;
-
     /// Group windows together by using the same tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
@@ -125,16 +117,6 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
-    }
-
-    #[inline]
-    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        self.window.set_allows_automatic_window_tabbing(enabled)
-    }
-
-    #[inline]
-    fn allows_automatic_window_tabbing(&self) -> bool {
-        self.window.allows_automatic_window_tabbing()
     }
 
     #[inline]
@@ -223,10 +205,6 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
-    /// Whether the window could do automatic window tabbing.
-    ///
-    /// The default is `true`.
-    fn with_automatic_window_tabbing(self, automatic_tabbing: bool) -> WindowBuilder;
     /// Defines the window tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
@@ -292,12 +270,6 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
-        self
-    }
-
-    #[inline]
-    fn with_automatic_window_tabbing(mut self, automatic_tabbing: bool) -> WindowBuilder {
-        self.platform_specific.allows_automatic_window_tabbing = automatic_tabbing;
         self
     }
 
@@ -413,6 +385,12 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn hide_application(&self);
     /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
     fn hide_other_applications(&self);
+    /// Set whether the system can automatically organize windows into tabs.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1646657-allowsautomaticwindowtabbing>
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool);
+    /// Returns whether the system can automatically organize windows into tabs.
+    fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
@@ -422,6 +400,14 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
 
     fn hide_other_applications(&self) {
         self.p.hide_other_applications()
+    }
+
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        self.p.set_allows_automatic_window_tabbing(enabled);
+    }
+
+    fn allows_automatic_window_tabbing(&self) -> bool {
+        self.p.allows_automatic_window_tabbing()
     }
 }
 
