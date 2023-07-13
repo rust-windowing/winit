@@ -48,7 +48,7 @@ use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
     NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
-    NSWindowTitleVisibility, NSWindowTabbingMode
+    NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -362,9 +362,8 @@ impl WinitWindow {
 
             if let Some(identifier) = pl_attrs.tabbing_identifier {
                 this.setTabbingIdentifier(&NSString::from_str(&identifier));
+                this.setTabbingMode(NSWindowTabbingMode::NSWindowTabbingModePreferred);
             }
-
-            this.setTabbingMode(NSWindowTabbingMode::NSWindowTabbingModePreferred);
 
             if attrs.content_protected {
                 this.setSharingType(NSWindowSharingType::NSWindowSharingNone);

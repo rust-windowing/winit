@@ -56,8 +56,8 @@ pub(crate) use self::version::NSAppKitVersion;
 pub(crate) use self::view::{NSTrackingRectTag, NSView};
 pub(crate) use self::window::{
     NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
-    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTitleVisibility,
-    NSWindowTabbingMode
+    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility,
 };
 
 #[link(name = "AppKit", kind = "framework")]
