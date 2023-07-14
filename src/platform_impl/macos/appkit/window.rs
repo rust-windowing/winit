@@ -89,6 +89,9 @@ extern_methods!(
         #[sel(setSharingType:)]
         pub fn setSharingType(&self, sharingType: NSWindowSharingType);
 
+        #[sel(setTabbingMode:)]
+        pub fn setTabbingMode(&self, tabbingMode: NSWindowTabbingMode);
+
         #[sel(setOpaque:)]
         pub fn setOpaque(&self, opaque: bool);
 
@@ -423,5 +426,18 @@ pub enum NSWindowOrderingMode {
 }
 
 unsafe impl Encode for NSWindowOrderingMode {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+#[repr(isize)] // NSInteger
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NSWindowTabbingMode {
+    NSWindowTabbingModeAutomatic = 0,
+    NSWindowTabbingModeDisallowed = 2,
+    NSWindowTabbingModePreferred = 1,
+}
+
+unsafe impl Encode for NSWindowTabbingMode {
     const ENCODING: Encoding = NSInteger::ENCODING;
 }
