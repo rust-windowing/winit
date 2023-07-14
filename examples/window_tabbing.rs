@@ -81,7 +81,14 @@ fn main() {
                         }
                         Key::Character(ch) => {
                             if let Ok(index) = ch.parse::<NonZeroUsize>() {
-                                windows.get(&window_id).unwrap().select_tab_at_index(index);
+                                let index = index.get();
+                                // Select the last tab when pressing `9`.
+                                let window = windows.get(&window_id).unwrap();
+                                if index == 9 {
+                                    window.select_tab_at_index(window.num_tabs() - 1)
+                                } else {
+                                    window.select_tab_at_index(index - 1);
+                                }
                             }
                         }
                         _ => (),
