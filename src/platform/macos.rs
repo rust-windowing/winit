@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, os::raw::c_void};
+use std::os::raw::c_void;
 
 use objc2::rc::Id;
 
@@ -55,7 +55,10 @@ pub trait WindowExtMacOS {
     /// Select the tab with the given index.
     ///
     /// Will no-op when the index is out of bounds.
-    fn select_tab_at_index(&self, index: NonZeroUsize);
+    fn select_tab_at_index(&self, index: usize);
+
+    /// Get the number of tabs in the window tab group.
+    fn num_tabs(&self) -> usize;
 
     /// Get the window's edit state.
     ///
@@ -140,8 +143,13 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
-    fn select_tab_at_index(&self, index: NonZeroUsize) {
+    fn select_tab_at_index(&self, index: usize) {
         self.window.select_tab_at_index(index);
+    }
+
+    #[inline]
+    fn num_tabs(&self) -> usize {
+        self.window.num_tabs()
     }
 
     #[inline]

@@ -2,7 +2,6 @@
 
 use std::collections::VecDeque;
 use std::f64;
-use std::num::NonZeroUsize;
 use std::ops;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
@@ -1423,13 +1422,18 @@ impl WindowExtMacOS for WinitWindow {
     }
 
     #[inline]
-    fn select_tab_at_index(&self, index: NonZeroUsize) {
+    fn select_tab_at_index(&self, index: usize) {
         let tab_group = self.tabGroup();
         let windows = tab_group.tabbedWindows();
-        let index = index.get() - 1;
         if index < windows.len() {
             tab_group.setSelectedWindow(&windows[index]);
         }
+    }
+
+    #[inline]
+    fn num_tabs(&self) -> usize {
+        let tab_group = self.tabGroup();
+        tab_group.tabbedWindows().len()
     }
 
     fn is_document_edited(&self) -> bool {
