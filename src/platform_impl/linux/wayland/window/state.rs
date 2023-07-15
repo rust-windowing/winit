@@ -127,6 +127,11 @@ pub struct WindowState {
 
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
+
+    /// Whether the client side decorations have pending move operations.
+    ///
+    /// The value is the serial of the event triggered moved.
+    has_pending_move: Option<u32>,
 }
 
 /// The state of the cursor grabs.
@@ -279,7 +284,7 @@ impl WindowState {
             FrameAction::Maximize => self.window.set_maximized(),
             FrameAction::UnMaximize => self.window.unset_maximized(),
             FrameAction::Close => WinitState::queue_close(updates, window_id),
-            FrameAction::Move => self.window.move_(seat, serial),
+            FrameAction::Move => self.has_pending_move = Some(serial),
             FrameAction::Resize(edge) => self.window.resize(seat, serial, edge),
             FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
         };
@@ -294,9 +299,26 @@ impl WindowState {
     }
 
     // Move the point over decorations.
-    pub fn frame_point_moved(&mut self, surface: &WlSurface, x: f64, y: f64) -> Option<&str> {
+    pub fn frame_point_moved(
+        &mut self,
+        seat: &WlSeat,
+        surface: &WlSurface,
+        x: f64,
+        y: f64,
+    ) -> Option<&str> {
+        // Take the serial if we had any, so it doesn't stick around.
+        let serial = self.has_pending_move.take();
+
         if let Some(frame) = self.frame.as_mut() {
-            frame.click_point_moved(surface, x, y)
+            let cursor = frame.click_point_moved(surface, x, y);
+            // If we have a cursor change, that means that cursor is over the decorations,
+            // so try to apply move.
+            if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+                self.window.move_(seat, serial);
+                None
+            } else {
+                cursor
+            }
         } else {
             None
         }
@@ -419,6 +441,7 @@ impl WindowState {
             resizable: true,
             viewport,
             window: ManuallyDrop::new(window),
+            has_pending_move: None,
         }
     }
 

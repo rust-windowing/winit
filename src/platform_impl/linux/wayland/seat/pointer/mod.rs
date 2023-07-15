@@ -68,7 +68,7 @@ impl PointerHandler for WinitState {
                     if parent_surface != surface =>
                 {
                     if let Some(icon) =
-                        window.frame_point_moved(surface, event.position.0, event.position.1)
+                        window.frame_point_moved(seat, surface, event.position.0, event.position.1)
                     {
                         if let Some(pointer) = seat_state.pointer.as_ref() {
                             let surface = pointer
