@@ -730,6 +730,14 @@ pub enum EventLoop<T: 'static> {
     X(x11::EventLoop<T>),
 }
 
+#[derive(Clone)]
+pub(crate) enum OwnedDisplayHandle {
+    #[cfg(wayland_platform)]
+    Wayland(wayland_client::Connection),
+    #[cfg(x11_platform)]
+    X(Arc<x11::XConnection>),
+}
+
 pub enum EventLoopProxy<T: 'static> {
     #[cfg(x11_platform)]
     X(x11::EventLoopProxy<T>),
@@ -924,6 +932,41 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        match self {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(ref evlp) => {
+                OwnedDisplayHandle::Wayland(evlp.display().clone())
+            }
+
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(ref evlp) => {
+                OwnedDisplayHandle::X(evlp.x_connection().clone())
+            }
+        }
+    }
+}
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        match self {
+            #[cfg(wayland_platform)]
+            OwnedDisplayHandle::Wayland(ref conn) => {
+                use wayland_client::Proxy;
+
+                let mut handle = raw_window_handle::WaylandDisplayHandle::empty();
+                handle.display = conn.display().id().as_ptr().cast();
+                handle.into()
+            }
+            #[cfg(x11_platform)]
+            OwnedDisplayHandle::X(ref conn) => {
+                let mut handle = raw_window_handle::XlibDisplayHandle::empty();
+                handle.display = conn.display as *mut _;
+                handle.into()
+            }
+        }
     }
 }
 

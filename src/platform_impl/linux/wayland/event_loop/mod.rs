@@ -607,6 +607,10 @@ impl<T> EventLoopWindowTarget<T> {
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;
         RawDisplayHandle::Wayland(display_handle)
     }
+
+    pub fn display(&self) -> &Connection {
+        &self.connection
+    }
 }
 
 // The default routine does floor, but we need round on Wayland.

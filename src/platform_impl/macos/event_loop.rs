@@ -93,6 +93,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
+
+    #[inline]
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -110,6 +115,15 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
         NSWindow::allowsAutomaticWindowTabbing()
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 

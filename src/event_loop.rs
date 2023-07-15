@@ -402,6 +402,16 @@ impl<T> EventLoopWindowTarget<T> {
         #[cfg(any(x11_platform, wasm_platform, wayland_platform, windows))]
         self.p.listen_device_events(_allowed);
     }
+
+    /// Get an [`OwnedDisplayHandle`] that keeps the underlying display handle alive.
+    ///
+    /// This is necessary to use the display handle outside of the event loop, for example for
+    /// OpenGL setup.
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle {
+            p: self.p.owned_display_handle(),
+        }
+    }
 }
 
 unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
@@ -420,6 +430,47 @@ impl<T> HasDisplayHandle for EventLoopWindowTarget<T> {
 }
 
 unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
+    fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
+        let result = HasRawDisplayHandle::raw_display_handle(self);
+
+        match result {
+            Ok(handle) => cvt_rdh_06_to_05(handle),
+            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+        }
+    }
+}
+
+/// An owned handle used to represent the underlying display.
+///
+/// It is sometimes necessary to pass a display handle to a function without involving any
+/// windows. This comes in play, for example, for OpenGL setup. However, it is impossible to hold
+/// a reliable reference to the [`EventLoop`] or an [`EventLoopWindowTarget`] while the event loop
+/// is running. This type aims to fill that gap by being a generic-free, cheaply clonable handle
+/// representing the display server.
+///
+/// If you already have a [`Window`], you can get a display handle from it instead of this.
+///
+/// [`Window`]: crate::window::Window
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    p: platform_impl::OwnedDisplayHandle,
+}
+
+unsafe impl HasRawDisplayHandle for OwnedDisplayHandle {
+    fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
+        Ok(self.p.raw_display_handle())
+    }
+}
+
+impl HasDisplayHandle for OwnedDisplayHandle {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: The returned display handle is always valid for this lifetime.
+        self.raw_display_handle()
+            .map(|handle| unsafe { DisplayHandle::borrow_raw(handle) })
+    }
+}
+
+unsafe impl raw_window_handle_05::HasRawDisplayHandle for OwnedDisplayHandle {
     fn raw_display_handle(&self) -> raw_window_handle_05::RawDisplayHandle {
         let result = HasRawDisplayHandle::raw_display_handle(self);
 

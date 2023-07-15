@@ -754,4 +754,17 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
     }
+
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    }
 }

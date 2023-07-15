@@ -753,4 +753,17 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.runner.listen_device_events(allowed)
     }
+
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    pub(crate) fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        raw_window_handle::WebDisplayHandle::empty().into()
+    }
 }

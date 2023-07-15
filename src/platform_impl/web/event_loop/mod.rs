@@ -4,7 +4,7 @@ mod state;
 mod window_target;
 
 pub use self::proxy::EventLoopProxy;
-pub use self::window_target::EventLoopWindowTarget;
+pub use self::window_target::{EventLoopWindowTarget, OwnedDisplayHandle};
 
 use super::{backend, device, window};
 use crate::event::Event;

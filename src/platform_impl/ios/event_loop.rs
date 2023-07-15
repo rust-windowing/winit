@@ -65,10 +65,23 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
     }
+
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
 }
 
 pub struct EventLoop<T: 'static> {
     window_target: RootEventLoopWindowTarget<T>,
+}
+
+#[derive(Clone)]
+pub struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
