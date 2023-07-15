@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 #[cfg(target_os = "macos")]
-use std::{collections::HashMap, num::NonZeroUsize};
+use std::{collections::HashMap, num::NonZeroUsize, rc::Rc};
 
 #[cfg(target_os = "macos")]
 use simple_logger::SimpleLogger;
@@ -24,7 +24,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
-    let window = Window::new(&event_loop).unwrap();
+    let window = Rc::new(Window::new(&event_loop).unwrap());
     println!("Opened a new window: {:?}", window.id());
     windows.insert(window.id(), window);
 
@@ -63,10 +63,12 @@ fn main() -> Result<(), impl std::error::Error> {
                     } => match logical_key.as_ref() {
                         Key::Character("t") => {
                             let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
-                            let window = WindowBuilder::new()
-                                .with_tabbing_identifier(&tabbing_id)
-                                .build(event_loop)
-                                .unwrap();
+                            let window = Rc::new(
+                                WindowBuilder::new()
+                                    .with_tabbing_identifier(&tabbing_id)
+                                    .build(event_loop)
+                                    .unwrap(),
+                            );
                             println!("Added a new tab: {:?}", window.id());
                             windows.insert(window.id(), window);
                         }

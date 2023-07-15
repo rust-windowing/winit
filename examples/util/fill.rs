@@ -22,7 +22,6 @@ pub(super) fn fill_window(window: &(impl FullHandleTy + Clone)) {
     use softbuffer::{Context, Surface};
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
     use std::rc::Rc;
     use winit::window::WindowId;
@@ -59,12 +58,8 @@ pub(super) fn fill_window(window: &(impl FullHandleTy + Clone)) {
     }
 
     thread_local! {
-        // NOTE: You should never do things like that, create context and drop it before
-        // you drop the event loop. We do this for brevity to not blow up examples. We use
-        // ManuallyDrop to prevent destructors from running.
-        //
         // A static, thread-local map of graphics contexts to open windows.
-        static GC: ManuallyDrop<RefCell<Option<GraphicsContext>>> = ManuallyDrop::new(RefCell::new(None));
+        static GC: RefCell<Option<GraphicsContext>> = RefCell::new(None);
     }
 
     GC.with(|gc| {
