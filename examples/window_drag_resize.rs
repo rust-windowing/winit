@@ -52,6 +52,8 @@ fn main() {
             } => {
                 if let Some(dir) = cursor_location {
                     let _res = window.drag_resize_window(dir);
+                } else if !window.is_decorated() {
+                    let _res = window.drag_window();
                 }
             }
             WindowEvent::KeyboardInput {

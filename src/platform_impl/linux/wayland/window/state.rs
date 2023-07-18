@@ -384,7 +384,7 @@ impl WindowState {
             .map(|configure| configure.decoration_mode == DecorationMode::Client)
             .unwrap_or(false);
         if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
-            frame.is_hidden()
+            !frame.is_hidden()
         } else {
             // Server side decorations.
             true
