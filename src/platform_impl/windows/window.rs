@@ -49,6 +49,7 @@ use windows_sys::Win32::{
             FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
             NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
             SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            HTTOPLEFT, HTTOP, HTTOPRIGHT, HTRIGHT, HTBOTTOMRIGHT, HTBOTTOM, HTBOTTOMLEFT, HTLEFT,
         },
     },
 };
@@ -410,36 +411,53 @@ impl Window {
         Ok(())
     }
 
+    unsafe fn handle_os_dragging(&self, wparam : WPARAM) {
+        let points = {
+            let mut pos = mem::zeroed();
+            GetCursorPos(&mut pos);
+            pos
+        };
+        let points = POINTS {
+            x: points.x as i16,
+            y: points.y as i16,
+        };
+        ReleaseCapture();
+
+        self.window_state_lock().dragging = true;
+
+        PostMessageW(
+            self.hwnd(),
+            WM_NCLBUTTONDOWN,
+            wparam,
+            &points as *const _ as LPARAM,
+        );
+    }
+
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         unsafe {
-            let points = {
-                let mut pos = mem::zeroed();
-                GetCursorPos(&mut pos);
-                pos
-            };
-            let points = POINTS {
-                x: points.x as i16,
-                y: points.y as i16,
-            };
-            ReleaseCapture();
-
-            self.window_state_lock().dragging = true;
-
-            PostMessageW(
-                self.hwnd(),
-                WM_NCLBUTTONDOWN,
-                HTCAPTION as WPARAM,
-                &points as *const _ as LPARAM,
-            );
+            self.handle_os_dragging(HTCAPTION as WPARAM);
         }
 
         Ok(())
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        unsafe {
+            self.handle_os_dragging(match direction {
+                ResizeDirection::East => HTRIGHT,
+                ResizeDirection::North => HTTOP,
+                ResizeDirection::NorthEast => HTTOPRIGHT,
+                ResizeDirection::NorthWest => HTTOPLEFT,
+                ResizeDirection::South => HTBOTTOM,
+                ResizeDirection::SouthEast => HTBOTTOMRIGHT,
+                ResizeDirection::SouthWest => HTBOTTOMLEFT,
+                ResizeDirection::West => HTLEFT,
+            } as WPARAM);
+        }
+        
+        Ok(())
     }
 
     #[inline]

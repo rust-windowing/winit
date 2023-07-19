@@ -23,6 +23,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, implement `Window::focus_window()`.
 - On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 - On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
+- On Windows, add `drag_resize_window` method support.
 
 # 0.29.0-beta.0
 
