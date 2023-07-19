@@ -46,10 +46,10 @@ use windows_sys::Win32::{
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
-            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM,
+            HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
             NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
             SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
-            HTTOPLEFT, HTTOP, HTTOPRIGHT, HTRIGHT, HTBOTTOMRIGHT, HTBOTTOM, HTBOTTOMLEFT, HTLEFT,
         },
     },
 };
@@ -411,7 +411,7 @@ impl Window {
         Ok(())
     }
 
-    unsafe fn handle_os_dragging(&self, wparam : WPARAM) {
+    unsafe fn handle_os_dragging(&self, wparam: WPARAM) {
         let points = {
             let mut pos = mem::zeroed();
             GetCursorPos(&mut pos);
@@ -456,7 +456,7 @@ impl Window {
                 ResizeDirection::West => HTLEFT,
             } as WPARAM);
         }
-        
+
         Ok(())
     }
 
