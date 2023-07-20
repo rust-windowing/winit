@@ -30,13 +30,16 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, KeyEvent},
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
+        EventLoopWindowTarget as RootELW,
+    },
     icon::Icon,
     keyboard::{Key, KeyCode},
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -87,6 +90,7 @@ impl ApplicationName {
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
+    pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
     pub visual_infos: Option<XVisualInfo>,
     #[cfg(x11_platform)]
@@ -103,6 +107,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             name: None,
+            activation_token: None,
             #[cfg(x11_platform)]
             visual_infos: None,
             #[cfg(x11_platform)]
@@ -369,6 +374,11 @@ impl Window {
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         x11_or_wayland!(match self; Window(w) => w.request_inner_size(size))
+    }
+
+    #[inline]
+    pub(crate) fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+        x11_or_wayland!(match self; Window(w) => w.request_activation_token())
     }
 
     #[inline]

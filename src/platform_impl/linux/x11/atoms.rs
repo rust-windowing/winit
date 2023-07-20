@@ -57,6 +57,11 @@ atom_manager! {
     _NET_WM_STATE_MAXIMIZED_VERT,
     _NET_WM_WINDOW_TYPE,
 
+    // Activation atoms.
+    _NET_STARTUP_INFO_BEGIN,
+    _NET_STARTUP_INFO,
+    _NET_STARTUP_ID,
+
     // WM window types.
     _NET_WM_WINDOW_TYPE_DESKTOP,
     _NET_WM_WINDOW_TYPE_DOCK,
