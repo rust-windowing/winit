@@ -16,7 +16,10 @@ use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::
 
 use sctk::globals::GlobalData;
 
+use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::wayland::state::WinitState;
+use crate::platform_impl::WindowId;
+use crate::window::ActivationToken;
 
 pub struct XdgActivationState {
     xdg_activation: XdgActivationV1,
@@ -62,16 +65,29 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
             _ => return,
         };
 
-        state
+        let global = state
             .xdg_activation
             .as_ref()
             .expect("got xdg_activation event without global.")
-            .global()
-            .activate(token, &data.surface);
+            .global();
 
-        // Mark that no request attention is in process.
-        if let Some(attention_requested) = data.attention_requested.upgrade() {
-            attention_requested.store(false, std::sync::atomic::Ordering::Relaxed);
+        match data {
+            XdgActivationTokenData::Attention((surface, fence)) => {
+                global.activate(token, surface);
+                // Mark that no request attention is in process.
+                if let Some(attention_requested) = fence.upgrade() {
+                    attention_requested.store(false, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            XdgActivationTokenData::Obtain((window_id, serial)) => {
+                state.events_sink.push_window_event(
+                    crate::event::WindowEvent::ActivationTokenDone {
+                        serial: *serial,
+                        token: ActivationToken::_new(token),
+                    },
+                    *window_id,
+                );
+            }
         }
 
         proxy.destroy();
@@ -79,24 +95,11 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
 }
 
 /// The data associated with the activation request.
-pub struct XdgActivationTokenData {
-    /// The surface we're raising.
-    surface: WlSurface,
-
-    /// Flag to throttle attention requests.
-    attention_requested: Weak<AtomicBool>,
-}
-
-impl XdgActivationTokenData {
-    /// Create a new data.
-    ///
-    /// The `attenteion_requested` is marked as `false` on complition.
-    pub fn new(surface: WlSurface, attention_requested: Weak<AtomicBool>) -> Self {
-        Self {
-            surface,
-            attention_requested,
-        }
-    }
+pub enum XdgActivationTokenData {
+    /// Request user attention for the given surface.
+    Attention((WlSurface, Weak<AtomicBool>)),
+    /// Get a token to be passed outside of the winit.
+    Obtain((WindowId, AsyncRequestSerial)),
 }
 
 delegate_dispatch!(WinitState: [ XdgActivationV1: GlobalData] => XdgActivationState);
