@@ -57,7 +57,7 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
+    pub(crate) fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
     where
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
@@ -237,6 +237,10 @@ impl<T: 'static> EventProcessor<T> {
                                     // In version 0, time isn't specified
                                     x11rb::CURRENT_TIME
                                 };
+
+                                // Log this timestamp.
+                                wt.xconn.set_timestamp(time);
+
                                 // This results in the `SelectionNotify` event below
                                 self.dnd.convert_selection(window, time);
                             }
@@ -290,6 +294,9 @@ impl<T: 'static> EventProcessor<T> {
 
                 let window = xsel.requestor as xproto::Window;
                 let window_id = mkwid(window);
+
+                // Set the timestamp.
+                wt.xconn.set_timestamp(xsel.time as xproto::Timestamp);
 
                 if xsel.property == atoms[XdndSelection] as c_ulong {
                     let mut result = None;
@@ -562,6 +569,10 @@ impl<T: 'static> EventProcessor<T> {
             // Note that in compose/pre-edit sequences, we'll always receive KeyRelease events
             ty @ ffi::KeyPress | ty @ ffi::KeyRelease => {
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+
+                // Set the timestamp.
+                wt.xconn.set_timestamp(xkev.time as xproto::Timestamp);
+
                 let window = match self.active_window {
                     Some(window) => window,
                     None => return,
@@ -664,6 +675,10 @@ impl<T: 'static> EventProcessor<T> {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let window_id = mkwid(xev.event as xproto::Window);
                         let device_id = mkdid(xev.deviceid);
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         if (xev.flags & ffi::XIPointerEmulated) != 0 {
                             // Deliver multi-touch events instead of emulated mouse events.
                             return;
@@ -751,6 +766,10 @@ impl<T: 'static> EventProcessor<T> {
                     }
                     ffi::XI_Motion => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         let device_id = mkdid(xev.deviceid);
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
@@ -838,6 +857,9 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_Enter => {
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
 
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
                         let device_id = mkdid(xev.deviceid);
@@ -881,6 +903,9 @@ impl<T: 'static> EventProcessor<T> {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
                         let window = xev.event as xproto::Window;
 
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         // Leave, FocusIn, and FocusOut can be received by a window that's already
                         // been destroyed, which the user presumably doesn't want to deal with.
                         let window_closed = !self.window_exists(window);
@@ -896,6 +921,9 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
                         let window = xev.event as xproto::Window;
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
                         wt.ime
                             .borrow_mut()
@@ -958,6 +986,10 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
                         let window = xev.event as xproto::Window;
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         if !self.window_exists(window) {
                             return;
                         }
@@ -1004,6 +1036,10 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
                         let phase = match xev.evtype {
@@ -1044,6 +1080,10 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         if xev.flags & ffi::XIPointerEmulated == 0 {
                             callback(Event::DeviceEvent {
                                 device_id: mkdid(xev.deviceid),
@@ -1061,6 +1101,10 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_RawMotion => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         let did = mkdid(xev.deviceid);
 
                         let mask = unsafe {
@@ -1112,6 +1156,9 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         let state = match xev.evtype {
                             ffi::XI_RawKeyPress => Pressed,
                             ffi::XI_RawKeyRelease => Released,
@@ -1136,6 +1183,10 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_HierarchyChanged => {
                         let xev: &ffi::XIHierarchyEvent = unsafe { &*(xev.data as *const _) };
+
+                        // Set the timestamp.
+                        wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                         for info in
                             unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) }
                         {
@@ -1168,6 +1219,10 @@ impl<T: 'static> EventProcessor<T> {
                             let xev = unsafe {
                                 &*(xev as *const _ as *const ffi::XkbNewKeyboardNotifyEvent)
                             };
+
+                            // Set the timestamp.
+                            wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
+
                             let keycodes_changed_flag = 0x1;
                             let geometry_changed_flag = 0x1 << 1;
 
@@ -1185,6 +1240,9 @@ impl<T: 'static> EventProcessor<T> {
                         ffi::XkbStateNotify => {
                             let xev =
                                 unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
+
+                            // Set the timestamp.
+                            wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
                             let prev_mods = self.kb_state.mods_state();
                             self.kb_state.update_modifiers(

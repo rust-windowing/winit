@@ -2,7 +2,10 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt, ptr,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use crate::window::CursorIcon;
@@ -31,6 +34,9 @@ pub(crate) struct XConnection {
 
     /// The index of the default screen.
     default_screen: usize,
+
+    /// The last timestamp received by this connection.
+    timestamp: AtomicU32,
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -95,6 +101,7 @@ impl XConnection {
             xcb: Some(xcb),
             atoms: Box::new(atoms),
             default_screen,
+            timestamp: AtomicU32::new(0),
             latest_error: Mutex::new(None),
             cursor_cache: Default::default(),
         })
@@ -135,6 +142,36 @@ impl XConnection {
     #[inline]
     pub fn default_root(&self) -> &xproto::Screen {
         &self.xcb_connection().setup().roots[self.default_screen]
+    }
+
+    /// Get the latest timestamp.
+    #[inline]
+    pub fn timestamp(&self) -> u32 {
+        self.timestamp.load(Ordering::Relaxed)
+    }
+
+    /// Set the last witnessed timestamp.
+    #[inline]
+    pub fn set_timestamp(&self, timestamp: u32) {
+        // Store the timestamp in the slot if it's greater than the last one.
+        let mut last_timestamp = self.timestamp.load(Ordering::Relaxed);
+        loop {
+            let wrapping_sub = |a: xproto::Timestamp, b: xproto::Timestamp| (a as i32) - (b as i32);
+
+            if wrapping_sub(timestamp, last_timestamp) <= 0 {
+                break;
+            }
+
+            match self.timestamp.compare_exchange(
+                last_timestamp,
+                timestamp,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(x) => last_timestamp = x,
+            }
+        }
     }
 }
 

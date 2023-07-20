@@ -23,6 +23,8 @@ pub mod ios;
 pub mod macos;
 #[cfg(orbital_platform)]
 pub mod orbital;
+#[cfg(any(x11_platform, wayland_platform))]
+pub mod startup_notify;
 #[cfg(wayland_platform)]
 pub mod wayland;
 #[cfg(wasm_platform)]

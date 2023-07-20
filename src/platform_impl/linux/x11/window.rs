@@ -23,6 +23,7 @@ use x11rb::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event_loop::AsyncRequestSerial,
     platform_impl::{
         x11::{atoms::*, MonitorHandle as X11MonitorHandle, X11Error},
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
@@ -124,6 +125,7 @@ pub(crate) struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: Sender<WindowId>,
+    activation_sender: Sender<super::ActivationToken>,
 }
 
 impl UnownedWindow {
@@ -317,6 +319,7 @@ impl UnownedWindow {
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, &window_attrs),
             redraw_sender: event_loop.redraw_sender.clone(),
+            activation_sender: event_loop.activation_sender.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -518,6 +521,11 @@ impl UnownedWindow {
             }
 
             leap!(window.set_window_level_inner(window_attrs.window_level)).ignore_error();
+        }
+
+        // Remove the startup notification if we have one.
+        if let Some(startup) = pl_attribs.activation_token.as_ref() {
+            leap!(xconn.remove_activation_token(xwindow, &startup._token));
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -1697,6 +1705,34 @@ impl UnownedWindow {
         wm_hints
             .set(self.xconn.xcb_connection(), self.xwindow as xproto::Window)
             .expect_then_ignore_error("Failed to set WM hints");
+    }
+
+    #[inline]
+    pub(crate) fn generate_activation_token(&self) -> Result<String, X11Error> {
+        // Get the title from the WM_NAME property.
+        let atoms = self.xconn.atoms();
+        let title = {
+            let title_bytes = self
+                .xconn
+                .get_property(self.xwindow, atoms[_NET_WM_NAME], atoms[UTF8_STRING])
+                .expect("Failed to get title");
+
+            String::from_utf8(title_bytes).expect("Bad title")
+        };
+
+        // Get the activation token and then put it in the event queue.
+        let token = self.xconn.request_activation_token(&title)?;
+
+        Ok(token)
+    }
+
+    #[inline]
+    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+        let serial = AsyncRequestSerial::get();
+        self.activation_sender
+            .send((self.id(), serial))
+            .expect("activation token channel should never be closed");
+        Ok(serial)
     }
 
     #[inline]

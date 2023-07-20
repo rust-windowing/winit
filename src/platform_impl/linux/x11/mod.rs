@@ -1,5 +1,6 @@
 #![cfg(x11_platform)]
 
+mod activation;
 mod atoms;
 mod dnd;
 mod event_processor;
@@ -83,6 +84,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: Sender<WindowId>,
+    activation_sender: Sender<ActivationToken>,
     device_events: Cell<DeviceEvents>,
     _marker: ::std::marker::PhantomData<T>,
 }
@@ -100,12 +102,17 @@ pub struct EventLoop<T: 'static> {
     redraw_dispatcher: Dispatcher<'static, Channel<WindowId>, EventLoopState<T>>,
 }
 
+type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
+
 struct EventLoopState<T> {
     /// Incoming user events.
     user_events: VecDeque<T>,
 
     /// Incoming redraw events.
     redraw_events: VecDeque<WindowId>,
+
+    /// Incoming activation tokens.
+    activation_tokens: VecDeque<ActivationToken>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
@@ -261,6 +268,9 @@ impl<T: 'static> EventLoop<T> {
         // Create a channel for handling redraw requests.
         let (redraw_sender, redraw_channel) = channel();
 
+        // Create a channel for sending activation tokens.
+        let (activation_token_sender, activation_token_channel) = channel();
+
         // Create a dispatcher for the redraw channel such that we can dispatch it independent of the
         // event loop.
         let redraw_dispatcher =
@@ -272,6 +282,18 @@ impl<T: 'static> EventLoop<T> {
         handle
             .register_dispatcher(redraw_dispatcher.clone())
             .expect("Failed to register the redraw event channel with the event loop");
+
+        // Create a dispatcher for the activation token channel such that we can dispatch it
+        // independent of the event loop.
+        let activation_tokens =
+            Dispatcher::<_, EventLoopState<T>>::new(activation_token_channel, |ev, _, state| {
+                if let ChanResult::Msg(token) = ev {
+                    state.activation_tokens.push_back(token);
+                }
+            });
+        handle
+            .register_dispatcher(activation_tokens.clone())
+            .expect("Failed to register the activation token channel with the event loop");
 
         let kb_state =
             KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
@@ -286,6 +308,7 @@ impl<T: 'static> EventLoop<T> {
             wm_delete_window,
             net_wm_ping,
             redraw_sender,
+            activation_sender: activation_token_sender,
             device_events: Default::default(),
         };
 
@@ -344,6 +367,7 @@ impl<T: 'static> EventLoop<T> {
             state: EventLoopState {
                 user_events: VecDeque::new(),
                 redraw_events: VecDeque::new(),
+                activation_tokens: VecDeque::new(),
             },
         }
     }
@@ -396,6 +420,34 @@ impl<T: 'static> EventLoop<T> {
 
             // Process all pending events
             this.drain_events(callback, control_flow);
+
+            // Empty activation tokens.
+            while let Some((window_id, serial)) = this.state.activation_tokens.pop_front() {
+                let token = this
+                    .event_processor
+                    .with_window(window_id.0 as xproto::Window, |window| {
+                        window.generate_activation_token()
+                    });
+
+                match token {
+                    Some(Ok(token)) => sticky_exit_callback(
+                        crate::event::Event::WindowEvent {
+                            window_id: crate::window::WindowId(window_id),
+                            event: crate::event::WindowEvent::ActivationTokenDone {
+                                serial,
+                                token: crate::window::ActivationToken::_new(token),
+                            },
+                        },
+                        &this.target,
+                        control_flow,
+                        callback,
+                    ),
+                    Some(Err(e)) => {
+                        log::error!("Failed to get activation token: {}", e);
+                    }
+                    None => {}
+                }
+            }
 
             // Empty the user event buffer
             {
@@ -753,6 +805,9 @@ pub enum X11Error {
 
     /// Got `null` from an Xlib function without a reason.
     UnexpectedNull(&'static str),
+
+    /// Got an invalid activation token.
+    InvalidActivationToken(Vec<u8>),
 }
 
 impl fmt::Display for X11Error {
@@ -764,6 +819,11 @@ impl fmt::Display for X11Error {
             X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
             X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
             X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
+            X11Error::InvalidActivationToken(s) => write!(
+                f,
+                "Invalid activation token: {}",
+                std::str::from_utf8(s).unwrap_or("<invalid utf8>")
+            ),
         }
     }
 }

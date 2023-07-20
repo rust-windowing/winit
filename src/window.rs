@@ -1564,3 +1564,17 @@ impl Default for ImePurpose {
         Self::Normal
     }
 }
+
+/// An opaque token used to activate the [`Window`].
+///
+/// [`Window`]: crate::window::Window
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ActivationToken {
+    pub(crate) _token: String,
+}
+
+impl ActivationToken {
+    pub(crate) fn _new(_token: String) -> Self {
+        Self { _token }
+    }
+}
