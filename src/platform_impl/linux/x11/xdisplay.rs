@@ -11,13 +11,14 @@ use std::{
 use crate::window::CursorIcon;
 
 use super::{atoms::Atoms, ffi, monitor::MonitorHandle};
-use x11rb::{connection::Connection, protocol::xproto, xcb_ffi::XCBConnection};
+use x11rb::{connection::Connection, protocol::xproto, resource_manager, xcb_ffi::XCBConnection};
 
 /// A connection to an X server.
 pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
     pub display: *mut ffi::Display,
+
     /// The manager for the XCB connection.
     ///
     /// The `Option` ensures that we can drop it before we close the `Display`.
@@ -37,6 +38,9 @@ pub(crate) struct XConnection {
 
     /// List of monitor handles.
     pub monitor_handles: Mutex<Option<Vec<MonitorHandle>>>,
+
+    /// The resource database.
+    database: resource_manager::Database,
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -90,6 +94,10 @@ impl XConnection {
             .reply()
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
+        // Load the database.
+        let database = resource_manager::new_from_default(&xcb)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+
         Ok(XConnection {
             xlib,
             xcursor,
@@ -100,6 +108,7 @@ impl XConnection {
             timestamp: AtomicU32::new(0),
             latest_error: Mutex::new(None),
             monitor_handles: Mutex::new(None),
+            database,
             cursor_cache: Default::default(),
         })
     }
@@ -139,6 +148,12 @@ impl XConnection {
     #[inline]
     pub fn default_root(&self) -> &xproto::Screen {
         &self.xcb_connection().setup().roots[self.default_screen]
+    }
+
+    /// Get the resource database.
+    #[inline]
+    pub fn database(&self) -> &resource_manager::Database {
+        &self.database
     }
 
     /// Get the latest timestamp.

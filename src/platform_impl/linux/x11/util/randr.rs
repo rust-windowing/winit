@@ -36,21 +36,10 @@ pub fn calc_dpi_factor(
 
 impl XConnection {
     // Retrieve DPI from Xft.dpi property
-    pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
-        (self.xlib.XrmInitialize)();
-        let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
-        if resource_manager_str.is_null() {
-            return None;
-        }
-        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
-            let name: &str = "Xft.dpi:\t";
-            for pair in res.split('\n') {
-                if let Some(stripped) = pair.strip_prefix(name) {
-                    return f64::from_str(stripped).ok();
-                }
-            }
-        }
-        None
+    pub fn get_xft_dpi(&self) -> Option<f64> {
+        self.database()
+            .get_string("Xfi.dpi", "")
+            .and_then(|s| f64::from_str(s).ok())
     }
     pub fn get_output_info(
         &self,
@@ -138,7 +127,7 @@ impl XConnection {
                 dpi_override
             }
             EnvVarDPI::NotSet => {
-                if let Some(dpi) = unsafe { self.get_xft_dpi() } {
+                if let Some(dpi) = self.get_xft_dpi() {
                     dpi / 96.
                 } else {
                     calc_dpi_factor(

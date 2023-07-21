@@ -393,7 +393,7 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
-        event_processor.init_device(0);
+        event_processor.init_device(ALL_DEVICES);
 
         EventLoop {
             loop_running: false,

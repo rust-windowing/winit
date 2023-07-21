@@ -892,7 +892,7 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(window);
                         let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
-                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, 0) {
+                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES) {
                             let mut devices = self.devices.borrow_mut();
                             for device_info in all_info.info.iter() {
                                 if device_info.deviceid == xev.sourceid as xinput::DeviceId
