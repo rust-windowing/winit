@@ -28,7 +28,7 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
-    mem::MaybeUninit,
+    mem::{self, MaybeUninit},
     ops::Deref,
     os::{
         raw::*,
@@ -36,7 +36,7 @@ use std::{
     },
     ptr,
     rc::Rc,
-    str,
+    slice, str,
     sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
@@ -774,22 +774,43 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-struct DeviceInfo {
-    info: Vec<xinput::XIDeviceInfo>,
+struct DeviceInfo<'a> {
+    xconn: &'a XConnection,
+    info: *const ffi::XIDeviceInfo,
+    count: usize,
 }
 
-impl DeviceInfo {
-    fn get(xconn: &XConnection, device: xinput::DeviceId) -> Option<Self> {
-        let device_data = xconn
-            .xcb_connection()
-            .xinput_xi_query_device(device)
-            .ok()?
-            .reply()
-            .ok()?;
+impl<'a> DeviceInfo<'a> {
+    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
+        unsafe {
+            let mut count = 0;
+            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
+            xconn.check_errors().ok()?;
 
-        Some(DeviceInfo {
-            info: device_data.infos,
-        })
+            if info.is_null() || count == 0 {
+                None
+            } else {
+                Some(DeviceInfo {
+                    xconn,
+                    info,
+                    count: count as usize,
+                })
+            }
+        }
+    }
+}
+
+impl<'a> Drop for DeviceInfo<'a> {
+    fn drop(&mut self) {
+        assert!(!self.info.is_null());
+        unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
+    }
+}
+
+impl<'a> Deref for DeviceInfo<'a> {
+    type Target = [ffi::XIDeviceInfo];
+    fn deref(&self) -> &Self::Target {
+        unsafe { slice::from_raw_parts(self.info, self.count) }
     }
 }
 
@@ -1026,10 +1047,10 @@ fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
 #[derive(Debug)]
 struct Device {
     _name: String,
-    scroll_axes: Vec<(u16, ScrollAxis)>,
+    scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
-    attachment: u16,
+    attachment: c_int,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1046,21 +1067,25 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new(info: &xinput::XIDeviceInfo) -> Result<Self, X11Error> {
-        let name = str::from_utf8(&info.name).expect("device name is not valid utf8");
+    fn new(info: &ffi::XIDeviceInfo) -> Self {
+        let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for class in info.classes.iter() {
-                if let xinput::DeviceClassData::Scroll(info) = &class.data {
+            for class_ptr in Device::classes(info) {
+                let class = unsafe { &**class_ptr };
+                if class._type == ffi::XIScrollClass {
+                    let info = unsafe {
+                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
+                    };
                     scroll_axes.push((
                         info.number,
                         ScrollAxis {
-                            increment: xinput_fp3232_to_float(info.increment),
+                            increment: info.increment,
                             orientation: match info.scroll_type {
-                                xinput::ScrollType::HORIZONTAL => ScrollOrientation::Horizontal,
-                                xinput::ScrollType::VERTICAL => ScrollOrientation::Vertical,
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
                                 _ => unreachable!(),
                             },
                             position: 0.0,
@@ -1071,24 +1096,28 @@ impl Device {
         }
 
         let mut device = Device {
-            _name: name.to_string(),
+            _name: name.into_owned(),
             scroll_axes,
             attachment: info.attachment,
         };
         device.reset_scroll_position(info);
-        Ok(device)
+        device
     }
 
-    fn reset_scroll_position(&mut self, info: &xinput::XIDeviceInfo) {
+    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
         if Device::physical_device(info) {
-            for class in info.classes.iter() {
-                if let xinput::DeviceClassData::Valuator(info) = &class.data {
+            for class_ptr in Device::classes(info) {
+                let class = unsafe { &**class_ptr };
+                if class._type == ffi::XIValuatorClass {
+                    let info = unsafe {
+                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                    };
                     if let Some(&mut (_, ref mut axis)) = self
                         .scroll_axes
                         .iter_mut()
                         .find(|&&mut (axis, _)| axis == info.number)
                     {
-                        axis.position = xinput_fp3232_to_float(info.value);
+                        axis.position = info.value;
                     }
                 }
             }
@@ -1096,17 +1125,21 @@ impl Device {
     }
 
     #[inline]
-    fn physical_device(info: &xinput::XIDeviceInfo) -> bool {
-        use xinput::DeviceType;
-        info.type_ == DeviceType::SLAVE_KEYBOARD
-            || info.type_ == DeviceType::SLAVE_POINTER
-            || info.type_ == DeviceType::FLOATING_SLAVE
+    fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
+        info._use == ffi::XISlaveKeyboard
+            || info._use == ffi::XISlavePointer
+            || info._use == ffi::XIFloatingSlave
     }
-}
 
-fn xinput_fp3232_to_float(fp: xinput::Fp3232) -> f64 {
-    let xinput::Fp3232 { integral, frac } = fp;
-    integral as f64 + (frac as f64 / (1u64 << 32) as f64)
+    #[inline]
+    fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
+        unsafe {
+            slice::from_raw_parts(
+                info.classes as *const *const ffi::XIAnyClassInfo,
+                info.num_classes as usize,
+            )
+        }
+    }
 }
 
 // Xinput constants not defined in x11rb

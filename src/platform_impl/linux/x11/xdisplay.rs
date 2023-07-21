@@ -17,6 +17,11 @@ use x11rb::{connection::Connection, protocol::xproto, resource_manager, xcb_ffi:
 pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
+
+    /// I'd like to remove this, but apparently Xlib and Xinput2 are tied together
+    /// for some reason.
+    pub xinput2: ffi::XInput2,
+
     pub display: *mut ffi::Display,
 
     /// The manager for the XCB connection.
@@ -58,6 +63,7 @@ impl XConnection {
         let xlib = ffi::Xlib::open()?;
         let xcursor = ffi::Xcursor::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
+        let xinput2 = ffi::XInput2::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -101,6 +107,7 @@ impl XConnection {
         Ok(XConnection {
             xlib,
             xcursor,
+            xinput2,
             display,
             xcb: Some(xcb),
             atoms: Box::new(atoms),

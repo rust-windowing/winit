@@ -61,12 +61,9 @@ impl<T: 'static> EventProcessor<T> {
     pub(super) fn init_device(&self, device: xinput::DeviceId) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
-        if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
-            for info in info.info.iter() {
-                devices.insert(
-                    DeviceId(info.deviceid),
-                    Device::new(info).expect("Failed to get device info"),
-                );
+        if let Some(info) = DeviceInfo::get(&wt.xconn, device as _) {
+            for info in info.iter() {
+                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
             }
         }
     }
@@ -892,17 +889,19 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(window);
                         let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
-                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES) {
+                        if let Some(all_info) =
+                            DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into())
+                        {
                             let mut devices = self.devices.borrow_mut();
-                            for device_info in all_info.info.iter() {
-                                if device_info.deviceid == xev.sourceid as xinput::DeviceId
+                            for device_info in all_info.iter() {
+                                if device_info.deviceid == xev.sourceid
                                 // This is needed for resetting to work correctly on i3, and
                                 // presumably some other WMs. On those, `XI_Enter` doesn't include
                                 // the physical device ID, so both `sourceid` and `deviceid` are
                                 // the virtual device.
-                                || device_info.attachment == xev.sourceid as xinput::DeviceId
+                                || device_info.attachment == xev.sourceid
                                 {
-                                    let device_id = DeviceId(device_info.deviceid);
+                                    let device_id = DeviceId(device_info.deviceid as _);
                                     if let Some(device) = devices.get_mut(&device_id) {
                                         device.reset_scroll_position(device_info);
                                     }
@@ -996,7 +995,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
-                                    device_id: mkdid(pointer_id),
+                                    device_id: mkdid(pointer_id as _),
                                     position,
                                 },
                             });
