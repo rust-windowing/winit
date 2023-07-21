@@ -935,9 +935,7 @@ fn sticky_exit_callback<T, F>(
 
 #[cfg(target_os = "linux")]
 fn is_main_thread() -> bool {
-    use libc::{c_long, getpid, syscall, SYS_gettid};
-
-    unsafe { syscall(SYS_gettid) == getpid() as c_long }
+    rustix::thread::gettid() == rustix::process::getpid()
 }
 
 #[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]

@@ -1,6 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
-
-use libc::{c_char, c_int, c_long, c_ulong};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    os::raw::{c_char, c_int, c_long, c_ulong},
+    rc::Rc,
+    slice,
+    sync::Arc,
+};
 
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::Serialize;
