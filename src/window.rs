@@ -1299,7 +1299,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// Only X11 is supported at this time.
+    /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window.drag_resize_window(direction)
