@@ -242,6 +242,17 @@ impl UnownedWindow {
             ),
         };
 
+        // Set the transient parent if we don't have a parent already.
+        let owner = if event_loop.root == root {
+            pl_attribs.owner.map(|owner| match owner {
+                RawWindowHandle::Xlib(x) => x.window,
+                RawWindowHandle::Xcb(x) => x.window as u64,
+                raw => unreachable!("Invalid raw window handle {raw:?} on X11"),
+            })
+        } else {
+            None
+        };
+
         let window_attributes = {
             use xproto::EventMask;
 
@@ -258,7 +269,7 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if pl_attribs.override_redirect {
+            if pl_attribs.override_redirect || owner.is_some() {
                 aux = aux.override_redirect(true as u32);
             }
 
@@ -453,21 +464,6 @@ impl UnownedWindow {
                 ]),
             );
             leap!(result).ignore_error();
-
-            // Set the transient parent if we don't have a parent already.
-            if event_loop.root == root {
-                let owner = pl_attribs.owner.map(|owner| match owner {
-                    RawWindowHandle::Xlib(x) => x.window,
-                    RawWindowHandle::Xcb(x) => x.window as u64,
-                    raw => unreachable!("Invalid raw window handle {raw:?} on X11"),
-                });
-
-                if let Some(owner) = owner {
-                    unsafe {
-                        (xconn.xlib.XSetTransientForHint)(xconn.display, window.xwindow, owner);
-                    }
-                }
-            }
 
             // Set visibility (map window)
             if window_attrs.visible {
