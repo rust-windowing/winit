@@ -47,11 +47,15 @@ use libc::{self, setlocale, LC_CTYPE};
 use atoms::*;
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
-use x11rb::protocol::{
-    xinput::{self, ConnectionExt as _},
-    xproto::{self, ConnectionExt as _},
-};
 use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::{
+    connection::RequestConnection,
+    protocol::{
+        xinput::{self, ConnectionExt as _},
+        xkb,
+        xproto::{self, ConnectionExt as _},
+    },
+};
 use x11rb::{
     errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
     xcb_ffi::ReplyOrIdError,
@@ -232,53 +236,16 @@ impl<T: 'static> EventLoop<T> {
             .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
-        let xi2ext = unsafe {
-            let mut ext = XExtension::default();
-
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
-                b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut ext.opcode,
-                &mut ext.first_event_id,
-                &mut ext.first_error_id,
-            );
-
-            if res == ffi::False {
-                panic!("X server missing XInput extension");
-            }
-
-            ext
-        };
-
-        let xkbext = {
-            let mut ext = XExtension::default();
-
-            let res = unsafe {
-                (xconn.xlib.XkbQueryExtension)(
-                    xconn.display,
-                    &mut ext.opcode,
-                    &mut ext.first_event_id,
-                    &mut ext.first_error_id,
-                    &mut 1,
-                    &mut 0,
-                )
-            };
-
-            if res == ffi::False {
-                panic!("X server missing XKB extension");
-            }
-
-            // Enable detectable auto repeat.
-            let mut supported = 0;
-            unsafe {
-                (xconn.xlib.XkbSetDetectableAutoRepeat)(xconn.display, 1, &mut supported);
-            }
-            if supported == 0 {
-                warn!("Detectable auto repeart is not supported");
-            }
-
-            ext
-        };
+        let xi2ext = xconn
+            .xcb_connection()
+            .extension_information(xinput::X11_EXTENSION_NAME)
+            .expect("Failed to query XInput2 extension")
+            .expect("X server missing XInput extension");
+        let xkbext = xconn
+            .xcb_connection()
+            .extension_information(xkb::X11_EXTENSION_NAME)
+            .expect("Failed to query XKB extension")
+            .expect("X server missing XKB extension");
 
         // Check for XInput2 support.
         xconn
@@ -389,7 +356,7 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                ffi::XkbNewKeyboardNotifyMask | ffi::XkbStateNotifyMask,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
@@ -1028,13 +995,6 @@ impl<'a> Drop for GenericEventCookie<'a> {
             (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
         }
     }
-}
-
-#[derive(Debug, Default, Copy, Clone)]
-struct XExtension {
-    opcode: c_int,
-    first_event_id: c_int,
-    first_error_id: c_int,
 }
 
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {

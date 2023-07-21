@@ -1,5 +1,9 @@
 use std::{slice, str};
-use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::errors::{ConnectionError, ReplyError};
+use x11rb::protocol::{
+    xinput::{self, ConnectionExt as _},
+    xkb::{self, ConnectionExt as _},
+};
 
 use super::*;
 
@@ -29,16 +33,36 @@ impl XConnection {
             .map_err(Into::into)
     }
 
-    pub fn select_xkb_events(&self, device_id: c_int, mask: c_ulong) -> Result<bool, X11Error> {
-        let status =
-            unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id as _, mask, mask) };
+    pub fn select_xkb_events(
+        &self,
+        device_id: xkb::DeviceSpec,
+        mask: xkb::EventType,
+    ) -> Result<bool, X11Error> {
+        let result = self
+            .xcb_connection()
+            .xkb_select_events(
+                device_id,
+                xkb::EventType::from(0u8),
+                mask,
+                xkb::MapPart::from(u16::from(mask)),
+                xkb::MapPart::EXPLICIT_COMPONENTS
+                    | xkb::MapPart::KEY_ACTIONS
+                    | xkb::MapPart::KEY_BEHAVIORS
+                    | xkb::MapPart::VIRTUAL_MODS
+                    | xkb::MapPart::MODIFIER_MAP
+                    | xkb::MapPart::VIRTUAL_MOD_MAP,
+                &xkb::SelectEventsAux::new(),
+            )
+            .map_err(ReplyError::from)
+            .and_then(|x| x.check());
 
-        if status == ffi::True {
-            self.flush_requests()?;
-            Ok(true)
-        } else {
-            error!("Could not select XKB events: The XKB extension is not initialized!");
-            Ok(false)
+        match result {
+            Ok(()) => Ok(true),
+            Err(ReplyError::ConnectionError(ConnectionError::UnsupportedExtension)) => {
+                error!("Could not select XKB events: The XKB extension is not initialized!");
+                Ok(false)
+            }
+            Err(e) => Err(e.into()),
         }
     }
 

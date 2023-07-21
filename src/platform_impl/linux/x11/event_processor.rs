@@ -7,16 +7,18 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use x11rb::protocol::{
-    xinput,
-    xproto::{self, ConnectionExt as _},
-};
 use x11rb::x11_utils::Serialize;
+use x11rb::{
+    protocol::{
+        xinput,
+        xproto::{self, ConnectionExt as _},
+    },
+    x11_utils::ExtensionInformation,
+};
 
 use super::{
     atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
     Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
 };
 
 use crate::{
@@ -40,8 +42,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) randr_event_offset: u8,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
-    pub(super) xi2ext: XExtension,
-    pub(super) xkbext: XExtension,
+    pub(super) xi2ext: ExtensionInformation,
+    pub(super) xkbext: ExtensionInformation,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
@@ -678,7 +680,7 @@ impl<T: 'static> EventProcessor<T> {
                     return;
                 };
                 let xev = &guard.cookie;
-                if self.xi2ext.opcode != xev.extension {
+                if self.xi2ext.major_opcode != xev.extension as u8 {
                     return;
                 }
 
@@ -1239,7 +1241,7 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
-                if event_type == self.xkbext.first_event_id {
+                if event_type == self.xkbext.first_event as _ {
                     let xev = unsafe { &*(xev as *const _ as *const ffi::XkbAnyEvent) };
                     match xev.xkb_type {
                         ffi::XkbNewKeyboardNotify => {
