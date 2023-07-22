@@ -46,7 +46,7 @@ unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
 
 pub type XErrorHandler =
-    Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> libc::c_int>;
+    Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> std::os::raw::c_int>;
 
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {

@@ -230,7 +230,7 @@ impl<T: 'static> EventLoop<T> {
                 xconn.display,
                 &mut xinput_major_ver,
                 &mut xinput_minor_ver,
-            ) != ffi::Success as libc::c_int
+            ) != ffi::Success as std::os::raw::c_int
             {
                 panic!(
                     "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
