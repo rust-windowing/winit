@@ -263,25 +263,7 @@ pub enum Event<'a, T: 'static> {
 
 impl<T: Clone> Clone for Event<'static, T> {
     fn clone(&self) -> Self {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => WindowEvent {
-                window_id: *window_id,
-                event: event.clone(),
-            },
-            UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
-            NewEvents(cause) => NewEvents(*cause),
-            MainEventsCleared => MainEventsCleared,
-            RedrawRequested(wid) => RedrawRequested(*wid),
-            RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
-            Suspended => Suspended,
-            Resumed => Resumed,
-        }
+        self.try_clone().unwrap()
     }
 }
 
@@ -328,6 +310,32 @@ impl<'a, T> Event<'a, T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
         }
+    }
+}
+
+impl<'a, T: Clone> Event<'a, T> {
+    /// If the event doesn't contain a reference, clone it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn try_clone(&self) -> Option<Event<'static, T>> {
+        use self::Event::*;
+        Some(match self {
+            WindowEvent { window_id, event } => WindowEvent {
+                window_id: *window_id,
+                event: event.try_clone()?,
+            },
+            UserEvent(event) => UserEvent(event.clone()),
+            DeviceEvent { device_id, event } => DeviceEvent {
+                device_id: *device_id,
+                event: event.clone(),
+            },
+            NewEvents(cause) => NewEvents(*cause),
+            MainEventsCleared => MainEventsCleared,
+            RedrawRequested(wid) => RedrawRequested(*wid),
+            RedrawEventsCleared => RedrawEventsCleared,
+            LoopDestroyed => LoopDestroyed,
+            Suspended => Suspended,
+            Resumed => Resumed,
+        })
     }
 }
 
@@ -628,108 +636,7 @@ pub enum WindowEvent<'a> {
 
 impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
-        use self::WindowEvent::*;
-        return match self {
-            ActivationTokenDone { serial, token } => ActivationTokenDone {
-                serial: *serial,
-                token: token.clone(),
-            },
-            Resized(size) => Resized(*size),
-            Moved(pos) => Moved(*pos),
-            CloseRequested => CloseRequested,
-            Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
-            Focused(f) => Focused(*f),
-            KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => KeyboardInput {
-                device_id: *device_id,
-                event: event.clone(),
-                is_synthetic: *is_synthetic,
-            },
-            Ime(preedit_state) => Ime(preedit_state.clone()),
-            ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
-            CursorMoved {
-                device_id,
-                position,
-            } => CursorMoved {
-                device_id: *device_id,
-                position: *position,
-            },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-            } => MouseWheel {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            MouseInput {
-                device_id,
-                state,
-                button,
-            } => MouseInput {
-                device_id: *device_id,
-                state: *state,
-                button: *button,
-            },
-            TouchpadMagnify {
-                device_id,
-                delta,
-                phase,
-            } => TouchpadMagnify {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            SmartMagnify { device_id } => SmartMagnify {
-                device_id: *device_id,
-            },
-            TouchpadRotate {
-                device_id,
-                delta,
-                phase,
-            } => TouchpadRotate {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
-                pressure: *pressure,
-                stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
-            },
-            Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(*theme),
-            ScaleFactorChanged { .. } => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
-            Occluded(occluded) => Occluded(*occluded),
-        };
+        self.try_clone().unwrap()
     }
 }
 
@@ -844,6 +751,111 @@ impl<'a> WindowEvent<'a> {
             }),
             Occluded(occluded) => Ok(Occluded(occluded)),
         }
+    }
+
+    /// If the event doesn't contain a reference, clone it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn try_clone(&self) -> Option<WindowEvent<'static>> {
+        use self::WindowEvent::*;
+        Some(match self {
+            ActivationTokenDone { serial, token } => ActivationTokenDone {
+                serial: *serial,
+                token: token.clone(),
+            },
+            Resized(size) => Resized(*size),
+            Moved(pos) => Moved(*pos),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            DroppedFile(file) => DroppedFile(file.clone()),
+            HoveredFile(file) => HoveredFile(file.clone()),
+            HoveredFileCancelled => HoveredFileCancelled,
+            Focused(f) => Focused(*f),
+            KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => KeyboardInput {
+                device_id: *device_id,
+                event: event.clone(),
+                is_synthetic: *is_synthetic,
+            },
+            Ime(preedit_state) => Ime(preedit_state.clone()),
+            ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
+            CursorMoved {
+                device_id,
+                position,
+            } => CursorMoved {
+                device_id: *device_id,
+                position: *position,
+            },
+            CursorEntered { device_id } => CursorEntered {
+                device_id: *device_id,
+            },
+            CursorLeft { device_id } => CursorLeft {
+                device_id: *device_id,
+            },
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+            } => MouseWheel {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            MouseInput {
+                device_id,
+                state,
+                button,
+            } => MouseInput {
+                device_id: *device_id,
+                state: *state,
+                button: *button,
+            },
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadMagnify {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            SmartMagnify { device_id } => SmartMagnify {
+                device_id: *device_id,
+            },
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadRotate {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => TouchpadPressure {
+                device_id: *device_id,
+                pressure: *pressure,
+                stage: *stage,
+            },
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => AxisMotion {
+                device_id: *device_id,
+                axis: *axis,
+                value: *value,
+            },
+            Touch(touch) => Touch(*touch),
+            ThemeChanged(theme) => ThemeChanged(*theme),
+            ScaleFactorChanged { .. } => return None,
+            Occluded(occluded) => Occluded(*occluded),
+        })
     }
 }
 
