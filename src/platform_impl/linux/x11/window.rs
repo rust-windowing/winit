@@ -1,14 +1,12 @@
 use std::{
     cmp, env,
     ffi::CString,
-    mem::{replace, MaybeUninit},
+    mem::replace,
     os::raw::*,
     path::Path,
-    ptr, slice,
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use libc;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
@@ -542,41 +540,28 @@ impl UnownedWindow {
         let atoms = self.xconn.atoms();
         let pid_atom = atoms[_NET_WM_PID];
         let client_machine_atom = atoms[WM_CLIENT_MACHINE];
-        unsafe {
-            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
-            // the limit defined by OpenBSD.
-            const MAXHOSTNAMELEN: usize = 256;
-            // `assume_init` is safe here because the array consists of `MaybeUninit` values,
-            // which do not require initialization.
-            let mut buffer: [MaybeUninit<c_char>; MAXHOSTNAMELEN] =
-                MaybeUninit::uninit().assume_init();
-            let status = libc::gethostname(buffer.as_mut_ptr() as *mut c_char, buffer.len());
-            if status != 0 {
-                return Ok(None);
-            }
-            ptr::write(buffer[MAXHOSTNAMELEN - 1].as_mut_ptr() as *mut u8, b'\0'); // a little extra safety
-            let hostname_length = libc::strlen(buffer.as_ptr() as *const c_char);
 
-            let hostname = slice::from_raw_parts(buffer.as_ptr() as *const c_char, hostname_length);
+        // Get the hostname and the PID.
+        let uname = rustix::system::uname();
+        let pid = rustix::process::getpid();
 
-            self.xconn
-                .change_property(
-                    self.xwindow,
-                    pid_atom,
-                    xproto::Atom::from(xproto::AtomEnum::CARDINAL),
-                    xproto::PropMode::REPLACE,
-                    &[libc::getpid() as util::Cardinal],
-                )?
-                .ignore_error();
-            let flusher = self.xconn.change_property(
+        self.xconn
+            .change_property(
                 self.xwindow,
-                client_machine_atom,
-                xproto::Atom::from(xproto::AtomEnum::STRING),
+                pid_atom,
+                xproto::Atom::from(xproto::AtomEnum::CARDINAL),
                 xproto::PropMode::REPLACE,
-                &hostname[0..hostname_length],
-            );
-            flusher.map(Some)
-        }
+                &[pid.as_raw_nonzero().get() as util::Cardinal],
+            )?
+            .ignore_error();
+        let flusher = self.xconn.change_property(
+            self.xwindow,
+            client_machine_atom,
+            xproto::Atom::from(xproto::AtomEnum::STRING),
+            xproto::PropMode::REPLACE,
+            uname.nodename().to_bytes(),
+        );
+        flusher.map(Some)
     }
 
     fn set_window_types(
