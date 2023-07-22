@@ -422,7 +422,7 @@ impl<T> BufferedEvent<T> {
                     },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
+            event => BufferedEvent::Event(event.into_static().unwrap()),
         }
     }
 

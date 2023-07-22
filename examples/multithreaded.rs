@@ -195,7 +195,7 @@ fn main() {
                 }
                 _ => {
                     if let Some(tx) = window_senders.get(&window_id) {
-                        if let Some(event) = event.to_static() {
+                        if let Some(event) = event.into_static() {
                             tx.send(event).unwrap();
                         }
                     }

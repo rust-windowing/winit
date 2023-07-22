@@ -305,21 +305,28 @@ impl<'a, T> Event<'a, T> {
 
     /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
     /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
+    pub fn into_static(self) -> Option<Event<'static, T>> {
+        self.try_into_static().ok()
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `Err` with the original event.
+    pub fn try_into_static(self) -> Result<Event<'static, T>, Self> {
         use self::Event::*;
         match self {
             WindowEvent { window_id, event } => event
-                .to_static()
-                .map(|event| WindowEvent { window_id, event }),
-            UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            MainEventsCleared => Some(MainEventsCleared),
-            RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
-            Suspended => Some(Suspended),
-            Resumed => Some(Resumed),
+                .try_into_static()
+                .map(|event| WindowEvent { window_id, event })
+                .map_err(|event| WindowEvent { window_id, event }),
+            UserEvent(event) => Ok(UserEvent(event)),
+            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            NewEvents(cause) => Ok(NewEvents(cause)),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
+            LoopDestroyed => Ok(LoopDestroyed),
+            Suspended => Ok(Suspended),
+            Resumed => Ok(Resumed),
         }
     }
 }
@@ -727,43 +734,55 @@ impl Clone for WindowEvent<'static> {
 }
 
 impl<'a> WindowEvent<'a> {
-    pub fn to_static(self) -> Option<WindowEvent<'static>> {
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    ///
+    /// See also [`Event::into_static`] and [`Event::try_into_static`].
+    pub fn into_static(self) -> Option<WindowEvent<'static>> {
+        self.try_into_static().ok()
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `Err` with the original event.
+    ///
+    /// See also [`Event::into_static`] and [`Event::try_into_static`].
+    pub fn try_into_static(self) -> Result<WindowEvent<'static>, Self> {
         use self::WindowEvent::*;
         match self {
-            ActivationTokenDone { serial, token } => Some(ActivationTokenDone { serial, token }),
-            Resized(size) => Some(Resized(size)),
-            Moved(position) => Some(Moved(position)),
-            CloseRequested => Some(CloseRequested),
-            Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
-            Focused(focused) => Some(Focused(focused)),
+            ActivationTokenDone { serial, token } => Ok(ActivationTokenDone { serial, token }),
+            Resized(size) => Ok(Resized(size)),
+            Moved(position) => Ok(Moved(position)),
+            CloseRequested => Ok(CloseRequested),
+            Destroyed => Ok(Destroyed),
+            DroppedFile(file) => Ok(DroppedFile(file)),
+            HoveredFile(file) => Ok(HoveredFile(file)),
+            HoveredFileCancelled => Ok(HoveredFileCancelled),
+            Focused(focused) => Ok(Focused(focused)),
             KeyboardInput {
                 device_id,
                 event,
                 is_synthetic,
-            } => Some(KeyboardInput {
+            } => Ok(KeyboardInput {
                 device_id,
                 event,
                 is_synthetic,
             }),
-            ModifiersChanged(modifers) => Some(ModifiersChanged(modifers)),
-            Ime(event) => Some(Ime(event)),
+            ModifiersChanged(modifers) => Ok(ModifiersChanged(modifers)),
+            Ime(event) => Ok(Ime(event)),
             CursorMoved {
                 device_id,
                 position,
-            } => Some(CursorMoved {
+            } => Ok(CursorMoved {
                 device_id,
                 position,
             }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
+            CursorEntered { device_id } => Ok(CursorEntered { device_id }),
+            CursorLeft { device_id } => Ok(CursorLeft { device_id }),
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-            } => Some(MouseWheel {
+            } => Ok(MouseWheel {
                 device_id,
                 delta,
                 phase,
@@ -772,7 +791,7 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 state,
                 button,
-            } => Some(MouseInput {
+            } => Ok(MouseInput {
                 device_id,
                 state,
                 button,
@@ -781,17 +800,17 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 delta,
                 phase,
-            } => Some(TouchpadMagnify {
+            } => Ok(TouchpadMagnify {
                 device_id,
                 delta,
                 phase,
             }),
-            SmartMagnify { device_id } => Some(SmartMagnify { device_id }),
+            SmartMagnify { device_id } => Ok(SmartMagnify { device_id }),
             TouchpadRotate {
                 device_id,
                 delta,
                 phase,
-            } => Some(TouchpadRotate {
+            } => Ok(TouchpadRotate {
                 device_id,
                 delta,
                 phase,
@@ -800,7 +819,7 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 pressure,
                 stage,
-            } => Some(TouchpadPressure {
+            } => Ok(TouchpadPressure {
                 device_id,
                 pressure,
                 stage,
@@ -809,15 +828,21 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 axis,
                 value,
-            } => Some(AxisMotion {
+            } => Ok(AxisMotion {
                 device_id,
                 axis,
                 value,
             }),
-            Touch(touch) => Some(Touch(touch)),
-            ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
-            Occluded(occluded) => Some(Occluded(occluded)),
+            Touch(touch) => Ok(Touch(touch)),
+            ThemeChanged(theme) => Ok(ThemeChanged(theme)),
+            ScaleFactorChanged {
+                scale_factor,
+                new_inner_size,
+            } => Err(ScaleFactorChanged {
+                scale_factor,
+                new_inner_size,
+            }),
+            Occluded(occluded) => Ok(Occluded(occluded)),
         }
     }
 }
