@@ -14,7 +14,7 @@ fn main() -> std::process::ExitCode {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::EventLoop,
+        event_loop::{ControlFlow, EventLoop},
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
         window::WindowBuilder,
     };
@@ -31,7 +31,10 @@ fn main() -> std::process::ExitCode {
         .unwrap();
 
     'main: loop {
-        let status = event_loop.pump_events(|event, _, control_flow| {
+        let timeout = Some(Duration::ZERO);
+        let status = event_loop.pump_events(timeout, |event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
+
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{event:?}");

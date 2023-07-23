@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -60,7 +62,8 @@ pub trait EventLoopExtPumpEvents {
     ///         .unwrap();
     ///
     ///     'main: loop {
-    ///         let status = event_loop.pump_events(|event, _, control_flow| {
+    ///         let timeout = Some(Duration::ZERO);
+    ///         let status = event_loop.pump_events(timeout, |event, _, control_flow| {
     /// #            if let Event::WindowEvent { event, .. } = &event {
     /// #                // Print only Window events to reduce noise
     /// #                println!("{event:?}");
@@ -169,7 +172,7 @@ pub trait EventLoopExtPumpEvents {
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`
     ///   callback.
-    fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
+    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
@@ -181,7 +184,7 @@ pub trait EventLoopExtPumpEvents {
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
     type UserEvent = T;
 
-    fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
+    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
@@ -189,6 +192,6 @@ impl<T> EventLoopExtPumpEvents for EventLoop<T> {
             &mut ControlFlow,
         ),
     {
-        self.event_loop.pump_events(event_handler)
+        self.event_loop.pump_events(timeout, event_handler)
     }
 }
