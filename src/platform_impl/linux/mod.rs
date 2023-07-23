@@ -844,11 +844,11 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
     }
 
-    pub fn pump_events<F>(&mut self, callback: F) -> PumpStatus
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
         F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(callback))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {

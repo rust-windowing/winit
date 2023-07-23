@@ -632,7 +632,7 @@ impl AppState {
             Self::stop();
         }
         HANDLER.update_start_time();
-        let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events_with_timeout
+        let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events
         let app_timeout = match HANDLER.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll | ControlFlow::ExitWithCode(_) => Some(Instant::now()),

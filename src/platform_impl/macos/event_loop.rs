@@ -291,14 +291,7 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-    {
-        self.pump_events_with_timeout(Some(Duration::ZERO), callback)
-    }
-
-    fn pump_events_with_timeout<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
         F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {

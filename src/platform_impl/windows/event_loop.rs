@@ -296,18 +296,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        self.pump_events_with_timeout(Some(Duration::ZERO), event_handler)
-    }
-
-    fn pump_events_with_timeout<F>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut event_handler: F,
-    ) -> PumpStatus
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
