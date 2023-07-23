@@ -121,16 +121,17 @@ impl<T> EventHandler for EventLoopHandler<T> {
 struct Handler {
     stop_app_on_launch: AtomicBool,
     stop_app_before_wait: AtomicBool,
+    stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
     launched: AtomicBool,
     running: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
-    control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
+    wait_timeout: Mutex<Option<Instant>>,
     waker: Mutex<EventLoopWaker>,
 }
 
@@ -214,10 +215,11 @@ impl Handler {
         // looks like there have been recuring re-entrancy issues with callback handling that might
         // make that awkward)
         self.running.store(false, Ordering::Relaxed);
-        *self.control_flow_prev.lock().unwrap() = ControlFlow::default();
         *self.control_flow.lock().unwrap() = ControlFlow::default();
         self.set_stop_app_on_redraw_requested(false);
         self.set_stop_app_before_wait(false);
+        self.set_stop_app_after_wait(false);
+        self.set_wait_timeout(None);
     }
 
     pub fn request_stop_app_on_launch(&self) {
@@ -245,6 +247,28 @@ impl Handler {
         self.stop_app_before_wait.load(Ordering::Relaxed)
     }
 
+    pub fn set_stop_app_after_wait(&self, stop_after_wait: bool) {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_after_wait
+            .store(stop_after_wait, Ordering::Relaxed);
+    }
+
+    pub fn set_wait_timeout(&self, new_timeout: Option<Instant>) {
+        let mut timeout = self.wait_timeout.lock().unwrap();
+        *timeout = new_timeout;
+    }
+
+    pub fn wait_timeout(&self) -> Option<Instant> {
+        *self.wait_timeout.lock().unwrap()
+    }
+
+    pub fn should_stop_app_after_wait(&self) -> bool {
+        // Relaxed ordering because we don't actually have multiple threads involved, we just want
+        // interior mutability
+        self.stop_app_after_wait.load(Ordering::Relaxed)
+    }
+
     pub fn set_stop_app_on_redraw_requested(&self, stop_on_redraw: bool) {
         // Relaxed ordering because we don't actually have multiple threads involved, we just want
         // interior mutability
@@ -258,16 +282,8 @@ impl Handler {
         self.stop_app_on_redraw.load(Ordering::Relaxed)
     }
 
-    fn get_control_flow_and_update_prev(&self) -> ControlFlow {
-        let control_flow = self.control_flow.lock().unwrap();
-        *self.control_flow_prev.lock().unwrap() = *control_flow;
-        *control_flow
-    }
-
-    fn get_old_and_new_control_flow(&self) -> (ControlFlow, ControlFlow) {
-        let old = *self.control_flow_prev.lock().unwrap();
-        let new = *self.control_flow.lock().unwrap();
-        (old, new)
+    fn control_flow(&self) -> ControlFlow {
+        *self.control_flow.lock().unwrap()
     }
 
     fn get_start_time(&self) -> Option<Instant> {
@@ -402,12 +418,20 @@ impl AppState {
         HANDLER.set_stop_app_before_wait(stop_before_wait);
     }
 
+    pub fn set_stop_app_after_wait(stop_after_wait: bool) {
+        HANDLER.set_stop_app_after_wait(stop_after_wait);
+    }
+
+    pub fn set_wait_timeout(timeout: Option<Instant>) {
+        HANDLER.set_wait_timeout(timeout);
+    }
+
     pub fn set_stop_app_on_redraw_requested(stop_on_redraw: bool) {
         HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
     }
 
     pub fn control_flow() -> ControlFlow {
-        HANDLER.get_old_and_new_control_flow().1
+        HANDLER.control_flow()
     }
 
     pub fn exit() -> i32 {
@@ -416,7 +440,7 @@ impl AppState {
         HANDLER.set_in_callback(false);
         HANDLER.exit();
         Self::clear_callback();
-        if let ControlFlow::ExitWithCode(code) = HANDLER.get_old_and_new_control_flow().1 {
+        if let ControlFlow::ExitWithCode(code) = HANDLER.control_flow() {
             code
         } else {
             0
@@ -493,8 +517,13 @@ impl AppState {
         {
             return;
         }
+
+        if HANDLER.should_stop_app_after_wait() {
+            Self::stop();
+        }
+
         let start = HANDLER.get_start_time().unwrap();
-        let cause = match HANDLER.get_control_flow_and_update_prev() {
+        let cause = match HANDLER.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
             ControlFlow::Wait => StartCause::WaitCancelled {
                 start,
@@ -603,14 +632,25 @@ impl AppState {
             Self::stop();
         }
         HANDLER.update_start_time();
-        match HANDLER.get_old_and_new_control_flow() {
-            (ControlFlow::ExitWithCode(_), _) | (_, ControlFlow::ExitWithCode(_)) => (),
-            (old, new) if old == new => (),
-            (_, ControlFlow::Wait) => HANDLER.waker().stop(),
-            (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),
-            (_, ControlFlow::Poll) => HANDLER.waker().start(),
-        }
+        let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events_with_timeout
+        let app_timeout = match HANDLER.control_flow() {
+            ControlFlow::Wait => None,
+            ControlFlow::Poll | ControlFlow::ExitWithCode(_) => Some(Instant::now()),
+            ControlFlow::WaitUntil(instant) => Some(instant),
+        };
+        HANDLER
+            .waker()
+            .start_at(min_timeout(wait_timeout, app_timeout));
     }
+}
+
+/// Returns the minimum `Option<Instant>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
 }
 
 /// A hack to make activation of multiple windows work when creating them before
