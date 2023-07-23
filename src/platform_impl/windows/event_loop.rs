@@ -272,7 +272,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         let exit_code = loop {
-            if let ControlFlow::ExitWithCode(code) = self.wait_and_dispatch_message() {
+            if let ControlFlow::ExitWithCode(code) = self.wait_and_dispatch_message(None) {
                 break code;
             }
 
@@ -296,7 +296,18 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, mut event_handler: F) -> PumpStatus
+    pub fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        self.pump_events_with_timeout(Some(Duration::ZERO), event_handler)
+    }
+
+    fn pump_events_with_timeout<F>(
+        &mut self,
+        timeout: Option<Duration>,
+        mut event_handler: F,
+    ) -> PumpStatus
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
@@ -319,7 +330,12 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        self.dispatch_peeked_messages();
+        if !matches!(
+            self.wait_and_dispatch_message(timeout),
+            ControlFlow::ExitWithCode(_)
+        ) {
+            self.dispatch_peeked_messages();
+        }
 
         let runner = &self.window_target.p.runner_shared;
 
@@ -346,13 +362,13 @@ impl<T: 'static> EventLoop<T> {
         status
     }
 
-    /// Wait for one message and dispatch it, optionally with a timeout if control_flow is `WaitUntil`
-    fn wait_and_dispatch_message(&mut self) -> ControlFlow {
+    /// Wait for one message and dispatch it, optionally with a timeout
+    fn wait_and_dispatch_message(&mut self, timeout: Option<Duration>) -> ControlFlow {
         let start = Instant::now();
 
         let runner = &self.window_target.p.runner_shared;
 
-        let timeout = match runner.control_flow() {
+        let control_flow_timeout = match runner.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll => Some(Duration::ZERO),
             ControlFlow::WaitUntil(wait_deadline) => {
@@ -360,6 +376,7 @@ impl<T: 'static> EventLoop<T> {
             }
             ControlFlow::ExitWithCode(_code) => unreachable!(),
         };
+        let timeout = min_timeout(control_flow_timeout, timeout);
 
         fn get_msg_with_timeout(msg: &mut MSG, timeout: Option<Duration>) -> PumpStatus {
             unsafe {
@@ -577,6 +594,15 @@ fn main_thread_id() -> u32 {
     };
 
     unsafe { MAIN_THREAD_ID }
+}
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
 }
 
 // Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
