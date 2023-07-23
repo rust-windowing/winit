@@ -9,6 +9,7 @@ use std::{
     ptr,
     rc::{Rc, Weak},
     sync::mpsc,
+    time::{Duration, Instant},
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -246,11 +247,16 @@ impl<T> EventLoop<T> {
             // catch panics to make sure we can't unwind without clearing the set callback
             // (which would leave the global `AppState` in an undefined, unsafe state)
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
+                // clear / normalize pump_events state
+                AppState::set_wait_timeout(None);
+                AppState::set_stop_app_before_wait(false);
+                AppState::set_stop_app_after_wait(false);
+                AppState::set_stop_app_on_redraw_requested(false);
+
                 if AppState::is_launched() {
                     debug_assert!(!AppState::is_running());
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 }
-                AppState::set_stop_app_before_wait(false);
                 unsafe { app.run() };
 
                 // While the app is running it's possible that we catch a panic
@@ -286,6 +292,13 @@ impl<T> EventLoop<T> {
     }
 
     pub fn pump_events<F>(&mut self, callback: F) -> PumpStatus
+    where
+        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+    {
+        self.pump_events_with_timeout(Some(Duration::ZERO), callback)
+    }
+
+    fn pump_events_with_timeout<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
         F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
@@ -343,11 +356,26 @@ impl<T> EventLoop<T> {
                     // we just starting to re-run the same `EventLoop` again.
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 } else {
-                    // Make sure we can't block any external loop indefinitely by stopping the NSApp
-                    // and returning after dispatching any `RedrawRequested` event or whenever the
-                    // `RunLoop` needs to wait for new events from the OS
+                    // Only run the NSApp for as long as the given `Duration` allows so we
+                    // don't block the external loop.
+                    match timeout {
+                        Some(Duration::ZERO) => {
+                            AppState::set_wait_timeout(None);
+                            AppState::set_stop_app_before_wait(true);
+                        }
+                        Some(duration) => {
+                            AppState::set_stop_app_before_wait(false);
+                            let timeout = Instant::now() + duration;
+                            AppState::set_wait_timeout(Some(timeout));
+                            AppState::set_stop_app_after_wait(true);
+                        }
+                        None => {
+                            AppState::set_wait_timeout(None);
+                            AppState::set_stop_app_before_wait(false);
+                            AppState::set_stop_app_after_wait(true);
+                        }
+                    }
                     AppState::set_stop_app_on_redraw_requested(true);
-                    AppState::set_stop_app_before_wait(true);
                     unsafe {
                         app.run();
                     }
