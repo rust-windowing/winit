@@ -543,7 +543,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         loop {
-            match self.pump_events_with_timeout(None, &mut event_handler) {
+            match self.pump_events(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 }
@@ -557,18 +557,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, event_handler: F) -> PumpStatus
-    where
-        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        self.pump_events_with_timeout(Some(Duration::ZERO), event_handler)
-    }
-
-    fn pump_events_with_timeout<F>(
-        &mut self,
-        timeout: Option<Duration>,
-        mut callback: F,
-    ) -> PumpStatus
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
         F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
