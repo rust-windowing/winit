@@ -436,7 +436,7 @@ impl AppState {
 
     pub fn exit() -> i32 {
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopExiting));
         HANDLER.set_in_callback(false);
         HANDLER.exit();
         Self::clear_callback();

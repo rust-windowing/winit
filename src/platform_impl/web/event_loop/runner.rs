@@ -585,7 +585,7 @@ impl<T: 'static> Shared<T> {
         let mut control = self.current_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
-        self.handle_event(Event::LoopDestroyed, &mut control);
+        self.handle_event(Event::LoopExiting, &mut control);
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -665,7 +665,7 @@ impl<T: 'static> Shared<T> {
     }
 
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
-        self.handle_event(Event::LoopDestroyed, control);
+        self.handle_event(Event::LoopExiting, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;

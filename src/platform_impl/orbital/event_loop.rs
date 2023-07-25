@@ -684,7 +684,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         event_handler(
-            event::Event::LoopDestroyed,
+            event::Event::LoopExiting,
             &self.window_target,
             &mut control_flow,
         );

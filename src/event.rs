@@ -26,7 +26,7 @@
 //!     start_cause = wait_if_necessary(control_flow);
 //! }
 //!
-//! event_handler(LoopDestroyed, ..., &mut control_flow);
+//! event_handler(LoopExiting, ..., &mut control_flow);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
@@ -258,7 +258,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as a "do on quit" event.
-    LoopDestroyed,
+    LoopExiting,
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -278,7 +278,7 @@ impl<T: Clone> Clone for Event<'static, T> {
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
             RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
+            LoopExiting => LoopExiting,
             Suspended => Suspended,
             Resumed => Resumed,
         }
@@ -297,7 +297,7 @@ impl<'a, T> Event<'a, T> {
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
             RedrawEventsCleared => Ok(RedrawEventsCleared),
-            LoopDestroyed => Ok(LoopDestroyed),
+            LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
         }
@@ -317,7 +317,7 @@ impl<'a, T> Event<'a, T> {
             MainEventsCleared => Some(MainEventsCleared),
             RedrawRequested(wid) => Some(RedrawRequested(wid)),
             RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
+            LoopExiting => Some(LoopExiting),
             Suspended => Some(Suspended),
             Resumed => Some(Resumed),
         }
