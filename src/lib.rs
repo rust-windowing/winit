@@ -69,7 +69,7 @@
 //!             println!("The close button was pressed; stopping");
 //!             control_flow.set_exit();
 //!         },
-//!         Event::MainEventsCleared => {
+//!         Event::AboutToWait => {
 //!             // Application update code.
 //!
 //!             // Queue a RedrawRequested event.
@@ -83,7 +83,7 @@
 //!             // Redraw the application.
 //!             //
 //!             // It's preferable for applications that do not render continuously to render in
-//!             // this event rather than in MainEventsCleared, since rendering in here allows
+//!             // this event rather than in AboutToWait, since rendering in here allows
 //!             // the program to gracefully handle redraws requested by the OS.
 //!         },
 //!         _ => ()

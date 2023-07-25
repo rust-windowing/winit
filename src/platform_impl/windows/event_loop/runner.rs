@@ -52,7 +52,7 @@ pub(crate) enum RunnerState {
     /// The event loop is idling.
     Idle,
     /// The event loop is handling the OS's events and sending them to the user's callback.
-    /// `NewEvents` has been sent, and `MainEventsCleared` hasn't.
+    /// `NewEvents` has been sent, and `AboutToWait` hasn't.
     HandlingMainEvents,
     /// The event loop has been destroyed. No other events will be emitted.
     Destroyed,
@@ -250,8 +250,9 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    /// Dispatch control flow events (`NewEvents`, `MainEventsCleared`, `RedrawEventsCleared`, and
-    /// `LoopExiting`) as necessary to bring the internal `RunnerState` to the new runner state.
+    /// Dispatch control flow events (`NewEvents`, `AboutToWait`, and
+    /// `LoopExiting`) as necessary to bring the internal `RunnerState` to the
+    /// new runner state.
     ///
     /// The state transitions are defined as follows:
     ///
@@ -291,13 +292,13 @@ impl<T> EventLoopRunner<T> {
             }
             (Uninitialized, Idle) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::MainEventsCleared);
-                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::AboutToWait);
+                self.last_events_cleared.set(Instant::now());
             }
             (Uninitialized, Destroyed) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::MainEventsCleared);
-                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::AboutToWait);
+                self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
             }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
@@ -311,12 +312,13 @@ impl<T> EventLoopRunner<T> {
             }
 
             (HandlingMainEvents, Idle) => {
-                self.call_event_handler(Event::MainEventsCleared);
-                self.call_redraw_events_cleared();
+                // This is always the last event we dispatch before waiting for new events
+                self.call_event_handler(Event::AboutToWait);
+                self.last_events_cleared.set(Instant::now());
             }
             (HandlingMainEvents, Destroyed) => {
-                self.call_event_handler(Event::MainEventsCleared);
-                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::AboutToWait);
+                self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
             }
 
@@ -355,11 +357,6 @@ impl<T> EventLoopRunner<T> {
             self.call_event_handler(Event::Resumed);
         }
         self.dispatch_buffered_events();
-    }
-
-    fn call_redraw_events_cleared(&self) {
-        self.call_event_handler(Event::RedrawEventsCleared);
-        self.last_events_cleared.set(Instant::now());
     }
 }
 

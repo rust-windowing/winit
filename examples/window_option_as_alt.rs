@@ -58,7 +58,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::KeyboardInput { .. } => println!("KeyboardInput: {event:?}"),
                 _ => (),
             },
-            Event::MainEventsCleared => {
+            Event::AboutToWait => {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
