@@ -223,6 +223,9 @@ pub trait WindowBuilderExtWindows {
     /// Whether show or hide the window icon in the taskbar.
     fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
 
+    /// Customize the window class name.
+    fn with_window_classname<S: Into<String>>(self, classname: S) -> WindowBuilder;
+
     /// Shows or hides the background drop shadow for undecorated windows.
     ///
     /// The shadow is hidden by default.
@@ -264,6 +267,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
         self.platform_specific.skip_taskbar = skip;
+        self
+    }
+
+    #[inline]
+    fn with_window_classname<S: Into<String>>(mut self, classname: S) -> WindowBuilder {
+        self.platform_specific.window_classname = classname.into();
         self
     }
 

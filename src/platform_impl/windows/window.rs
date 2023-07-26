@@ -1102,7 +1102,7 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>();
+    let class_name = register_window_class::<T>(&pl_attribs.window_classname);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1189,8 +1189,8 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
-    let class_name = util::encode_wide("Window Class");
+unsafe fn register_window_class<T: 'static>(window_classname: &String) -> Vec<u16> {
+    let class_name = util::encode_wide(window_classname);
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
