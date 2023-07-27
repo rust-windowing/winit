@@ -367,14 +367,6 @@ impl WinitViewController {
         }
     }
 
-    extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Foreground)) }
-    }
-
-    extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Background)) }
-    }
-
     pub(crate) fn set_supported_interface_orientations(
         &self,
         mtm: MainThreadMarker,
@@ -533,10 +525,14 @@ declare_class!(
         }
 
         #[method(applicationWillEnterForeground:)]
-        fn will_enter_foreground(&self, _application: &UIApplication) {}
+        fn will_enter_foreground(&self, _application: &UIApplication) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Foreground)) }
+        }
 
         #[method(applicationDidEnterBackground:)]
-        fn did_enter_background(&self, _application: &UIApplication) {}
+        fn did_enter_background(&self, _application: &UIApplication) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Background)) }
+        }
 
         #[method(applicationWillTerminate:)]
         fn will_terminate(&self, application: &UIApplication) {
