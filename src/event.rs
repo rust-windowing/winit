@@ -252,6 +252,14 @@ pub enum Event<T: 'static> {
 
     /// Emitted when the application has received a memory warning.
     ///
+    /// ## Android
+    ///
+    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
+    /// must [release memory] or risk being killed.
+    ///
+    /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
+    /// [release memory]: https://developer.android.com/topic/performance/memory#release
+    ///
     /// ## iOS
     ///
     /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
