@@ -272,10 +272,6 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 MainEvent::LowMemory => {
-                    // XXX: how to forward this state to applications?
-                    // It seems like ideally winit should support lifecycle and
-                    // low-memory events, especially for mobile platforms.
-                    warn!("TODO: handle Android LowMemory notification");
                     sticky_exit_callback(
                         event::Event::MemoryWarning,
                         self.window_target(),
