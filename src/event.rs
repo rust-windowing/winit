@@ -249,6 +249,18 @@ pub enum Event<T: 'static> {
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as a "do on quit" event.
     LoopExiting,
+
+    /// Emitted when the application has received a memory warning.
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
+    /// callback. The application must free as much memory as possible or risk being terminated, see
+    /// [how to respond to memory warnings].
+    ///
+    /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
+    /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
+    MemoryWarning,
 }
 
 impl<T> Event<T> {
@@ -266,6 +278,7 @@ impl<T> Event<T> {
             Resumed => Ok(Resumed),
             Foreground => Ok(Foreground),
             Background => Ok(Background),
+            MemoryWarning => Ok(MemoryWarning),
         }
     }
 }
