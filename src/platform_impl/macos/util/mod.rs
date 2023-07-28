@@ -5,7 +5,7 @@ mod r#async;
 pub(crate) use self::r#async::*;
 
 use core_graphics::display::CGDisplay;
-use objc2::foundation::{CGFloat, NSNotFound, NSPoint, NSRange, NSRect, NSUInteger};
+use icrate::Foundation::{CGFloat, NSNotFound, NSPoint, NSRange, NSRect, NSUInteger};
 
 use crate::dpi::LogicalPosition;
 

@@ -35,13 +35,13 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
-use objc2::declare::{Ivar, IvarDrop};
-use objc2::foundation::{
+use icrate::Foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSInteger, NSObject, NSPoint, NSRect, NSSize,
     NSString,
 };
-use objc2::rc::{autoreleasepool, Id, Shared};
-use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
+use objc2::declare::{Ivar, IvarDrop};
+use objc2::rc::{autoreleasepool, Id};
+use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
@@ -107,27 +107,31 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 
 declare_class!(
     #[derive(Debug)]
-    pub(crate) struct WinitWindow {
+    pub struct WinitWindow {
         // TODO: Fix unnecessary boxing here
-        shared_state: IvarDrop<Box<Mutex<SharedState>>>,
+        shared_state: IvarDrop<Box<Mutex<SharedState>>, "_shared_state">,
     }
+
+    mod ivars;
 
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
         type Super = NSWindow;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitWindow";
     }
 
     unsafe impl WinitWindow {
-        #[sel(initWithContentRect:styleMask:state:)]
+        #[method(initWithContentRect:styleMask:state:)]
         unsafe fn init(
-            &mut self,
+            this: *mut Self,
             frame: NSRect,
             mask: NSWindowStyleMask,
             state: *mut c_void,
         ) -> Option<NonNull<Self>> {
             let this: Option<&mut Self> = unsafe {
                 msg_send![
-                    super(self),
+                    super(this),
                     initWithContentRect: frame,
                     styleMask: mask,
                     backing: NSBackingStoreType::NSBackingStoreBuffered,
@@ -152,13 +156,13 @@ declare_class!(
     }
 
     unsafe impl WinitWindow {
-        #[sel(canBecomeMainWindow)]
+        #[method(canBecomeMainWindow)]
         fn can_become_main_window(&self) -> bool {
             trace_scope!("canBecomeMainWindow");
             true
         }
 
-        #[sel(canBecomeKeyWindow)]
+        #[method(canBecomeKeyWindow)]
         fn can_become_key_window(&self) -> bool {
             trace_scope!("canBecomeKeyWindow");
             true
@@ -249,7 +253,7 @@ impl WinitWindow {
     pub(crate) fn new(
         attrs: WindowAttributes,
         pl_attrs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<(Id<Self, Shared>, Id<WinitWindowDelegate, Shared>), RootOsError> {
+    ) -> Result<(Id<Self>, Id<WinitWindowDelegate>), RootOsError> {
         trace_scope!("WinitWindow::new");
 
         if !is_main_thread() {
@@ -334,7 +338,7 @@ impl WinitWindow {
 
             // Pass the state through FFI to the method declared on the class
             let state_ptr: *mut c_void = Box::into_raw(Box::new(Mutex::new(state))).cast();
-            let this: Option<Id<Self, Shared>> = unsafe {
+            let this: Option<Id<Self>> = unsafe {
                 msg_send_id![
                     msg_send_id![WinitWindow::class(), alloc],
                     initWithContentRect: frame,
@@ -413,27 +417,26 @@ impl WinitWindow {
         match attrs.parent_window {
             Some(RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
-                let parent: Id<NSWindow, Shared> =
-                    match unsafe { Id::retain(handle.ns_window.cast()) } {
-                        Some(window) => window,
-                        None => {
-                            // SAFETY: Caller ensures the pointer is valid or NULL
-                            let parent_view: Id<NSView, Shared> =
-                                match unsafe { Id::retain(handle.ns_view.cast()) } {
-                                    Some(view) => view,
-                                    None => {
-                                        return Err(os_error!(OsError::CreationError(
-                                            "raw window handle should be non-empty"
-                                        )))
-                                    }
-                                };
-                            parent_view.window().ok_or_else(|| {
-                                os_error!(OsError::CreationError(
-                                    "parent view should be installed in a window"
-                                ))
-                            })?
-                        }
-                    };
+                let parent: Id<NSWindow> = match unsafe { Id::retain(handle.ns_window.cast()) } {
+                    Some(window) => window,
+                    None => {
+                        // SAFETY: Caller ensures the pointer is valid or NULL
+                        let parent_view: Id<NSView> =
+                            match unsafe { Id::retain(handle.ns_view.cast()) } {
+                                Some(view) => view,
+                                None => {
+                                    return Err(os_error!(OsError::CreationError(
+                                        "raw window handle should be non-empty"
+                                    )))
+                                }
+                            };
+                        parent_view.window().ok_or_else(|| {
+                            os_error!(OsError::CreationError(
+                                "parent view should be installed in a window"
+                            ))
+                        })?
+                    }
+                };
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
                 unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
@@ -477,7 +480,7 @@ impl WinitWindow {
         this.set_window_level(attrs.window_level);
 
         // register for drag and drop operations.
-        this.registerForDraggedTypes(&NSArray::from_slice(&[
+        this.registerForDraggedTypes(&NSArray::from_id_slice(&[
             unsafe { NSFilenamesPboardType }.copy()
         ]));
 
@@ -521,13 +524,7 @@ impl WinitWindow {
         Ok((this, delegate))
     }
 
-    pub(super) fn retain(&self) -> Id<WinitWindow, Shared> {
-        // SAFETY: The pointer is valid, and the window is always `Shared`
-        // TODO(madsmtm): Remove the need for unsafety here
-        unsafe { Id::retain(self as *const Self as *mut Self).unwrap() }
-    }
-
-    pub(super) fn view(&self) -> Id<WinitView, Shared> {
+    pub(super) fn view(&self) -> Id<WinitView> {
         // SAFETY: The view inside WinitWindow is always `WinitView`
         unsafe { Id::cast(self.contentView()) }
     }
@@ -1462,7 +1459,7 @@ pub(super) fn get_ns_theme() -> Theme {
         return Theme::Light;
     }
     let appearance = app.effectiveAppearance();
-    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[
+    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
         NSString::from_str("NSAppearanceNameAqua"),
         NSString::from_str("NSAppearanceNameDarkAqua"),
     ]));

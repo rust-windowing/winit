@@ -1,9 +1,10 @@
 use std::ptr::NonNull;
 
-use objc2::foundation::NSObject;
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::NSObject;
+use objc2::declare::{IvarBool, IvarEncode};
+use objc2::rc::Id;
 use objc2::runtime::Object;
-use objc2::{declare_class, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, mutability, ClassType};
 
 use super::app_state::AppState;
 use super::appkit::NSApplicationActivationPolicy;
@@ -11,25 +12,28 @@ use super::appkit::NSApplicationActivationPolicy;
 declare_class!(
     #[derive(Debug)]
     pub(super) struct ApplicationDelegate {
-        activation_policy: NSApplicationActivationPolicy,
-        default_menu: bool,
-        activate_ignoring_other_apps: bool,
+        activation_policy: IvarEncode<NSApplicationActivationPolicy, "_activation_policy">,
+        default_menu: IvarBool<"_default_menu">,
+        activate_ignoring_other_apps: IvarBool<"_activate_ignoring_other_apps">,
     }
+
+    mod ivars;
 
     unsafe impl ClassType for ApplicationDelegate {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitApplicationDelegate";
     }
 
     unsafe impl ApplicationDelegate {
-        #[sel(initWithActivationPolicy:defaultMenu:activateIgnoringOtherApps:)]
+        #[method(initWithActivationPolicy:defaultMenu:activateIgnoringOtherApps:)]
         unsafe fn init(
-            &mut self,
+            this: *mut Self,
             activation_policy: NSApplicationActivationPolicy,
             default_menu: bool,
             activate_ignoring_other_apps: bool,
         ) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
+            let this: Option<&mut Self> = unsafe { msg_send![super(this), init] };
             this.map(|this| {
                 *this.activation_policy = activation_policy;
                 *this.default_menu = default_menu;
@@ -38,7 +42,7 @@ declare_class!(
             })
         }
 
-        #[sel(applicationDidFinishLaunching:)]
+        #[method(applicationDidFinishLaunching:)]
         fn did_finish_launching(&self, _sender: *const Object) {
             trace_scope!("applicationDidFinishLaunching:");
             AppState::launched(
@@ -48,7 +52,7 @@ declare_class!(
             );
         }
 
-        #[sel(applicationWillTerminate:)]
+        #[method(applicationWillTerminate:)]
         fn will_terminate(&self, _sender: *const Object) {
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
@@ -62,7 +66,7 @@ impl ApplicationDelegate {
         activation_policy: NSApplicationActivationPolicy,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
-    ) -> Id<Self, Shared> {
+    ) -> Id<Self> {
         unsafe {
             msg_send_id![
                 msg_send_id![Self::class(), alloc],

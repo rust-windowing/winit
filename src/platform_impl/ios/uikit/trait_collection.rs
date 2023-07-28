@@ -1,6 +1,6 @@
+use icrate::Foundation::{NSInteger, NSObject};
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{NSInteger, NSObject};
-use objc2::{extern_class, extern_methods, ClassType};
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -8,12 +8,13 @@ extern_class!(
 
     unsafe impl ClassType for UITraitCollection {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl UITraitCollection {
-        #[sel(forceTouchCapability)]
+        #[method(forceTouchCapability)]
         pub fn forceTouchCapability(&self) -> UIForceTouchCapability;
     }
 );

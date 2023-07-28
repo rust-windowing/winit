@@ -1,9 +1,12 @@
 use once_cell::sync::Lazy;
 
-use objc2::foundation::{NSData, NSDictionary, NSNumber, NSObject, NSPoint, NSString};
-use objc2::rc::{DefaultId, Id, Shared};
+use icrate::ns_string;
+use icrate::Foundation::{
+    NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSString,
+};
+use objc2::rc::{DefaultId, Id};
 use objc2::runtime::Sel;
-use objc2::{extern_class, extern_methods, msg_send_id, ns_string, sel, ClassType};
+use objc2::{extern_class, extern_methods, msg_send_id, mutability, sel, ClassType};
 
 use super::NSImage;
 use crate::window::CursorIcon;
@@ -15,6 +18,7 @@ extern_class!(
 
     unsafe impl ClassType for NSCursor {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
@@ -29,7 +33,7 @@ macro_rules! def_cursor {
         pub fn $name:ident();
     )*} => {$(
         $(#[$($m)*])*
-        pub fn $name() -> Id<Self, Shared> {
+        pub fn $name() -> Id<Self> {
             unsafe { msg_send_id![Self::class(), $name] }
         }
     )*};
@@ -41,7 +45,7 @@ macro_rules! def_undocumented_cursor {
         pub fn $name:ident();
     )*} => {$(
         $(#[$($m)*])*
-        pub fn $name() -> Id<Self, Shared> {
+        pub fn $name() -> Id<Self> {
             unsafe { Self::from_selector(sel!($name)).unwrap_or_else(|| Default::default()) }
         }
     )*};
@@ -71,12 +75,12 @@ extern_methods!(
         );
 
         // Creating cursors should be thread-safe, though using them for anything probably isn't.
-        pub fn new(image: &NSImage, hotSpot: NSPoint) -> Id<Self, Shared> {
+        pub fn new(image: &NSImage, hotSpot: NSPoint) -> Id<Self> {
             let this = unsafe { msg_send_id![Self::class(), alloc] };
             unsafe { msg_send_id![this, initWithImage: image, hotSpot: hotSpot] }
         }
 
-        pub fn invisible() -> Id<Self, Shared> {
+        pub fn invisible() -> Id<Self> {
             // 16x16 GIF data for invisible cursor
             // You can reproduce this via ImageMagick.
             // $ convert -size 16x16 xc:none cursor.gif
@@ -87,7 +91,7 @@ extern_methods!(
                 0xCB, 0xED, 0x0F, 0xA3, 0x9C, 0xB4, 0xDA, 0x8B, 0xB3, 0x3E, 0x05, 0x00, 0x3B,
             ];
 
-            static CURSOR: Lazy<Id<NSCursor, Shared>> = Lazy::new(|| {
+            static CURSOR: Lazy<Id<NSCursor>> = Lazy::new(|| {
                 // TODO: Consider using `dataWithBytesNoCopy:`
                 let data = NSData::with_bytes(CURSOR_BYTES);
                 let image = NSImage::new_with_data(&data);
@@ -100,14 +104,13 @@ extern_methods!(
 
     /// Undocumented cursors
     unsafe impl NSCursor {
-        #[sel(respondsToSelector:)]
+        #[method(respondsToSelector:)]
         fn class_responds_to(sel: Sel) -> bool;
 
-        unsafe fn from_selector_unchecked(sel: Sel) -> Id<Self, Shared> {
-            unsafe { msg_send_id![Self::class(), performSelector: sel] }
-        }
+        #[method_id(performSelector:)]
+        unsafe fn from_selector_unchecked(sel: Sel) -> Id<Self>;
 
-        unsafe fn from_selector(sel: Sel) -> Option<Id<Self, Shared>> {
+        unsafe fn from_selector(sel: Sel) -> Option<Id<Self>> {
             if Self::class_responds_to(sel) {
                 Some(unsafe { Self::from_selector_unchecked(sel) })
             } else {
@@ -143,20 +146,20 @@ extern_methods!(
     unsafe impl NSCursor {
         // Note that loading `busybutclickable` with this code won't animate
         // the frames; instead you'll just get them all in a column.
-        unsafe fn load_webkit_cursor(name: &NSString) -> Id<Self, Shared> {
+        unsafe fn load_webkit_cursor(name: &NSString) -> Id<Self> {
             // Snatch a cursor from WebKit; They fit the style of the native
             // cursors, and will seem completely standard to macOS users.
             //
             // https://stackoverflow.com/a/21786835/5435443
             let root = ns_string!("/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors");
-            let cursor_path = root.join_path(name);
+            let cursor_path = root.stringByAppendingPathComponent(name);
 
-            let pdf_path = cursor_path.join_path(ns_string!("cursor.pdf"));
+            let pdf_path = cursor_path.stringByAppendingPathComponent(ns_string!("cursor.pdf"));
             let image = NSImage::new_by_referencing_file(&pdf_path);
 
             // TODO: Handle PLists better
-            let info_path = cursor_path.join_path(ns_string!("info.plist"));
-            let info: Id<NSDictionary<NSObject, NSObject>, Shared> = unsafe {
+            let info_path = cursor_path.stringByAppendingPathComponent(ns_string!("info.plist"));
+            let info: Id<NSDictionary<NSObject, NSObject>> = unsafe {
                 msg_send_id![
                     <NSDictionary<NSObject, NSObject>>::class(),
                     dictionaryWithContentsOfFile: &*info_path,
@@ -183,18 +186,18 @@ extern_methods!(
             Self::new(&image, hotspot)
         }
 
-        pub fn moveCursor() -> Id<Self, Shared> {
+        pub fn moveCursor() -> Id<Self> {
             unsafe { Self::load_webkit_cursor(ns_string!("move")) }
         }
 
-        pub fn cellCursor() -> Id<Self, Shared> {
+        pub fn cellCursor() -> Id<Self> {
             unsafe { Self::load_webkit_cursor(ns_string!("cell")) }
         }
     }
 );
 
 impl NSCursor {
-    pub fn from_icon(icon: CursorIcon) -> Id<Self, Shared> {
+    pub fn from_icon(icon: CursorIcon) -> Id<Self> {
         match icon {
             CursorIcon::Default => Default::default(),
             CursorIcon::Pointer => Self::pointingHandCursor(),
@@ -233,9 +236,7 @@ impl NSCursor {
 }
 
 impl DefaultId for NSCursor {
-    type Ownership = Shared;
-
-    fn default_id() -> Id<Self, Shared> {
+    fn default_id() -> Id<Self> {
         Self::arrowCursor()
     }
 }

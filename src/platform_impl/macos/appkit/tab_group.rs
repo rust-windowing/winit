@@ -1,6 +1,6 @@
-use objc2::foundation::{NSArray, NSObject};
-use objc2::rc::{Id, Shared};
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use icrate::Foundation::{NSArray, NSObject};
+use objc2::rc::Id;
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::NSWindow;
 
@@ -10,19 +10,22 @@ extern_class!(
 
     unsafe impl ClassType for NSWindowTabGroup {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl NSWindowTabGroup {
-        #[sel(selectNextTab)]
+        #[method(selectNextTab)]
         pub fn selectNextTab(&self);
-        #[sel(selectPreviousTab)]
+
+        #[method(selectPreviousTab)]
         pub fn selectPreviousTab(&self);
-        pub fn tabbedWindows(&self) -> Id<NSArray<NSWindow, Shared>, Shared> {
-            unsafe { msg_send_id![self, windows] }
-        }
-        #[sel(setSelectedWindow:)]
+
+        #[method_id(windows)]
+        pub fn tabbedWindows(&self) -> Id<NSArray<NSWindow>>;
+
+        #[method(setSelectedWindow:)]
         pub fn setSelectedWindow(&self, window: &NSWindow);
     }
 );

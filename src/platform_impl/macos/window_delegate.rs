@@ -2,11 +2,11 @@
 use std::cell::Cell;
 use std::ptr::{self, NonNull};
 
+use icrate::Foundation::{NSArray, NSObject, NSSize, NSString};
 use objc2::declare::{Ivar, IvarDrop};
-use objc2::foundation::{NSArray, NSObject, NSSize, NSString};
-use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::Object;
-use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
+use objc2::{class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
 
 use super::appkit::{
     NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,
@@ -25,7 +25,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct State {
+pub struct State {
     // This is set when WindowBuilder::with_fullscreen was set,
     // see comments of `window_did_fail_to_enter_fullscreen`
     initial_fullscreen: Cell<bool>,
@@ -40,26 +40,30 @@ struct State {
 declare_class!(
     #[derive(Debug)]
     pub(crate) struct WinitWindowDelegate {
-        window: IvarDrop<Id<WinitWindow, Shared>>,
+        window: IvarDrop<Id<WinitWindow>, "_window">,
 
         // TODO: It may be possible for delegate methods to be called
         // asynchronously, causing data races panics?
         // TODO: Remove unnecessary boxing here
-        state: IvarDrop<Box<State>>,
+        state: IvarDrop<Box<State>, "_state">,
     }
+
+    mod ivars;
 
     unsafe impl ClassType for WinitWindowDelegate {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitWindowDelegate";
     }
 
     unsafe impl WinitWindowDelegate {
-        #[sel(initWithWindow:initialFullscreen:)]
+        #[method(initWithWindow:initialFullscreen:)]
         unsafe fn init_with_winit(
-            &mut self,
+            this: *mut Self,
             window: &WinitWindow,
             initial_fullscreen: bool,
         ) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
+            let this: Option<&mut Self> = unsafe { msg_send![super(this), init] };
             this.map(|this| {
                 let scale_factor = window.scale_factor();
 
@@ -79,7 +83,7 @@ declare_class!(
                 this.window.setDelegate(Some(this));
 
                 // Enable theme change event
-                let notification_center: Id<Object, Shared> =
+                let notification_center: Id<Object> =
                     unsafe { msg_send_id![class!(NSDistributedNotificationCenter), defaultCenter] };
                 let notification_name =
                     NSString::from_str("AppleInterfaceThemeChangedNotification");
@@ -100,14 +104,14 @@ declare_class!(
 
     // NSWindowDelegate + NSDraggingDestination protocols
     unsafe impl WinitWindowDelegate {
-        #[sel(windowShouldClose:)]
+        #[method(windowShouldClose:)]
         fn window_should_close(&self, _: Option<&Object>) -> bool {
             trace_scope!("windowShouldClose:");
             self.queue_event(WindowEvent::CloseRequested);
             false
         }
 
-        #[sel(windowWillClose:)]
+        #[method(windowWillClose:)]
         fn window_will_close(&self, _: Option<&Object>) {
             trace_scope!("windowWillClose:");
             // `setDelegate:` retains the previous value and then autoreleases it
@@ -119,14 +123,14 @@ declare_class!(
             self.queue_event(WindowEvent::Destroyed);
         }
 
-        #[sel(windowDidResize:)]
+        #[method(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&Object>) {
             trace_scope!("windowDidResize:");
             // NOTE: WindowEvent::Resized is reported in frameDidChange.
             self.emit_move_event();
         }
 
-        #[sel(windowWillStartLiveResize:)]
+        #[method(windowWillStartLiveResize:)]
         fn window_will_start_live_resize(&self, _: Option<&Object>) {
             trace_scope!("windowWillStartLiveResize:");
 
@@ -137,26 +141,26 @@ declare_class!(
             self.window.set_resize_increments_inner(increments);
         }
 
-        #[sel(windowDidEndLiveResize:)]
+        #[method(windowDidEndLiveResize:)]
         fn window_did_end_live_resize(&self, _: Option<&Object>) {
             trace_scope!("windowDidEndLiveResize:");
             self.window.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
         // This won't be triggered if the move was part of a resize.
-        #[sel(windowDidMove:)]
+        #[method(windowDidMove:)]
         fn window_did_move(&self, _: Option<&Object>) {
             trace_scope!("windowDidMove:");
             self.emit_move_event();
         }
 
-        #[sel(windowDidChangeBackingProperties:)]
+        #[method(windowDidChangeBackingProperties:)]
         fn window_did_change_backing_properties(&self, _: Option<&Object>) {
             trace_scope!("windowDidChangeBackingProperties:");
             self.queue_static_scale_factor_changed_event();
         }
 
-        #[sel(windowDidBecomeKey:)]
+        #[method(windowDidBecomeKey:)]
         fn window_did_become_key(&self, _: Option<&Object>) {
             trace_scope!("windowDidBecomeKey:");
             // TODO: center the cursor if the window had mouse grab when it
@@ -164,7 +168,7 @@ declare_class!(
             self.queue_event(WindowEvent::Focused(true));
         }
 
-        #[sel(windowDidResignKey:)]
+        #[method(windowDidResignKey:)]
         fn window_did_resign_key(&self, _: Option<&Object>) {
             trace_scope!("windowDidResignKey:");
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
@@ -180,15 +184,15 @@ declare_class!(
         }
 
         /// Invoked when the dragged image enters destination bounds or frame
-        #[sel(draggingEntered:)]
+        #[method(draggingEntered:)]
         fn dragging_entered(&self, sender: *mut Object) -> bool {
             trace_scope!("draggingEntered:");
 
             use std::path::PathBuf;
 
-            let pb: Id<NSPasteboard, Shared> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType });
-            let filenames: Id<NSArray<NSString>, Shared> = unsafe { Id::cast(filenames) };
+            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
@@ -199,22 +203,22 @@ declare_class!(
         }
 
         /// Invoked when the image is released
-        #[sel(prepareForDragOperation:)]
+        #[method(prepareForDragOperation:)]
         fn prepare_for_drag_operation(&self, _: Option<&Object>) -> bool {
             trace_scope!("prepareForDragOperation:");
             true
         }
 
         /// Invoked after the released image has been removed from the screen
-        #[sel(performDragOperation:)]
+        #[method(performDragOperation:)]
         fn perform_drag_operation(&self, sender: *mut Object) -> bool {
             trace_scope!("performDragOperation:");
 
             use std::path::PathBuf;
 
-            let pb: Id<NSPasteboard, Shared> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType });
-            let filenames: Id<NSArray<NSString>, Shared> = unsafe { Id::cast(filenames) };
+            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
@@ -225,20 +229,20 @@ declare_class!(
         }
 
         /// Invoked when the dragging operation is complete
-        #[sel(concludeDragOperation:)]
+        #[method(concludeDragOperation:)]
         fn conclude_drag_operation(&self, _: Option<&Object>) {
             trace_scope!("concludeDragOperation:");
         }
 
         /// Invoked when the dragging operation is cancelled
-        #[sel(draggingExited:)]
+        #[method(draggingExited:)]
         fn dragging_exited(&self, _: Option<&Object>) {
             trace_scope!("draggingExited:");
             self.queue_event(WindowEvent::HoveredFileCancelled);
         }
 
         /// Invoked when before enter fullscreen
-        #[sel(windowWillEnterFullScreen:)]
+        #[method(windowWillEnterFullScreen:)]
         fn window_will_enter_fullscreen(&self, _: Option<&Object>) {
             trace_scope!("windowWillEnterFullScreen:");
 
@@ -267,7 +271,7 @@ declare_class!(
         }
 
         /// Invoked when before exit fullscreen
-        #[sel(windowWillExitFullScreen:)]
+        #[method(windowWillExitFullScreen:)]
         fn window_will_exit_fullscreen(&self, _: Option<&Object>) {
             trace_scope!("windowWillExitFullScreen:");
 
@@ -275,7 +279,7 @@ declare_class!(
             shared_state.in_fullscreen_transition = true;
         }
 
-        #[sel(window:willUseFullScreenPresentationOptions:)]
+        #[method(window:willUseFullScreenPresentationOptions:)]
         fn window_will_use_fullscreen_presentation_options(
             &self,
             _: Option<&Object>,
@@ -304,7 +308,7 @@ declare_class!(
         }
 
         /// Invoked when entered fullscreen
-        #[sel(windowDidEnterFullScreen:)]
+        #[method(windowDidEnterFullScreen:)]
         fn window_did_enter_fullscreen(&self, _: Option<&Object>) {
             trace_scope!("windowDidEnterFullScreen:");
             self.state.initial_fullscreen.set(false);
@@ -318,7 +322,7 @@ declare_class!(
         }
 
         /// Invoked when exited fullscreen
-        #[sel(windowDidExitFullScreen:)]
+        #[method(windowDidExitFullScreen:)]
         fn window_did_exit_fullscreen(&self, _: Option<&Object>) {
             trace_scope!("windowDidExitFullScreen:");
 
@@ -348,7 +352,7 @@ declare_class!(
         /// due to being in the midst of handling some other animation or user gesture.
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
-        #[sel(windowDidFailToEnterFullScreen:)]
+        #[method(windowDidFailToEnterFullScreen:)]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&Object>) {
             trace_scope!("windowDidFailToEnterFullScreen:");
             let mut shared_state = self
@@ -372,7 +376,7 @@ declare_class!(
         }
 
         // Invoked when the occlusion state of the window changes
-        #[sel(windowDidChangeOcclusionState:)]
+        #[method(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: Option<&Object>) {
             trace_scope!("windowDidChangeOcclusionState:");
             self.queue_event(WindowEvent::Occluded(
@@ -384,7 +388,7 @@ declare_class!(
         }
 
         // Observe theme change
-        #[sel(effectiveAppearanceDidChange:)]
+        #[method(effectiveAppearanceDidChange:)]
         fn effective_appearance_did_change(&self, sender: Option<&Object>) {
             trace_scope!("Triggered `effectiveAppearanceDidChange:`");
             unsafe {
@@ -397,7 +401,7 @@ declare_class!(
             }
         }
 
-        #[sel(effectiveAppearanceDidChangedOnMainThread:)]
+        #[method(effectiveAppearanceDidChangedOnMainThread:)]
         fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&Object>) {
             let theme = get_ns_theme();
             let mut shared_state = self
@@ -411,7 +415,7 @@ declare_class!(
             }
         }
 
-        #[sel(windowDidChangeScreen:)]
+        #[method(windowDidChangeScreen:)]
         fn window_did_change_screen(&self, _: Option<&Object>) {
             trace_scope!("windowDidChangeScreen:");
             let is_simple_fullscreen = self
@@ -428,7 +432,7 @@ declare_class!(
 );
 
 impl WinitWindowDelegate {
-    pub fn new(window: &WinitWindow, initial_fullscreen: bool) -> Id<Self, Shared> {
+    pub fn new(window: &WinitWindow, initial_fullscreen: bool) -> Id<Self> {
         unsafe {
             msg_send_id![
                 msg_send_id![Self::class(), alloc],

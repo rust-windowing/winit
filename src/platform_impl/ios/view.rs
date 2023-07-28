@@ -2,11 +2,11 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
+use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::declare::{Ivar, IvarDrop};
-use objc2::foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
-use objc2::rc::{Id, Shared};
+use objc2::rc::Id;
 use objc2::runtime::Class;
-use objc2::{declare_class, extern_methods, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
 
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -29,16 +29,17 @@ use crate::{
 };
 
 declare_class!(
-    pub(crate) struct WinitView {}
+    pub(crate) struct WinitView;
 
     unsafe impl ClassType for WinitView {
         #[inherits(UIResponder, NSObject)]
         type Super = UIView;
+        type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIView";
     }
 
     unsafe impl WinitView {
-        #[sel(drawRect:)]
+        #[method(drawRect:)]
         fn draw_rect(&self, rect: CGRect) {
             let window = self.window().unwrap();
             unsafe {
@@ -49,7 +50,7 @@ declare_class!(
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
 
-        #[sel(layoutSubviews)]
+        #[method(layoutSubviews)]
         fn layout_subviews(&self) {
             let _: () = unsafe { msg_send![super(self), layoutSubviews] };
 
@@ -81,7 +82,7 @@ declare_class!(
             }
         }
 
-        #[sel(setContentScaleFactor:)]
+        #[method(setContentScaleFactor:)]
         fn set_content_scale_factor(&self, untrusted_scale_factor: CGFloat) {
             let _: () =
                 unsafe { msg_send![super(self), setContentScaleFactor: untrusted_scale_factor] };
@@ -131,22 +132,22 @@ declare_class!(
             }
         }
 
-        #[sel(touchesBegan:withEvent:)]
+        #[method(touchesBegan:withEvent:)]
         fn touches_began(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesMoved:withEvent:)]
+        #[method(touchesMoved:withEvent:)]
         fn touches_moved(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesEnded:withEvent:)]
+        #[method(touchesEnded:withEvent:)]
         fn touches_ended(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesCancelled:withEvent:)]
+        #[method(touchesCancelled:withEvent:)]
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
@@ -156,16 +157,16 @@ declare_class!(
 extern_methods!(
     #[allow(non_snake_case)]
     unsafe impl WinitView {
-        fn window(&self) -> Option<Id<WinitUIWindow, Shared>> {
+        fn window(&self) -> Option<Id<WinitUIWindow>> {
             unsafe { msg_send_id![self, window] }
         }
 
-        unsafe fn traitCollection(&self) -> Id<UITraitCollection, Shared> {
+        unsafe fn traitCollection(&self) -> Id<UITraitCollection> {
             msg_send_id![self, traitCollection]
         }
 
         // TODO: Allow the user to customize this
-        #[sel(layerClass)]
+        #[method(layerClass)]
         pub(crate) fn layerClass() -> &'static Class;
     }
 );
@@ -176,8 +177,8 @@ impl WinitView {
         _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
+    ) -> Id<Self> {
+        let this: Id<Self> =
             unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
@@ -258,7 +259,7 @@ impl WinitView {
     }
 }
 
-struct ViewControllerState {
+pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
     prefers_home_indicator_auto_hidden: Cell<bool>,
     supported_orientations: Cell<UIInterfaceOrientationMask>,
@@ -267,19 +268,22 @@ struct ViewControllerState {
 
 declare_class!(
     pub(crate) struct WinitViewController {
-        state: IvarDrop<Box<ViewControllerState>>,
+        state: IvarDrop<Box<ViewControllerState>, "_state">,
     }
+
+    mod view_controller_ivars;
 
     unsafe impl ClassType for WinitViewController {
         #[inherits(UIResponder, NSObject)]
         type Super = UIViewController;
+        type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIViewController";
     }
 
     unsafe impl WinitViewController {
-        #[sel(init)]
-        fn init(&mut self) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
+        #[method(init)]
+        unsafe fn init(this: *mut Self) -> Option<NonNull<Self>> {
+            let this: Option<&mut Self> = msg_send![super(this), init];
             this.map(|this| {
                 // These are set in WinitViewController::new, it's just to set them
                 // to _something_.
@@ -300,27 +304,27 @@ declare_class!(
     }
 
     unsafe impl WinitViewController {
-        #[sel(shouldAutorotate)]
+        #[method(shouldAutorotate)]
         fn should_autorotate(&self) -> bool {
             true
         }
 
-        #[sel(prefersStatusBarHidden)]
+        #[method(prefersStatusBarHidden)]
         fn prefers_status_bar_hidden(&self) -> bool {
             self.state.prefers_status_bar_hidden.get()
         }
 
-        #[sel(prefersHomeIndicatorAutoHidden)]
+        #[method(prefersHomeIndicatorAutoHidden)]
         fn prefers_home_indicator_auto_hidden(&self) -> bool {
             self.state.prefers_home_indicator_auto_hidden.get()
         }
 
-        #[sel(supportedInterfaceOrientations)]
+        #[method(supportedInterfaceOrientations)]
         fn supported_orientations(&self) -> UIInterfaceOrientationMask {
             self.state.supported_orientations.get()
         }
 
-        #[sel(preferredScreenEdgesDeferringSystemGestures)]
+        #[method(preferredScreenEdgesDeferringSystemGestures)]
         fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
             self.state
                 .preferred_screen_edges_deferring_system_gestures
@@ -388,9 +392,8 @@ impl WinitViewController {
         _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         view: &UIView,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], init] };
+    ) -> Id<Self> {
+        let this: Id<Self> = unsafe { msg_send_id![msg_send_id![Self::class(), alloc], init] };
 
         this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
 
@@ -414,15 +417,17 @@ impl WinitViewController {
 
 declare_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
-    pub(crate) struct WinitUIWindow {}
+    pub(crate) struct WinitUIWindow;
 
     unsafe impl ClassType for WinitUIWindow {
         #[inherits(UIResponder, NSObject)]
         type Super = UIWindow;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitUIWindow";
     }
 
     unsafe impl WinitUIWindow {
-        #[sel(becomeKeyWindow)]
+        #[method(becomeKeyWindow)]
         fn become_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -433,7 +438,7 @@ declare_class!(
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
-        #[sel(resignKeyWindow)]
+        #[method(resignKeyWindow)]
         fn resign_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -453,8 +458,8 @@ impl WinitUIWindow {
         _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
         view_controller: &UIViewController,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
+    ) -> Id<Self> {
+        let this: Id<Self> =
             unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
@@ -482,15 +487,17 @@ impl WinitUIWindow {
 }
 
 declare_class!(
-    pub struct WinitApplicationDelegate {}
+    pub struct WinitApplicationDelegate;
 
     unsafe impl ClassType for WinitApplicationDelegate {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitApplicationDelegate";
     }
 
     // UIApplicationDelegate protocol
     unsafe impl WinitApplicationDelegate {
-        #[sel(application:didFinishLaunchingWithOptions:)]
+        #[method(application:didFinishLaunchingWithOptions:)]
         fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
             unsafe {
                 app_state::did_finish_launching();
@@ -498,22 +505,23 @@ declare_class!(
             true
         }
 
-        #[sel(applicationDidBecomeActive:)]
+        #[method(applicationDidBecomeActive:)]
         fn did_become_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
         }
 
-        #[sel(applicationWillResignActive:)]
+        #[method(applicationWillResignActive:)]
         fn will_resign_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
         }
 
-        #[sel(applicationWillEnterForeground:)]
+        #[method(applicationWillEnterForeground:)]
         fn will_enter_foreground(&self, _application: &UIApplication) {}
-        #[sel(applicationDidEnterBackground:)]
+
+        #[method(applicationDidEnterBackground:)]
         fn did_enter_background(&self, _application: &UIApplication) {}
 
-        #[sel(applicationWillTerminate:)]
+        #[method(applicationWillTerminate:)]
         fn will_terminate(&self, application: &UIApplication) {
             let mut events = Vec::new();
             for window in application.windows().iter() {
