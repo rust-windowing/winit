@@ -10,11 +10,13 @@ use sctk::reexports::client::globals::GlobalList;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibitor_v1::ZwpKeyboardShortcutsInhibitorV1;
 
 use sctk::compositor::{CompositorHandler, CompositorState};
 use sctk::output::{OutputHandler, OutputState};
 use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::pointer::ThemedPointer;
+use sctk::seat::shortcuts_inhibit::{ShortcutsInhibitHandler, ShortcutsInhibitState};
 use sctk::seat::SeatState;
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shell::xdg::XdgShell;
@@ -102,6 +104,9 @@ pub struct WinitState {
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
+    /// System shortcuts inhibitor.
+    pub shortcuts_inhibit_state: Arc<ShortcutsInhibitState>,
+
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
 }
@@ -162,6 +167,7 @@ impl WinitState {
             pointer_constraints: PointerConstraintsState::new(globals, queue_handle)
                 .map(Arc::new)
                 .ok(),
+            shortcuts_inhibit_state: Arc::new(ShortcutsInhibitState::bind(globals, queue_handle)),
             pointer_surfaces: Default::default(),
 
             monitors: Arc::new(Mutex::new(monitors)),
@@ -324,6 +330,23 @@ impl CompositorHandler for WinitState {
     fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: u32) {}
 }
 
+impl ShortcutsInhibitHandler for WinitState {
+    fn active(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &ZwpKeyboardShortcutsInhibitorV1,
+    ) {
+    }
+    fn inactive(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &ZwpKeyboardShortcutsInhibitorV1,
+    ) {
+    }
+}
+
 impl ProvidesRegistryState for WinitState {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
@@ -366,3 +389,4 @@ sctk::delegate_registry!(WinitState);
 sctk::delegate_shm!(WinitState);
 sctk::delegate_xdg_shell!(WinitState);
 sctk::delegate_xdg_window!(WinitState);
+sctk::delegate_shortcuts_inhibit!(WinitState);

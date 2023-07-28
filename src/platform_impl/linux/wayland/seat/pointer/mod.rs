@@ -11,12 +11,14 @@ use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
+use sctk::reexports::protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibitor_v1::ZwpKeyboardShortcutsInhibitorV1;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
 use sctk::seat::pointer::{PointerData, PointerDataExt};
 use sctk::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
+use sctk::seat::shortcuts_inhibit::ShortcutsInhibitState;
 use sctk::seat::SeatState;
 use sctk::shell::xdg::frame::FrameClick;
 
@@ -308,6 +310,29 @@ impl WinitPointerData {
         }
     }
 
+    // TODO shouldn't be associated with pointer
+    pub fn inhibit_system_shortcuts(
+        &self,
+        shortcuts_inhibit_state: &ShortcutsInhibitState,
+        surface: &WlSurface,
+        queue_handle: &QueueHandle<WinitState>,
+    ) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.shortcuts_inhibitor.is_none() {
+            let inhibitor = shortcuts_inhibit_state
+                .inhibit_shortcuts(surface, self.seat(), queue_handle)
+                .ok();
+            inner.shortcuts_inhibitor = inhibitor;
+        }
+    }
+
+    pub fn uninhibit_system_shortcuts(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(inhibitor) = inner.shortcuts_inhibitor.take() {
+            inhibitor.destroy();
+        }
+    }
+
     /// Seat associated with this pointer.
     pub fn seat(&self) -> &WlSeat {
         self.sctk_data.seat()
@@ -369,6 +394,8 @@ pub struct WinitPointerDataInner {
 
     /// Current axis phase.
     phase: TouchPhase,
+
+    shortcuts_inhibitor: Option<ZwpKeyboardShortcutsInhibitorV1>,
 }
 
 impl Drop for WinitPointerDataInner {
@@ -389,6 +416,7 @@ impl Default for WinitPointerDataInner {
             surface: None,
             locked_pointer: None,
             confined_pointer: None,
+            shortcuts_inhibitor: None,
             latest_button_serial: 0,
             phase: TouchPhase::Ended,
         }
