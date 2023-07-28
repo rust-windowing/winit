@@ -5,7 +5,6 @@ use std::error::Error;
 use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
-use std::process;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -17,10 +16,13 @@ use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
+use crate::error::{OsError as RootOsError, RunLoopError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::platform::pump_events::PumpStatus;
+use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::platform::sticky_exit_callback;
-use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
+use crate::platform_impl::{EventLoopWindowTarget as PlatformEventLoopWindowTarget, OsError};
 
 mod proxy;
 pub mod sink;
@@ -35,6 +37,16 @@ type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>,
 
 /// The Wayland event loop.
 pub struct EventLoop<T: 'static> {
+    /// Has `run` or `run_ondemand` been called or a call to `pump_events` that starts the loop
+    loop_running: bool,
+
+    /// The application's latest control_flow state
+    control_flow: ControlFlow,
+
+    buffer_sink: EventSink,
+    compositor_updates: Vec<WindowCompositorUpdate>,
+    window_ids: Vec<WindowId>,
+
     /// Sender of user events.
     user_events_sender: calloop::channel::Sender<T>,
 
@@ -114,6 +126,11 @@ impl<T: 'static> EventLoop<T> {
         };
 
         let event_loop = Self {
+            loop_running: false,
+            control_flow: ControlFlow::default(),
+            compositor_updates: Vec::new(),
+            buffer_sink: EventSink::default(),
+            window_ids: Vec::new(),
             connection,
             wayland_dispatcher,
             user_events_sender,
@@ -128,330 +145,398 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
-    where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
-    {
-        let exit_code = self.run_return(callback);
-        process::exit(exit_code);
-    }
-
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let mut control_flow = ControlFlow::Poll;
+        if self.loop_running {
+            return Err(RunLoopError::AlreadyRunning);
+        }
 
-        // XXX preallocate certian structures to avoid allocating on each loop iteration.
-        let mut window_ids = Vec::<WindowId>::new();
-        let mut compositor_updates = Vec::<WindowCompositorUpdate>::new();
-        let mut buffer_sink = EventSink::new();
-
-        callback(
-            Event::NewEvents(StartCause::Init),
-            &self.window_target,
-            &mut control_flow,
-        );
-
-        // XXX For consistency all platforms must emit a 'Resumed' event even though Wayland
-        // applications don't themselves have a formal suspend/resume lifecycle.
-        callback(Event::Resumed, &self.window_target, &mut control_flow);
-
-        // XXX We break on errors from dispatches, since if we've got protocol error
-        // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
-        // really an option. Instead we inform that the event loop got destroyed. We may
-        // communicate an error that something was terminated, but winit doesn't provide us
-        // with an API to do that via some event.
-        // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
-        let exit_code = loop {
-            // Flush the connection.
-            let _ = self.connection.flush();
-
-            // During the run of the user callback, some other code monitoring and reading the
-            // Wayland socket may have been run (mesa for example does this with vsync), if that
-            // is the case, some events may have been enqueued in our event queue.
-            //
-            // If some messages are there, the event loop needs to behave as if it was instantly
-            // woken up by messages arriving from the Wayland socket, to avoid delaying the
-            // dispatch of these events until we're woken up again.
-            let instant_wakeup = {
-                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
-                let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(x11_platform)]
-                    _ => unreachable!(),
-                };
-
-                match queue.dispatch_pending(state) {
-                    Ok(dispatched) => dispatched > 0,
-                    Err(error) => {
-                        error!("Error dispatching wayland queue: {}", error);
-                        break 1;
-                    }
+        let exit = loop {
+            match self.pump_events(None, &mut event_handler) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
                 }
+                PumpStatus::Exit(code) => {
+                    break Err(RunLoopError::ExitFailure(code));
+                }
+                _ => {
+                    continue;
+                }
+            }
+        };
+
+        // Applications aren't allowed to carry windows between separate
+        // `run_ondemand` calls but if they have only just dropped their
+        // windows we need to make sure those last requests are sent to the
+        // compositor.
+        let _ = self.roundtrip().map_err(RunLoopError::Os);
+
+        exit
+    }
+
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
+    where
+        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        if !self.loop_running {
+            self.loop_running = true;
+
+            // Reset the internal state for the loop as we start running to
+            // ensure consistent behaviour in case the loop runs and exits more
+            // than once.
+            self.control_flow = ControlFlow::Poll;
+
+            // Run the initial loop iteration.
+            self.single_iteration(&mut callback, StartCause::Init);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit.
+        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+            self.poll_events_with_timeout(timeout, &mut callback);
+        }
+        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+            self.loop_running = false;
+
+            let mut dummy = self.control_flow;
+            sticky_exit_callback(
+                Event::LoopDestroyed,
+                self.window_target(),
+                &mut dummy,
+                &mut callback,
+            );
+
+            PumpStatus::Exit(code)
+        } else {
+            PumpStatus::Continue
+        }
+    }
+
+    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
+    where
+        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        let start = Instant::now();
+
+        // TODO(rib): remove this workaround and instead make sure that the calloop
+        // WaylandSource correctly implements the cooperative prepare_read protocol
+        // that support multithreaded wayland clients that may all read from the
+        // same socket.
+        //
+        // During the run of the user callback, some other code monitoring and reading the
+        // Wayland socket may have been run (mesa for example does this with vsync), if that
+        // is the case, some events may have been enqueued in our event queue.
+        //
+        // If some messages are there, the event loop needs to behave as if it was instantly
+        // woken up by messages arriving from the Wayland socket, to avoid delaying the
+        // dispatch of these events until we're woken up again.
+        let instant_wakeup = {
+            let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+            let queue = wayland_source.queue();
+            let state = match &mut self.window_target.p {
+                PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                    window_target.state.get_mut()
+                }
+                #[cfg(x11_platform)]
+                _ => unreachable!(),
             };
 
-            match control_flow {
-                ControlFlow::ExitWithCode(code) => break code,
-                ControlFlow::Poll => {
-                    // Non-blocking dispatch.
-                    let timeout = Duration::ZERO;
-                    if let Err(error) = self.loop_dispatch(Some(timeout)) {
-                        break error.raw_os_error().unwrap_or(1);
-                    }
-
-                    callback(
-                        Event::NewEvents(StartCause::Poll),
-                        &self.window_target,
-                        &mut control_flow,
-                    );
+            match queue.dispatch_pending(state) {
+                Ok(dispatched) => dispatched > 0,
+                Err(error) => {
+                    error!("Error dispatching wayland queue: {}", error);
+                    self.control_flow = ControlFlow::ExitWithCode(1);
+                    return;
                 }
-                ControlFlow::Wait => {
-                    let timeout = if instant_wakeup {
-                        Some(Duration::ZERO)
-                    } else {
-                        None
-                    };
+            }
+        };
 
-                    if let Err(error) = self.loop_dispatch(timeout) {
-                        break error.raw_os_error().unwrap_or(1);
-                    }
-
-                    callback(
-                        Event::NewEvents(StartCause::WaitCancelled {
-                            start: Instant::now(),
-                            requested_resume: None,
-                        }),
-                        &self.window_target,
-                        &mut control_flow,
-                    );
+        timeout = if instant_wakeup {
+            Some(Duration::ZERO)
+        } else {
+            let control_flow_timeout = match self.control_flow {
+                ControlFlow::Wait => None,
+                ControlFlow::Poll => Some(Duration::ZERO),
+                ControlFlow::WaitUntil(wait_deadline) => {
+                    Some(wait_deadline.saturating_duration_since(start))
                 }
-                ControlFlow::WaitUntil(deadline) => {
-                    let start = Instant::now();
+                // This function shouldn't have to handle any requests to exit
+                // the application (there should be no need to poll for events
+                // if the application has requested to exit) so we consider
+                // it a bug in the backend if we ever see `ExitWithCode` here.
+                ControlFlow::ExitWithCode(_code) => unreachable!(),
+            };
+            min_timeout(control_flow_timeout, timeout)
+        };
 
-                    // Compute the amount of time we'll block for.
-                    let duration = if deadline > start && !instant_wakeup {
-                        deadline - start
-                    } else {
-                        Duration::ZERO
-                    };
+        // NOTE Ideally we should flush as the last thing we do before polling
+        // to wait for events, and this should be done by the calloop
+        // WaylandSource but we currently need to flush writes manually.
+        let _ = self.connection.flush();
 
-                    if let Err(error) = self.loop_dispatch(Some(duration)) {
-                        break error.raw_os_error().unwrap_or(1);
+        if let Err(error) = self.loop_dispatch(timeout) {
+            // NOTE We exit on errors from dispatches, since if we've got protocol error
+            // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
+            // really an option. Instead we inform that the event loop got destroyed. We may
+            // communicate an error that something was terminated, but winit doesn't provide us
+            // with an API to do that via some event.
+            // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
+            let exit_code = error.raw_os_error().unwrap_or(1);
+            self.control_flow = ControlFlow::ExitWithCode(exit_code);
+            return;
+        }
+
+        // NB: `StartCause::Init` is handled as a special case and doesn't need
+        // to be considered here
+        let cause = match self.control_flow {
+            ControlFlow::Poll => StartCause::Poll,
+            ControlFlow::Wait => StartCause::WaitCancelled {
+                start,
+                requested_resume: None,
+            },
+            ControlFlow::WaitUntil(deadline) => {
+                if Instant::now() < deadline {
+                    StartCause::WaitCancelled {
+                        start,
+                        requested_resume: Some(deadline),
                     }
-
-                    let now = Instant::now();
-
-                    if now < deadline {
-                        callback(
-                            Event::NewEvents(StartCause::WaitCancelled {
-                                start,
-                                requested_resume: Some(deadline),
-                            }),
-                            &self.window_target,
-                            &mut control_flow,
-                        )
-                    } else {
-                        callback(
-                            Event::NewEvents(StartCause::ResumeTimeReached {
-                                start,
-                                requested_resume: deadline,
-                            }),
-                            &self.window_target,
-                            &mut control_flow,
-                        )
+                } else {
+                    StartCause::ResumeTimeReached {
+                        start,
+                        requested_resume: deadline,
                     }
                 }
             }
+            // This function shouldn't have to handle any requests to exit
+            // the application (there should be no need to poll for events
+            // if the application has requested to exit) so we consider
+            // it a bug in the backend if we ever see `ExitWithCode` here.
+            ControlFlow::ExitWithCode(_code) => unreachable!(),
+        };
 
-            // Handle pending user events. We don't need back buffer, since we can't dispatch
-            // user events indirectly via callback to the user.
-            for user_event in self.pending_user_events.borrow_mut().drain(..) {
+        self.single_iteration(&mut callback, cause);
+    }
+
+    fn single_iteration<F>(&mut self, mut callback: &mut F, cause: StartCause)
+    where
+        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        // NOTE currently just indented to simplify the diff
+
+        let mut control_flow = self.control_flow;
+
+        // We retain these grow-only scratch buffers as part of the EventLoop
+        // for the sake of avoiding lots of reallocs. We take them here to avoid
+        // trying to mutably borrow `self` more than once and we swap them back
+        // when finished.
+        let mut compositor_updates = std::mem::take(&mut self.compositor_updates);
+        let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
+        let mut window_ids = std::mem::take(&mut self.window_ids);
+
+        sticky_exit_callback(
+            Event::NewEvents(cause),
+            &self.window_target,
+            &mut control_flow,
+            callback,
+        );
+
+        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        if cause == StartCause::Init {
+            sticky_exit_callback(
+                Event::Resumed,
+                &self.window_target,
+                &mut control_flow,
+                callback,
+            );
+        }
+
+        // Handle pending user events. We don't need back buffer, since we can't dispatch
+        // user events indirectly via callback to the user.
+        for user_event in self.pending_user_events.borrow_mut().drain(..) {
+            sticky_exit_callback(
+                Event::UserEvent(user_event),
+                &self.window_target,
+                &mut control_flow,
+                &mut callback,
+            );
+        }
+
+        // Drain the pending compositor updates.
+        self.with_state(|state| compositor_updates.append(&mut state.window_compositor_updates));
+
+        for mut compositor_update in compositor_updates.drain(..) {
+            let window_id = compositor_update.window_id;
+            if let Some(scale_factor) = compositor_update.scale_factor {
+                let mut physical_size = self.with_state(|state| {
+                    let windows = state.windows.get_mut();
+                    let mut window = windows.get(&window_id).unwrap().lock().unwrap();
+
+                    // Set the new scale factor.
+                    window.set_scale_factor(scale_factor);
+                    let window_size = compositor_update.size.unwrap_or(window.inner_size());
+                    logical_to_physical_rounded(window_size, scale_factor)
+                });
+
+                // Stash the old window size.
+                let old_physical_size = physical_size;
+
                 sticky_exit_callback(
-                    Event::UserEvent(user_event),
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            new_inner_size: &mut physical_size,
+                        },
+                    },
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+
+                let new_logical_size = physical_size.to_logical(scale_factor);
+
+                // Resize the window when user altered the size.
+                if old_physical_size != physical_size {
+                    self.with_state(|state| {
+                        let windows = state.windows.get_mut();
+                        let mut window = windows.get(&window_id).unwrap().lock().unwrap();
+                        window.resize(new_logical_size);
+                    });
+                }
+
+                // Make it queue resize.
+                compositor_update.size = Some(new_logical_size);
+            }
+
+            if let Some(size) = compositor_update.size.take() {
+                let physical_size = self.with_state(|state| {
+                    let windows = state.windows.get_mut();
+                    let window = windows.get(&window_id).unwrap().lock().unwrap();
+
+                    let scale_factor = window.scale_factor();
+                    let physical_size = logical_to_physical_rounded(size, scale_factor);
+
+                    // TODO could probably bring back size reporting optimization.
+
+                    // Mark the window as needed a redraw.
+                    state
+                        .window_requests
+                        .get_mut()
+                        .get_mut(&window_id)
+                        .unwrap()
+                        .redraw_requested
+                        .store(true, Ordering::Relaxed);
+
+                    physical_size
+                });
+
+                sticky_exit_callback(
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::Resized(physical_size),
+                    },
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,
                 );
             }
 
-            // Drain the pending compositor updates.
-            self.with_state(|state| {
-                compositor_updates.append(&mut state.window_compositor_updates)
+            if compositor_update.close_window {
+                sticky_exit_callback(
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::CloseRequested,
+                    },
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
+        }
+
+        // Push the events directly from the window.
+        self.with_state(|state| {
+            buffer_sink.append(&mut state.window_events_sink.lock().unwrap());
+        });
+        for event in buffer_sink.drain() {
+            let event = event.map_nonuser_event().unwrap();
+            sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
+        }
+
+        // Handle non-synthetic events.
+        self.with_state(|state| {
+            buffer_sink.append(&mut state.events_sink);
+        });
+        for event in buffer_sink.drain() {
+            let event = event.map_nonuser_event().unwrap();
+            sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
+        }
+
+        // Send events cleared.
+        sticky_exit_callback(
+            Event::MainEventsCleared,
+            &self.window_target,
+            &mut control_flow,
+            &mut callback,
+        );
+
+        // Collect the window ids
+        self.with_state(|state| {
+            window_ids.extend(state.window_requests.get_mut().keys());
+        });
+
+        for window_id in window_ids.drain(..) {
+            let request_redraw = self.with_state(|state| {
+                let window_requests = state.window_requests.get_mut();
+                if window_requests.get(&window_id).unwrap().take_closed() {
+                    mem::drop(window_requests.remove(&window_id));
+                    mem::drop(state.windows.get_mut().remove(&window_id));
+                    false
+                } else {
+                    let mut redraw_requested = window_requests
+                        .get(&window_id)
+                        .unwrap()
+                        .take_redraw_requested();
+
+                    // Redraw the frames while at it.
+                    redraw_requested |= state
+                        .windows
+                        .get_mut()
+                        .get_mut(&window_id)
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .refresh_frame();
+
+                    redraw_requested
+                }
             });
 
-            for mut compositor_update in compositor_updates.drain(..) {
-                let window_id = compositor_update.window_id;
-                if let Some(scale_factor) = compositor_update.scale_factor {
-                    let mut physical_size = self.with_state(|state| {
-                        let windows = state.windows.get_mut();
-                        let mut window = windows.get(&window_id).unwrap().lock().unwrap();
-
-                        // Set the new scale factor.
-                        window.set_scale_factor(scale_factor);
-                        let window_size = compositor_update.size.unwrap_or(window.inner_size());
-                        logical_to_physical_rounded(window_size, scale_factor)
-                    });
-
-                    // Stash the old window size.
-                    let old_physical_size = physical_size;
-
-                    sticky_exit_callback(
-                        Event::WindowEvent {
-                            window_id: crate::window::WindowId(window_id),
-                            event: WindowEvent::ScaleFactorChanged {
-                                scale_factor,
-                                new_inner_size: &mut physical_size,
-                            },
-                        },
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-
-                    let new_logical_size = physical_size.to_logical(scale_factor);
-
-                    // Resize the window when user altered the size.
-                    if old_physical_size != physical_size {
-                        self.with_state(|state| {
-                            let windows = state.windows.get_mut();
-                            let mut window = windows.get(&window_id).unwrap().lock().unwrap();
-                            window.resize(new_logical_size);
-                        });
-                    }
-
-                    // Make it queue resize.
-                    compositor_update.size = Some(new_logical_size);
-                }
-
-                if let Some(size) = compositor_update.size.take() {
-                    let physical_size = self.with_state(|state| {
-                        let windows = state.windows.get_mut();
-                        let window = windows.get(&window_id).unwrap().lock().unwrap();
-
-                        let scale_factor = window.scale_factor();
-                        let physical_size = logical_to_physical_rounded(size, scale_factor);
-
-                        // TODO could probably bring back size reporting optimization.
-
-                        // Mark the window as needed a redraw.
-                        state
-                            .window_requests
-                            .get_mut()
-                            .get_mut(&window_id)
-                            .unwrap()
-                            .redraw_requested
-                            .store(true, Ordering::Relaxed);
-
-                        physical_size
-                    });
-
-                    sticky_exit_callback(
-                        Event::WindowEvent {
-                            window_id: crate::window::WindowId(window_id),
-                            event: WindowEvent::Resized(physical_size),
-                        },
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                }
-
-                if compositor_update.close_window {
-                    sticky_exit_callback(
-                        Event::WindowEvent {
-                            window_id: crate::window::WindowId(window_id),
-                            event: WindowEvent::CloseRequested,
-                        },
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                }
+            if request_redraw {
+                sticky_exit_callback(
+                    Event::RedrawRequested(crate::window::WindowId(window_id)),
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
             }
+        }
 
-            // Push the events directly from the window.
-            self.with_state(|state| {
-                buffer_sink.append(&mut state.window_events_sink.lock().unwrap());
-            });
-            for event in buffer_sink.drain() {
-                let event = event.map_nonuser_event().unwrap();
-                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
-            }
+        // Send RedrawEventCleared.
+        sticky_exit_callback(
+            Event::RedrawEventsCleared,
+            &self.window_target,
+            &mut control_flow,
+            &mut callback,
+        );
 
-            // Handle non-synthetic events.
-            self.with_state(|state| {
-                buffer_sink.append(&mut state.events_sink);
-            });
-            for event in buffer_sink.drain() {
-                let event = event.map_nonuser_event().unwrap();
-                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
-            }
-
-            // Send events cleared.
-            sticky_exit_callback(
-                Event::MainEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-                &mut callback,
-            );
-
-            // Collect the window ids
-            self.with_state(|state| {
-                window_ids.extend(state.window_requests.get_mut().keys());
-            });
-
-            for window_id in window_ids.drain(..) {
-                let request_redraw = self.with_state(|state| {
-                    let window_requests = state.window_requests.get_mut();
-                    if window_requests.get(&window_id).unwrap().take_closed() {
-                        mem::drop(window_requests.remove(&window_id));
-                        mem::drop(state.windows.get_mut().remove(&window_id));
-                        false
-                    } else {
-                        let mut redraw_requested = window_requests
-                            .get(&window_id)
-                            .unwrap()
-                            .take_redraw_requested();
-
-                        // Redraw the frames while at it.
-                        redraw_requested |= state
-                            .windows
-                            .get_mut()
-                            .get_mut(&window_id)
-                            .unwrap()
-                            .lock()
-                            .unwrap()
-                            .refresh_frame();
-
-                        redraw_requested
-                    }
-                });
-
-                if request_redraw {
-                    sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(window_id)),
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                }
-            }
-
-            // Send RedrawEventCleared.
-            sticky_exit_callback(
-                Event::RedrawEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-                &mut callback,
-            );
-        };
-
-        callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
-        exit_code
+        self.control_flow = control_flow;
+        std::mem::swap(&mut self.compositor_updates, &mut compositor_updates);
+        std::mem::swap(&mut self.buffer_sink, &mut buffer_sink);
+        std::mem::swap(&mut self.window_ids, &mut window_ids);
     }
 
     #[inline]
@@ -484,6 +569,22 @@ impl<T: 'static> EventLoop<T> {
         self.event_loop.dispatch(timeout, state).map_err(|error| {
             error!("Error dispatching event loop: {}", error);
             error.into()
+        })
+    }
+
+    fn roundtrip(&mut self) -> Result<usize, RootOsError> {
+        let state = match &mut self.window_target.p {
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
+            #[cfg(feature = "x11")]
+            _ => unreachable!(),
+        };
+
+        let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+        let event_queue = wayland_source.queue();
+        event_queue.roundtrip(state).map_err(|_| {
+            os_error!(OsError::WaylandMisc(
+                "failed to do a final roundtrip before exiting the loop."
+            ))
         })
     }
 }

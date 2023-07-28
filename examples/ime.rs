@@ -13,7 +13,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new()
         .with_level(LevelFilter::Trace)
         .init()
@@ -105,5 +105,5 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }

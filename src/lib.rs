@@ -37,7 +37,7 @@
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
 //! most other platforms. However, this model can be re-implemented to an extent with
-//! [`EventLoopExtRunReturn::run_return`]. See that method's documentation for more reasons about why
+//! [`EventLoopExtPumpEvents::pump_events`]. See that method's documentation for more reasons about why
 //! it's discouraged, beyond compatibility reasons.
 //!
 //!
@@ -109,7 +109,7 @@
 //! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtRunReturn::run_return`]: ./platform/run_return/trait.EventLoopExtRunReturn.html#tymethod.run_return
+//! [`EventLoopExtPumpEvents::pump_events`]: ./platform/pump_events/trait.EventLoopExtPumpEvents.html#tymethod.pump_events
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
