@@ -1188,7 +1188,7 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(window_classname: &String) -> Vec<u16> {
+unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
     let class_name = util::encode_wide(window_classname);
 
     let class = WNDCLASSEXW {
