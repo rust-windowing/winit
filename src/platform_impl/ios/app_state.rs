@@ -393,9 +393,6 @@ impl AppState {
 
         let new = self.control_flow;
         match (old, new) {
-            (ControlFlow::Poll, ControlFlow::Poll) => self.set_state(AppStateImpl::PollFinished {
-                waiting_event_handler,
-            }),
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
@@ -428,6 +425,7 @@ impl AppState {
                 });
                 self.waker.start_at(new_instant)
             }
+            // Unlike on macOS, handle Poll to Poll transition here to call the waker
             (_, ControlFlow::Poll) => {
                 self.set_state(AppStateImpl::PollFinished {
                     waiting_event_handler,
