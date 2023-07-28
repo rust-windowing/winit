@@ -43,7 +43,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         println!("--------------------------------------------------------- Window {idx} CloseRequested");
                         app.window = None;
                     }
-                    Event::MainEventsCleared => window.request_redraw(),
+                    Event::AboutToWait => window.request_redraw(),
                     Event::RedrawRequested(_) => {
                         fill::fill_window(window);
                     }

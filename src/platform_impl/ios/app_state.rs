@@ -753,21 +753,18 @@ pub unsafe fn handle_main_events_cleared() {
     };
     drop(this);
 
-    // User events are always sent out at the end of the "MainEventLoop"
     handle_user_events();
-    handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
 
     let mut this = AppState::get_mut();
-    let mut redraw_events: Vec<EventWrapper> = this
+    let redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.id()))))
         .collect();
-
-    redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
     drop(this);
 
     handle_nonuser_events(redraw_events);
+    handle_nonuser_event(EventWrapper::StaticEvent(Event::AboutToWait));
 }
 
 // requires main thread

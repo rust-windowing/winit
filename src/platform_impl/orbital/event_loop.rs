@@ -594,12 +594,6 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            event_handler(
-                event::Event::MainEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-            );
-
             // To avoid deadlocks the redraws lock is not held during event processing.
             while let Some(window_id) = {
                 let mut redraws = self.window_target.p.redraws.lock().unwrap();
@@ -613,7 +607,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             event_handler(
-                event::Event::RedrawEventsCleared,
+                event::Event::AboutToWait,
                 &self.window_target,
                 &mut control_flow,
             );

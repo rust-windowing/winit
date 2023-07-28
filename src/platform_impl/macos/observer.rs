@@ -64,7 +64,7 @@ extern "C" fn control_flow_begin_handler(
 }
 
 // end is queued with the lowest priority to ensure it is processed after other observers
-// without that, LoopExiting would  get sent after MainEventsCleared
+// without that, LoopExiting would  get sent after AboutToWait
 extern "C" fn control_flow_end_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
