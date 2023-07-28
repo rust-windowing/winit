@@ -95,18 +95,11 @@ fn main() -> Result<(), impl std::error::Error> {
                 },
                 _ => (),
             },
-            Event::MainEventsCleared => {
+            Event::AboutToWait => {
                 if request_redraw && !wait_cancelled && !close_requested {
                     window.request_redraw();
                 }
-                if close_requested {
-                    control_flow.set_exit();
-                }
-            }
-            Event::RedrawRequested(_window_id) => {
-                fill::fill_window(&window);
-            }
-            Event::RedrawEventsCleared => {
+
                 match mode {
                     Mode::Wait => control_flow.set_wait(),
                     Mode::WaitUntil => {
@@ -119,6 +112,13 @@ fn main() -> Result<(), impl std::error::Error> {
                         control_flow.set_poll();
                     }
                 };
+
+                if close_requested {
+                    control_flow.set_exit();
+                }
+            }
+            Event::RedrawRequested(_window_id) => {
+                fill::fill_window(&window);
             }
             _ => (),
         }

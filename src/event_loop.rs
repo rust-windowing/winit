@@ -149,7 +149,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the [`EventLoop::run`] method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`] is emitted.
+/// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
 /// Defaults to [`Poll`].
 ///
