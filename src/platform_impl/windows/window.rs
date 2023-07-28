@@ -1188,9 +1188,7 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
-    let class_name = util::encode_wide(window_classname);
-
+unsafe fn register_window_class<T: 'static>(class_name: &[u16]) -> Vec<u16> {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,

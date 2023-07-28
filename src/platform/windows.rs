@@ -224,7 +224,7 @@ pub trait WindowBuilderExtWindows {
     fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
 
     /// Customize the window class name.
-    fn with_window_classname<S: Into<String>>(self, classname: S) -> WindowBuilder;
+    fn with_class_name<S: Into<String>>(self, class_name: S) -> WindowBuilder;
 
     /// Shows or hides the background drop shadow for undecorated windows.
     ///
@@ -271,8 +271,8 @@ impl WindowBuilderExtWindows for WindowBuilder {
     }
 
     #[inline]
-    fn with_window_classname<S: Into<String>>(mut self, classname: S) -> WindowBuilder {
-        self.platform_specific.window_classname = classname.into();
+    fn with_class_name<S: Into<String>>(mut self, class_name: S) -> WindowBuilder {
+        self.platform_specific.class_name = class_name.into();
         self
     }
 
