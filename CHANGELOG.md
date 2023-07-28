@@ -30,6 +30,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
   - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
+- **Breaking** `LoopDestroyed` renamed to `LoopExiting` ([#2900](https://github.com/rust-windowing/winit/issues/2900))
 
 # 0.29.0-beta.0
 

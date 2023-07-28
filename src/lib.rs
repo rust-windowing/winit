@@ -32,7 +32,7 @@
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until the `control_flow` argument given to the closure is set to
 //! [`ControlFlow`]`::`[`ExitWithCode`] (which [`ControlFlow`]`::`[`Exit`] aliases to), at which
-//! point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
+//! point [`Event`]`::`[`LoopExiting`] is emitted and the entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
@@ -126,7 +126,7 @@
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`UserEvent`]: event::Event::UserEvent
-//! [`LoopDestroyed`]: event::Event::LoopDestroyed
+//! [`LoopExiting`]: event::Event::LoopExiting
 //! [`platform`]: platform
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle

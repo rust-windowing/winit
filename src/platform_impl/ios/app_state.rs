@@ -444,10 +444,7 @@ impl AppState {
     fn terminated_transition(&mut self) -> Box<dyn EventHandler> {
         match self.replace_state(AppStateImpl::Terminated) {
             AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
-            s => bug!(
-                "`LoopDestroyed` happened while not processing events {:?}",
-                s
-            ),
+            s => bug!("`LoopExiting` happened while not processing events {:?}", s),
         }
     }
 }
@@ -785,7 +782,7 @@ pub unsafe fn terminated() {
     let mut control_flow = this.control_flow;
     drop(this);
 
-    event_handler.handle_nonuser_event(Event::LoopDestroyed, &mut control_flow)
+    event_handler.handle_nonuser_event(Event::LoopExiting, &mut control_flow)
 }
 
 fn handle_event_proxy(

@@ -341,7 +341,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // We wait until we've checked for an exit status before clearing the
-        // application callback, in case we need to dispatch a LoopDestroyed event
+        // application callback, in case we need to dispatch a LoopExiting event
         //
         // # Safety
         // This pairs up with our call to `runner.set_event_handler` and ensures
