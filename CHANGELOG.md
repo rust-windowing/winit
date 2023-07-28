@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
+- On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
 - **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
 - On Wayland, make double clicking and moving the CSD frame more reliable.
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
@@ -26,6 +27,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 - On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
 - On Windows, add `drag_resize_window` method support.
+- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), RunLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
+  - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
+- **Breaking** `LoopDestroyed` renamed to `LoopExiting` ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `RedrawEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `MainEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- Added `AboutToWait` event which is emitted when the event loop is about to block and wait for new events ([#2900](https://github.com/rust-windowing/winit/issues/2900))
 
 # 0.29.0-beta.0
 

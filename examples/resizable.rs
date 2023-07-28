@@ -12,7 +12,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
@@ -53,5 +53,5 @@ fn main() {
             }
             _ => (),
         };
-    });
+    })
 }

@@ -10,7 +10,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
@@ -29,7 +29,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => control_flow.set_exit(),
-            Event::MainEventsCleared => {
+            Event::AboutToWait => {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
@@ -37,5 +37,5 @@ fn main() {
             }
             _ => (),
         }
-    });
+    })
 }

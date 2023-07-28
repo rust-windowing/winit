@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 #[cfg(not(wasm_platform))]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use simple_logger::SimpleLogger;

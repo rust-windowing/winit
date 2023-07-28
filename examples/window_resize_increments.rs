@@ -11,7 +11,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
@@ -54,11 +54,11 @@ fn main() {
                 debug!("Had increments: {}", new_increments.is_none());
                 window.set_resize_increments(new_increments);
             }
-            Event::MainEventsCleared => window.request_redraw(),
+            Event::AboutToWait => window.request_redraw(),
             Event::RedrawRequested(_) => {
                 fill::fill_window(&window);
             }
             _ => (),
         }
-    });
+    })
 }

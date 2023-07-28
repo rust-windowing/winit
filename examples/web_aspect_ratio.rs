@@ -47,7 +47,7 @@ This example demonstrates the desired future functionality which will possibly b
         // Render once with the size info we currently have
         render_circle(&canvas, window.inner_size());
 
-        event_loop.run(move |event, _, control_flow| {
+        let _ = event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
             match event {

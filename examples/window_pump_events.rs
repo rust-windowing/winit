@@ -7,16 +7,15 @@
     x11_platform,
     wayland_platform,
     android_platform,
-    orbital_platform,
 ))]
-fn main() {
-    use std::{thread::sleep, time::Duration};
+fn main() -> std::process::ExitCode {
+    use std::{process::ExitCode, thread::sleep, time::Duration};
 
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::EventLoop,
-        platform::run_return::EventLoopExtRunReturn,
+        event_loop::{ControlFlow, EventLoop},
+        platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
         window::WindowBuilder,
     };
 
@@ -31,11 +30,10 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut quit = false;
-
-    while !quit {
-        event_loop.run_return(|event, _, control_flow| {
-            control_flow.set_wait();
+    'main: loop {
+        let timeout = Some(Duration::ZERO);
+        let status = event_loop.pump_events(timeout, |event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
 
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
@@ -45,12 +43,10 @@ fn main() {
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
-                    ..
-                } => {
-                    quit = true;
-                }
-                Event::MainEventsCleared => {
-                    control_flow.set_exit();
+                    window_id,
+                } if window_id == window.id() => control_flow.set_exit(),
+                Event::AboutToWait => {
+                    window.request_redraw();
                 }
                 Event::RedrawRequested(_) => {
                     fill::fill_window(&window);
@@ -58,14 +54,20 @@ fn main() {
                 _ => (),
             }
         });
+        if let PumpStatus::Exit(exit_code) = status {
+            break 'main ExitCode::from(exit_code as u8);
+        }
 
-        // Sleep for 1/60 second to simulate rendering
-        println!("rendering");
+        // Sleep for 1/60 second to simulate application work
+        //
+        // Since `pump_events` doesn't block it will be important to
+        // throttle the loop in the app somehow.
+        println!("Update()");
         sleep(Duration::from_millis(16));
     }
 }
 
-#[cfg(any(ios_platform, wasm_platform))]
+#[cfg(any(ios_platform, wasm_platform, orbital_platform))]
 fn main() {
-    println!("This platform doesn't support run_return.");
+    println!("This platform doesn't support pump_events.");
 }

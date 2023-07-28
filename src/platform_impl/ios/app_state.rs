@@ -393,9 +393,6 @@ impl AppState {
 
         let new = self.control_flow;
         match (old, new) {
-            (ControlFlow::Poll, ControlFlow::Poll) => self.set_state(AppStateImpl::PollFinished {
-                waiting_event_handler,
-            }),
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
@@ -428,6 +425,7 @@ impl AppState {
                 });
                 self.waker.start_at(new_instant)
             }
+            // Unlike on macOS, handle Poll to Poll transition here to call the waker
             (_, ControlFlow::Poll) => {
                 self.set_state(AppStateImpl::PollFinished {
                     waiting_event_handler,
@@ -446,10 +444,7 @@ impl AppState {
     fn terminated_transition(&mut self) -> Box<dyn EventHandler> {
         match self.replace_state(AppStateImpl::Terminated) {
             AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
-            s => bug!(
-                "`LoopDestroyed` happened while not processing events {:?}",
-                s
-            ),
+            s => bug!("`LoopExiting` happened while not processing events {:?}", s),
         }
     }
 }
@@ -758,21 +753,18 @@ pub unsafe fn handle_main_events_cleared() {
     };
     drop(this);
 
-    // User events are always sent out at the end of the "MainEventLoop"
     handle_user_events();
-    handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
 
     let mut this = AppState::get_mut();
-    let mut redraw_events: Vec<EventWrapper> = this
+    let redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.id()))))
         .collect();
-
-    redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
     drop(this);
 
     handle_nonuser_events(redraw_events);
+    handle_nonuser_event(EventWrapper::StaticEvent(Event::AboutToWait));
 }
 
 // requires main thread
@@ -787,7 +779,7 @@ pub unsafe fn terminated() {
     let mut control_flow = this.control_flow;
     drop(this);
 
-    event_handler.handle_nonuser_event(Event::LoopDestroyed, &mut control_flow)
+    event_handler.handle_nonuser_event(Event::LoopExiting, &mut control_flow)
 }
 
 fn handle_event_proxy(

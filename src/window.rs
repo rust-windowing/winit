@@ -524,25 +524,25 @@ impl Window {
         self.window.scale_factor()
     }
 
-    /// Emits a [`Event::RedrawRequested`] event in the associated event loop after all OS
-    /// events have been processed by the event loop.
+    /// Requests a future [`Event::RedrawRequested`] event to be emitted in a way that is
+    /// synchronized and / or throttled by the windowing system.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after [`Event::MainEventsCleared`]
-    /// but before `Event::NewEvents` if called in the following circumstances:
-    /// * While processing `MainEventsCleared`.
-    /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
-    ///   directly subsequent `RedrawRequested` event.
+    /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
+    ///
+    /// There are no strong guarantees about when exactly a `RedrawRequest` event will be emitted
+    /// with respect to other events, since the requirements can vary significantly between
+    /// windowing systems.
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and `RedrawRequested`
+    ///   is emitted in sync with any `WM_PAINT` messages
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
     ///
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
-    /// [`Event::MainEventsCleared`]: crate::event::Event::MainEventsCleared
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()

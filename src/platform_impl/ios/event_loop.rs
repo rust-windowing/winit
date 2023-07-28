@@ -237,10 +237,10 @@ fn setup_control_flow_observers() {
 
         // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
         // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the main_end
-        // priority to be 0, in order to send MainEventsCleared before RedrawRequested. This value was
+        // priority to be 0, in order to send AboutToWait before RedrawRequested. This value was
         // chosen conservatively to guard against apple using different priorities for their redraw
         // observers in different OS's or on different devices. If it so happens that it's too
-        // conservative, the main symptom would be non-redraw events coming in after `MainEventsCleared`.
+        // conservative, the main symptom would be non-redraw events coming in after `AboutToWait`.
         //
         // The value of `0x1e8480` was determined by inspecting stack traces and the associated
         // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.

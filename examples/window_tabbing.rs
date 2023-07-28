@@ -19,7 +19,7 @@ use winit::{
 mod fill;
 
 #[cfg(target_os = "macos")]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 

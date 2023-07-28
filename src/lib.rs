@@ -32,12 +32,12 @@
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until the `control_flow` argument given to the closure is set to
 //! [`ControlFlow`]`::`[`ExitWithCode`] (which [`ControlFlow`]`::`[`Exit`] aliases to), at which
-//! point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
+//! point [`Event`]`::`[`LoopExiting`] is emitted and the entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
 //! most other platforms. However, this model can be re-implemented to an extent with
-//! [`EventLoopExtRunReturn::run_return`]. See that method's documentation for more reasons about why
+//! [`EventLoopExtPumpEvents::pump_events`]. See that method's documentation for more reasons about why
 //! it's discouraged, beyond compatibility reasons.
 //!
 //!
@@ -69,7 +69,7 @@
 //!             println!("The close button was pressed; stopping");
 //!             control_flow.set_exit();
 //!         },
-//!         Event::MainEventsCleared => {
+//!         Event::AboutToWait => {
 //!             // Application update code.
 //!
 //!             // Queue a RedrawRequested event.
@@ -83,7 +83,7 @@
 //!             // Redraw the application.
 //!             //
 //!             // It's preferable for applications that do not render continuously to render in
-//!             // this event rather than in MainEventsCleared, since rendering in here allows
+//!             // this event rather than in AboutToWait, since rendering in here allows
 //!             // the program to gracefully handle redraws requested by the OS.
 //!         },
 //!         _ => ()
@@ -109,7 +109,7 @@
 //! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtRunReturn::run_return`]: ./platform/run_return/trait.EventLoopExtRunReturn.html#tymethod.run_return
+//! [`EventLoopExtPumpEvents::pump_events`]: ./platform/pump_events/trait.EventLoopExtPumpEvents.html#tymethod.pump_events
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
@@ -126,7 +126,7 @@
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
 //! [`UserEvent`]: event::Event::UserEvent
-//! [`LoopDestroyed`]: event::Event::LoopDestroyed
+//! [`LoopExiting`]: event::Event::LoopExiting
 //! [`platform`]: platform
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle

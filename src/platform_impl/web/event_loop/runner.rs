@@ -535,7 +535,7 @@ impl<T: 'static> Shared<T> {
     }
 
     // Process the destroy-pending windows. This should only be called from
-    // `run_until_cleared`, somewhere between emitting `NewEvents` and `MainEventsCleared`.
+    // `run_until_cleared`, somewhere between emitting `NewEvents` and `AboutToWait`.
     fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0
@@ -563,14 +563,14 @@ impl<T: 'static> Shared<T> {
             self.handle_event(event.into(), &mut control);
         }
         self.process_destroy_pending_windows(&mut control);
-        self.handle_event(Event::MainEventsCleared, &mut control);
 
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
             self.handle_event(Event::RedrawRequested(window_id), &mut control);
         }
-        self.handle_event(Event::RedrawEventsCleared, &mut control);
+
+        self.handle_event(Event::AboutToWait, &mut control);
 
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing
@@ -585,7 +585,7 @@ impl<T: 'static> Shared<T> {
         let mut control = self.current_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
-        self.handle_event(Event::LoopDestroyed, &mut control);
+        self.handle_event(Event::LoopExiting, &mut control);
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -665,7 +665,7 @@ impl<T: 'static> Shared<T> {
     }
 
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
-        self.handle_event(Event::LoopDestroyed, control);
+        self.handle_event(Event::LoopExiting, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;

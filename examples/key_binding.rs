@@ -17,7 +17,7 @@ fn main() {
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
-fn main() {
+fn main() -> Result<(), impl std::error::Error> {
     #[path = "util/fill.rs"]
     mod fill;
 
@@ -61,5 +61,5 @@ fn main() {
             }
             _ => (),
         };
-    });
+    })
 }

@@ -987,8 +987,6 @@ impl<'a, T: 'static> InitData<'a, T> {
             None
         };
 
-        self.event_loop.runner_shared.register_window(win.window.0);
-
         event_loop::WindowData {
             window_state: win.window_state.clone(),
             event_loop_runner: self.event_loop.runner_shared.clone(),

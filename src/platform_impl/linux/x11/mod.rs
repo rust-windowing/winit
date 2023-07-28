@@ -19,13 +19,13 @@ pub(crate) use self::{
 
 pub use self::xdisplay::{XError, XNotSupported};
 
-use calloop::channel::{channel, Channel, Event as ChanResult, Sender};
 use calloop::generic::Generic;
-use calloop::{Dispatcher, EventLoop as Loop};
+use calloop::EventLoop as Loop;
+use calloop::{ping::Ping, Readiness};
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
     mem::{self, MaybeUninit},
@@ -37,6 +37,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
+    sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
@@ -61,19 +62,78 @@ use self::{
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
 };
-use super::common::xkb_state::KbdState;
+use super::{common::xkb_state::KbdState, OsError};
 use crate::{
-    error::OsError as RootOsError,
+    error::{OsError as RootOsError, RunLoopError},
     event::{Event, StartCause},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    platform::pump_events::PumpStatus,
     platform_impl::{
-        platform::{sticky_exit_callback, WindowId},
+        platform::{min_timeout, sticky_exit_callback, WindowId},
         PlatformSpecificWindowBuilderAttributes,
     },
     window::WindowAttributes,
 };
 
 type X11Source = Generic<RawFd>;
+
+struct WakeSender<T> {
+    sender: Sender<T>,
+    waker: Ping,
+}
+
+impl<T> Clone for WakeSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            waker: self.waker.clone(),
+        }
+    }
+}
+
+impl<T> WakeSender<T> {
+    pub fn send(&self, t: T) -> Result<(), EventLoopClosed<T>> {
+        let res = self.sender.send(t).map_err(|e| EventLoopClosed(e.0));
+        if res.is_ok() {
+            self.waker.ping();
+        }
+        res
+    }
+}
+
+struct PeekableReceiver<T> {
+    recv: Receiver<T>,
+    first: Option<T>,
+}
+
+impl<T> PeekableReceiver<T> {
+    pub fn from_recv(recv: Receiver<T>) -> Self {
+        Self { recv, first: None }
+    }
+    pub fn has_incoming(&mut self) -> bool {
+        if self.first.is_some() {
+            return true;
+        }
+
+        match self.recv.try_recv() {
+            Ok(v) => {
+                self.first = Some(v);
+                true
+            }
+            Err(TryRecvError::Empty) => false,
+            Err(TryRecvError::Disconnected) => {
+                warn!("Channel was disconnected when checking incoming");
+                false
+            }
+        }
+    }
+    pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
+        if let Some(first) = self.first.take() {
+            return Ok(first);
+        }
+        self.recv.try_recv()
+    }
+}
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -83,40 +143,37 @@ pub struct EventLoopWindowTarget<T> {
     root: xproto::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    redraw_sender: Sender<WindowId>,
-    activation_sender: Sender<ActivationToken>,
+    redraw_sender: WakeSender<WindowId>,
+    activation_sender: WakeSender<ActivationToken>,
     device_events: Cell<DeviceEvents>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
-    event_loop: Loop<'static, EventLoopState<T>>,
+    loop_running: bool,
+    control_flow: ControlFlow,
+    event_loop: Loop<'static, EventLoopState>,
+    waker: calloop::ping::Ping,
     event_processor: EventProcessor<T>,
+    redraw_receiver: PeekableReceiver<WindowId>,
+    user_receiver: PeekableReceiver<T>,
+    activation_receiver: PeekableReceiver<ActivationToken>,
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
 
     /// The current state of the event loop.
-    state: EventLoopState<T>,
-
-    /// Dispatcher for redraw events.
-    redraw_dispatcher: Dispatcher<'static, Channel<WindowId>, EventLoopState<T>>,
+    state: EventLoopState,
 }
 
 type ActivationToken = (WindowId, crate::event_loop::AsyncRequestSerial);
 
-struct EventLoopState<T> {
-    /// Incoming user events.
-    user_events: VecDeque<T>,
-
-    /// Incoming redraw events.
-    redraw_events: VecDeque<WindowId>,
-
-    /// Incoming activation tokens.
-    activation_tokens: VecDeque<ActivationToken>,
+struct EventLoopState {
+    /// The latest readiness state for the x11 file descriptor
+    x11_readiness: Readiness,
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: Sender<T>,
+    user_sender: WakeSender<T>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
@@ -242,7 +299,7 @@ impl<T: 'static> EventLoop<T> {
 
         // Create an event loop.
         let event_loop =
-            Loop::<EventLoopState<T>>::try_new().expect("Failed to initialize the event loop");
+            Loop::<EventLoopState>::try_new().expect("Failed to initialize the event loop");
         let handle = event_loop.handle();
 
         // Create the X11 event dispatcher.
@@ -252,48 +309,29 @@ impl<T: 'static> EventLoop<T> {
             calloop::Mode::Level,
         );
         handle
-            .insert_source(source, |_, _, _| Ok(calloop::PostAction::Continue))
+            .insert_source(source, |readiness, _, state| {
+                state.x11_readiness = readiness;
+                Ok(calloop::PostAction::Continue)
+            })
             .expect("Failed to register the X11 event dispatcher");
 
-        // Create a channel for sending user events.
-        let (user_sender, user_channel) = channel();
-        handle
-            .insert_source(user_channel, |ev, _, state| {
-                if let ChanResult::Msg(user) = ev {
-                    state.user_events.push_back(user);
-                }
+        let (waker, waker_source) =
+            calloop::ping::make_ping().expect("Failed to create event loop waker");
+        event_loop
+            .handle()
+            .insert_source(waker_source, move |_, _, _| {
+                // No extra handling is required, we just need to wake-up.
             })
-            .expect("Failed to register the user event channel with the event loop");
+            .expect("Failed to register the event loop waker source");
 
         // Create a channel for handling redraw requests.
-        let (redraw_sender, redraw_channel) = channel();
+        let (redraw_sender, redraw_channel) = mpsc::channel();
 
         // Create a channel for sending activation tokens.
-        let (activation_token_sender, activation_token_channel) = channel();
+        let (activation_token_sender, activation_token_channel) = mpsc::channel();
 
-        // Create a dispatcher for the redraw channel such that we can dispatch it independent of the
-        // event loop.
-        let redraw_dispatcher =
-            Dispatcher::<_, EventLoopState<T>>::new(redraw_channel, |ev, _, state| {
-                if let ChanResult::Msg(window_id) = ev {
-                    state.redraw_events.push_back(window_id);
-                }
-            });
-        handle
-            .register_dispatcher(redraw_dispatcher.clone())
-            .expect("Failed to register the redraw event channel with the event loop");
-
-        // Create a dispatcher for the activation token channel such that we can dispatch it
-        // independent of the event loop.
-        let activation_tokens =
-            Dispatcher::<_, EventLoopState<T>>::new(activation_token_channel, |ev, _, state| {
-                if let ChanResult::Msg(token) = ev {
-                    state.activation_tokens.push_back(token);
-                }
-            });
-        handle
-            .register_dispatcher(activation_tokens.clone())
-            .expect("Failed to register the activation token channel with the event loop");
+        // Create a channel for sending user events.
+        let (user_sender, user_channel) = mpsc::channel();
 
         let kb_state =
             KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
@@ -307,8 +345,14 @@ impl<T: 'static> EventLoop<T> {
             xconn,
             wm_delete_window,
             net_wm_ping,
-            redraw_sender,
-            activation_sender: activation_token_sender,
+            redraw_sender: WakeSender {
+                sender: redraw_sender, // not used again so no clone
+                waker: waker.clone(),
+            },
+            activation_sender: WakeSender {
+                sender: activation_token_sender, // not used again so no clone
+                waker: waker.clone(),
+            },
             device_events: Default::default(),
         };
 
@@ -359,22 +403,28 @@ impl<T: 'static> EventLoop<T> {
         event_processor.init_device(ffi::XIAllDevices);
 
         EventLoop {
+            loop_running: false,
+            control_flow: ControlFlow::default(),
             event_loop,
+            waker,
             event_processor,
+            redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
+            activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
+            user_receiver: PeekableReceiver::from_recv(user_channel),
             user_sender,
             target,
-            redraw_dispatcher,
             state: EventLoopState {
-                user_events: VecDeque::new(),
-                redraw_events: VecDeque::new(),
-                activation_tokens: VecDeque::new(),
+                x11_readiness: Readiness::EMPTY,
             },
         }
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            user_sender: self.user_sender.clone(),
+            user_sender: WakeSender {
+                sender: self.user_sender.clone(),
+                waker: self.waker.clone(),
+            },
         }
     }
 
@@ -382,236 +432,264 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        struct IterationResult {
-            deadline: Option<Instant>,
-            timeout: Option<Duration>,
-            wait_start: Instant,
-        }
-        fn single_iteration<T, F>(
-            this: &mut EventLoop<T>,
-            control_flow: &mut ControlFlow,
-            cause: &mut StartCause,
-            callback: &mut F,
-        ) -> IterationResult
-        where
-            F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-        {
-            sticky_exit_callback(
-                crate::event::Event::NewEvents(*cause),
-                &this.target,
-                control_flow,
-                callback,
-            );
-
-            // NB: For consistency all platforms must emit a 'resumed' event even though X11
-            // applications don't themselves have a formal suspend/resume lifecycle.
-            if *cause == StartCause::Init {
-                sticky_exit_callback(
-                    crate::event::Event::Resumed,
-                    &this.target,
-                    control_flow,
-                    callback,
-                );
-            }
-
-            // Process all pending events
-            this.drain_events(callback, control_flow);
-
-            // Empty activation tokens.
-            while let Some((window_id, serial)) = this.state.activation_tokens.pop_front() {
-                let token = this
-                    .event_processor
-                    .with_window(window_id.0 as xproto::Window, |window| {
-                        window.generate_activation_token()
-                    });
-
-                match token {
-                    Some(Ok(token)) => sticky_exit_callback(
-                        crate::event::Event::WindowEvent {
-                            window_id: crate::window::WindowId(window_id),
-                            event: crate::event::WindowEvent::ActivationTokenDone {
-                                serial,
-                                token: crate::window::ActivationToken::_new(token),
-                            },
-                        },
-                        &this.target,
-                        control_flow,
-                        callback,
-                    ),
-                    Some(Err(e)) => {
-                        log::error!("Failed to get activation token: {}", e);
-                    }
-                    None => {}
-                }
-            }
-
-            // Empty the user event buffer
-            {
-                while let Some(event) = this.state.user_events.pop_front() {
-                    sticky_exit_callback(
-                        crate::event::Event::UserEvent(event),
-                        &this.target,
-                        control_flow,
-                        callback,
-                    );
-                }
-            }
-            // send MainEventsCleared
-            {
-                sticky_exit_callback(
-                    crate::event::Event::MainEventsCleared,
-                    &this.target,
-                    control_flow,
-                    callback,
-                );
-            }
-
-            // Quickly dispatch all redraw events to avoid buffering them.
-            while let Ok(event) = this.redraw_dispatcher.as_source_mut().try_recv() {
-                this.state.redraw_events.push_back(event);
-            }
-
-            // Empty the redraw requests
-            {
-                let mut windows = HashSet::new();
-
-                // Empty the channel.
-
-                while let Some(window_id) = this.state.redraw_events.pop_front() {
-                    windows.insert(window_id);
-                }
-
-                for window_id in windows {
-                    let window_id = crate::window::WindowId(window_id);
-                    sticky_exit_callback(
-                        Event::RedrawRequested(window_id),
-                        &this.target,
-                        control_flow,
-                        callback,
-                    );
-                }
-            }
-            // send RedrawEventsCleared
-            {
-                sticky_exit_callback(
-                    crate::event::Event::RedrawEventsCleared,
-                    &this.target,
-                    control_flow,
-                    callback,
-                );
-            }
-
-            let start = Instant::now();
-            let (deadline, timeout);
-
-            match control_flow {
-                ControlFlow::ExitWithCode(_) => {
-                    return IterationResult {
-                        wait_start: start,
-                        deadline: None,
-                        timeout: None,
-                    };
-                }
-                ControlFlow::Poll => {
-                    *cause = StartCause::Poll;
-                    deadline = None;
-                    timeout = Some(Duration::from_millis(0));
-                }
-                ControlFlow::Wait => {
-                    *cause = StartCause::WaitCancelled {
-                        start,
-                        requested_resume: None,
-                    };
-                    deadline = None;
-                    timeout = None;
-                }
-                ControlFlow::WaitUntil(wait_deadline) => {
-                    *cause = StartCause::ResumeTimeReached {
-                        start,
-                        requested_resume: *wait_deadline,
-                    };
-                    timeout = if *wait_deadline > start {
-                        Some(*wait_deadline - start)
-                    } else {
-                        Some(Duration::from_millis(0))
-                    };
-                    deadline = Some(*wait_deadline);
-                }
-            }
-
-            IterationResult {
-                wait_start: start,
-                deadline,
-                timeout,
-            }
+        if self.loop_running {
+            return Err(RunLoopError::AlreadyRunning);
         }
 
-        let mut control_flow = ControlFlow::default();
-        let mut cause = StartCause::Init;
-
-        // run the initial loop iteration
-        let mut iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
-
-        let exit_code = loop {
-            if let ControlFlow::ExitWithCode(code) = control_flow {
-                break code;
-            }
-            let has_pending = self.event_processor.poll()
-                || !self.state.user_events.is_empty()
-                || !self.state.redraw_events.is_empty();
-            if !has_pending {
-                // Wait until
-                if let Err(error) = self
-                    .event_loop
-                    .dispatch(iter_result.timeout, &mut self.state)
-                    .map_err(std::io::Error::from)
-                {
-                    break error.raw_os_error().unwrap_or(1);
+        let exit = loop {
+            match self.pump_events(None, &mut event_handler) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
                 }
-
-                if control_flow == ControlFlow::Wait {
-                    // We don't go straight into executing the event loop iteration, we instead go
-                    // to the start of this loop and check again if there's any pending event. We
-                    // must do this because during the execution of the iteration we sometimes wake
-                    // the calloop waker, and if the waker is already awaken before we call poll(),
-                    // then poll doesn't block, but it returns immediately. This caused the event
-                    // loop to run continuously even if the control_flow was `Wait`
+                PumpStatus::Exit(code) => {
+                    break Err(RunLoopError::ExitFailure(code));
+                }
+                _ => {
                     continue;
                 }
             }
-
-            let wait_cancelled = iter_result
-                .deadline
-                .map_or(false, |deadline| Instant::now() < deadline);
-
-            if wait_cancelled {
-                cause = StartCause::WaitCancelled {
-                    start: iter_result.wait_start,
-                    requested_resume: iter_result.deadline,
-                };
-            }
-
-            iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
         };
 
-        callback(
-            crate::event::Event::LoopDestroyed,
-            &self.target,
-            &mut control_flow,
-        );
-        exit_code
+        // Applications aren't allowed to carry windows between separate
+        // `run_ondemand` calls but if they have only just dropped their
+        // windows we need to make sure those last requests are sent to the
+        // X Server.
+        let wt = get_xtarget(&self.target);
+        wt.x_connection().sync_with_server().map_err(|x_err| {
+            RunLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
+        })?;
+
+        exit
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
-        ::std::process::exit(exit_code);
+        if !self.loop_running {
+            self.loop_running = true;
+
+            // Reset the internal state for the loop as we start running to
+            // ensure consistent behaviour in case the loop runs and exits more
+            // than once.
+            self.control_flow = ControlFlow::Poll;
+
+            // run the initial loop iteration
+            self.single_iteration(&mut callback, StartCause::Init);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit.
+        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+            self.poll_events_with_timeout(timeout, &mut callback);
+        }
+        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+            self.loop_running = false;
+
+            let mut dummy = self.control_flow;
+            sticky_exit_callback(
+                Event::LoopExiting,
+                self.window_target(),
+                &mut dummy,
+                &mut callback,
+            );
+
+            PumpStatus::Exit(code)
+        } else {
+            PumpStatus::Continue
+        }
+    }
+
+    fn has_pending(&mut self) -> bool {
+        self.event_processor.poll()
+            || self.user_receiver.has_incoming()
+            || self.redraw_receiver.has_incoming()
+    }
+
+    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let start = Instant::now();
+
+        let has_pending = self.has_pending();
+
+        timeout = if has_pending {
+            // If we already have work to do then we don't want to block on the next poll.
+            Some(Duration::ZERO)
+        } else {
+            let control_flow_timeout = match self.control_flow {
+                ControlFlow::Wait => None,
+                ControlFlow::Poll => Some(Duration::ZERO),
+                ControlFlow::WaitUntil(wait_deadline) => {
+                    Some(wait_deadline.saturating_duration_since(start))
+                }
+                // This function shouldn't have to handle any requests to exit
+                // the application (there should be no need to poll for events
+                // if the application has requested to exit) so we consider
+                // it a bug in the backend if we ever see `ExitWithCode` here.
+                ControlFlow::ExitWithCode(_code) => unreachable!(),
+            };
+
+            min_timeout(control_flow_timeout, timeout)
+        };
+
+        self.state.x11_readiness = Readiness::EMPTY;
+        if let Err(error) = self
+            .event_loop
+            .dispatch(timeout, &mut self.state)
+            .map_err(std::io::Error::from)
+        {
+            log::error!("Failed to poll for events: {error:?}");
+            let exit_code = error.raw_os_error().unwrap_or(1);
+            self.control_flow = ControlFlow::ExitWithCode(exit_code);
+            return;
+        }
+
+        // False positive / spurious wake ups could lead to us spamming
+        // redundant iterations of the event loop with no new events to
+        // dispatch.
+        //
+        // If there's no readable event source then we just double check if we
+        // have any pending `_receiver` events and if not we return without
+        // running a loop iteration.
+        // If we don't have any pending `_receiver`
+        if !self.has_pending() && !self.state.x11_readiness.readable {
+            return;
+        }
+
+        // NB: `StartCause::Init` is handled as a special case and doesn't need
+        // to be considered here
+        let cause = match self.control_flow {
+            ControlFlow::Poll => StartCause::Poll,
+            ControlFlow::Wait => StartCause::WaitCancelled {
+                start,
+                requested_resume: None,
+            },
+            ControlFlow::WaitUntil(deadline) => {
+                if Instant::now() < deadline {
+                    StartCause::WaitCancelled {
+                        start,
+                        requested_resume: Some(deadline),
+                    }
+                } else {
+                    StartCause::ResumeTimeReached {
+                        start,
+                        requested_resume: deadline,
+                    }
+                }
+            }
+            // This function shouldn't have to handle any requests to exit
+            // the application (there should be no need to poll for events
+            // if the application has requested to exit) so we consider
+            // it a bug in the backend if we ever see `ExitWithCode` here.
+            ControlFlow::ExitWithCode(_code) => unreachable!(),
+        };
+
+        self.single_iteration(&mut callback, cause);
+    }
+
+    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let mut control_flow = self.control_flow;
+
+        sticky_exit_callback(
+            crate::event::Event::NewEvents(cause),
+            &self.target,
+            &mut control_flow,
+            callback,
+        );
+
+        // NB: For consistency all platforms must emit a 'resumed' event even though X11
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        if cause == StartCause::Init {
+            sticky_exit_callback(
+                crate::event::Event::Resumed,
+                &self.target,
+                &mut control_flow,
+                callback,
+            );
+        }
+
+        // Process all pending events
+        self.drain_events(callback, &mut control_flow);
+
+        // Empty activation tokens.
+        while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
+            let token = self
+                .event_processor
+                .with_window(window_id.0 as xproto::Window, |window| {
+                    window.generate_activation_token()
+                });
+
+            match token {
+                Some(Ok(token)) => sticky_exit_callback(
+                    crate::event::Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: crate::event::WindowEvent::ActivationTokenDone {
+                            serial,
+                            token: crate::window::ActivationToken::_new(token),
+                        },
+                    },
+                    &self.target,
+                    &mut control_flow,
+                    callback,
+                ),
+                Some(Err(e)) => {
+                    log::error!("Failed to get activation token: {}", e);
+                }
+                None => {}
+            }
+        }
+
+        // Empty the user event buffer
+        {
+            while let Ok(event) = self.user_receiver.try_recv() {
+                sticky_exit_callback(
+                    crate::event::Event::UserEvent(event),
+                    &self.target,
+                    &mut control_flow,
+                    callback,
+                );
+            }
+        }
+
+        // Empty the redraw requests
+        {
+            let mut windows = HashSet::new();
+
+            while let Ok(window_id) = self.redraw_receiver.try_recv() {
+                windows.insert(window_id);
+            }
+
+            for window_id in windows {
+                let window_id = crate::window::WindowId(window_id);
+                sticky_exit_callback(
+                    Event::RedrawRequested(window_id),
+                    &self.target,
+                    &mut control_flow,
+                    callback,
+                );
+            }
+        }
+
+        // This is always the last event we dispatch before poll again
+        {
+            sticky_exit_callback(
+                crate::event::Event::AboutToWait,
+                &self.target,
+                &mut control_flow,
+                callback,
+            );
+        }
+
+        self.control_flow = control_flow;
     }
 
     fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)

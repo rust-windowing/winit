@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    error::RunLoopError,
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow},
     keyboard::{
@@ -301,15 +302,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
-    where
-        F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
-    {
-        let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
-    }
-
     fn process_event<F>(
         window_id: WindowId,
         event_option: EventOption,
@@ -451,9 +443,10 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler_inner: F) -> i32
+    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static
+            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // Wrapper for event handler function that prevents ExitWithCode from being unset.
         let mut event_handler =
@@ -601,12 +594,6 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            event_handler(
-                event::Event::MainEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-            );
-
             // To avoid deadlocks the redraws lock is not held during event processing.
             while let Some(window_id) = {
                 let mut redraws = self.window_target.p.redraws.lock().unwrap();
@@ -620,7 +607,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             event_handler(
-                event::Event::RedrawEventsCleared,
+                event::Event::AboutToWait,
                 &self.window_target,
                 &mut control_flow,
             );
@@ -691,12 +678,16 @@ impl<T: 'static> EventLoop<T> {
         };
 
         event_handler(
-            event::Event::LoopDestroyed,
+            event::Event::LoopExiting,
             &self.window_target,
             &mut control_flow,
         );
 
-        code
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(RunLoopError::ExitFailure(code))
+        }
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {

@@ -19,21 +19,31 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
-use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, StartCause},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
     keyboard::NativeKey,
+    platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
     },
 };
+use crate::{error::RunLoopError, platform_impl::Fullscreen};
 
 mod keycodes;
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
+
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
+}
 
 struct PeekableReceiver<T> {
     recv: mpsc::Receiver<T>,
@@ -135,7 +145,11 @@ pub struct EventLoop<T: 'static> {
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
+    loop_running: bool,                        // Dispatched `NewEvents<Init>`
     running: bool,
+    pending_redraw: bool,
+    control_flow: ControlFlow,
+    cause: StartCause,
     ignore_volume_keys: bool,
 }
 
@@ -171,12 +185,6 @@ fn sticky_exit_callback<T, F>(
     }
 }
 
-struct IterationResult {
-    deadline: Option<Instant>,
-    timeout: Option<Duration>,
-    wait_start: Instant,
-}
-
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
@@ -200,32 +208,32 @@ impl<T: 'static> EventLoop<T> {
             redraw_flag,
             user_events_sender,
             user_events_receiver: PeekableReceiver::from_recv(user_events_receiver),
+            loop_running: false,
             running: false,
+            pending_redraw: false,
+            control_flow: Default::default(),
+            cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
         }
     }
 
-    fn single_iteration<F>(
-        &mut self,
-        control_flow: &mut ControlFlow,
-        main_event: Option<MainEvent<'_>>,
-        pending_redraw: &mut bool,
-        cause: &mut StartCause,
-        callback: &mut F,
-    ) -> IterationResult
+    fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
         F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         trace!("Mainloop iteration");
 
+        let cause = self.cause;
+        let mut control_flow = self.control_flow;
+        let mut pending_redraw = self.pending_redraw;
+        let mut resized = false;
+
         sticky_exit_callback(
-            event::Event::NewEvents(*cause),
+            event::Event::NewEvents(cause),
             self.window_target(),
-            control_flow,
+            &mut control_flow,
             callback,
         );
-
-        let mut resized = false;
 
         if let Some(event) = main_event {
             trace!("Handling main event {:?}", event);
@@ -235,7 +243,7 @@ impl<T: 'static> EventLoop<T> {
                     sticky_exit_callback(
                         event::Event::Resumed,
                         self.window_target(),
-                        control_flow,
+                        &mut control_flow,
                         callback,
                     );
                 }
@@ -243,12 +251,12 @@ impl<T: 'static> EventLoop<T> {
                     sticky_exit_callback(
                         event::Event::Suspended,
                         self.window_target(),
-                        control_flow,
+                        &mut control_flow,
                         callback,
                     );
                 }
                 MainEvent::WindowResized { .. } => resized = true,
-                MainEvent::RedrawNeeded { .. } => *pending_redraw = true,
+                MainEvent::RedrawNeeded { .. } => pending_redraw = true,
                 MainEvent::ContentRectChanged { .. } => {
                     warn!("TODO: find a way to notify application of content rect change");
                 }
@@ -260,7 +268,7 @@ impl<T: 'static> EventLoop<T> {
                             event: event::WindowEvent::Focused(true),
                         },
                         self.window_target(),
-                        control_flow,
+                        &mut control_flow,
                         callback,
                     );
                 }
@@ -272,7 +280,7 @@ impl<T: 'static> EventLoop<T> {
                             event: event::WindowEvent::Focused(false),
                         },
                         self.window_target(),
-                        control_flow,
+                        &mut control_flow,
                         callback,
                     );
                 }
@@ -289,7 +297,12 @@ impl<T: 'static> EventLoop<T> {
                                 scale_factor,
                             },
                         };
-                        sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                        sticky_exit_callback(
+                            event,
+                            self.window_target(),
+                            &mut control_flow,
+                            callback,
+                        );
                     }
                 }
                 MainEvent::LowMemory => {
@@ -398,7 +411,7 @@ impl<T: 'static> EventLoop<T> {
                             sticky_exit_callback(
                                 event,
                                 self.window_target(),
-                                control_flow,
+                                &mut control_flow,
                                 callback
                             );
                         }
@@ -446,7 +459,7 @@ impl<T: 'static> EventLoop<T> {
                             sticky_exit_callback(
                                 event,
                                 self.window_target(),
-                                control_flow,
+                                &mut control_flow,
                                 callback,
                             );
                         }
@@ -465,18 +478,11 @@ impl<T: 'static> EventLoop<T> {
                 sticky_exit_callback(
                     crate::event::Event::UserEvent(event),
                     self.window_target(),
-                    control_flow,
+                    &mut control_flow,
                     callback,
                 );
             }
         }
-
-        sticky_exit_callback(
-            event::Event::MainEventsCleared,
-            self.window_target(),
-            control_flow,
-            callback,
-        );
 
         if self.running {
             if resized {
@@ -491,163 +497,180 @@ impl<T: 'static> EventLoop<T> {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::Resized(size),
                 };
-                sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
             }
 
-            *pending_redraw |= self.redraw_flag.get_and_reset();
-            if *pending_redraw {
-                *pending_redraw = false;
+            pending_redraw |= self.redraw_flag.get_and_reset();
+            if pending_redraw {
+                pending_redraw = false;
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
-                sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
             }
         }
 
+        // This is always the last event we dispatch before poll again
         sticky_exit_callback(
-            event::Event::RedrawEventsCleared,
+            event::Event::AboutToWait,
             self.window_target(),
-            control_flow,
+            &mut control_flow,
             callback,
         );
 
-        let start = Instant::now();
-        let (deadline, timeout);
-
-        match control_flow {
-            ControlFlow::ExitWithCode(_) => {
-                deadline = None;
-                timeout = None;
-            }
-            ControlFlow::Poll => {
-                *cause = StartCause::Poll;
-                deadline = None;
-                timeout = Some(Duration::from_millis(0));
-            }
-            ControlFlow::Wait => {
-                *cause = StartCause::WaitCancelled {
-                    start,
-                    requested_resume: None,
-                };
-                deadline = None;
-                timeout = None;
-            }
-            ControlFlow::WaitUntil(wait_deadline) => {
-                *cause = StartCause::ResumeTimeReached {
-                    start,
-                    requested_resume: *wait_deadline,
-                };
-                timeout = if *wait_deadline > start {
-                    Some(*wait_deadline - start)
-                } else {
-                    Some(Duration::from_millis(0))
-                };
-                deadline = Some(*wait_deadline);
-            }
-        }
-
-        IterationResult {
-            wait_start: start,
-            deadline,
-            timeout,
-        }
+        self.control_flow = control_flow;
+        self.pending_redraw = pending_redraw;
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: 'static
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
+        self.run_ondemand(event_handler)
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
+    where
+        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        if self.loop_running {
+            return Err(RunLoopError::AlreadyRunning);
+        }
+
+        loop {
+            match self.pump_events(None, &mut event_handler) {
+                PumpStatus::Exit(0) => {
+                    break Ok(());
+                }
+                PumpStatus::Exit(code) => {
+                    break Err(RunLoopError::ExitFailure(code));
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
         F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let mut control_flow = ControlFlow::default();
-        let mut cause = StartCause::Init;
-        let mut pending_redraw = false;
+        if !self.loop_running {
+            self.loop_running = true;
 
-        // run the initial loop iteration
-        let mut iter_result = self.single_iteration(
-            &mut control_flow,
-            None,
-            &mut pending_redraw,
-            &mut cause,
-            &mut callback,
-        );
+            // Reset the internal state for the loop as we start running to
+            // ensure consistent behaviour in case the loop runs and exits more
+            // than once
+            self.pending_redraw = false;
+            self.cause = StartCause::Init;
+            self.control_flow = ControlFlow::Poll;
 
-        let exit_code = loop {
-            if let ControlFlow::ExitWithCode(code) = control_flow {
-                break code;
+            // run the initial loop iteration
+            self.single_iteration(None, &mut callback);
+        }
+
+        // Consider the possibility that the `StartCause::Init` iteration could
+        // request to Exit
+        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+            self.poll_events_with_timeout(timeout, &mut callback);
+        }
+        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+            self.loop_running = false;
+
+            let mut dummy = self.control_flow;
+            sticky_exit_callback(
+                event::Event::LoopExiting,
+                self.window_target(),
+                &mut dummy,
+                &mut callback,
+            );
+
+            PumpStatus::Exit(code)
+        } else {
+            PumpStatus::Continue
+        }
+    }
+
+    fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
+    where
+        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let start = Instant::now();
+
+        self.pending_redraw |= self.redraw_flag.get_and_reset();
+
+        timeout =
+            if self.running && (self.pending_redraw || self.user_events_receiver.has_incoming()) {
+                // If we already have work to do then we don't want to block on the next poll
+                Some(Duration::ZERO)
+            } else {
+                let control_flow_timeout = match self.control_flow {
+                    ControlFlow::Wait => None,
+                    ControlFlow::Poll => Some(Duration::ZERO),
+                    ControlFlow::WaitUntil(wait_deadline) => {
+                        Some(wait_deadline.saturating_duration_since(start))
+                    }
+                    // `ExitWithCode()` will be reset to `Poll` before polling
+                    ControlFlow::ExitWithCode(_code) => unreachable!(),
+                };
+
+                min_timeout(control_flow_timeout, timeout)
+            };
+
+        let app = self.android_app.clone(); // Don't borrow self as part of poll expression
+        app.poll_events(timeout, |poll_event| {
+            let mut main_event = None;
+
+            match poll_event {
+                android_activity::PollEvent::Wake => {
+                    // In the X11 backend it's noted that too many false-positive wake ups
+                    // would cause the event loop to run continuously. They handle this by re-checking
+                    // for pending events (assuming they cover all valid reasons for a wake up).
+                    //
+                    // For now, user_events and redraw_requests are the only reasons to expect
+                    // a wake up here so we can ignore the wake up if there are no events/requests.
+                    // We also ignore wake ups while suspended.
+                    self.pending_redraw |= self.redraw_flag.get_and_reset();
+                    if !self.running
+                        || (!self.pending_redraw && !self.user_events_receiver.has_incoming())
+                    {
+                        return;
+                    }
+                }
+                android_activity::PollEvent::Timeout => {}
+                android_activity::PollEvent::Main(event) => {
+                    main_event = Some(event);
+                }
+                unknown_event => {
+                    warn!("Unknown poll event {unknown_event:?} (ignored)");
+                }
             }
 
-            let mut timeout = iter_result.timeout;
-
-            // If we already have work to do then we don't want to block on the next poll...
-            pending_redraw |= self.redraw_flag.get_and_reset();
-            if self.running && (pending_redraw || self.user_events_receiver.has_incoming()) {
-                timeout = Some(Duration::from_millis(0))
-            }
-
-            let app = self.android_app.clone(); // Don't borrow self as part of poll expression
-            app.poll_events(timeout, |poll_event| {
-                let mut main_event = None;
-
-                match poll_event {
-                    android_activity::PollEvent::Wake => {
-                        // In the X11 backend it's noted that too many false-positive wake ups
-                        // would cause the event loop to run continuously. They handle this by re-checking
-                        // for pending events (assuming they cover all valid reasons for a wake up).
-                        //
-                        // For now, user_events and redraw_requests are the only reasons to expect
-                        // a wake up here so we can ignore the wake up if there are no events/requests.
-                        // We also ignore wake ups while suspended.
-                        pending_redraw |= self.redraw_flag.get_and_reset();
-                        if !self.running
-                            || (!pending_redraw && !self.user_events_receiver.has_incoming())
-                        {
-                            return;
+            self.cause = match self.control_flow {
+                ControlFlow::Poll => StartCause::Poll,
+                ControlFlow::Wait => StartCause::WaitCancelled {
+                    start,
+                    requested_resume: None,
+                },
+                ControlFlow::WaitUntil(deadline) => {
+                    if Instant::now() < deadline {
+                        StartCause::WaitCancelled {
+                            start,
+                            requested_resume: Some(deadline),
+                        }
+                    } else {
+                        StartCause::ResumeTimeReached {
+                            start,
+                            requested_resume: deadline,
                         }
                     }
-                    android_activity::PollEvent::Timeout => {}
-                    android_activity::PollEvent::Main(event) => {
-                        main_event = Some(event);
-                    }
-                    unknown_event => {
-                        warn!("Unknown poll event {unknown_event:?} (ignored)");
-                    }
                 }
+                // `ExitWithCode()` will be reset to `Poll` before polling
+                ControlFlow::ExitWithCode(_code) => unreachable!(),
+            };
 
-                let wait_cancelled = iter_result
-                    .deadline
-                    .map_or(false, |deadline| Instant::now() < deadline);
-
-                if wait_cancelled {
-                    cause = StartCause::WaitCancelled {
-                        start: iter_result.wait_start,
-                        requested_resume: iter_result.deadline,
-                    };
-                }
-
-                iter_result = self.single_iteration(
-                    &mut control_flow,
-                    main_event,
-                    &mut pending_redraw,
-                    &mut cause,
-                    &mut callback,
-                );
-            });
-        };
-
-        sticky_exit_callback(
-            event::Event::LoopDestroyed,
-            self.window_target(),
-            &mut control_flow,
-            &mut callback,
-        );
-
-        exit_code
+            self.single_iteration(main_event, &mut callback);
+        });
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
