@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
 - **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
 - On Wayland, make double clicking and moving the CSD frame more reliable.
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
