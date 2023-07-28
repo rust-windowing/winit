@@ -181,7 +181,7 @@ pub enum ControlFlow {
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
 
-    /// Send a [`LoopDestroyed`] event and stop the event loop. This variant is *sticky* - once set,
+    /// Send a [`LoopExiting`] event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
     ///
@@ -195,7 +195,7 @@ pub enum ControlFlow {
     ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
     ///   [`std::process::exit`].
     ///
-    /// [`LoopDestroyed`]: Event::LoopDestroyed
+    /// [`LoopExiting`]: Event::LoopExiting
     /// [`Exit`]: ControlFlow::Exit
     ExitWithCode(i32),
 }
