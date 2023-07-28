@@ -8,7 +8,7 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
-use objc2::rc::{Id, Shared};
+use objc2::rc::Id;
 
 use super::appkit::NSScreen;
 use super::ffi;
@@ -295,19 +295,14 @@ impl MonitorHandle {
         }
     }
 
-    pub(crate) fn ns_screen(&self) -> Option<Id<NSScreen, Shared>> {
+    pub(crate) fn ns_screen(&self) -> Option<Id<NSScreen>> {
         let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
-        NSScreen::screens()
-            .into_iter()
-            .find(|screen| {
-                let other_native_id = screen.display_id();
-                let other_uuid = unsafe {
-                    ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
-                };
-                uuid == other_uuid
-            })
-            .map(|screen| unsafe {
-                Id::retain(screen as *const NSScreen as *mut NSScreen).unwrap()
-            })
+        NSScreen::screens().into_iter().find(|screen| {
+            let other_native_id = screen.display_id();
+            let other_uuid = unsafe {
+                ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
+            };
+            uuid == other_uuid
+        })
     }
 }

@@ -1,6 +1,6 @@
-use objc2::foundation::NSObject;
-use objc2::rc::{Id, Shared};
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::rc::Id;
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::NSMenuItem;
 
@@ -10,16 +10,16 @@ extern_class!(
 
     unsafe impl ClassType for NSMenu {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl NSMenu {
-        pub fn new() -> Id<Self, Shared> {
-            unsafe { msg_send_id![Self::class(), new] }
-        }
+        #[method_id(new)]
+        pub fn new() -> Id<Self>;
 
-        #[sel(addItem:)]
+        #[method(addItem:)]
         pub fn addItem(&self, item: &NSMenuItem);
     }
 );

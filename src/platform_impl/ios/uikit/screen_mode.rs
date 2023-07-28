@@ -1,5 +1,5 @@
-use objc2::foundation::{CGSize, NSObject};
-use objc2::{extern_class, extern_methods, ClassType};
+use icrate::Foundation::{CGSize, NSObject};
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -7,12 +7,13 @@ extern_class!(
 
     unsafe impl ClassType for UIScreenMode {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl UIScreenMode {
-        #[sel(size)]
+        #[method(size)]
         pub fn size(&self) -> CGSize;
     }
 );

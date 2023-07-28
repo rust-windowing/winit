@@ -25,6 +25,7 @@ mod pasteboard;
 mod responder;
 mod screen;
 mod tab_group;
+mod text_input_client;
 mod text_input_context;
 mod version;
 mod view;
@@ -51,6 +52,7 @@ pub(crate) use self::responder::NSResponder;
 #[allow(unused_imports)]
 pub(crate) use self::screen::{NSDeviceDescriptionKey, NSScreen};
 pub(crate) use self::tab_group::NSWindowTabGroup;
+pub(crate) use self::text_input_client::NSTextInputClient;
 pub(crate) use self::text_input_context::NSTextInputContext;
 pub(crate) use self::version::NSAppKitVersion;
 pub(crate) use self::view::{NSTrackingRectTag, NSView};

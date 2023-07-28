@@ -1,7 +1,7 @@
+use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSArray, NSInteger, NSObject};
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{CGFloat, CGRect, MainThreadMarker, NSArray, NSInteger, NSObject};
-use objc2::rc::{Id, Shared};
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use objc2::rc::Id;
+use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
 use super::{UICoordinateSpace, UIScreenMode};
 
@@ -11,53 +11,54 @@ extern_class!(
 
     unsafe impl ClassType for UIScreen {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl UIScreen {
-        pub fn main(_mtm: MainThreadMarker) -> Id<Self, Shared> {
+        pub fn main(_mtm: MainThreadMarker) -> Id<Self> {
             unsafe { msg_send_id![Self::class(), mainScreen] }
         }
 
-        pub fn screens(_mtm: MainThreadMarker) -> Id<NSArray<Self, Shared>, Shared> {
+        pub fn screens(_mtm: MainThreadMarker) -> Id<NSArray<Self>> {
             unsafe { msg_send_id![Self::class(), screens] }
         }
 
-        #[sel(bounds)]
+        #[method(bounds)]
         pub fn bounds(&self) -> CGRect;
 
-        #[sel(scale)]
+        #[method(scale)]
         pub fn scale(&self) -> CGFloat;
 
-        #[sel(nativeBounds)]
+        #[method(nativeBounds)]
         pub fn nativeBounds(&self) -> CGRect;
 
-        #[sel(nativeScale)]
+        #[method(nativeScale)]
         pub fn nativeScale(&self) -> CGFloat;
 
-        #[sel(maximumFramesPerSecond)]
+        #[method(maximumFramesPerSecond)]
         pub fn maximumFramesPerSecond(&self) -> NSInteger;
 
-        pub fn mirroredScreen(&self) -> Id<Self, Shared> {
+        pub fn mirroredScreen(&self) -> Id<Self> {
             unsafe { msg_send_id![Self::class(), mirroredScreen] }
         }
 
-        pub fn preferredMode(&self) -> Option<Id<UIScreenMode, Shared>> {
+        pub fn preferredMode(&self) -> Option<Id<UIScreenMode>> {
             unsafe { msg_send_id![self, preferredMode] }
         }
 
-        #[sel(setCurrentMode:)]
+        #[method(setCurrentMode:)]
         pub fn setCurrentMode(&self, mode: Option<&UIScreenMode>);
 
-        pub fn availableModes(&self) -> Id<NSArray<UIScreenMode, Shared>, Shared> {
+        pub fn availableModes(&self) -> Id<NSArray<UIScreenMode>> {
             unsafe { msg_send_id![self, availableModes] }
         }
 
-        #[sel(setOverscanCompensation:)]
+        #[method(setOverscanCompensation:)]
         pub fn setOverscanCompensation(&self, overscanCompensation: UIScreenOverscanCompensation);
 
-        pub fn coordinateSpace(&self) -> Id<UICoordinateSpace, Shared> {
+        pub fn coordinateSpace(&self) -> Id<UICoordinateSpace> {
             unsafe { msg_send_id![self, coordinateSpace] }
         }
     }

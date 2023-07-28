@@ -6,8 +6,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{MainThreadMarker, NSInteger};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{MainThreadMarker, NSInteger};
+use objc2::rc::Id;
 
 use super::uikit::{UIScreen, UIScreenMode};
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 
 // TODO(madsmtm): Remove or refactor this
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct ScreenModeSendSync(pub(crate) Id<UIScreenMode, Shared>);
+pub(crate) struct ScreenModeSendSync(pub(crate) Id<UIScreenMode>);
 
 unsafe impl Send for ScreenModeSendSync {}
 unsafe impl Sync for ScreenModeSendSync {}
@@ -33,7 +33,7 @@ pub struct VideoMode {
 }
 
 impl VideoMode {
-    fn new(uiscreen: Id<UIScreen, Shared>, screen_mode: Id<UIScreenMode, Shared>) -> VideoMode {
+    fn new(uiscreen: Id<UIScreen>, screen_mode: Id<UIScreenMode>) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
         let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
         let size = screen_mode.size();
@@ -65,7 +65,7 @@ impl VideoMode {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Inner {
-    uiscreen: Id<UIScreen, Shared>,
+    uiscreen: Id<UIScreen>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -135,7 +135,7 @@ impl fmt::Debug for MonitorHandle {
 }
 
 impl MonitorHandle {
-    pub(crate) fn new(uiscreen: Id<UIScreen, Shared>) -> Self {
+    pub(crate) fn new(uiscreen: Id<UIScreen>) -> Self {
         assert_main_thread!("`MonitorHandle` can only be created on the main thread on iOS");
         Self {
             inner: Inner { uiscreen },
@@ -182,13 +182,8 @@ impl Inner {
             .uiscreen
             .availableModes()
             .into_iter()
-            .map(|mode| {
-                let mode: *const UIScreenMode = mode;
-                let mode = unsafe { Id::retain(mode as *mut UIScreenMode).unwrap() };
-
-                RootVideoMode {
-                    video_mode: VideoMode::new(self.uiscreen.clone(), mode),
-                }
+            .map(|mode| RootVideoMode {
+                video_mode: VideoMode::new(self.uiscreen.clone(), mode),
             })
             .collect();
 
@@ -222,7 +217,7 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
 
 // MonitorHandleExtIOS
 impl Inner {
-    pub(crate) fn ui_screen(&self) -> &Id<UIScreen, Shared> {
+    pub(crate) fn ui_screen(&self) -> &Id<UIScreen> {
         &self.uiscreen
     }
 
@@ -237,10 +232,6 @@ impl Inner {
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
     UIScreen::screens(mtm)
         .into_iter()
-        .map(|screen| {
-            let screen: *const UIScreen = screen;
-            let screen = unsafe { Id::retain(screen as *mut UIScreen).unwrap() };
-            MonitorHandle::new(screen)
-        })
+        .map(MonitorHandle::new)
         .collect()
 }

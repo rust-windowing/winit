@@ -74,11 +74,37 @@ ndk-sys = "0.4.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = ">=0.3.0-beta.3, <0.3.0-beta.4" # Allow `0.3.0-beta.3.patch-leaks`
+objc2 = "0.4.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.22.3"
 dispatch = "0.2.0"
+
+[target.'cfg(target_os = "macos")'.dependencies.icrate]
+version = "0.0.3"
+features = [
+    "Foundation",
+    "Foundation_NSArray",
+    "Foundation_NSAttributedString",
+    "Foundation_NSMutableAttributedString",
+    "Foundation_NSData",
+    "Foundation_NSDictionary",
+    "Foundation_NSString",
+    "Foundation_NSProcessInfo",
+    "Foundation_NSThread",
+    "Foundation_NSNumber",
+]
+
+[target.'cfg(target_os = "ios")'.dependencies.icrate]
+version = "0.0.3"
+features = [
+    "Foundation",
+    "Foundation_NSArray",
+    "Foundation_NSString",
+    "Foundation_NSProcessInfo",
+    "Foundation_NSThread",
+    "Foundation_NSSet",
+]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 unicode-segmentation = "1.7.1"

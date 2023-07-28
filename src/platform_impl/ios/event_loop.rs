@@ -14,8 +14,8 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::foundation::{MainThreadMarker, NSString};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{MainThreadMarker, NSString};
+use objc2::rc::Id;
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
@@ -40,7 +40,7 @@ pub(crate) enum EventWrapper {
 #[derive(Debug, PartialEq)]
 pub(crate) enum EventProxy {
     DpiChangedProxy {
-        window: Id<WinitUIWindow, Shared>,
+        window: Id<WinitUIWindow>,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     },
