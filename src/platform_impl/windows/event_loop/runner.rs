@@ -251,7 +251,7 @@ impl<T> EventLoopRunner<T> {
     }
 
     /// Dispatch control flow events (`NewEvents`, `MainEventsCleared`, `RedrawEventsCleared`, and
-    /// `LoopDestroyed`) as necessary to bring the internal `RunnerState` to the new runner state.
+    /// `LoopExiting`) as necessary to bring the internal `RunnerState` to the new runner state.
     ///
     /// The state transitions are defined as follows:
     ///
@@ -298,7 +298,7 @@ impl<T> EventLoopRunner<T> {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
-                self.call_event_handler(Event::LoopDestroyed);
+                self.call_event_handler(Event::LoopExiting);
             }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
@@ -307,7 +307,7 @@ impl<T> EventLoopRunner<T> {
                 self.call_new_events(false);
             }
             (Idle, Destroyed) => {
-                self.call_event_handler(Event::LoopDestroyed);
+                self.call_event_handler(Event::LoopExiting);
             }
 
             (HandlingMainEvents, Idle) => {
@@ -317,7 +317,7 @@ impl<T> EventLoopRunner<T> {
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
-                self.call_event_handler(Event::LoopDestroyed);
+                self.call_event_handler(Event::LoopExiting);
             }
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
