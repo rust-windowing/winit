@@ -1102,7 +1102,8 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>(&pl_attribs.window_classname);
+    let class_name = util::encode_wide(&pl_attribs.class_name);
+    register_window_class::<T>(&class_name);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
