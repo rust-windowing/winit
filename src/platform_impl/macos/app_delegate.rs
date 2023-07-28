@@ -69,7 +69,7 @@ impl ApplicationDelegate {
     ) -> Id<Self> {
         unsafe {
             msg_send_id![
-                msg_send_id![Self::class(), alloc],
+                Self::alloc(),
                 initWithActivationPolicy: activation_policy,
                 defaultMenu: default_menu,
                 activateIgnoringOtherApps: activate_ignoring_other_apps,

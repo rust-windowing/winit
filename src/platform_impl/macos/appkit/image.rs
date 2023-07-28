@@ -26,13 +26,11 @@ unsafe impl Sync for NSImage {}
 extern_methods!(
     unsafe impl NSImage {
         pub fn new_by_referencing_file(path: &NSString) -> Id<Self> {
-            let this = unsafe { msg_send_id![Self::class(), alloc] };
-            unsafe { msg_send_id![this, initByReferencingFile: path] }
+            unsafe { msg_send_id![Self::alloc(), initByReferencingFile: path] }
         }
 
         pub fn new_with_data(data: &NSData) -> Id<Self> {
-            let this = unsafe { msg_send_id![Self::class(), alloc] };
-            unsafe { msg_send_id![this, initWithData: data] }
+            unsafe { msg_send_id![Self::alloc(), initWithData: data] }
         }
     }
 );

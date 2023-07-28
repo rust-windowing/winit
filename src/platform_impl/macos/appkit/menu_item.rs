@@ -23,7 +23,7 @@ extern_methods!(
         pub fn newWithTitle(title: &NSString, action: Sel, key_equivalent: &NSString) -> Id<Self> {
             unsafe {
                 msg_send_id![
-                    msg_send_id![Self::class(), alloc],
+                    Self::alloc(),
                     initWithTitle: title,
                     action: action,
                     keyEquivalent: key_equivalent,

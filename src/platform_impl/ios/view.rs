@@ -178,8 +178,7 @@ impl WinitView {
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
     ) -> Id<Self> {
-        let this: Id<Self> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -393,7 +392,7 @@ impl WinitViewController {
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         view: &UIView,
     ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![msg_send_id![Self::class(), alloc], init] };
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), init] };
 
         this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
 
@@ -459,8 +458,7 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Id<Self> {
-        let this: Id<Self> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 

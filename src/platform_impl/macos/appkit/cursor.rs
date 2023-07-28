@@ -76,8 +76,7 @@ extern_methods!(
 
         // Creating cursors should be thread-safe, though using them for anything probably isn't.
         pub fn new(image: &NSImage, hotSpot: NSPoint) -> Id<Self> {
-            let this = unsafe { msg_send_id![Self::class(), alloc] };
-            unsafe { msg_send_id![this, initWithImage: image, hotSpot: hotSpot] }
+            unsafe { msg_send_id![Self::alloc(), initWithImage: image, hotSpot: hotSpot] }
         }
 
         pub fn invisible() -> Id<Self> {

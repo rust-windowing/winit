@@ -435,7 +435,7 @@ impl WinitWindowDelegate {
     pub fn new(window: &WinitWindow, initial_fullscreen: bool) -> Id<Self> {
         unsafe {
             msg_send_id![
-                msg_send_id![Self::class(), alloc],
+                Self::alloc(),
                 initWithWindow: window,
                 initialFullscreen: initial_fullscreen,
             ]

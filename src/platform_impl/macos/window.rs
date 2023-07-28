@@ -340,7 +340,7 @@ impl WinitWindow {
             let state_ptr: *mut c_void = Box::into_raw(Box::new(Mutex::new(state))).cast();
             let this: Option<Id<Self>> = unsafe {
                 msg_send_id![
-                    msg_send_id![WinitWindow::class(), alloc],
+                    WinitWindow::alloc(),
                     initWithContentRect: frame,
                     styleMask: masks,
                     state: state_ptr,

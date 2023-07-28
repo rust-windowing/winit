@@ -803,7 +803,7 @@ impl WinitView {
     pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self> {
         unsafe {
             msg_send_id![
-                msg_send_id![Self::class(), alloc],
+                Self::alloc(),
                 initWithId: window,
                 acceptsFirstMouse: accepts_first_mouse,
             ]
