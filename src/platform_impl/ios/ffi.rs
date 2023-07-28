@@ -2,8 +2,8 @@
 
 use std::convert::TryInto;
 
+use icrate::Foundation::{NSInteger, NSUInteger};
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{NSInteger, NSUInteger};
 
 use crate::platform::ios::{Idiom, ScreenEdge};
 

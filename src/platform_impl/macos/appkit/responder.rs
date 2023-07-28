@@ -1,15 +1,15 @@
-use objc2::foundation::{NSArray, NSObject};
-use objc2::rc::Shared;
-use objc2::{extern_class, extern_methods, ClassType};
+use icrate::Foundation::{NSArray, NSObject};
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::NSEvent;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
-    pub(crate) struct NSResponder;
+    pub struct NSResponder;
 
     unsafe impl ClassType for NSResponder {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
@@ -17,7 +17,7 @@ extern_class!(
 
 extern_methods!(
     unsafe impl NSResponder {
-        #[sel(interpretKeyEvents:)]
-        pub unsafe fn interpretKeyEvents(&self, events: &NSArray<NSEvent, Shared>);
+        #[method(interpretKeyEvents:)]
+        pub(crate) unsafe fn interpretKeyEvents(&self, events: &NSArray<NSEvent>);
     }
 );

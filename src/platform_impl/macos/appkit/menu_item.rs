@@ -1,7 +1,7 @@
-use objc2::foundation::{NSObject, NSString};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{NSObject, NSString};
+use objc2::rc::Id;
 use objc2::runtime::Sel;
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
 use super::{NSEventModifierFlags, NSMenu};
 
@@ -11,23 +11,19 @@ extern_class!(
 
     unsafe impl ClassType for NSMenuItem {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl NSMenuItem {
-        pub fn new() -> Id<Self, Shared> {
-            unsafe { msg_send_id![Self::class(), new] }
-        }
+        #[method_id(new)]
+        pub fn new() -> Id<Self>;
 
-        pub fn newWithTitle(
-            title: &NSString,
-            action: Sel,
-            key_equivalent: &NSString,
-        ) -> Id<Self, Shared> {
+        pub fn newWithTitle(title: &NSString, action: Sel, key_equivalent: &NSString) -> Id<Self> {
             unsafe {
                 msg_send_id![
-                    msg_send_id![Self::class(), alloc],
+                    Self::alloc(),
                     initWithTitle: title,
                     action: action,
                     keyEquivalent: key_equivalent,
@@ -35,14 +31,13 @@ extern_methods!(
             }
         }
 
-        pub fn separatorItem() -> Id<Self, Shared> {
-            unsafe { msg_send_id![Self::class(), separatorItem] }
-        }
+        #[method_id(separatorItem)]
+        pub fn separatorItem() -> Id<Self>;
 
-        #[sel(setKeyEquivalentModifierMask:)]
+        #[method(setKeyEquivalentModifierMask:)]
         pub fn setKeyEquivalentModifierMask(&self, mask: NSEventModifierFlags);
 
-        #[sel(setSubmenu:)]
+        #[method(setSubmenu:)]
         pub fn setSubmenu(&self, submenu: &NSMenu);
     }
 );

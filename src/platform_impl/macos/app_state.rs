@@ -12,7 +12,7 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use objc2::foundation::{is_main_thread, NSSize};
+use icrate::Foundation::{is_main_thread, NSSize};
 use objc2::rc::autoreleasepool;
 use once_cell::sync::Lazy;
 

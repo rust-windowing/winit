@@ -15,8 +15,8 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use objc2::foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
+use objc2::rc::Id;
 use objc2::runtime::Object;
 use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
@@ -68,25 +68,25 @@ impl Event<'static, Never> {
 #[must_use = "dropping `AppStateImpl` without inspecting it is probably a bug"]
 enum AppStateImpl {
     NotLaunched {
-        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
+        queued_windows: Vec<Id<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     Launching {
-        queued_windows: Vec<Id<WinitUIWindow, Shared>>,
+        queued_windows: Vec<Id<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
         queued_event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     ProcessingEvents {
         event_handler: Box<dyn EventHandler>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
         active_control_flow: ControlFlow,
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
         queued_events: Vec<EventWrapper>,
-        queued_gpu_redraws: HashSet<Id<WinitUIWindow, Shared>>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     ProcessingRedraws {
         event_handler: Box<dyn EventHandler>,
@@ -204,9 +204,7 @@ impl AppState {
         });
     }
 
-    fn did_finish_launching_transition(
-        &mut self,
-    ) -> (Vec<Id<WinitUIWindow, Shared>>, Vec<EventWrapper>) {
+    fn did_finish_launching_transition(&mut self) -> (Vec<Id<WinitUIWindow>>, Vec<EventWrapper>) {
         let (windows, events, event_handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
@@ -363,7 +361,7 @@ impl AppState {
         }
     }
 
-    fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow, Shared>> {
+    fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow>> {
         let (event_handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
             AppStateImpl::ProcessingEvents {
                 event_handler,
@@ -451,7 +449,7 @@ impl AppState {
 
 // requires main thread and window is a UIWindow
 // retains window
-pub(crate) unsafe fn set_key_window(window: &Id<WinitUIWindow, Shared>) {
+pub(crate) unsafe fn set_key_window(window: &Id<WinitUIWindow>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
@@ -474,7 +472,7 @@ pub(crate) unsafe fn set_key_window(window: &Id<WinitUIWindow, Shared>) {
 
 // requires main thread and window is a UIWindow
 // retains window
-pub(crate) unsafe fn queue_gl_or_metal_redraw(window: Id<WinitUIWindow, Shared>) {
+pub(crate) unsafe fn queue_gl_or_metal_redraw(window: Id<WinitUIWindow>) {
     let mut this = AppState::get_mut();
     match this.state_mut() {
         &mut AppStateImpl::NotLaunched {
@@ -807,7 +805,7 @@ fn handle_hidpi_proxy(
     mut control_flow: ControlFlow,
     suggested_size: LogicalSize<f64>,
     scale_factor: f64,
-    window: Id<WinitUIWindow, Shared>,
+    window: Id<WinitUIWindow>,
 ) {
     let mut size = suggested_size.to_physical(scale_factor);
     let new_inner_size = &mut size;
@@ -827,7 +825,7 @@ fn handle_hidpi_proxy(
     view.setFrame(new_frame);
 }
 
-fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Id<UIView, Shared>, CGRect) {
+fn get_view_and_screen_frame(window: &WinitUIWindow) -> (Id<UIView>, CGRect) {
     let view_controller = window.rootViewController().unwrap();
     let view = view_controller.view().unwrap();
     let bounds = window.bounds();
@@ -963,7 +961,7 @@ impl NSOperatingSystemVersion {
 pub fn os_capabilities() -> OSCapabilities {
     static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
         let version: NSOperatingSystemVersion = unsafe {
-            let process_info = NSProcessInfo::process_info();
+            let process_info = NSProcessInfo::processInfo();
             let atleast_ios_8: bool = msg_send![
                 &process_info,
                 respondsToSelector: sel!(operatingSystemVersion)

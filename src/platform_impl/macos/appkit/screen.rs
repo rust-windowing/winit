@@ -1,7 +1,8 @@
-use objc2::foundation::{CGFloat, NSArray, NSDictionary, NSNumber, NSObject, NSRect, NSString};
-use objc2::rc::{Id, Shared};
+use icrate::ns_string;
+use icrate::Foundation::{CGFloat, NSArray, NSDictionary, NSNumber, NSObject, NSRect, NSString};
+use objc2::rc::Id;
 use objc2::runtime::Object;
-use objc2::{extern_class, extern_methods, msg_send_id, ns_string, ClassType};
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -9,6 +10,7 @@ extern_class!(
 
     unsafe impl ClassType for NSScreen {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
@@ -17,26 +19,21 @@ extern_class!(
 extern_methods!(
     unsafe impl NSScreen {
         /// The application object must have been created.
-        pub fn main() -> Option<Id<Self, Shared>> {
-            unsafe { msg_send_id![Self::class(), mainScreen] }
-        }
+        #[method_id(mainScreen)]
+        pub fn main() -> Option<Id<Self>>;
 
         /// The application object must have been created.
-        pub fn screens() -> Id<NSArray<Self, Shared>, Shared> {
-            unsafe { msg_send_id![Self::class(), screens] }
-        }
+        #[method_id(screens)]
+        pub fn screens() -> Id<NSArray<Self>>;
 
-        #[sel(frame)]
+        #[method(frame)]
         pub fn frame(&self) -> NSRect;
 
-        #[sel(visibleFrame)]
+        #[method(visibleFrame)]
         pub fn visibleFrame(&self) -> NSRect;
 
-        pub fn deviceDescription(
-            &self,
-        ) -> Id<NSDictionary<NSDeviceDescriptionKey, Object>, Shared> {
-            unsafe { msg_send_id![self, deviceDescription] }
-        }
+        #[method_id(deviceDescription)]
+        pub fn deviceDescription(&self) -> Id<NSDictionary<NSDeviceDescriptionKey, Object>>;
 
         pub fn display_id(&self) -> u32 {
             let key = ns_string!("NSScreenNumber");
@@ -60,7 +57,7 @@ extern_methods!(
             })
         }
 
-        #[sel(backingScaleFactor)]
+        #[method(backingScaleFactor)]
         pub fn backingScaleFactor(&self) -> CGFloat;
     }
 );

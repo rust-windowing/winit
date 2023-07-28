@@ -6,8 +6,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
+use objc2::rc::Id;
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
@@ -32,9 +32,9 @@ use crate::{
 };
 
 pub struct Inner {
-    pub(crate) window: Id<WinitUIWindow, Shared>,
-    pub(crate) view_controller: Id<WinitViewController, Shared>,
-    pub(crate) view: Id<WinitView, Shared>,
+    pub(crate) window: Id<WinitUIWindow>,
+    pub(crate) view_controller: Id<WinitViewController>,
+    pub(crate) view: Id<WinitView>,
     gl_or_metal_backed: bool,
 }
 

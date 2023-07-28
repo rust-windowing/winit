@@ -1,5 +1,5 @@
-use objc2::foundation::NSObject;
-use objc2::{extern_class, extern_methods, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::{NSResponder, NSView};
 
@@ -10,15 +10,16 @@ extern_class!(
     unsafe impl ClassType for NSControl {
         #[inherits(NSResponder, NSObject)]
         type Super = NSView;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl NSControl {
-        #[sel(setEnabled:)]
+        #[method(setEnabled:)]
         pub fn setEnabled(&self, enabled: bool);
 
-        #[sel(isEnabled)]
+        #[method(isEnabled)]
         pub fn isEnabled(&self) -> bool;
     }
 );

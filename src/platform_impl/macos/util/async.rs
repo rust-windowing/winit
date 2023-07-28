@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use dispatch::Queue;
-use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
+use icrate::Foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
 use objc2::rc::autoreleasepool;
 
 use crate::{

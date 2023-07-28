@@ -1,7 +1,8 @@
-use objc2::foundation::{NSProcessInfo, NSString};
-use objc2::rc::{Id, Shared};
+use icrate::ns_string;
+use icrate::Foundation::{NSProcessInfo, NSString};
+use objc2::rc::Id;
 use objc2::runtime::Sel;
-use objc2::{ns_string, sel};
+use objc2::sel;
 
 use super::appkit::{NSApp, NSEventModifierFlags, NSMenu, NSMenuItem};
 
@@ -16,17 +17,17 @@ pub fn initialize() {
     menubar.addItem(&app_menu_item);
 
     let app_menu = NSMenu::new();
-    let process_name = NSProcessInfo::process_info().process_name();
+    let process_name = NSProcessInfo::processInfo().processName();
 
     // About menu item
-    let about_item_title = ns_string!("About ").concat(&process_name);
+    let about_item_title = ns_string!("About ").stringByAppendingString(&process_name);
     let about_item = menu_item(&about_item_title, sel!(orderFrontStandardAboutPanel:), None);
 
     // Seperator menu item
     let sep_first = NSMenuItem::separatorItem();
 
     // Hide application menu item
-    let hide_item_title = ns_string!("Hide ").concat(&process_name);
+    let hide_item_title = ns_string!("Hide ").stringByAppendingString(&process_name);
     let hide_item = menu_item(
         &hide_item_title,
         sel!(hide:),
@@ -57,7 +58,7 @@ pub fn initialize() {
     let sep = NSMenuItem::separatorItem();
 
     // Quit application menu item
-    let quit_item_title = ns_string!("Quit ").concat(&process_name);
+    let quit_item_title = ns_string!("Quit ").stringByAppendingString(&process_name);
     let quit_item = menu_item(
         &quit_item_title,
         sel!(terminate:),
@@ -84,7 +85,7 @@ fn menu_item(
     title: &NSString,
     selector: Sel,
     key_equivalent: Option<KeyEquivalent<'_>>,
-) -> Id<NSMenuItem, Shared> {
+) -> Id<NSMenuItem> {
     let (key, masks) = match key_equivalent {
         Some(ke) => (ke.key, ke.masks),
         None => (ns_string!(""), None),

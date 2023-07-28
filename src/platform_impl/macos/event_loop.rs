@@ -17,8 +17,8 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::foundation::is_main_thread;
-use objc2::rc::{autoreleasepool, Id, Shared};
+use icrate::Foundation::is_main_thread;
+use objc2::rc::{autoreleasepool, Id};
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
@@ -116,7 +116,7 @@ impl<T> EventLoopWindowTarget<T> {
 pub struct EventLoop<T: 'static> {
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
-    _delegate: Id<ApplicationDelegate, Shared>,
+    _delegate: Id<ApplicationDelegate>,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -157,7 +157,7 @@ impl<T> EventLoop<T> {
         // `sharedApplication`) is called anywhere else, or we'll end up
         // with the wrong `NSApplication` class and the wrong thread could
         // be marked as main.
-        let app: Id<WinitApplication, Shared> =
+        let app: Id<WinitApplication> =
             unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
 
         use NSApplicationActivationPolicy::*;
