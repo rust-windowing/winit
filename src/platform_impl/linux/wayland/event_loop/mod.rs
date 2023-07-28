@@ -475,14 +475,6 @@ impl<T: 'static> EventLoop<T> {
             sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
         }
 
-        // Send events cleared.
-        sticky_exit_callback(
-            Event::MainEventsCleared,
-            &self.window_target,
-            &mut control_flow,
-            &mut callback,
-        );
-
         // Collect the window ids
         self.with_state(|state| {
             window_ids.extend(state.window_requests.get_mut().keys());
@@ -525,9 +517,9 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        // Send RedrawEventCleared.
+        // This is always the last event we dispatch before poll again
         sticky_exit_callback(
-            Event::RedrawEventsCleared,
+            Event::AboutToWait,
             &self.window_target,
             &mut control_flow,
             &mut callback,

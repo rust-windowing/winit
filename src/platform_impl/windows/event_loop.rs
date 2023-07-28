@@ -403,7 +403,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         // We aim to be consistent with the MacOS backend which has a RunLoop
-        // observer that will dispatch MainEventsCleared when about to wait for
+        // observer that will dispatch AboutToWait when about to wait for
         // events, and NewEvents after the RunLoop wakes up.
         //
         // We emulate similar behaviour by treating `GetMessage` as our wait

@@ -45,7 +45,7 @@ fn main() -> std::process::ExitCode {
                     event: WindowEvent::CloseRequested,
                     window_id,
                 } if window_id == window.id() => control_flow.set_exit(),
-                Event::MainEventsCleared => {
+                Event::AboutToWait => {
                     window.request_redraw();
                 }
                 Event::RedrawRequested(_) => {

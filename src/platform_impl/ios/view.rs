@@ -42,14 +42,9 @@ declare_class!(
         fn draw_rect(&self, rect: CGRect) {
             let window = self.window().unwrap();
             unsafe {
-                app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::StaticEvent(Event::RedrawRequested(
-                        RootWindowId(window.id()),
-                    )))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::RedrawEventsCleared,
-                    ))),
-                );
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(
+                    RootWindowId(window.id()),
+                )));
             }
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
