@@ -6,6 +6,7 @@ use std::{
     mem,
     os::raw::c_void,
     ptr,
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -25,7 +26,7 @@ use super::uikit::UIView;
 use super::view::WinitUIWindow;
 use crate::{
     dpi::LogicalSize,
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
@@ -57,7 +58,7 @@ enum UserCallbackTransitionResult<'a> {
     },
 }
 
-impl Event<'static, Never> {
+impl Event<Never> {
     fn is_redraw(&self) -> bool {
         matches!(self, Event::RedrawRequested(_))
     }
@@ -807,18 +808,18 @@ fn handle_hidpi_proxy(
     scale_factor: f64,
     window: Id<WinitUIWindow>,
 ) {
-    let mut size = suggested_size.to_physical(scale_factor);
-    let new_inner_size = &mut size;
+    let new_inner_size = Arc::new(Mutex::new(suggested_size.to_physical(scale_factor)));
     let event = Event::WindowEvent {
         window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
-            new_inner_size,
+            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
         },
     };
     event_handler.handle_nonuser_event(event, &mut control_flow);
     let (view, screen_frame) = get_view_and_screen_frame(&window);
-    let physical_size = *new_inner_size;
+    let physical_size = *new_inner_size.lock().unwrap();
+    drop(new_inner_size);
     let logical_size = physical_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size.width, logical_size.height);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);

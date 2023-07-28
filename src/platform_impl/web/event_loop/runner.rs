@@ -24,7 +24,7 @@ use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
-pub(super) type EventHandler<T> = dyn FnMut(Event<'_, T>, &mut ControlFlow);
+pub(super) type EventHandler<T> = dyn FnMut(Event<T>, &mut ControlFlow);
 
 impl<T> Clone for Shared<T> {
     fn clone(&self) -> Self {
@@ -748,7 +748,7 @@ impl<T: 'static> Shared<T> {
 }
 
 pub(crate) enum EventWrapper<T: 'static> {
-    Event(Event<'static, T>),
+    Event(Event<T>),
     ScaleChange {
         canvas: Weak<RefCell<backend::Canvas>>,
         size: PhysicalSize<u32>,
@@ -756,8 +756,8 @@ pub(crate) enum EventWrapper<T: 'static> {
     },
 }
 
-impl<T> From<Event<'static, T>> for EventWrapper<T> {
-    fn from(value: Event<'static, T>) -> Self {
+impl<T> From<Event<T>> for EventWrapper<T> {
+    fn from(value: Event<T>) -> Self {
         Self::Event(value)
     }
 }

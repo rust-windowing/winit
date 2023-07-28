@@ -33,13 +33,16 @@
 //!
 //! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
-use smol_str::SmolStr;
 use std::path::PathBuf;
+use std::sync::{Mutex, Weak};
 #[cfg(not(wasm_platform))]
 use std::time::Instant;
+
+use smol_str::SmolStr;
 #[cfg(wasm_platform)]
 use web_time::Instant;
 
+use crate::error::ExternalError;
 #[cfg(doc)]
 use crate::window::Window;
 use crate::{
@@ -53,8 +56,8 @@ use crate::{
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
-#[derive(Debug, PartialEq)]
-pub enum Event<'a, T: 'static> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Event<T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This event type is useful as a place to put code that should be done before you start
@@ -66,7 +69,7 @@ pub enum Event<'a, T: 'static> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent<'a>,
+        event: WindowEvent,
     },
 
     /// Emitted when the OS sends an event to a device.
@@ -237,32 +240,9 @@ pub enum Event<'a, T: 'static> {
     LoopExiting,
 }
 
-impl<T: Clone> Clone for Event<'static, T> {
-    fn clone(&self) -> Self {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => WindowEvent {
-                window_id: *window_id,
-                event: event.clone(),
-            },
-            UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
-            NewEvents(cause) => NewEvents(*cause),
-            AboutToWait => AboutToWait,
-            RedrawRequested(wid) => RedrawRequested(*wid),
-            LoopExiting => LoopExiting,
-            Suspended => Suspended,
-            Resumed => Resumed,
-        }
-    }
-}
-
-impl<'a, T> Event<'a, T> {
+impl<T> Event<T> {
     #[allow(clippy::result_large_err)]
-    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -274,25 +254,6 @@ impl<'a, T> Event<'a, T> {
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
-        }
-    }
-
-    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
-    /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => event
-                .to_static()
-                .map(|event| WindowEvent { window_id, event }),
-            UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            AboutToWait => Some(AboutToWait),
-            RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            LoopExiting => Some(LoopExiting),
-            Suspended => Some(Suspended),
-            Resumed => Some(Resumed),
         }
     }
 }
@@ -328,8 +289,8 @@ pub enum StartCause {
 }
 
 /// Describes an event from a [`Window`].
-#[derive(Debug, PartialEq)]
-pub enum WindowEvent<'a> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
     ///
     #[cfg_attr(
@@ -563,7 +524,10 @@ pub enum WindowEvent<'a> {
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     ScaleFactorChanged {
         scale_factor: f64,
-        new_inner_size: &'a mut PhysicalSize<u32>,
+        /// Handle to update inner size during scale changes.
+        ///
+        /// See [`InnerSizeWriter`] docs for more details.
+        inner_size_writer: InnerSizeWriter,
     },
 
     /// The system window theme has changed.
@@ -590,209 +554,6 @@ pub enum WindowEvent<'a> {
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
-}
-
-impl Clone for WindowEvent<'static> {
-    fn clone(&self) -> Self {
-        use self::WindowEvent::*;
-        return match self {
-            ActivationTokenDone { serial, token } => ActivationTokenDone {
-                serial: *serial,
-                token: token.clone(),
-            },
-            Resized(size) => Resized(*size),
-            Moved(pos) => Moved(*pos),
-            CloseRequested => CloseRequested,
-            Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
-            Focused(f) => Focused(*f),
-            KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => KeyboardInput {
-                device_id: *device_id,
-                event: event.clone(),
-                is_synthetic: *is_synthetic,
-            },
-            Ime(preedit_state) => Ime(preedit_state.clone()),
-            ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
-            CursorMoved {
-                device_id,
-                position,
-            } => CursorMoved {
-                device_id: *device_id,
-                position: *position,
-            },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-            } => MouseWheel {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            MouseInput {
-                device_id,
-                state,
-                button,
-            } => MouseInput {
-                device_id: *device_id,
-                state: *state,
-                button: *button,
-            },
-            TouchpadMagnify {
-                device_id,
-                delta,
-                phase,
-            } => TouchpadMagnify {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            SmartMagnify { device_id } => SmartMagnify {
-                device_id: *device_id,
-            },
-            TouchpadRotate {
-                device_id,
-                delta,
-                phase,
-            } => TouchpadRotate {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-            },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
-                pressure: *pressure,
-                stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
-            },
-            Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(*theme),
-            ScaleFactorChanged { .. } => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
-            Occluded(occluded) => Occluded(*occluded),
-        };
-    }
-}
-
-impl<'a> WindowEvent<'a> {
-    pub fn to_static(self) -> Option<WindowEvent<'static>> {
-        use self::WindowEvent::*;
-        match self {
-            ActivationTokenDone { serial, token } => Some(ActivationTokenDone { serial, token }),
-            Resized(size) => Some(Resized(size)),
-            Moved(position) => Some(Moved(position)),
-            CloseRequested => Some(CloseRequested),
-            Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
-            Focused(focused) => Some(Focused(focused)),
-            KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => Some(KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            }),
-            ModifiersChanged(modifers) => Some(ModifiersChanged(modifers)),
-            Ime(event) => Some(Ime(event)),
-            CursorMoved {
-                device_id,
-                position,
-            } => Some(CursorMoved {
-                device_id,
-                position,
-            }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-            } => Some(MouseWheel {
-                device_id,
-                delta,
-                phase,
-            }),
-            MouseInput {
-                device_id,
-                state,
-                button,
-            } => Some(MouseInput {
-                device_id,
-                state,
-                button,
-            }),
-            TouchpadMagnify {
-                device_id,
-                delta,
-                phase,
-            } => Some(TouchpadMagnify {
-                device_id,
-                delta,
-                phase,
-            }),
-            SmartMagnify { device_id } => Some(SmartMagnify { device_id }),
-            TouchpadRotate {
-                device_id,
-                delta,
-                phase,
-            } => Some(TouchpadRotate {
-                device_id,
-                delta,
-                phase,
-            }),
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => Some(TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            }),
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => Some(AxisMotion {
-                device_id,
-                axis,
-                value,
-            }),
-            Touch(touch) => Some(Touch(touch)),
-            ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
-            Occluded(occluded) => Some(Occluded(occluded)),
-        }
-    }
 }
 
 /// Identifier of an input device.
@@ -1300,4 +1061,37 @@ pub enum MouseScrollDelta {
     /// this means moving your fingers right and down should give positive values,
     /// and move the content right and down (to reveal more things left and up).
     PixelDelta(PhysicalPosition<f64>),
+}
+
+/// Handle to synchroniously change the size of the window from the
+/// [`WindowEvent`].
+#[derive(Debug, Clone)]
+pub struct InnerSizeWriter {
+    pub(crate) new_inner_size: Weak<Mutex<PhysicalSize<u32>>>,
+}
+
+impl InnerSizeWriter {
+    #[cfg(not(orbital_platform))]
+    pub(crate) fn new(new_inner_size: Weak<Mutex<PhysicalSize<u32>>>) -> Self {
+        Self { new_inner_size }
+    }
+
+    /// Try to request inner size which will be set synchroniously on the window.
+    pub fn request_inner_size(
+        &mut self,
+        new_inner_size: PhysicalSize<u32>,
+    ) -> Result<(), ExternalError> {
+        if let Some(inner) = self.new_inner_size.upgrade() {
+            *inner.lock().unwrap() = new_inner_size;
+            Ok(())
+        } else {
+            Err(ExternalError::Ignored)
+        }
+    }
+}
+
+impl PartialEq for InnerSizeWriter {
+    fn eq(&self, other: &Self) -> bool {
+        self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
+    }
 }

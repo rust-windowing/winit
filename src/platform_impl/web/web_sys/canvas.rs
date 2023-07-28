@@ -1,20 +1,7 @@
-use super::super::WindowId;
-use super::event_handle::EventListenerHandle;
-use super::intersection_handle::IntersectionObserverHandle;
-use super::media_query_handle::MediaQueryListHandle;
-use super::pointer::PointerHandler;
-use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
-use crate::event::{Force, MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
-use crate::window::{WindowAttributes, WindowId as RootWindowId};
-
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use js_sys::Promise;
 use smol_str::SmolStr;
@@ -23,6 +10,20 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
 };
+
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::error::OsError as RootOE;
+use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
+
+use super::super::WindowId;
+use super::event_handle::EventListenerHandle;
+use super::intersection_handle::IntersectionObserverHandle;
+use super::media_query_handle::MediaQueryListHandle;
+use super::pointer::PointerHandler;
+use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 
 #[allow(dead_code)]
 pub struct Canvas {
@@ -451,20 +452,25 @@ impl Canvas {
     pub(crate) fn handle_scale_change<T: 'static>(
         &self,
         runner: &super::super::event_loop::runner::Shared<T>,
-        event_handler: impl FnOnce(crate::event::Event<'_, T>),
+        event_handler: impl FnOnce(crate::event::Event<T>),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {
         // First, we send the `ScaleFactorChanged` event:
         self.set_current_size(current_size);
-        let mut new_size = current_size;
-        event_handler(crate::event::Event::WindowEvent {
-            window_id: RootWindowId(self.id),
-            event: crate::event::WindowEvent::ScaleFactorChanged {
-                scale_factor: scale,
-                new_inner_size: &mut new_size,
-            },
-        });
+        let new_size = {
+            let new_size = Arc::new(Mutex::new(current_size));
+            event_handler(crate::event::Event::WindowEvent {
+                window_id: RootWindowId(self.id),
+                event: crate::event::WindowEvent::ScaleFactorChanged {
+                    scale_factor: scale,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_size)),
+                },
+            });
+
+            let new_size = *new_size.lock().unwrap();
+            new_size
+        };
 
         if current_size != new_size {
             // Then we resize the canvas to the new size, a new
