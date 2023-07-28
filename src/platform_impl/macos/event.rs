@@ -4,7 +4,7 @@ use core_foundation::{
     base::CFRelease,
     data::{CFDataGetBytePtr, CFDataRef},
 };
-use objc2::rc::{Id, Shared};
+use objc2::rc::Id;
 use smol_str::SmolStr;
 
 use super::appkit::{NSEvent, NSEventModifierFlags};
@@ -31,7 +31,7 @@ pub(crate) enum EventWrapper {
 #[derive(Debug)]
 pub(crate) enum EventProxy {
     DpiChangedProxy {
-        window: Id<WinitWindow, Shared>,
+        window: Id<WinitWindow>,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     },

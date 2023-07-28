@@ -63,7 +63,7 @@
 // window size/position.
 macro_rules! assert_main_thread {
     ($($t:tt)*) => {
-        if !::objc2::foundation::is_main_thread() {
+        if !::icrate::Foundation::is_main_thread() {
             panic!($($t)*);
         }
     };

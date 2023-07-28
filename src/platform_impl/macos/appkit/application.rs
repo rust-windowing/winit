@@ -1,7 +1,7 @@
-use objc2::foundation::{MainThreadMarker, NSArray, NSInteger, NSObject, NSUInteger};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{MainThreadMarker, NSArray, NSInteger, NSObject, NSUInteger};
+use objc2::rc::Id;
 use objc2::runtime::Object;
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 use objc2::{Encode, Encoding};
 
 use super::{NSAppearance, NSEvent, NSMenu, NSResponder, NSWindow};
@@ -13,10 +13,11 @@ extern_class!(
     unsafe impl ClassType for NSApplication {
         #[inherits(NSObject)]
         type Super = NSResponder;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
-pub(crate) fn NSApp() -> Id<NSApplication, Shared> {
+pub(crate) fn NSApp() -> Id<NSApplication> {
     // TODO: Only allow access from main thread
     NSApplication::shared(unsafe { MainThreadMarker::new_unchecked() })
 }
@@ -26,70 +27,66 @@ extern_methods!(
         /// This can only be called on the main thread since it may initialize
         /// the application and since it's parameters may be changed by the main
         /// thread at any time (hence it is only safe to access on the main thread).
-        pub fn shared(_mtm: MainThreadMarker) -> Id<Self, Shared> {
+        pub fn shared(_mtm: MainThreadMarker) -> Id<Self> {
             let app: Option<_> = unsafe { msg_send_id![Self::class(), sharedApplication] };
             // SAFETY: `sharedApplication` always initializes the app if it isn't already
             unsafe { app.unwrap_unchecked() }
         }
 
-        pub fn currentEvent(&self) -> Option<Id<NSEvent, Shared>> {
-            unsafe { msg_send_id![self, currentEvent] }
-        }
+        #[method_id(currentEvent)]
+        pub fn currentEvent(&self) -> Option<Id<NSEvent>>;
 
-        #[sel(postEvent:atStart:)]
+        #[method(postEvent:atStart:)]
         pub fn postEvent_atStart(&self, event: &NSEvent, front_of_queue: bool);
 
-        #[sel(presentationOptions)]
+        #[method(presentationOptions)]
         pub fn presentationOptions(&self) -> NSApplicationPresentationOptions;
 
-        pub fn windows(&self) -> Id<NSArray<NSWindow, Shared>, Shared> {
-            unsafe { msg_send_id![self, windows] }
-        }
+        #[method_id(windows)]
+        pub fn windows(&self) -> Id<NSArray<NSWindow>>;
 
-        pub fn keyWindow(&self) -> Option<Id<NSWindow, Shared>> {
-            unsafe { msg_send_id![self, keyWindow] }
-        }
+        #[method_id(keyWindow)]
+        pub fn keyWindow(&self) -> Option<Id<NSWindow>>;
 
         // TODO: NSApplicationDelegate
-        #[sel(setDelegate:)]
+        #[method(setDelegate:)]
         pub fn setDelegate(&self, delegate: &Object);
 
-        #[sel(setPresentationOptions:)]
+        #[method(setPresentationOptions:)]
         pub fn setPresentationOptions(&self, options: NSApplicationPresentationOptions);
 
-        #[sel(hide:)]
+        #[method(hide:)]
         pub fn hide(&self, sender: Option<&Object>);
 
-        #[sel(orderFrontCharacterPalette:)]
+        #[method(orderFrontCharacterPalette:)]
         #[allow(dead_code)]
         pub fn orderFrontCharacterPalette(&self, sender: Option<&Object>);
 
-        #[sel(hideOtherApplications:)]
+        #[method(hideOtherApplications:)]
         pub fn hideOtherApplications(&self, sender: Option<&Object>);
 
-        #[sel(stop:)]
+        #[method(stop:)]
         pub fn stop(&self, sender: Option<&Object>);
 
-        #[sel(activateIgnoringOtherApps:)]
+        #[method(activateIgnoringOtherApps:)]
         pub fn activateIgnoringOtherApps(&self, ignore: bool);
 
-        #[sel(requestUserAttention:)]
+        #[method(requestUserAttention:)]
         pub fn requestUserAttention(&self, type_: NSRequestUserAttentionType) -> NSInteger;
 
-        #[sel(setActivationPolicy:)]
+        #[method(setActivationPolicy:)]
         pub fn setActivationPolicy(&self, policy: NSApplicationActivationPolicy) -> bool;
 
-        #[sel(setMainMenu:)]
+        #[method(setMainMenu:)]
         pub fn setMainMenu(&self, menu: &NSMenu);
 
-        pub fn effectiveAppearance(&self) -> Id<NSAppearance, Shared> {
-            unsafe { msg_send_id![self, effectiveAppearance] }
-        }
+        #[method_id(effectiveAppearance)]
+        pub fn effectiveAppearance(&self) -> Id<NSAppearance>;
 
-        #[sel(setAppearance:)]
+        #[method(setAppearance:)]
         pub fn setAppearance(&self, appearance: Option<&NSAppearance>);
 
-        #[sel(run)]
+        #[method(run)]
         pub unsafe fn run(&self);
     }
 );
