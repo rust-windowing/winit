@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, added `WindowBuilderExtWindows::with_window_classname` and changed the `register_window_class` definition and call in `init` to use newly defined Windows Platform Attribute `window_classname`.
+- On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
 - **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
 - On Wayland, make double clicking and moving the CSD frame more reliable.
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
