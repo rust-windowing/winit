@@ -20,17 +20,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 pub struct Window {
-    id: WindowId,
-    has_focus: Arc<AtomicBool>,
-    pub inner: Dispatcher<Inner>,
+    inner: Dispatcher<Inner>,
 }
 
 pub struct Inner {
+    id: WindowId,
     pub window: web_sys::Window,
     document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
+    has_focus: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -55,51 +55,46 @@ impl Window {
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
         let has_focus = canvas.borrow().has_focus.clone();
-        let window = Window {
+        let inner = Inner {
             id,
+            window: window.clone(),
+            document: document.clone(),
+            canvas,
+            previous_pointer: RefCell::new("auto"),
+            destroy_fn: Some(destroy_fn),
             has_focus,
-            inner: Dispatcher::new(Inner {
-                window: window.clone(),
-                document: document.clone(),
-                canvas,
-                previous_pointer: RefCell::new("auto"),
-                destroy_fn: Some(destroy_fn),
-            })
-            .unwrap(),
         };
 
-        window.set_title(&attr.title);
-        window.set_maximized(attr.maximized);
-        window.set_visible(attr.visible);
-        window.set_window_icon(attr.window_icon);
+        inner.set_title(&attr.title);
+        inner.set_maximized(attr.maximized);
+        inner.set_visible(attr.visible);
+        inner.set_window_icon(attr.window_icon);
 
-        Ok(window)
+        Ok(Window {
+            inner: Dispatcher::new(inner).unwrap(),
+        })
     }
 
-    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
-        // TODO
-        f(self)
+    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
+        self.inner.dispatch(f)
     }
 
-    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
-        // TODO
-        f(self)
+    // TODO: Find a way to make this non-static
+    pub(crate) fn maybe_wait_on_main<R: Send + 'static>(
+        &self,
+        f: impl FnOnce(&Inner) -> R + Send + 'static,
+    ) -> R {
+        self.inner.queue(f)
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.inner.with(|inner| inner.canvas.borrow().raw().clone())
     }
+}
 
+impl Inner {
     pub fn set_title(&self, title: &str) {
-        if self
-            .inner
-            .with(|inner| inner.canvas.borrow().set_attribute("alt", title))
-            .is_none()
-        {
-            let title = title.to_owned();
-            self.inner
-                .dispatch(move |inner| inner.canvas.borrow().set_attribute("alt", &title));
-        }
+        self.canvas.borrow().set_attribute("alt", title)
     }
 
     pub fn set_transparent(&self, _transparent: bool) {}
@@ -114,21 +109,17 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        self.inner.dispatch(move |inner| {
-            inner.canvas.borrow().request_animation_frame();
-        });
+        self.canvas.borrow().request_animation_frame();
     }
 
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        self.inner.queue(|inner| {
-            Ok(inner
-                .canvas
-                .borrow()
-                .position()
-                .to_physical(inner.scale_factor()))
-        })
+        Ok(self
+            .canvas
+            .borrow()
+            .position()
+            .to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -137,17 +128,15 @@ impl Window {
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        self.inner.dispatch(move |inner| {
-            let canvas = inner.canvas.borrow();
-            let position = position.to_logical::<f64>(inner.scale_factor());
+        let canvas = self.canvas.borrow();
+        let position = position.to_logical::<f64>(self.scale_factor());
 
-            backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
-        });
+        backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
     }
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.inner.queue(|inner| inner.canvas.borrow().inner_size())
+        self.canvas.borrow().inner_size()
     }
 
     #[inline]
@@ -158,43 +147,24 @@ impl Window {
 
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
-        self.inner.dispatch(move |inner| {
-            let size = size.to_logical(inner.scale_factor());
-            let canvas = inner.canvas.borrow();
-            backend::set_canvas_size(canvas.document(), canvas.raw(), canvas.style(), size);
-        });
-
+        let size = size.to_logical(self.scale_factor());
+        let canvas = self.canvas.borrow();
+        backend::set_canvas_size(canvas.document(), canvas.raw(), canvas.style(), size);
         None
     }
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        self.inner.dispatch(move |inner| {
-            let dimensions =
-                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
-            let canvas = inner.canvas.borrow();
-            backend::set_canvas_min_size(
-                canvas.document(),
-                canvas.raw(),
-                canvas.style(),
-                dimensions,
-            )
-        })
+        let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
+        let canvas = self.canvas.borrow();
+        backend::set_canvas_min_size(canvas.document(), canvas.raw(), canvas.style(), dimensions)
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        self.inner.dispatch(move |inner| {
-            let dimensions =
-                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
-            let canvas = inner.canvas.borrow();
-            backend::set_canvas_max_size(
-                canvas.document(),
-                canvas.raw(),
-                canvas.style(),
-                dimensions,
-            )
-        })
+        let dimensions = dimensions.map(|dimensions| dimensions.to_logical(self.scale_factor()));
+        let canvas = self.canvas.borrow();
+        backend::set_canvas_max_size(canvas.document(), canvas.raw(), canvas.style(), dimensions)
     }
 
     #[inline]
@@ -226,19 +196,13 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.inner.queue(|inner| inner.scale_factor())
+        super::backend::scale_factor(&self.window)
     }
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.inner.dispatch(move |inner| {
-            *inner.previous_pointer.borrow_mut() = cursor.name();
-            backend::set_canvas_style_property(
-                inner.canvas.borrow().raw(),
-                "cursor",
-                cursor.name(),
-            );
-        });
+        *self.previous_pointer.borrow_mut() = cursor.name();
+        backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", cursor.name());
     }
 
     #[inline]
@@ -248,36 +212,31 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        self.inner.queue(move |inner| {
-            let lock = match mode {
-                CursorGrabMode::None => false,
-                CursorGrabMode::Locked => true,
-                CursorGrabMode::Confined => {
-                    return Err(ExternalError::NotSupported(NotSupportedError::new()))
-                }
-            };
+        let lock = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Locked => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
 
-            inner
-                .canvas
-                .borrow()
-                .set_cursor_lock(lock)
-                .map_err(ExternalError::Os)
-        })
+        self.canvas
+            .borrow()
+            .set_cursor_lock(lock)
+            .map_err(ExternalError::Os)
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.inner.dispatch(move |inner| {
-            if !visible {
-                backend::set_canvas_style_property(inner.canvas.borrow().raw(), "cursor", "none");
-            } else {
-                backend::set_canvas_style_property(
-                    inner.canvas.borrow().raw(),
-                    "cursor",
-                    &inner.previous_pointer.borrow(),
-                );
-            }
-        });
+        if !visible {
+            backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", "none");
+        } else {
+            backend::set_canvas_style_property(
+                self.canvas.borrow().raw(),
+                "cursor",
+                &self.previous_pointer.borrow(),
+            );
+        }
     }
 
     #[inline]
@@ -319,24 +278,20 @@ impl Window {
 
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        self.inner.queue(|inner| {
-            if inner.canvas.borrow().is_fullscreen() {
-                Some(Fullscreen::Borderless(Some(MonitorHandle)))
-            } else {
-                None
-            }
-        })
+        if self.canvas.borrow().is_fullscreen() {
+            Some(Fullscreen::Borderless(Some(MonitorHandle)))
+        } else {
+            None
+        }
     }
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        self.inner.dispatch(move |inner| {
-            if fullscreen.is_some() {
-                inner.canvas.borrow().request_fullscreen();
-            } else if inner.canvas.borrow().is_fullscreen() {
-                backend::exit_fullscreen(&inner.document);
-            }
-        });
+        if fullscreen.is_some() {
+            self.canvas.borrow().request_fullscreen();
+        } else if self.canvas.borrow().is_fullscreen() {
+            backend::exit_fullscreen(&self.document);
+        }
     }
 
     #[inline]
@@ -375,9 +330,7 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        self.inner.dispatch(|inner| {
-            let _ = inner.canvas.borrow().raw().focus();
-        })
+        let _ = self.canvas.borrow().raw().focus();
     }
 
     #[inline]
@@ -422,14 +375,12 @@ impl Window {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        self.inner.queue(|inner| {
-            backend::is_dark_mode(&inner.window).map(|is_dark_mode| {
-                if is_dark_mode {
-                    Theme::Dark
-                } else {
-                    Theme::Light
-                }
-            })
+        backend::is_dark_mode(&self.window).map(|is_dark_mode| {
+            if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            }
         })
     }
 
@@ -447,23 +398,13 @@ impl Window {
     }
 }
 
-impl Drop for Window {
+impl Drop for Inner {
     fn drop(&mut self) {
-        self.inner.dispatch_mut(|inner| {
-            if let Some(destroy_fn) = inner.destroy_fn.take() {
-                destroy_fn();
-            }
-        });
+        if let Some(destroy_fn) = self.destroy_fn.take() {
+            destroy_fn();
+        }
     }
 }
-
-impl Inner {
-    #[inline]
-    pub fn scale_factor(&self) -> f64 {
-        super::backend::scale_factor(&self.window)
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub(crate) u32);
 

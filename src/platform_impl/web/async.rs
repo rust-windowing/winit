@@ -96,16 +96,6 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
             }
         })
     }
-
-    fn with_mut<R>(&self, f: impl FnOnce(&mut T) -> R) -> Option<R> {
-        Self::MAIN_THREAD.with(|is_main_thread| {
-            if *is_main_thread.deref() {
-                Some(f(self.value.write().unwrap().as_mut().unwrap()))
-            } else {
-                None
-            }
-        })
-    }
 }
 
 impl<const SYNC: bool, T, E> Clone for MainThreadSafe<SYNC, T, E> {
@@ -219,17 +209,13 @@ impl<T> AsyncReceiver<T> {
 
 pub struct Dispatcher<T: 'static>(MainThreadSafe<true, T, Closure<T>>);
 
-pub enum Closure<T> {
-    Ref(Box<dyn FnOnce(&T) + Send>),
-    RefMut(Box<dyn FnOnce(&mut T) + Send>),
-}
+pub struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
     pub fn new(value: T) -> Option<Self> {
-        MainThreadSafe::new(value, |value, closure| match closure {
-            Closure::Ref(f) => f(value.read().unwrap().as_ref().unwrap()),
-            Closure::RefMut(f) => f(value.write().unwrap().as_mut().unwrap()),
+        MainThreadSafe::new(value, |value, Closure(closure)| {
+            closure(value.read().unwrap().as_ref().unwrap())
         })
         .map(Self)
     }
@@ -238,15 +224,7 @@ impl<T> Dispatcher<T> {
         if self.is_main_thread() {
             self.0.with(f).unwrap()
         } else {
-            self.0.send(Closure::Ref(Box::new(f)))
-        }
-    }
-
-    pub fn dispatch_mut(&self, f: impl 'static + FnOnce(&mut T) + Send) {
-        if self.is_main_thread() {
-            self.0.with_mut(f).unwrap()
-        } else {
-            self.0.send(Closure::RefMut(Box::new(f)))
+            self.0.send(Closure(Box::new(f)))
         }
     }
 
@@ -255,7 +233,7 @@ impl<T> Dispatcher<T> {
             self.0.with(f).unwrap()
         } else {
             let pair = Arc::new((Mutex::new(None), Condvar::new()));
-            let closure = Closure::Ref(Box::new({
+            let closure = Closure(Box::new({
                 let pair = pair.clone();
                 move |value| {
                     *pair.0.lock().unwrap() = Some(f(value));

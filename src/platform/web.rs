@@ -31,13 +31,20 @@ use crate::event::Event;
 use crate::event_loop::ControlFlow;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
-use crate::window::WindowBuilder;
+use crate::window::{Window, WindowBuilder};
 
 use web_sys::HtmlCanvasElement;
 
 pub trait WindowExtWebSys {
     /// Only returns the canvas if called from inside the window.
     fn canvas(&self) -> Option<HtmlCanvasElement>;
+}
+
+impl WindowExtWebSys for Window {
+    #[inline]
+    fn canvas(&self) -> Option<HtmlCanvasElement> {
+        self.window.canvas()
+    }
 }
 
 pub trait WindowBuilderExtWebSys {
