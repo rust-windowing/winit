@@ -275,7 +275,7 @@ impl<T: 'static> EventLoop<T> {
                     sticky_exit_callback(
                         event::Event::MemoryWarning,
                         self.window_target(),
-                        control_flow,
+                        &mut control_flow,
                         callback,
                     );
                 }
