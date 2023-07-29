@@ -215,17 +215,20 @@ impl Window {
         let scale_factor = self.scale_factor();
         let physical_size = size.to_physical::<u32>(scale_factor);
 
-        let window_state = Arc::clone(&self.window_state);
-        let window = self.window.clone();
-        self.thread_executor.execute_in_thread(move || {
-            let _ = &window;
-            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
-                f.set(WindowFlags::MAXIMIZED, false)
-            });
-        });
-
         let window_flags = self.window_state_lock().window_flags;
         window_flags.set_size(self.hwnd(), physical_size);
+
+        if physical_size != self.inner_size() {
+            let window_state = Arc::clone(&self.window_state);
+            let window = self.window.clone();
+            self.thread_executor.execute_in_thread(move || {
+                let _ = &window;
+                WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
+            });
+        }
+
         None
     }
 
