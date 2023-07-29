@@ -98,6 +98,7 @@ features = [
 [target.'cfg(target_os = "ios")'.dependencies.icrate]
 version = "0.0.4"
 features = [
+    "dispatch",
     "Foundation",
     "Foundation_NSArray",
     "Foundation_NSString",
