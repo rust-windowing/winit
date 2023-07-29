@@ -116,4 +116,5 @@ mod fill {
     }
 }
 
+#[allow(dead_code, unused_imports)]
 pub(super) use fill::{discard_window, fill_window};
