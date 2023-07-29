@@ -556,7 +556,7 @@ declare_class!(
             app_state::terminated(mtm);
         }
 
-        #[sel(applicationDidReceiveMemoryWarning:)]
+        #[method(applicationDidReceiveMemoryWarning:)]
         fn did_receive_memory_warning(&self, _application: &UIApplication) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning))
