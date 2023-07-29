@@ -1100,7 +1100,8 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = register_window_class::<T>();
+    let class_name = util::encode_wide(&pl_attribs.class_name);
+    register_window_class::<T>(&class_name);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1187,9 +1188,7 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
-    let class_name = util::encode_wide("Window Class");
-
+unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1210,8 +1209,6 @@ unsafe fn register_window_class<T: 'static>() -> Vec<u16> {
     // Also since there is no weird element in the struct, there is no reason for this
     //  call to fail.
     RegisterClassExW(&class);
-
-    class_name
 }
 
 struct ComInitialized(*mut ());
