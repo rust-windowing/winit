@@ -119,6 +119,7 @@ If your PR makes notable changes to Winit's features, please update this section
 
 ## Platform
 ### Windows
+* Setting the name of the internal window class
 * Setting the taskbar icon
 * Setting the parent window
 * Setting a menu bar
