@@ -228,7 +228,7 @@ impl Window {
                 });
             });
         }
-      
+
         None
     }
 
