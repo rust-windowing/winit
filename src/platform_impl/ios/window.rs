@@ -6,8 +6,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc2::foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
+use objc2::rc::Id;
 use objc2::runtime::Object;
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
@@ -23,7 +23,6 @@ use crate::{
     platform_impl::platform::{
         app_state,
         event_loop::{EventProxy, EventWrapper},
-        ffi::UIRectEdge,
         monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
@@ -33,9 +32,9 @@ use crate::{
 };
 
 pub struct Inner {
-    pub(crate) window: Id<WinitUIWindow, Shared>,
-    pub(crate) view_controller: Id<WinitViewController, Shared>,
-    pub(crate) view: Id<WinitView, Shared>,
+    pub(crate) window: Id<WinitUIWindow>,
+    pub(crate) view_controller: Id<WinitViewController>,
+    pub(crate) view: Id<WinitView>,
     gl_or_metal_backed: bool,
 }
 
@@ -140,8 +139,8 @@ impl Inner {
         }
     }
 
-    pub fn set_inner_size(&self, _size: Size) {
-        warn!("not clear what `Window::set_inner_size` means on iOS");
+    pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
+        Some(self.inner_size())
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
@@ -538,17 +537,16 @@ impl Inner {
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         self.view_controller
-            .setPrefersHomeIndicatorAutoHidden(hidden);
+            .set_prefers_home_indicator_auto_hidden(hidden);
     }
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        let edges: UIRectEdge = edges.into();
         self.view_controller
-            .setPreferredScreenEdgesDeferringSystemGestures(edges);
+            .set_preferred_screen_edges_deferring_system_gestures(edges.into());
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
-        self.view_controller.setPrefersStatusBarHidden(hidden);
+        self.view_controller.set_prefers_status_bar_hidden(hidden);
     }
 }
 

@@ -19,24 +19,31 @@ use std::{
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
+use std::time::Duration;
 
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
 #[cfg(x11_platform)]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, X11Error, XConnection, XError};
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError, RunLoopError},
     event::{Event, KeyEvent},
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
+        EventLoopWindowTarget as RootELW,
+    },
     icon::Icon,
     keyboard::{Key, KeyCode},
-    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
+    platform::{
+        modifier_supplement::KeyEventExtModifierSupplement, pump_events::PumpStatus,
+        scancode::KeyCodeExtScancode,
+    },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -87,6 +94,7 @@ impl ApplicationName {
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
+    pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
     pub visual_infos: Option<XVisualInfo>,
     #[cfg(x11_platform)]
@@ -103,6 +111,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             name: None,
+            activation_token: None,
             #[cfg(x11_platform)]
             visual_infos: None,
             #[cfg(x11_platform)]
@@ -124,7 +133,7 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
 #[derive(Debug, Clone)]
 pub enum OsError {
     #[cfg(x11_platform)]
-    XError(XError),
+    XError(Arc<X11Error>),
     #[cfg(x11_platform)]
     XMisc(&'static str),
     #[cfg(wayland_platform)]
@@ -135,7 +144,7 @@ impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             #[cfg(x11_platform)]
-            OsError::XError(ref e) => _f.pad(&e.description),
+            OsError::XError(ref e) => fmt::Display::fmt(e, _f),
             #[cfg(x11_platform)]
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(wayland_platform)]
@@ -367,8 +376,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
-        x11_or_wayland!(match self; Window(w) => w.set_inner_size(size))
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
+        x11_or_wayland!(match self; Window(w) => w.request_inner_size(size))
+    }
+
+    #[inline]
+    pub(crate) fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+        x11_or_wayland!(match self; Window(w) => w.request_activation_token())
     }
 
     #[inline]
@@ -816,18 +830,25 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
         F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
+        self.run_ondemand(callback)
     }
 
-    pub fn run<F>(self, callback: F) -> !
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
+    }
+
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
+    where
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
@@ -923,11 +944,18 @@ fn sticky_exit_callback<T, F>(
     }
 }
 
+/// Returns the minimum `Option<Duration>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
+}
+
 #[cfg(target_os = "linux")]
 fn is_main_thread() -> bool {
-    use libc::{c_long, getpid, syscall, SYS_gettid};
-
-    unsafe { syscall(SYS_gettid) == getpid() as c_long }
+    rustix::thread::gettid() == rustix::process::getpid()
 }
 
 #[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]

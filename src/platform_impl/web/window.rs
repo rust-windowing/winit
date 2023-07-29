@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::HtmlCanvasElement;
+use web_sys::{Document, HtmlCanvasElement};
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -27,6 +27,7 @@ pub struct Window {
 
 pub struct Inner {
     pub window: web_sys::Window,
+    document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     register_redraw_request: Box<dyn Fn()>,
@@ -46,7 +47,9 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let window = target.runner.window();
-        let canvas = backend::Canvas::create(id, window.clone(), &attr, platform_attr)?;
+        let document = target.runner.document();
+        let canvas =
+            backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -62,6 +65,7 @@ impl Window {
             has_focus,
             inner: Dispatcher::new(Inner {
                 window: window.clone(),
+                document: document.clone(),
                 canvas,
                 previous_pointer: RefCell::new("auto"),
                 register_redraw_request,
@@ -127,12 +131,10 @@ impl Window {
 
     pub fn set_outer_position(&self, position: Position) {
         self.inner.dispatch(move |inner| {
+            let canvas = inner.canvas.borrow();
             let position = position.to_logical::<f64>(inner.scale_factor());
 
-            let canvas = inner.canvas.borrow();
-            canvas.set_attribute("position", "fixed");
-            canvas.set_attribute("left", &position.x.to_string());
-            canvas.set_attribute("top", &position.y.to_string());
+            backend::set_canvas_position(canvas.document(), canvas.raw(), canvas.style(), position)
         });
     }
 
@@ -148,22 +150,44 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         self.inner.dispatch(move |inner| {
             let size = size.to_logical(inner.scale_factor());
             let canvas = inner.canvas.borrow();
-            backend::set_canvas_size(canvas.window(), canvas.raw(), size);
+            backend::set_canvas_size(canvas.document(), canvas.raw(), canvas.style(), size);
         });
+
+        None
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_min_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        // Intentionally a no-op: users can't resize canvas elements
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        self.inner.dispatch(move |inner| {
+            let dimensions =
+                dimensions.map(|dimensions| dimensions.to_logical(inner.scale_factor()));
+            let canvas = inner.canvas.borrow();
+            backend::set_canvas_max_size(
+                canvas.document(),
+                canvas.raw(),
+                canvas.style(),
+                dimensions,
+            )
+        })
     }
 
     #[inline]
@@ -238,12 +262,13 @@ impl Window {
     pub fn set_cursor_visible(&self, visible: bool) {
         self.inner.dispatch(move |inner| {
             if !visible {
-                inner.canvas.borrow().set_attribute("cursor", "none");
+                backend::set_canvas_style_property(inner.canvas.borrow().raw(), "cursor", "none");
             } else {
-                inner
-                    .canvas
-                    .borrow()
-                    .set_attribute("cursor", &inner.previous_pointer.borrow());
+                backend::set_canvas_style_property(
+                    inner.canvas.borrow().raw(),
+                    "cursor",
+                    &inner.previous_pointer.borrow(),
+                );
             }
         });
     }
@@ -302,7 +327,7 @@ impl Window {
             if fullscreen.is_some() {
                 inner.canvas.borrow().request_fullscreen();
             } else if inner.canvas.borrow().is_fullscreen() {
-                backend::exit_fullscreen(&inner.window);
+                backend::exit_fullscreen(&inner.document);
             }
         });
     }
@@ -343,7 +368,9 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        // Currently a no-op as it does not seem there is good support for this on web
+        self.inner.dispatch(|inner| {
+            let _ = inner.canvas.borrow().raw().focus();
+        })
     }
 
     #[inline]
@@ -456,6 +483,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
+    pub(crate) append: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -464,6 +492,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             canvas: None,
             prevent_default: true,
             focusable: true,
+            append: false,
         }
     }
 }

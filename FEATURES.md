@@ -13,7 +13,9 @@ be used to create both games and applications. It supports the following main gr
   - iOS
   - Android
 - Web
-  - via WASM
+  - Chrome
+  - Firefox
+  - Safari 13.1+
 
 Most platforms expose capabilities that cannot be meaningfully transposed onto others. Winit does not
 aim to support every single feature of every platform, but rather to abstract over the common features
@@ -172,7 +174,7 @@ Legend:
 - ❓: Unknown status
 
 ### Windowing
-|Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |WASM      |Redox OS|
+|Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |Web      |Redox OS|
 |-------------------------------- | ----- | ----   | -------    | -----------   | ----- | ----- | -------- | ------ |
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |✔️        |✔️      |
 |Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |**N/A**|✔️      |
@@ -192,13 +194,13 @@ Legend:
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|**N/A** |
 
 ### System information
-|Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |WASM      |Redox OS|
+|Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |Web      |Redox OS|
 |---------------- | ----- | ---- | ------- | ----------- | ----- | ------- | -------- | ------ |
 |Monitor list     |✔️    |✔️    |✔️       |✔️          |✔️     |✔️      |**N/A**|❌      |
 |Video mode query |✔️    |✔️    |✔️       |✔️          |✔️     |✔️      |**N/A**|❌      |
 
 ### Input handling
-|Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
+|Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |Web      |Redox OS|
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- | ------ |
 |Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |✔️      |
 |Mouse set location      |✔️       |✔️      |✔️       |✔️(when locked)  |**N/A**|**N/A**|**N/A**|**N/A** |
@@ -215,19 +217,19 @@ Legend:
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |**N/A** |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |**N/A** |
 |Drag window with cursor |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |**N/A** |
-|Resize with cursor      |❌         |❌       |✔️       |❌       |**N/A**|**N/A**|**N/A**   |**N/A** |
+|Resize with cursor      |✔️       |❌       |✔️       |✔️       |**N/A**|**N/A**|**N/A**   |**N/A** |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
 
-|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
+|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Web      |Redox OS|
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- | ------ |
 |New API for HiDPI ([#315] [#319])   |✔️      |✔️     |✔️        |✔️            |✔️      |✔️      |❓        |❓      |
 |Event Loop 2.0 ([#459])             |✔️      |✔️     |✔️        |✔️            |✔️      |✔️      |❓        |✔️       |
 |Keyboard Input 2.0 ([#753])         |✔️      |✔️     |✔️        |✔️            |✔️      |❌     |✔️         |✔️       |
 
 ### Completed API Reworks
-|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |Redox OS|
+|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Web      |Redox OS|
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- | ------ |
 
 [#165]: https://github.com/rust-windowing/winit/issues/165

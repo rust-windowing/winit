@@ -8,6 +8,35 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
+- **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
+- On Wayland, make double clicking and moving the CSD frame more reliable.
+- On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
+- **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
+- On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
+- Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- On Web, implement `WindowEvent::Occluded`.
+- On Web, fix touch location to be as accurate as mouse position.
+- On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
+- On Web, add Fullscreen API compatibility for Safari.
+- On Web, implement `Window::set_(min|max)_inner_size()`.
+- On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
+- On Web, fix some `WindowBuilder` methods doing nothing.
+- On Web, implement `Window::focus_window()`.
+- On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
+- On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
+- On Windows, add `drag_resize_window` method support.
+- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), RunLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
+  - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
+- **Breaking** `LoopDestroyed` renamed to `LoopExiting` ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `RedrawEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `MainEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- Added `AboutToWait` event which is emitted when the event loop is about to block and wait for new events ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+
+# 0.29.0-beta.0
+
 - On Web, allow event loops to be recreated with `spawn`.
 - **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
 - On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
@@ -76,7 +105,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, use the correct canvas size when calculating the new size during scale factor change,
   instead of using the output bitmap size.
 - On Web, scale factor and dark mode detection are now more robust.
-- On Web, fix the bfcache by not using the `beforeunload` event.
+- On Web, fix the bfcache by not using the `beforeunload` event and map bfcache loading/unloading to `Suspended`/`Resumed` events.
 - On Web, fix scale factor resize suggestion always overwriting the canvas size.
 - On macOS, fix crash when dropping `Window`.
 - On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.

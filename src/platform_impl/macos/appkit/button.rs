@@ -1,5 +1,5 @@
-use objc2::foundation::NSObject;
-use objc2::{extern_class, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::{extern_class, mutability, ClassType};
 
 use super::{NSControl, NSResponder, NSView};
 
@@ -10,5 +10,6 @@ extern_class!(
     unsafe impl ClassType for NSButton {
         #[inherits(NSView, NSResponder, NSObject)]
         type Super = NSControl;
+        type Mutability = mutability::InteriorMutable;
     }
 );

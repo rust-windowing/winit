@@ -32,10 +32,10 @@ pub(crate) use self::{
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
-use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::rc::{autoreleasepool, Id};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(self) use crate::platform_impl::Fullscreen;
+pub(crate) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
@@ -50,9 +50,9 @@ impl DeviceId {
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
 pub(crate) struct Window {
-    pub(crate) window: Id<WinitWindow, Shared>,
+    pub(crate) window: Id<WinitWindow>,
     // We keep this around so that it doesn't get dropped until the window does.
-    _delegate: Id<WinitWindowDelegate, Shared>,
+    _delegate: Id<WinitWindowDelegate>,
 }
 
 impl Drop for Window {

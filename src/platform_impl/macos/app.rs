@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
-use objc2::foundation::NSObject;
-use objc2::{declare_class, msg_send, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::{declare_class, msg_send, mutability, ClassType};
 
 use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
 use super::{app_state::AppState, event::EventWrapper, DEVICE_ID};
@@ -9,18 +9,20 @@ use crate::event::{DeviceEvent, ElementState, Event};
 
 declare_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
-    pub(super) struct WinitApplication {}
+    pub(super) struct WinitApplication;
 
     unsafe impl ClassType for WinitApplication {
         #[inherits(NSResponder, NSObject)]
         type Super = NSApplication;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitApplication";
     }
 
     unsafe impl WinitApplication {
         // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
         // Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
         // Fun fact: Firefox still has this bug! (https://bugzilla.mozilla.org/show_bug.cgi?id=1299553)
-        #[sel(sendEvent:)]
+        #[method(sendEvent:)]
         fn send_event(&self, event: &NSEvent) {
             // For posterity, there are some undocumented event types
             // (https://github.com/servo/cocoa-rs/issues/155)

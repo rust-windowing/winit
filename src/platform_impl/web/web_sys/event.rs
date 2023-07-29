@@ -7,7 +7,7 @@ use smol_str::SmolStr;
 use std::convert::TryInto;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
+use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
 bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
@@ -132,17 +132,6 @@ impl MouseDelta {
     }
 }
 
-pub fn mouse_position_by_client(
-    event: &MouseEvent,
-    canvas: &HtmlCanvasElement,
-) -> LogicalPosition<f64> {
-    let bounding_client_rect = canvas.get_bounding_client_rect();
-    LogicalPosition {
-        x: event.client_x() as f64 - bounding_client_rect.x(),
-        y: event.client_y() as f64 - bounding_client_rect.y(),
-    }
-}
-
 pub fn mouse_scroll_delta(
     window: &web_sys::Window,
     event: &WheelEvent,
@@ -231,10 +220,6 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
     }
 
     state
-}
-
-pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> LogicalPosition<f64> {
-    mouse_position_by_client(event, canvas)
 }
 
 pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEvent> {

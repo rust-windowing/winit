@@ -1,6 +1,8 @@
 mod canvas;
 pub mod event;
 mod event_handle;
+mod fullscreen;
+mod intersection_handle;
 mod media_query_handle;
 mod pointer;
 mod resize_scaling;
@@ -12,32 +14,40 @@ pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
-use crate::dpi::LogicalSize;
+use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::closure::Closure;
-use web_sys::{CssStyleDeclaration, Element, HtmlCanvasElement};
+use web_sys::{
+    CssStyleDeclaration, Document, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
+};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
 }
 
-pub fn exit_fullscreen(window: &web_sys::Window) {
-    let document = window.document().expect("Failed to obtain document");
-
-    document.exit_fullscreen();
+pub fn exit_fullscreen(document: &Document) {
+    fullscreen::exit_fullscreen(document);
 }
 
-pub struct UnloadEventHandle {
-    _listener: event_handle::EventListenerHandle<dyn FnMut()>,
+pub struct PageTransitionEventHandle {
+    _show_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
+    _hide_listener: event_handle::EventListenerHandle<dyn FnMut(PageTransitionEvent)>,
 }
 
-pub fn on_unload(window: &web_sys::Window, handler: impl FnMut() + 'static) -> UnloadEventHandle {
-    let closure = Closure::new(handler);
+pub fn on_page_transition(
+    window: &web_sys::Window,
+    show_handler: impl FnMut(PageTransitionEvent) + 'static,
+    hide_handler: impl FnMut(PageTransitionEvent) + 'static,
+) -> PageTransitionEventHandle {
+    let show_closure = Closure::new(show_handler);
+    let hide_closure = Closure::new(hide_handler);
 
-    let listener = event_handle::EventListenerHandle::new(window, "pagehide", closure);
-    UnloadEventHandle {
-        _listener: listener,
+    let show_listener = event_handle::EventListenerHandle::new(window, "pageshow", show_closure);
+    let hide_listener = event_handle::EventListenerHandle::new(window, "pagehide", hide_closure);
+    PageTransitionEventHandle {
+        _show_listener: show_listener,
+        _hide_listener: hide_listener,
     }
 }
 
@@ -45,48 +55,111 @@ impl WindowExtWebSys for Window {
     fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.window.canvas()
     }
-
-    fn is_dark_mode(&self) -> bool {
-        self.window
-            .inner
-            .queue(|inner| is_dark_mode(&inner.window).unwrap_or(false))
-    }
 }
 
 pub fn scale_factor(window: &web_sys::Window) -> f64 {
     window.device_pixel_ratio()
 }
 
+fn fix_canvas_size(style: &CssStyleDeclaration, mut size: LogicalSize<f64>) -> LogicalSize<f64> {
+    if style.get_property_value("box-sizing").unwrap() == "border-box" {
+        size.width += style_size_property(style, "border-left-width")
+            + style_size_property(style, "border-right-width")
+            + style_size_property(style, "padding-left")
+            + style_size_property(style, "padding-right");
+        size.height += style_size_property(style, "border-top-width")
+            + style_size_property(style, "border-bottom-width")
+            + style_size_property(style, "padding-top")
+            + style_size_property(style, "padding-bottom");
+    }
+
+    size
+}
+
 pub fn set_canvas_size(
-    window: &web_sys::Window,
+    document: &Document,
     raw: &HtmlCanvasElement,
-    mut new_size: LogicalSize<f64>,
+    style: &CssStyleDeclaration,
+    new_size: LogicalSize<f64>,
 ) {
-    let document = window.document().expect("Failed to obtain document");
-
-    let style = window
-        .get_computed_style(raw)
-        .expect("Failed to obtain computed style")
-        // this can't fail: we aren't using a pseudo-element
-        .expect("Invalid pseudo-element");
-
     if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
         return;
     }
 
-    if style.get_property_value("box-sizing").unwrap() == "border-box" {
-        new_size.width += style_size_property(&style, "border-left-width")
-            + style_size_property(&style, "border-right-width")
-            + style_size_property(&style, "padding-left")
-            + style_size_property(&style, "padding-right");
-        new_size.height += style_size_property(&style, "border-top-width")
-            + style_size_property(&style, "border-bottom-width")
-            + style_size_property(&style, "padding-top")
-            + style_size_property(&style, "padding-bottom");
-    }
+    let new_size = fix_canvas_size(style, new_size);
 
     set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
     set_canvas_style_property(raw, "height", &format!("{}px", new_size.height));
+}
+
+pub fn set_canvas_min_size(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    dimensions: Option<LogicalSize<f64>>,
+) {
+    if let Some(dimensions) = dimensions {
+        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+            return;
+        }
+
+        let new_size = fix_canvas_size(style, dimensions);
+
+        set_canvas_style_property(raw, "min-width", &format!("{}px", new_size.width));
+        set_canvas_style_property(raw, "min-height", &format!("{}px", new_size.height));
+    } else {
+        style
+            .remove_property("min-width")
+            .expect("Property is read only");
+        style
+            .remove_property("min-height")
+            .expect("Property is read only");
+    }
+}
+
+pub fn set_canvas_max_size(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    dimensions: Option<LogicalSize<f64>>,
+) {
+    if let Some(dimensions) = dimensions {
+        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+            return;
+        }
+
+        let new_size = fix_canvas_size(style, dimensions);
+
+        set_canvas_style_property(raw, "max-width", &format!("{}px", new_size.width));
+        set_canvas_style_property(raw, "max-height", &format!("{}px", new_size.height));
+    } else {
+        style
+            .remove_property("max-width")
+            .expect("Property is read only");
+        style
+            .remove_property("max-height")
+            .expect("Property is read only");
+    }
+}
+
+pub fn set_canvas_position(
+    document: &Document,
+    raw: &HtmlCanvasElement,
+    style: &CssStyleDeclaration,
+    mut position: LogicalPosition<f64>,
+) {
+    if document.contains(Some(raw)) && style.get_property_value("display").unwrap() != "none" {
+        position.x -= style_size_property(style, "margin-left")
+            + style_size_property(style, "border-left-width")
+            + style_size_property(style, "padding-left");
+        position.y -= style_size_property(style, "margin-top")
+            + style_size_property(style, "border-top-width")
+            + style_size_property(style, "padding-top");
+    }
+
+    set_canvas_style_property(raw, "position", "fixed");
+    set_canvas_style_property(raw, "left", &format!("{}px", position.x));
+    set_canvas_style_property(raw, "top", &format!("{}px", position.y));
 }
 
 /// This function will panic if the element is not inserted in the DOM
@@ -108,13 +181,11 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
         .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
 }
 
-pub fn is_fullscreen(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> bool {
-    let document = window.document().expect("Failed to obtain document");
-
-    match document.fullscreen_element() {
+pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
+    match fullscreen::fullscreen_element(document) {
         Some(elem) => {
-            let raw: Element = canvas.clone().into();
-            raw == elem
+            let canvas: &Element = canvas;
+            canvas == &elem
         }
         None => false,
     }
@@ -126,6 +197,10 @@ pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {
         .ok()
         .flatten()
         .map(|media| media.matches())
+}
+
+pub fn is_visible(document: &Document) -> bool {
+    document.visibility_state() == VisibilityState::Visible
 }
 
 pub type RawCanvasType = HtmlCanvasElement;

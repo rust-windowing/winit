@@ -16,11 +16,11 @@ pub const MOVERESIZE_LEFT: isize = 7;
 pub const MOVERESIZE_MOVE: isize = 8;
 
 // This info is global to the window manager.
-static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
+static SUPPORTED_HINTS: Lazy<Mutex<Vec<xproto::Atom>>> =
     Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
 static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
-pub fn hint_is_supported(hint: ffi::Atom) -> bool {
+pub fn hint_is_supported(hint: xproto::Atom) -> bool {
     (*SUPPORTED_HINTS.lock().unwrap()).contains(&hint)
 }
 
@@ -33,20 +33,27 @@ pub fn wm_name_is_one_of(names: &[&str]) -> bool {
 }
 
 impl XConnection {
-    pub fn update_cached_wm_info(&self, root: ffi::Window) {
+    pub fn update_cached_wm_info(&self, root: xproto::Window) {
         *SUPPORTED_HINTS.lock().unwrap() = self.get_supported_hints(root);
         *WM_NAME.lock().unwrap() = self.get_wm_name(root);
     }
 
-    fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {
-        let supported_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTED\0") };
-        self.get_property(root, supported_atom, ffi::XA_ATOM)
-            .unwrap_or_else(|_| Vec::with_capacity(0))
+    fn get_supported_hints(&self, root: xproto::Window) -> Vec<xproto::Atom> {
+        let atoms = self.atoms();
+        let supported_atom = atoms[_NET_SUPPORTED];
+        self.get_property(
+            root,
+            supported_atom,
+            xproto::Atom::from(xproto::AtomEnum::ATOM),
+        )
+        .unwrap_or_else(|_| Vec::with_capacity(0))
     }
 
-    fn get_wm_name(&self, root: ffi::Window) -> Option<String> {
-        let check_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTING_WM_CHECK\0") };
-        let wm_name_atom = unsafe { self.get_atom_unchecked(b"_NET_WM_NAME\0") };
+    #[allow(clippy::useless_conversion)]
+    fn get_wm_name(&self, root: xproto::Window) -> Option<String> {
+        let atoms = self.atoms();
+        let check_atom = atoms[_NET_SUPPORTING_WM_CHECK];
+        let wm_name_atom = atoms[_NET_WM_NAME];
 
         // Mutter/Muffin/Budgie doesn't have _NET_SUPPORTING_WM_CHECK in its _NET_SUPPORTED, despite
         // it working and being supported. This has been reported upstream, but due to the
@@ -70,7 +77,11 @@ impl XConnection {
         // Querying this property on the root window will give us the ID of a child window created by
         // the WM.
         let root_window_wm_check = {
-            let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property::<xproto::Window>(
+                root,
+                check_atom,
+                xproto::Atom::from(xproto::AtomEnum::WINDOW),
+            );
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
@@ -80,7 +91,11 @@ impl XConnection {
         // Querying the same property on the child window we were given, we should get this child
         // window's ID again.
         let child_window_wm_check = {
-            let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property::<xproto::Window>(
+                root_window_wm_check.into(),
+                check_atom,
+                xproto::Atom::from(xproto::AtomEnum::WINDOW),
+            );
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
@@ -94,9 +109,11 @@ impl XConnection {
 
         // All of that work gives us a window ID that we can get the WM name from.
         let wm_name = {
-            let utf8_string_atom = unsafe { self.get_atom_unchecked(b"UTF8_STRING\0") };
+            let atoms = self.atoms();
+            let utf8_string_atom = atoms[UTF8_STRING];
 
-            let result = self.get_property(root_window_wm_check, wm_name_atom, utf8_string_atom);
+            let result =
+                self.get_property(root_window_wm_check.into(), wm_name_atom, utf8_string_atom);
 
             // IceWM requires this. IceWM was also the only WM tested that returns a null-terminated
             // string. For more fun trivia, IceWM is also unique in including version and uname
@@ -105,13 +122,17 @@ impl XConnection {
             // The unofficial 1.4 fork of IceWM still includes the extra details, but properly
             // returns a UTF8 string that isn't null-terminated.
             let no_utf8 = if let Err(ref err) = result {
-                err.is_actual_property_type(ffi::XA_STRING)
+                err.is_actual_property_type(xproto::Atom::from(xproto::AtomEnum::STRING))
             } else {
                 false
             };
 
             if no_utf8 {
-                self.get_property(root_window_wm_check, wm_name_atom, ffi::XA_STRING)
+                self.get_property(
+                    root_window_wm_check.into(),
+                    wm_name_atom,
+                    xproto::Atom::from(xproto::AtomEnum::STRING),
+                )
             } else {
                 result
             }

@@ -3,6 +3,7 @@ use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
+    WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform_impl::platform::backend::EventListenerHandle;
@@ -18,7 +19,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use wasm_bindgen::prelude::Closure;
-use web_sys::{KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -35,13 +36,16 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
+    suspended: Cell<bool>,
+    event_loop_recreation: Cell<bool>,
     events: RefCell<VecDeque<EventWrapper<T>>>,
     id: RefCell<u32>,
     window: web_sys::Window,
+    document: Document,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
-    unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
     device_events: Cell<DeviceEvents>,
     on_mouse_move: OnEventHandle<PointerEvent>,
     on_wheel: OnEventHandle<WheelEvent>,
@@ -49,6 +53,7 @@ pub struct Execution<T: 'static> {
     on_mouse_release: OnEventHandle<PointerEvent>,
     on_key_press: OnEventHandle<KeyboardEvent>,
     on_key_release: OnEventHandle<KeyboardEvent>,
+    on_visibility_change: OnEventHandle<web_sys::Event>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -137,16 +142,23 @@ impl<T: 'static> Runner<T> {
 
 impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
+        #[allow(clippy::disallowed_methods)]
+        let window = web_sys::window().expect("only callable from inside the `Window`");
+        #[allow(clippy::disallowed_methods)]
+        let document = window.document().expect("Failed to obtain document");
+
         Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
+            suspended: Cell::new(false),
+            event_loop_recreation: Cell::new(false),
             events: RefCell::new(VecDeque::new()),
-            #[allow(clippy::disallowed_methods)]
-            window: web_sys::window().expect("only callable from inside the `Window`"),
+            window,
+            document,
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
-            unload_event_handle: RefCell::new(None),
+            page_transition_event_handle: RefCell::new(None),
             device_events: Cell::default(),
             on_mouse_move: RefCell::new(None),
             on_wheel: RefCell::new(None),
@@ -154,11 +166,16 @@ impl<T: 'static> Shared<T> {
             on_mouse_release: RefCell::new(None),
             on_key_press: RefCell::new(None),
             on_key_release: RefCell::new(None),
+            on_visibility_change: RefCell::new(None),
         }))
     }
 
     pub fn window(&self) -> &web_sys::Window {
         &self.0.window
+    }
+
+    pub fn document(&self) -> &Document {
+        &self.0.document
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -183,11 +200,29 @@ impl<T: 'static> Shared<T> {
         }
         self.init();
 
-        let close_instance = self.clone();
-        *self.0.unload_event_handle.borrow_mut() =
-            Some(backend::on_unload(self.window(), move || {
-                close_instance.handle_unload()
-            }));
+        *self.0.page_transition_event_handle.borrow_mut() = Some(backend::on_page_transition(
+            self.window(),
+            {
+                let runner = self.clone();
+                move |event: PageTransitionEvent| {
+                    if event.persisted() {
+                        runner.0.suspended.set(false);
+                        runner.send_event(Event::Resumed);
+                    }
+                }
+            },
+            {
+                let runner = self.clone();
+                move |event: PageTransitionEvent| {
+                    runner.0.suspended.set(true);
+                    if event.persisted() {
+                        runner.send_event(Event::Suspended);
+                    } else {
+                        runner.handle_unload();
+                    }
+                }
+            },
+        ));
 
         let runner = self.clone();
         let window = self.window().clone();
@@ -366,6 +401,33 @@ impl<T: 'static> Shared<T> {
                 });
             }),
         ));
+        let runner = self.clone();
+        *self.0.on_visibility_change.borrow_mut() = Some(EventListenerHandle::new(
+            // Safari <14 doesn't support the `visibilitychange` event on `Window`.
+            self.document(),
+            "visibilitychange",
+            Closure::new(move |_| {
+                if !runner.0.suspended.get() {
+                    for (id, canvas) in &*runner.0.all_canvases.borrow() {
+                        if let Some(canvas) = canvas.upgrade() {
+                            let is_visible = backend::is_visible(runner.document());
+                            // only fire if:
+                            // - not visible and intersects
+                            // - not visible and we don't know if it intersects yet
+                            // - visible and intersects
+                            if let (false, Some(true) | None) | (true, Some(true)) =
+                                (is_visible, canvas.borrow().is_intersecting)
+                            {
+                                runner.send_event(Event::WindowEvent {
+                                    window_id: *id,
+                                    event: WindowEvent::Occluded(!is_visible),
+                                });
+                            }
+                        }
+                    }
+                }
+            }),
+        ));
     }
 
     // Generate a strictly increasing ID
@@ -473,7 +535,7 @@ impl<T: 'static> Shared<T> {
     }
 
     // Process the destroy-pending windows. This should only be called from
-    // `run_until_cleared`, somewhere between emitting `NewEvents` and `MainEventsCleared`.
+    // `run_until_cleared`, somewhere between emitting `NewEvents` and `AboutToWait`.
     fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0
@@ -501,14 +563,14 @@ impl<T: 'static> Shared<T> {
             self.handle_event(event.into(), &mut control);
         }
         self.process_destroy_pending_windows(&mut control);
-        self.handle_event(Event::MainEventsCleared, &mut control);
 
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
             self.handle_event(Event::RedrawRequested(window_id), &mut control);
         }
-        self.handle_event(Event::RedrawEventsCleared, &mut control);
+
+        self.handle_event(Event::AboutToWait, &mut control);
 
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing
@@ -523,7 +585,7 @@ impl<T: 'static> Shared<T> {
         let mut control = self.current_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
-        self.handle_event(Event::LoopDestroyed, &mut control);
+        self.handle_event(Event::LoopExiting, &mut control);
     }
 
     // handle_event takes in events and either queues them or applies a callback
@@ -603,15 +665,16 @@ impl<T: 'static> Shared<T> {
     }
 
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
-        self.handle_event(Event::LoopDestroyed, control);
+        self.handle_event(Event::LoopExiting, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
-        *self.0.unload_event_handle.borrow_mut() = None;
+        *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
         *self.0.on_wheel.borrow_mut() = None;
         *self.0.on_mouse_press.borrow_mut() = None;
         *self.0.on_mouse_release.borrow_mut() = None;
         *self.0.on_key_press.borrow_mut() = None;
         *self.0.on_key_release.borrow_mut() = None;
+        *self.0.on_visibility_change.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
@@ -633,6 +696,9 @@ impl<T: 'static> Shared<T> {
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
+        if self.0.event_loop_recreation.get() {
+            crate::event_loop::EventLoopBuilder::<T>::allow_event_loop_recreation();
+        }
     }
 
     // Check if the event loop is currently closed
@@ -674,6 +740,10 @@ impl<T: 'static> Shared<T> {
             }),
             DeviceEvents::Never => false,
         }
+    }
+
+    pub fn event_loop_recreation(&self, allow: bool) {
+        self.0.event_loop_recreation.set(allow)
     }
 }
 

@@ -9,7 +9,7 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
 use web_time::{Duration, Instant};
 
+use crate::error::RunLoopError;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -148,7 +149,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the [`EventLoop::run`] method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`] is emitted.
+/// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
 /// Defaults to [`Poll`].
 ///
@@ -156,7 +157,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// Almost every change is persistent between multiple calls to the event loop closure within a
 /// given run loop. The only exception to this is [`ExitWithCode`] which, once set, cannot be unset.
-/// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
+/// Changes are **not** persistent between multiple calls to `run_ondemand` - issuing a new call will
 /// reset the control flow to [`Poll`].
 ///
 /// [`ExitWithCode`]: Self::ExitWithCode
@@ -180,7 +181,7 @@ pub enum ControlFlow {
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
 
-    /// Send a [`LoopDestroyed`] event and stop the event loop. This variant is *sticky* - once set,
+    /// Send a [`LoopExiting`] event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
     ///
@@ -189,12 +190,12 @@ pub enum ControlFlow {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / iOS / WASM:** The supplied exit code is unused.
+    /// - **Android / iOS / Web:** The supplied exit code is unused.
     /// - **Unix:** On most Unix-like platforms, only the 8 least significant bits will be used,
     ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
     ///   [`std::process::exit`].
     ///
-    /// [`LoopDestroyed`]: Event::LoopDestroyed
+    /// [`LoopExiting`]: Event::LoopExiting
     /// [`Exit`]: ControlFlow::Exit
     ExitWithCode(i32),
 }
@@ -285,23 +286,33 @@ impl<T> EventLoop<T> {
         EventLoopBuilder::<T>::with_user_event().build()
     }
 
-    /// Hijacks the calling thread and initializes the winit event loop with the provided
-    /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
+    /// Runs the event loop in the calling thread and calls the given `event_handler` closure
+    /// to dispatch any pending events.
+    ///
+    /// Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
     /// See the [`ControlFlow`] docs for information on how changes to `&mut ControlFlow` impact the
     /// event loop's behavior.
     ///
-    /// Any values not passed to this function will *not* be dropped.
-    ///
     /// ## Platform-specific
     ///
     /// - **X11 / Wayland:** The program terminates with exit code 1 if the display server
     ///   disconnects.
+    /// - **iOS:** Will never return to the caller and so values not passed to this function will
+    ///   *not* be dropped before the process exits.
+    /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript exception
+    ///   (that Rust doesn't see) that will also mean that the rest of the function is never executed
+    ///   and any values not passed to this function will *not* be dropped.
+    ///
+    ///   Web applications are recommended to use `spawn()` instead of `run()` to avoid the need
+    ///   for the Javascript exception trick, and to make it clearer that the event loop runs
+    ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
+    ///   current thread of execution like it does on other platforms.
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -436,4 +447,30 @@ pub enum DeviceEvents {
     WhenFocused,
     /// Never capture device events.
     Never,
+}
+
+/// A unique identifier of the winit's async request.
+///
+/// This could be used to identify the async request once it's done
+/// and a specific action must be taken.
+///
+/// One of the handling scenarious could be to maintain a working list
+/// containing [`AsyncRequestSerial`] and some closure associated with it.
+/// Then once event is arriving the working list is being traversed and a job
+/// executed and removed from the list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AsyncRequestSerial {
+    serial: u64,
+}
+
+impl AsyncRequestSerial {
+    // TODO(kchibisov) remove `cfg` when the clipboard will be added.
+    #[allow(dead_code)]
+    pub(crate) fn get() -> Self {
+        static CURRENT_SERIAL: AtomicU64 = AtomicU64::new(0);
+        // NOTE: we rely on wrap around here, while the user may just request
+        // in the loop u64::MAX times that's issue is considered on them.
+        let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
+        Self { serial }
+    }
 }

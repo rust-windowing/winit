@@ -48,12 +48,12 @@
 //!
 //!  - applicationDidBecomeActive is Resumed
 //!  - applicationWillResignActive is Suspended
-//!  - applicationWillTerminate is LoopDestroyed
+//!  - applicationWillTerminate is LoopExiting
 //!
-//! Keep in mind that after LoopDestroyed event is received every attempt to draw with
+//! Keep in mind that after LoopExiting event is received every attempt to draw with
 //! opengl will result in segfault.
 //!
-//! Also note that app may not receive the LoopDestroyed event if suspended; it might be SIGKILL'ed.
+//! Also note that app may not receive the LoopExiting event if suspended; it might be SIGKILL'ed.
 
 #![cfg(ios_platform)]
 #![allow(clippy::let_unit_value)]
@@ -63,7 +63,7 @@
 // window size/position.
 macro_rules! assert_main_thread {
     ($($t:tt)*) => {
-        if !::objc2::foundation::is_main_thread() {
+        if !::icrate::Foundation::is_main_thread() {
             panic!($($t)*);
         }
     };

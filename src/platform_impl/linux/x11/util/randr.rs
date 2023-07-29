@@ -68,8 +68,7 @@ impl XConnection {
             return None;
         }
 
-        let screen = (self.xlib.XDefaultScreen)(self.display);
-        let bit_depth = (self.xlib.XDefaultDepth)(self.display, screen);
+        let bit_depth = self.default_root().root_depth;
 
         let output_modes =
             slice::from_raw_parts((*output_info).modes, (*output_info).nmode as usize);
@@ -159,11 +158,11 @@ impl XConnection {
             let mut minor = 0;
             (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let root = self.default_root().root;
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root as ffi::Window)
             } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
+                (self.xrandr.XRRGetScreenResources)(self.display, root as ffi::Window)
             };
 
             let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
@@ -197,11 +196,11 @@ impl XConnection {
             let mut minor = 0;
             (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let root = self.default_root().root;
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root as ffi::Window)
             } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
+                (self.xrandr.XRRGetScreenResources)(self.display, root as ffi::Window)
             };
 
             let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);

@@ -69,7 +69,8 @@ impl<T> EventLoopWindowTarget<T> {
         EventLoopProxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>) {
+    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>, event_loop_recreation: bool) {
+        self.runner.event_loop_recreation(event_loop_recreation);
         self.runner.set_listener(event_handler);
     }
 
@@ -704,9 +705,10 @@ impl<T> EventLoopWindowTarget<T> {
             },
             {
                 let runner = self.runner.clone();
+                let canvas = canvas_clone.clone();
 
                 move |new_size| {
-                    let canvas = RefCell::borrow(&canvas_clone);
+                    let canvas = canvas.borrow();
                     canvas.set_current_size(new_size);
                     if canvas.old_size() != new_size {
                         canvas.set_old_size(new_size);
@@ -719,6 +721,21 @@ impl<T> EventLoopWindowTarget<T> {
                 }
             },
         );
+
+        let runner = self.runner.clone();
+        canvas.on_intersection(move |is_intersecting| {
+            // only fire if visible while skipping the first event if it's intersecting
+            if backend::is_visible(runner.document())
+                && !(is_intersecting && canvas_clone.borrow().is_intersecting.is_none())
+            {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Occluded(!is_intersecting),
+                });
+            }
+
+            canvas_clone.borrow_mut().is_intersecting = Some(is_intersecting);
+        })
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {

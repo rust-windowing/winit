@@ -46,7 +46,8 @@ use windows_sys::Win32::{
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
-            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM,
+            HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
             NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
             SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
@@ -210,7 +211,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
         let physical_size = size.to_physical::<u32>(scale_factor);
 
@@ -227,6 +228,8 @@ impl Window {
                 });
             });
         }
+      
+        None
     }
 
     #[inline]
@@ -234,7 +237,7 @@ impl Window {
         self.window_state_lock().min_size = size;
         // Make windows re-check the window size bounds.
         let size = self.inner_size();
-        self.set_inner_size(size.into());
+        self.request_inner_size(size.into());
     }
 
     #[inline]
@@ -242,7 +245,7 @@ impl Window {
         self.window_state_lock().max_size = size;
         // Make windows re-check the window size bounds.
         let size = self.inner_size();
-        self.set_inner_size(size.into());
+        self.request_inner_size(size.into());
     }
 
     #[inline]
@@ -411,36 +414,53 @@ impl Window {
         Ok(())
     }
 
+    unsafe fn handle_os_dragging(&self, wparam: WPARAM) {
+        let points = {
+            let mut pos = mem::zeroed();
+            GetCursorPos(&mut pos);
+            pos
+        };
+        let points = POINTS {
+            x: points.x as i16,
+            y: points.y as i16,
+        };
+        ReleaseCapture();
+
+        self.window_state_lock().dragging = true;
+
+        PostMessageW(
+            self.hwnd(),
+            WM_NCLBUTTONDOWN,
+            wparam,
+            &points as *const _ as LPARAM,
+        );
+    }
+
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         unsafe {
-            let points = {
-                let mut pos = mem::zeroed();
-                GetCursorPos(&mut pos);
-                pos
-            };
-            let points = POINTS {
-                x: points.x as i16,
-                y: points.y as i16,
-            };
-            ReleaseCapture();
-
-            self.window_state_lock().dragging = true;
-
-            PostMessageW(
-                self.hwnd(),
-                WM_NCLBUTTONDOWN,
-                HTCAPTION as WPARAM,
-                &points as *const _ as LPARAM,
-            );
+            self.handle_os_dragging(HTCAPTION as WPARAM);
         }
 
         Ok(())
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        unsafe {
+            self.handle_os_dragging(match direction {
+                ResizeDirection::East => HTRIGHT,
+                ResizeDirection::North => HTTOP,
+                ResizeDirection::NorthEast => HTTOPRIGHT,
+                ResizeDirection::NorthWest => HTTOPLEFT,
+                ResizeDirection::South => HTBOTTOM,
+                ResizeDirection::SouthEast => HTBOTTOMRIGHT,
+                ResizeDirection::SouthWest => HTBOTTOMLEFT,
+                ResizeDirection::West => HTLEFT,
+            } as WPARAM);
+        }
+
+        Ok(())
     }
 
     #[inline]
@@ -970,8 +990,6 @@ impl<'a, T: 'static> InitData<'a, T> {
             None
         };
 
-        self.event_loop.runner_shared.register_window(win.window.0);
-
         event_loop::WindowData {
             window_state: win.window_state.clone(),
             event_loop_runner: self.event_loop.runner_shared.clone(),
@@ -1053,11 +1071,11 @@ impl<'a, T: 'static> InitData<'a, T> {
                 .min_inner_size
                 .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
             let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-            win.set_inner_size(clamped_size);
+            win.request_inner_size(clamped_size);
 
             if attributes.maximized {
                 // Need to set MAXIMIZED after setting `inner_size` as
-                // `Window::set_inner_size` changes MAXIMIZED to false.
+                // `Window::request_inner_size` changes MAXIMIZED to false.
                 win.set_maximized(true);
             }
         }

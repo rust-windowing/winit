@@ -1,8 +1,9 @@
 use super::super::WindowId;
 use super::event_handle::EventListenerHandle;
+use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, ButtonsState, ResizeScaleHandle};
+use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, MouseButton, MouseScrollDelta};
@@ -17,16 +18,18 @@ use std::sync::Arc;
 
 use js_sys::Promise;
 use smol_str::SmolStr;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent};
+use web_sys::{
+    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
+};
 
 #[allow(dead_code)]
 pub struct Canvas {
     common: Common,
     id: WindowId,
     pub has_focus: Arc<AtomicBool>,
+    pub is_intersecting: Option<bool>,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -37,12 +40,15 @@ pub struct Canvas {
     on_dark_mode: Option<MediaQueryListHandle>,
     pointer_handler: PointerHandler,
     on_resize_scale: Option<ResizeScaleHandle>,
+    on_intersect: Option<IntersectionObserverHandle>,
 }
 
 pub struct Common {
     pub window: web_sys::Window,
+    pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
+    style: CssStyleDeclaration,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
     wants_fullscreen: Rc<RefCell<bool>>,
@@ -52,22 +58,25 @@ impl Canvas {
     pub fn create(
         id: WindowId,
         window: web_sys::Window,
+        document: Document,
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let canvas = match platform_attr.canvas {
             Some(canvas) => canvas,
-            None => {
-                let document = window
-                    .document()
-                    .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
-
-                document
-                    .create_element("canvas")
-                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-                    .unchecked_into()
-            }
+            None => document
+                .create_element("canvas")
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .unchecked_into(),
         };
+
+        if platform_attr.append && !document.contains(Some(&canvas)) {
+            document
+                .body()
+                .expect("Failed to get body from document")
+                .append_child(&canvas)
+                .expect("Failed to append canvas to body");
+        }
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
@@ -80,21 +89,56 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
+        #[allow(clippy::disallowed_methods)]
+        let style = window
+            .get_computed_style(&canvas)
+            .expect("Failed to obtain computed style")
+            // this can't fail: we aren't using a pseudo-element
+            .expect("Invalid pseudo-element");
+
+        let common = Common {
+            window,
+            document,
+            raw: canvas,
+            style,
+            old_size: Rc::default(),
+            current_size: Rc::default(),
+            wants_fullscreen: Rc::new(RefCell::new(false)),
+        };
+
         if let Some(size) = attr.inner_size {
-            let size = size.to_logical(super::scale_factor(&window));
-            super::set_canvas_size(&window, &canvas, size);
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_size(&common.document, &common.raw, &common.style, size);
+        }
+
+        if let Some(size) = attr.min_inner_size {
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_min_size(&common.document, &common.raw, &common.style, Some(size));
+        }
+
+        if let Some(size) = attr.max_inner_size {
+            let size = size.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_max_size(&common.document, &common.raw, &common.style, Some(size));
+        }
+
+        if let Some(position) = attr.position {
+            let position = position.to_logical(super::scale_factor(&common.window));
+            super::set_canvas_position(&common.document, &common.raw, &common.style, position);
+        }
+
+        if attr.fullscreen.is_some() {
+            common.request_fullscreen();
+        }
+
+        if attr.active {
+            let _ = common.raw.focus();
         }
 
         Ok(Canvas {
-            common: Common {
-                window,
-                raw: canvas,
-                old_size: Rc::default(),
-                current_size: Rc::default(),
-                wants_fullscreen: Rc::new(RefCell::new(false)),
-            },
+            common,
             id,
             has_focus: Arc::new(AtomicBool::new(false)),
+            is_intersecting: None,
             on_touch_start: None,
             on_touch_end: None,
             on_blur: None,
@@ -105,6 +149,7 @@ impl Canvas {
             on_dark_mode: None,
             pointer_handler: PointerHandler::new(),
             on_resize_scale: None,
+            on_intersect: None,
         })
     }
 
@@ -112,12 +157,7 @@ impl Canvas {
         if lock {
             self.raw().request_pointer_lock();
         } else {
-            let document = self
-                .common
-                .window
-                .document()
-                .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
-            document.exit_pointer_lock();
+            self.common.document.exit_pointer_lock();
         }
         Ok(())
     }
@@ -131,35 +171,61 @@ impl Canvas {
 
     pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.common.raw.get_bounding_client_rect();
-
-        LogicalPosition {
+        let mut position = LogicalPosition {
             x: bounds.x(),
             y: bounds.y(),
+        };
+
+        if self.document().contains(Some(self.raw()))
+            && self.style().get_property_value("display").unwrap() != "none"
+        {
+            position.x += super::style_size_property(self.style(), "border-left-width")
+                + super::style_size_property(self.style(), "padding-left");
+            position.y += super::style_size_property(self.style(), "border-top-width")
+                + super::style_size_property(self.style(), "padding-top");
         }
+
+        position
     }
 
+    #[inline]
     pub fn old_size(&self) -> PhysicalSize<u32> {
         self.common.old_size.get()
     }
 
+    #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.common.current_size.get()
     }
 
+    #[inline]
     pub fn set_old_size(&self, size: PhysicalSize<u32>) {
         self.common.old_size.set(size)
     }
 
+    #[inline]
     pub fn set_current_size(&self, size: PhysicalSize<u32>) {
         self.common.current_size.set(size)
     }
 
+    #[inline]
     pub fn window(&self) -> &web_sys::Window {
         &self.common.window
     }
 
+    #[inline]
+    pub fn document(&self) -> &Document {
+        &self.common.document
+    }
+
+    #[inline]
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.common.raw
+    }
+
+    #[inline]
+    pub fn style(&self) -> &CssStyleDeclaration {
+        &self.common.style
     }
 
     pub fn on_touch_start(&mut self, prevent_default: bool) {
@@ -359,10 +425,19 @@ impl Canvas {
     {
         self.on_resize_scale = Some(ResizeScaleHandle::new(
             self.window().clone(),
+            self.document().clone(),
             self.raw().clone(),
+            self.style().clone(),
             scale_handler,
             size_handler,
         ));
+    }
+
+    pub(crate) fn on_intersection<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(bool),
+    {
+        self.on_intersect = Some(IntersectionObserverHandle::new(self.raw(), handler));
     }
 
     pub fn request_fullscreen(&self) {
@@ -395,7 +470,7 @@ impl Canvas {
             // Then we resize the canvas to the new size, a new
             // `Resized` event will be sent by the `ResizeObserver`:
             let new_size = new_size.to_logical(scale);
-            super::set_canvas_size(self.window(), self.raw(), new_size);
+            super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
             // Set the size might not trigger the event because the calculation is inaccurate.
             self.on_resize_scale
@@ -421,6 +496,7 @@ impl Canvas {
         self.on_dark_mode = None;
         self.pointer_handler.remove_listeners();
         self.on_resize_scale = None;
+        self.on_intersect = None;
     }
 }
 
@@ -460,27 +536,15 @@ impl Common {
             handler(event);
 
             if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
+                fullscreen::request_fullscreen(&canvas).expect("Failed to enter fullscreen");
                 *wants_fullscreen.borrow_mut() = false;
             }
         })
     }
 
     pub fn request_fullscreen(&self) {
-        #[wasm_bindgen]
-        extern "C" {
-            type ElementExt;
-
-            #[wasm_bindgen(catch, method, js_name = requestFullscreen)]
-            fn request_fullscreen(this: &ElementExt) -> Result<JsValue, JsValue>;
-        }
-
-        let raw: &ElementExt = self.raw.unchecked_ref();
-
         // This should return a `Promise`, but Safari v<16.4 is not up-to-date with the spec.
-        match raw.request_fullscreen() {
+        match fullscreen::request_fullscreen(&self.raw) {
             Ok(value) if !value.is_undefined() => {
                 let promise: Promise = value.unchecked_into();
                 let wants_fullscreen = self.wants_fullscreen.clone();
@@ -496,6 +560,6 @@ impl Common {
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        super::is_fullscreen(&self.window, &self.raw)
+        super::is_fullscreen(&self.document, &self.raw)
     }
 }

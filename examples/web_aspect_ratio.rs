@@ -13,6 +13,7 @@ mod wasm {
         dpi::PhysicalSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
+        platform::web::WindowBuilderExtWebSys,
         window::{Window, WindowBuilder},
     };
 
@@ -37,6 +38,7 @@ This example demonstrates the desired future functionality which will possibly b
             // When running in a non-wasm environment this would set the window size to 100x100.
             // However in this example it just sets a default initial size of 100x100 that is immediately overwritten due to the layout + styling of the page.
             .with_inner_size(PhysicalSize::new(100, 100))
+            .with_append(true)
             .build(&event_loop)
             .unwrap();
 
@@ -45,7 +47,7 @@ This example demonstrates the desired future functionality which will possibly b
         // Render once with the size info we currently have
         render_circle(&canvas, window.inner_size());
 
-        event_loop.run(move |event, _, control_flow| {
+        let _ = event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
             match event {
@@ -72,7 +74,6 @@ This example demonstrates the desired future functionality which will possibly b
         canvas
             .style()
             .set_css_text("display: block; background-color: crimson; margin: auto; width: 50%; aspect-ratio: 4 / 1;");
-        body.append_child(&canvas).unwrap();
 
         let explanation = document.create_element("pre").unwrap();
         explanation.set_text_content(Some(EXPLANATION));

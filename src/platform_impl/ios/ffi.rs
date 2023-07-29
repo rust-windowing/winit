@@ -2,8 +2,8 @@
 
 use std::convert::TryInto;
 
+use icrate::Foundation::{NSInteger, NSUInteger};
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{NSInteger, NSUInteger};
 
 use crate::platform::ios::{Idiom, ScreenEdge};
 
@@ -69,6 +69,10 @@ impl From<UIUserInterfaceIdiom> for Idiom {
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIRectEdge(NSUInteger);
+
+impl UIRectEdge {
+    pub(crate) const NONE: Self = Self(0);
+}
 
 unsafe impl Encode for UIRectEdge {
     const ENCODING: Encoding = NSUInteger::ENCODING;

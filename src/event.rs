@@ -16,17 +16,16 @@
 //!     for e in (window events, user events, device events) {
 //!         event_handler(e, ..., &mut control_flow);
 //!     }
-//!     event_handler(MainEventsCleared, ..., &mut control_flow);
 //!
 //!     for w in (redraw windows) {
 //!         event_handler(RedrawRequested(w), ..., &mut control_flow);
 //!     }
-//!     event_handler(RedrawEventsCleared, ..., &mut control_flow);
 //!
+//!     event_handler(AboutToWait, ..., &mut control_flow);
 //!     start_cause = wait_if_necessary(control_flow);
 //! }
 //!
-//! event_handler(LoopDestroyed, ..., &mut control_flow);
+//! event_handler(LoopExiting, ..., &mut control_flow);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
@@ -45,9 +44,10 @@ use web_time::Instant;
 use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    event_loop::AsyncRequestSerial,
     keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
     platform_impl,
-    window::{Theme, WindowId},
+    window::{ActivationToken, Theme, WindowId},
 };
 
 /// Describes a generic event.
@@ -84,7 +84,7 @@ pub enum Event<'a, T: 'static> {
     ///
     /// Not all platforms support the notion of suspending applications, and there may be no
     /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
     /// Winit does not currently try to emit pseudo `Suspended` events before the application
     /// quits on platforms without an application lifecycle.
     ///
@@ -124,6 +124,18 @@ pub enum Event<'a, T: 'static> {
     ///
     /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ## Web
+    ///
+    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
+    /// complete snapshot of a page (including the JavaScript heap) as the user is
+    /// navigating away.
+    ///
+    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
     ///
     /// [`Resumed`]: Self::Resumed
     Suspended,
@@ -179,61 +191,50 @@ pub enum Event<'a, T: 'static> {
     /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
     ///
+    /// ## Web
+    ///
+    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
+    /// with the property [`persisted`] being true, which means that the page is being
+    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
+    /// stores a complete snapshot of a page (including the JavaScript heap) as the
+    /// user is navigating away.
+    ///
+    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
+    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
+    /// [`bfcache`]: https://web.dev/bfcache/
+    ///
     /// [`Suspended`]: Self::Suspended
     Resumed,
 
-    /// Emitted when all of the event loop's input events have been processed and redraw processing
-    /// is about to begin.
+    /// Emitted when the event loop is about to block and wait for new events.
     ///
-    /// This event is useful as a place to put your code that should be run after all
-    /// state-changing events have been handled and you want to do stuff (updating state, performing
-    /// calculations, etc) that happens as the "main body" of your event loop. If your program only draws
-    /// graphics when something changes, it's usually better to do it in response to
-    /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
-    /// immediately after this event. Programs that draw graphics continuously, like most games,
-    /// can render here unconditionally for simplicity.
-    MainEventsCleared,
+    /// Most applications shouldn't need to hook into this event since there is no real relationship
+    /// between how often the event loop needs to wake up and the dispatching of any specific events.
+    ///
+    /// High frequency event sources, such as input devices could potentially lead to lots of wake
+    /// ups and also lots of corresponding `AboutToWait` events.
+    ///
+    /// This is not an ideal event to drive application rendering from and instead applications
+    /// should render in response to [`Event::RedrawRequested`](crate::event::Event::RedrawRequested)
+    /// events.
+    AboutToWait,
 
-    /// Emitted after [`MainEventsCleared`] when a window should be redrawn.
+    /// Emitted when a window should be redrawn.
     ///
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window).
     /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
     ///
-    /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
-    /// into a single event, to help avoid duplicating rendering work.
-    ///
-    /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
-    /// something changes, like most non-game GUIs.
-    ///
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **macOS / iOS:** Due to implementation difficulties, this will often, but not always, be
-    ///   emitted directly inside `drawRect:`, with neither a preceding [`MainEventsCleared`] nor
-    ///   subsequent `RedrawEventsCleared`. See [#2640] for work on this.
-    ///
-    /// [`MainEventsCleared`]: Self::MainEventsCleared
-    /// [`RedrawEventsCleared`]: Self::RedrawEventsCleared
-    /// [#2640]: https://github.com/rust-windowing/winit/issues/2640
+    /// Winit will aggregate duplicate redraw requests into a single event, to
+    /// help avoid duplicating rendering work.
     RedrawRequested(WindowId),
-
-    /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
-    /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
-    /// immediately after `MainEventsCleared`.
-    ///
-    /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
-    /// tasks have been completed.
-    ///
-    /// [`RedrawRequested`]: Self::RedrawRequested
-    RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down.
     ///
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as a "do on quit" event.
-    LoopDestroyed,
+    LoopExiting,
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -250,10 +251,9 @@ impl<T: Clone> Clone for Event<'static, T> {
                 event: event.clone(),
             },
             NewEvents(cause) => NewEvents(*cause),
-            MainEventsCleared => MainEventsCleared,
+            AboutToWait => AboutToWait,
             RedrawRequested(wid) => RedrawRequested(*wid),
-            RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
+            LoopExiting => LoopExiting,
             Suspended => Suspended,
             Resumed => Resumed,
         }
@@ -269,10 +269,9 @@ impl<'a, T> Event<'a, T> {
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
-            MainEventsCleared => Ok(MainEventsCleared),
+            AboutToWait => Ok(AboutToWait),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
-            RedrawEventsCleared => Ok(RedrawEventsCleared),
-            LoopDestroyed => Ok(LoopDestroyed),
+            LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
         }
@@ -289,10 +288,9 @@ impl<'a, T> Event<'a, T> {
             UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
             NewEvents(cause) => Some(NewEvents(cause)),
-            MainEventsCleared => Some(MainEventsCleared),
+            AboutToWait => Some(AboutToWait),
             RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
+            LoopExiting => Some(LoopExiting),
             Suspended => Some(Suspended),
             Resumed => Some(Resumed),
         }
@@ -332,6 +330,20 @@ pub enum StartCause {
 /// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
+    /// The activation token was delivered back and now could be used.
+    ///
+    #[cfg_attr(
+        not(any(x11_platform, wayland_platfrom)),
+        allow(rustdoc::broken_intra_doc_links)
+    )]
+    /// Delivered in response to [`request_activation_token`].
+    ///
+    /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
+    ActivationTokenDone {
+        serial: AsyncRequestSerial,
+        token: ActivationToken,
+    },
+
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -406,6 +418,14 @@ pub enum WindowEvent<'a> {
     Ime(Ime),
 
     /// The cursor has moved on the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorMoved {
         device_id: DeviceId,
 
@@ -416,9 +436,25 @@ pub enum WindowEvent<'a> {
     },
 
     /// The cursor has entered the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
@@ -504,7 +540,12 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
     /// - **macOS:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Touch(Touch),
 
     /// The window's scale factor has changed.
@@ -541,7 +582,13 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Unsupported.
+    ///
+    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
+    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    ///
+    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
 }
 
@@ -549,6 +596,10 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
+            ActivationTokenDone { serial, token } => ActivationTokenDone {
+                serial: *serial,
+                token: token.clone(),
+            },
             Resized(size) => Resized(*size),
             Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
@@ -652,6 +703,7 @@ impl<'a> WindowEvent<'a> {
     pub fn to_static(self) -> Option<WindowEvent<'static>> {
         use self::WindowEvent::*;
         match self {
+            ActivationTokenDone { serial, token } => Some(ActivationTokenDone { serial, token }),
             Resized(size) => Some(Resized(size)),
             Moved(position) => Some(Moved(position)),
             CloseRequested => Some(CloseRequested),
@@ -1113,7 +1165,12 @@ pub enum TouchPhase {
 ///
 /// ## Platform-specific
 ///
+/// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
 /// - **macOS:** Unsupported.
+///
+/// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
+/// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+/// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,
@@ -1124,7 +1181,7 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+ and **Windows** 8+.
+    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,

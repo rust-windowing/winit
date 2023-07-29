@@ -1,9 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
+use std::cell::Cell;
+use std::ptr::NonNull;
 
-use objc2::foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
-use objc2::rc::{Id, Shared};
+use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
+use objc2::declare::{Ivar, IvarDrop};
+use objc2::rc::Id;
 use objc2::runtime::Class;
-use objc2::{declare_class, extern_methods, msg_send, msg_send_id, ClassType};
+use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
 
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -26,32 +29,28 @@ use crate::{
 };
 
 declare_class!(
-    pub(crate) struct WinitView {}
+    pub(crate) struct WinitView;
 
     unsafe impl ClassType for WinitView {
         #[inherits(UIResponder, NSObject)]
         type Super = UIView;
+        type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIView";
     }
 
     unsafe impl WinitView {
-        #[sel(drawRect:)]
+        #[method(drawRect:)]
         fn draw_rect(&self, rect: CGRect) {
             let window = self.window().unwrap();
             unsafe {
-                app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::StaticEvent(Event::RedrawRequested(
-                        RootWindowId(window.id()),
-                    )))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::RedrawEventsCleared,
-                    ))),
-                );
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(
+                    RootWindowId(window.id()),
+                )));
             }
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
 
-        #[sel(layoutSubviews)]
+        #[method(layoutSubviews)]
         fn layout_subviews(&self) {
             let _: () = unsafe { msg_send![super(self), layoutSubviews] };
 
@@ -83,7 +82,7 @@ declare_class!(
             }
         }
 
-        #[sel(setContentScaleFactor:)]
+        #[method(setContentScaleFactor:)]
         fn set_content_scale_factor(&self, untrusted_scale_factor: CGFloat) {
             let _: () =
                 unsafe { msg_send![super(self), setContentScaleFactor: untrusted_scale_factor] };
@@ -133,22 +132,22 @@ declare_class!(
             }
         }
 
-        #[sel(touchesBegan:withEvent:)]
+        #[method(touchesBegan:withEvent:)]
         fn touches_began(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesMoved:withEvent:)]
+        #[method(touchesMoved:withEvent:)]
         fn touches_moved(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesEnded:withEvent:)]
+        #[method(touchesEnded:withEvent:)]
         fn touches_ended(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
 
-        #[sel(touchesCancelled:withEvent:)]
+        #[method(touchesCancelled:withEvent:)]
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
@@ -158,16 +157,16 @@ declare_class!(
 extern_methods!(
     #[allow(non_snake_case)]
     unsafe impl WinitView {
-        fn window(&self) -> Option<Id<WinitUIWindow, Shared>> {
+        fn window(&self) -> Option<Id<WinitUIWindow>> {
             unsafe { msg_send_id![self, window] }
         }
 
-        unsafe fn traitCollection(&self) -> Id<UITraitCollection, Shared> {
+        unsafe fn traitCollection(&self) -> Id<UITraitCollection> {
             msg_send_id![self, traitCollection]
         }
 
         // TODO: Allow the user to customize this
-        #[sel(layerClass)]
+        #[method(layerClass)]
         pub(crate) fn layerClass() -> &'static Class;
     }
 );
@@ -178,9 +177,8 @@ impl WinitView {
         _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
+    ) -> Id<Self> {
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -260,102 +258,108 @@ impl WinitView {
     }
 }
 
+pub struct ViewControllerState {
+    prefers_status_bar_hidden: Cell<bool>,
+    prefers_home_indicator_auto_hidden: Cell<bool>,
+    supported_orientations: Cell<UIInterfaceOrientationMask>,
+    preferred_screen_edges_deferring_system_gestures: Cell<UIRectEdge>,
+}
+
 declare_class!(
     pub(crate) struct WinitViewController {
-        _prefers_status_bar_hidden: bool,
-        _prefers_home_indicator_auto_hidden: bool,
-        _supported_orientations: UIInterfaceOrientationMask,
-        _preferred_screen_edges_deferring_system_gestures: UIRectEdge,
+        state: IvarDrop<Box<ViewControllerState>, "_state">,
     }
+
+    mod view_controller_ivars;
 
     unsafe impl ClassType for WinitViewController {
         #[inherits(UIResponder, NSObject)]
         type Super = UIViewController;
+        type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIViewController";
     }
 
     unsafe impl WinitViewController {
-        #[sel(shouldAutorotate)]
+        #[method(init)]
+        unsafe fn init(this: *mut Self) -> Option<NonNull<Self>> {
+            let this: Option<&mut Self> = msg_send![super(this), init];
+            this.map(|this| {
+                // These are set in WinitViewController::new, it's just to set them
+                // to _something_.
+                Ivar::write(
+                    &mut this.state,
+                    Box::new(ViewControllerState {
+                        prefers_status_bar_hidden: Cell::new(false),
+                        prefers_home_indicator_auto_hidden: Cell::new(false),
+                        supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
+                        preferred_screen_edges_deferring_system_gestures: Cell::new(
+                            UIRectEdge::NONE,
+                        ),
+                    }),
+                );
+                NonNull::from(this)
+            })
+        }
+    }
+
+    unsafe impl WinitViewController {
+        #[method(shouldAutorotate)]
         fn should_autorotate(&self) -> bool {
             true
         }
-    }
 
-    unsafe impl WinitViewController {
-        #[sel(prefersStatusBarHidden)]
+        #[method(prefersStatusBarHidden)]
         fn prefers_status_bar_hidden(&self) -> bool {
-            *self._prefers_status_bar_hidden
+            self.state.prefers_status_bar_hidden.get()
         }
 
-        #[sel(setPrefersStatusBarHidden:)]
-        fn set_prefers_status_bar_hidden(&mut self, val: bool) {
-            *self._prefers_status_bar_hidden = val;
-            self.setNeedsStatusBarAppearanceUpdate();
-        }
-
-        #[sel(prefersHomeIndicatorAutoHidden)]
+        #[method(prefersHomeIndicatorAutoHidden)]
         fn prefers_home_indicator_auto_hidden(&self) -> bool {
-            *self._prefers_home_indicator_auto_hidden
+            self.state.prefers_home_indicator_auto_hidden.get()
         }
 
-        #[sel(setPrefersHomeIndicatorAutoHidden:)]
-        fn set_prefers_home_indicator_auto_hidden(&mut self, val: bool) {
-            *self._prefers_home_indicator_auto_hidden = val;
-            let os_capabilities = app_state::os_capabilities();
-            if os_capabilities.home_indicator_hidden {
-                self.setNeedsUpdateOfHomeIndicatorAutoHidden();
-            } else {
-                os_capabilities.home_indicator_hidden_err_msg("ignoring")
-            }
-        }
-
-        #[sel(supportedInterfaceOrientations)]
+        #[method(supportedInterfaceOrientations)]
         fn supported_orientations(&self) -> UIInterfaceOrientationMask {
-            *self._supported_orientations
+            self.state.supported_orientations.get()
         }
 
-        #[sel(setSupportedInterfaceOrientations:)]
-        fn set_supported_orientations(&mut self, val: UIInterfaceOrientationMask) {
-            *self._supported_orientations = val;
-            UIViewController::attemptRotationToDeviceOrientation();
-        }
-
-        #[sel(preferredScreenEdgesDeferringSystemGestures)]
+        #[method(preferredScreenEdgesDeferringSystemGestures)]
         fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
-            *self._preferred_screen_edges_deferring_system_gestures
+            self.state
+                .preferred_screen_edges_deferring_system_gestures
+                .get()
         }
-
-        #[sel(setPreferredScreenEdgesDeferringSystemGestures:)]
-        fn set_preferred_screen_edges_deferring_system_gestures(&mut self, val: UIRectEdge) {
-            *self._preferred_screen_edges_deferring_system_gestures = val;
-            let os_capabilities = app_state::os_capabilities();
-            if os_capabilities.defer_system_gestures {
-                self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
-            } else {
-                os_capabilities.defer_system_gestures_err_msg("ignoring")
-            }
-        }
-    }
-);
-
-extern_methods!(
-    #[allow(non_snake_case)]
-    unsafe impl WinitViewController {
-        #[sel(setPrefersStatusBarHidden:)]
-        pub(crate) fn setPrefersStatusBarHidden(&self, flag: bool);
-
-        #[sel(setSupportedInterfaceOrientations:)]
-        pub(crate) fn setSupportedInterfaceOrientations(&self, val: UIInterfaceOrientationMask);
-
-        #[sel(setPrefersHomeIndicatorAutoHidden:)]
-        pub(crate) fn setPrefersHomeIndicatorAutoHidden(&self, val: bool);
-
-        #[sel(setPreferredScreenEdgesDeferringSystemGestures:)]
-        pub(crate) fn setPreferredScreenEdgesDeferringSystemGestures(&self, val: UIRectEdge);
     }
 );
 
 impl WinitViewController {
+    pub(crate) fn set_prefers_status_bar_hidden(&self, val: bool) {
+        self.state.prefers_status_bar_hidden.set(val);
+        self.setNeedsStatusBarAppearanceUpdate();
+    }
+
+    pub(crate) fn set_prefers_home_indicator_auto_hidden(&self, val: bool) {
+        self.state.prefers_home_indicator_auto_hidden.set(val);
+        let os_capabilities = app_state::os_capabilities();
+        if os_capabilities.home_indicator_hidden {
+            self.setNeedsUpdateOfHomeIndicatorAutoHidden();
+        } else {
+            os_capabilities.home_indicator_hidden_err_msg("ignoring")
+        }
+    }
+
+    pub(crate) fn set_preferred_screen_edges_deferring_system_gestures(&self, val: UIRectEdge) {
+        self.state
+            .preferred_screen_edges_deferring_system_gestures
+            .set(val);
+        let os_capabilities = app_state::os_capabilities();
+        if os_capabilities.defer_system_gestures {
+            self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
+        } else {
+            os_capabilities.defer_system_gestures_err_msg("ignoring")
+        }
+    }
+
     pub(crate) fn set_supported_interface_orientations(
         &self,
         mtm: MainThreadMarker,
@@ -378,7 +382,8 @@ impl WinitViewController {
                     | UIInterfaceOrientationMask::PortraitUpsideDown
             }
         };
-        self.setSupportedInterfaceOrientations(mask);
+        self.state.supported_orientations.set(mask);
+        UIViewController::attemptRotationToDeviceOrientation();
     }
 
     pub(crate) fn new(
@@ -386,17 +391,18 @@ impl WinitViewController {
         _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         view: &UIView,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], init] };
+    ) -> Id<Self> {
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), init] };
 
-        this.setPrefersStatusBarHidden(platform_attributes.prefers_status_bar_hidden);
+        this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
 
         this.set_supported_interface_orientations(mtm, platform_attributes.valid_orientations);
 
-        this.setPrefersHomeIndicatorAutoHidden(platform_attributes.prefers_home_indicator_hidden);
+        this.set_prefers_home_indicator_auto_hidden(
+            platform_attributes.prefers_home_indicator_hidden,
+        );
 
-        this.setPreferredScreenEdgesDeferringSystemGestures(
+        this.set_preferred_screen_edges_deferring_system_gestures(
             platform_attributes
                 .preferred_screen_edges_deferring_system_gestures
                 .into(),
@@ -410,15 +416,17 @@ impl WinitViewController {
 
 declare_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
-    pub(crate) struct WinitUIWindow {}
+    pub(crate) struct WinitUIWindow;
 
     unsafe impl ClassType for WinitUIWindow {
         #[inherits(UIResponder, NSObject)]
         type Super = UIWindow;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitUIWindow";
     }
 
     unsafe impl WinitUIWindow {
-        #[sel(becomeKeyWindow)]
+        #[method(becomeKeyWindow)]
         fn become_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -429,7 +437,7 @@ declare_class!(
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
-        #[sel(resignKeyWindow)]
+        #[method(resignKeyWindow)]
         fn resign_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -449,9 +457,8 @@ impl WinitUIWindow {
         _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
         view_controller: &UIViewController,
-    ) -> Id<Self, Shared> {
-        let this: Id<Self, Shared> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithFrame: frame] };
+    ) -> Id<Self> {
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 
@@ -478,15 +485,17 @@ impl WinitUIWindow {
 }
 
 declare_class!(
-    pub struct WinitApplicationDelegate {}
+    pub struct WinitApplicationDelegate;
 
     unsafe impl ClassType for WinitApplicationDelegate {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitApplicationDelegate";
     }
 
     // UIApplicationDelegate protocol
     unsafe impl WinitApplicationDelegate {
-        #[sel(application:didFinishLaunchingWithOptions:)]
+        #[method(application:didFinishLaunchingWithOptions:)]
         fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
             unsafe {
                 app_state::did_finish_launching();
@@ -494,22 +503,23 @@ declare_class!(
             true
         }
 
-        #[sel(applicationDidBecomeActive:)]
+        #[method(applicationDidBecomeActive:)]
         fn did_become_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
         }
 
-        #[sel(applicationWillResignActive:)]
+        #[method(applicationWillResignActive:)]
         fn will_resign_active(&self, _application: &UIApplication) {
             unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
         }
 
-        #[sel(applicationWillEnterForeground:)]
+        #[method(applicationWillEnterForeground:)]
         fn will_enter_foreground(&self, _application: &UIApplication) {}
-        #[sel(applicationDidEnterBackground:)]
+
+        #[method(applicationDidEnterBackground:)]
         fn did_enter_background(&self, _application: &UIApplication) {}
 
-        #[sel(applicationWillTerminate:)]
+        #[method(applicationWillTerminate:)]
         fn will_terminate(&self, application: &UIApplication) {
             let mut events = Vec::new();
             for window in application.windows().iter() {

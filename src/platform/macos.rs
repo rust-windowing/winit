@@ -38,6 +38,28 @@ pub trait WindowExtMacOS {
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
 
+    /// Group windows together by using the same tabbing identifier.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
+    fn set_tabbing_identifier(&self, identifier: &str);
+
+    /// Returns the window's tabbing identifier.
+    fn tabbing_identifier(&self) -> String;
+
+    /// Select next tab.
+    fn select_next_tab(&self);
+
+    /// Select previous tab.
+    fn select_previous_tab(&self);
+
+    /// Select the tab with the given index.
+    ///
+    /// Will no-op when the index is out of bounds.
+    fn select_tab_at_index(&self, index: usize);
+
+    /// Get the number of tabs in the window tab group.
+    fn num_tabs(&self) -> usize;
+
     /// Get the window's edit state.
     ///
     /// # Examples
@@ -101,6 +123,36 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
+    fn set_tabbing_identifier(&self, identifier: &str) {
+        self.window.set_tabbing_identifier(identifier);
+    }
+
+    #[inline]
+    fn tabbing_identifier(&self) -> String {
+        self.window.tabbing_identifier()
+    }
+
+    #[inline]
+    fn select_next_tab(&self) {
+        self.window.select_next_tab();
+    }
+
+    #[inline]
+    fn select_previous_tab(&self) {
+        self.window.select_previous_tab();
+    }
+
+    #[inline]
+    fn select_tab_at_index(&self, index: usize) {
+        self.window.select_tab_at_index(index);
+    }
+
+    #[inline]
+    fn num_tabs(&self) -> usize {
+        self.window.num_tabs()
+    }
+
+    #[inline]
     fn is_document_edited(&self) -> bool {
         self.window.is_document_edited()
     }
@@ -161,6 +213,10 @@ pub trait WindowBuilderExtMacOS {
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
     fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
+    /// Defines the window tabbing identifier.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
+    fn with_tabbing_identifier(self, identifier: &str) -> WindowBuilder;
     /// Set how the <kbd>Option</kbd> keys are interpreted.
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
@@ -222,6 +278,14 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self
+    }
+
+    #[inline]
+    fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> WindowBuilder {
+        self.platform_specific
+            .tabbing_identifier
+            .replace(tabbing_identifier.to_string());
         self
     }
 
@@ -329,6 +393,12 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn hide_application(&self);
     /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
     fn hide_other_applications(&self);
+    /// Set whether the system can automatically organize windows into tabs.
+    ///
+    /// <https://developer.apple.com/documentation/appkit/nswindow/1646657-allowsautomaticwindowtabbing>
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool);
+    /// Returns whether the system can automatically organize windows into tabs.
+    fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
@@ -338,6 +408,14 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
 
     fn hide_other_applications(&self) {
         self.p.hide_other_applications()
+    }
+
+    fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        self.p.set_allows_automatic_window_tabbing(enabled);
+    }
+
+    fn allows_automatic_window_tabbing(&self) -> bool {
+        self.p.allows_automatic_window_tabbing()
     }
 }
 

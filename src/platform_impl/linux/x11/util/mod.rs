@@ -1,35 +1,30 @@
 // Welcome to the util module, where we try to keep you from shooting yourself in the foot.
 // *results may vary
 
-mod atom;
 mod client_msg;
 mod cursor;
-mod format;
 mod geometry;
 mod hint;
 mod icon;
 mod input;
 pub mod keys;
-mod memory;
+pub(crate) mod memory;
 mod randr;
 mod window_property;
 mod wm;
 
 pub use self::{
-    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, randr::*,
-    window_property::*, wm::*,
+    client_msg::*, geometry::*, hint::*, icon::*, input::*, randr::*, window_property::*, wm::*,
 };
-
-pub(crate) use self::memory::*;
 
 use std::{
     mem::{self, MaybeUninit},
     ops::BitAnd,
     os::raw::*,
-    ptr,
 };
 
-use super::{ffi, XConnection, XError};
+use super::{atoms::*, ffi, VoidCookie, X11Error, XConnection, XError};
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);
@@ -46,30 +41,6 @@ where
     T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
-}
-
-#[must_use = "This request was made asynchronously, and is still in the output buffer. You must explicitly choose to either `.flush()` (empty the output buffer, sending the request now) or `.queue()` (wait to send the request, allowing you to continue to add more requests without additional round-trips). For more information, see the documentation for `util::flush_requests`."]
-pub(crate) struct Flusher<'a> {
-    xconn: &'a XConnection,
-}
-
-impl<'a> Flusher<'a> {
-    pub fn new(xconn: &'a XConnection) -> Self {
-        Flusher { xconn }
-    }
-
-    // "I want this request sent now!"
-    pub fn flush(self) -> Result<(), XError> {
-        self.xconn.flush_requests()
-    }
-
-    // "I want the response now too!"
-    pub fn sync(self) -> Result<(), XError> {
-        self.xconn.sync_with_server()
-    }
-
-    // "I'm aware that this request hasn't been sent, and I'm okay with waiting."
-    pub fn queue(self) {}
 }
 
 impl XConnection {

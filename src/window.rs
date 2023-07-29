@@ -188,7 +188,7 @@ impl WindowBuilder {
     ///
     /// If this is not set, some platform-specific dimensions will be used.
     ///
-    /// See [`Window::set_inner_size`] for details.
+    /// See [`Window::request_inner_size`] for details.
     #[inline]
     pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.window.inner_size = Some(size.into());
@@ -445,7 +445,7 @@ impl WindowBuilder {
     /// to the client area of its parent window. For more information, see
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland:** Unsupported.
+    /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[inline]
     pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
         self.window.parent_window = parent_window;
@@ -524,25 +524,25 @@ impl Window {
         self.window.scale_factor()
     }
 
-    /// Emits a [`Event::RedrawRequested`] event in the associated event loop after all OS
-    /// events have been processed by the event loop.
+    /// Requests a future [`Event::RedrawRequested`] event to be emitted in a way that is
+    /// synchronized and / or throttled by the windowing system.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after [`Event::MainEventsCleared`]
-    /// but before `Event::NewEvents` if called in the following circumstances:
-    /// * While processing `MainEventsCleared`.
-    /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
-    ///   directly subsequent `RedrawRequested` event.
+    /// Applications should always aim to redraw whenever they receive a `RedrawRequested` event.
+    ///
+    /// There are no strong guarantees about when exactly a `RedrawRequest` event will be emitted
+    /// with respect to other events, since the requirements can vary significantly between
+    /// windowing systems.
     ///
     /// ## Platform-specific
     ///
+    /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and `RedrawRequested`
+    ///   is emitted in sync with any `WM_PAINT` messages
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
     ///
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
-    /// [`Event::MainEventsCleared`]: crate::event::Event::MainEventsCleared
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
@@ -629,8 +629,11 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
-    /// - **Web:** Sets the top-left coordinates relative to the viewport.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport. Doesn't account for CSS
+    ///   [`transform`].
     /// - **Android / Wayland:** Unsupported.
+    ///
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
         self.window.set_outer_position(position.into())
@@ -644,18 +647,30 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
-    /// - **Web:** Returns the size of the canvas element.
+    /// - **Web:** Returns the size of the canvas element. Doesn't account for CSS [`transform`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
 
-    /// Modifies the inner size of the window.
+    /// Request the new size for the window.
+    ///
+    /// On platforms where the size is entirely controlled by the user the
+    /// applied size will be returned immediately, resize event in such case
+    /// may not be generated.
+    ///
+    /// On platforms where resizing is disallowed by the windowing system, the current
+    /// inner size is returned immidiatelly, and the user one is ignored.
+    ///
+    /// When `None` is returned, it means that the request went to the display system,
+    /// and the actual size will be delivered later with the [`WindowEvent::Resized`].
     ///
     /// See [`Window::inner_size`] for more information about the values.
-    /// This automatically un-maximizes the window if it's maximized.
+    ///
+    /// The request could automatically un-maximize the window if it's maximized.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
@@ -664,19 +679,22 @@ impl Window {
     /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the size in logical dimensions like this:
-    /// window.set_inner_size(LogicalSize::new(400.0, 200.0));
+    /// let _ = window.request_inner_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// window.set_inner_size(PhysicalSize::new(400, 200));
+    /// let _ = window.request_inner_size(PhysicalSize::new(400, 200));
     /// ```
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android:** Unsupported.
-    /// - **Web:** Sets the size of the canvas element.
+    /// - **Web:** Sets the size of the canvas element. Doesn't account for CSS [`transform`].
+    ///
+    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
+    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
-    pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
-        self.window.set_inner_size(size.into())
+    #[must_use]
+    pub fn request_inner_size<S: Into<Size>>(&self, size: S) -> Option<PhysicalSize<u32>> {
+        self.window.request_inner_size(size.into())
     }
 
     /// Returns the physical size of the entire window.
@@ -712,7 +730,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
         self.window.set_min_inner_size(min_size.map(|s| s.into()))
@@ -735,7 +753,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
@@ -827,7 +845,7 @@ impl Window {
     ///
     /// Note that making the window unresizable doesn't exempt you from handling [`WindowEvent::Resized`], as that
     /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
-    /// window could still be resized by calling [`Window::set_inner_size`].
+    /// window could still be resized by calling [`Window::request_inner_size`].
     ///
     /// ## Platform-specific
     ///
@@ -1074,6 +1092,7 @@ impl Window {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
     /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **X11**: Enabling IME will disable dead keys reporting during compose.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -1101,7 +1120,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Orbital:** Unsupported.
+    /// - **iOS / Android / Wayland / Orbital:** Unsupported.
     #[inline]
     pub fn focus_window(&self) {
         self.window.focus_window()
@@ -1280,7 +1299,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// Only X11 is supported at this time.
+    /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window.drag_resize_window(direction)
@@ -1543,5 +1563,19 @@ pub enum ImePurpose {
 impl Default for ImePurpose {
     fn default() -> Self {
         Self::Normal
+    }
+}
+
+/// An opaque token used to activate the [`Window`].
+///
+/// [`Window`]: crate::window::Window
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ActivationToken {
+    pub(crate) _token: String,
+}
+
+impl ActivationToken {
+    pub(crate) fn _new(_token: String) -> Self {
+        Self { _token }
     }
 }

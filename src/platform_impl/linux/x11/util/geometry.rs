@@ -41,15 +41,8 @@ impl AaRect {
 }
 
 #[derive(Debug, Default)]
-pub struct TranslatedCoords {
-    pub x_rel_root: c_int,
-    pub y_rel_root: c_int,
-    pub child: ffi::Window,
-}
-
-#[derive(Debug, Default)]
 pub struct Geometry {
-    pub root: ffi::Window,
+    pub root: xproto::Window,
     // If you want positions relative to the root window, use translate_coords.
     // Note that the overwhelming majority of window managers are reparenting WMs, thus the window
     // ID we get from window creation is for a nested window used as the window's client area. If
@@ -69,14 +62,14 @@ pub struct Geometry {
 
 #[derive(Debug, Clone)]
 pub struct FrameExtents {
-    pub left: c_ulong,
-    pub right: c_ulong,
-    pub top: c_ulong,
-    pub bottom: c_ulong,
+    pub left: u32,
+    pub right: u32,
+    pub top: u32,
+    pub bottom: u32,
 }
 
 impl FrameExtents {
-    pub fn new(left: c_ulong, right: c_ulong, top: c_ulong, bottom: c_ulong) -> Self {
+    pub fn new(left: u32, right: u32, top: u32, bottom: u32) -> Self {
         FrameExtents {
             left,
             right,
@@ -85,7 +78,7 @@ impl FrameExtents {
         }
     }
 
-    pub fn from_border(border: c_ulong) -> Self {
+    pub fn from_border(border: u32) -> Self {
         Self::new(border, border, border, border)
     }
 }
@@ -144,52 +137,29 @@ impl XConnection {
     // This is adequate for inner_position
     pub fn translate_coords(
         &self,
-        window: ffi::Window,
-        root: ffi::Window,
-    ) -> Result<TranslatedCoords, XError> {
-        let mut coords = TranslatedCoords::default();
-
-        unsafe {
-            (self.xlib.XTranslateCoordinates)(
-                self.display,
-                window,
-                root,
-                0,
-                0,
-                &mut coords.x_rel_root,
-                &mut coords.y_rel_root,
-                &mut coords.child,
-            );
-        }
-
-        self.check_errors()?;
-        Ok(coords)
+        window: xproto::Window,
+        root: xproto::Window,
+    ) -> Result<xproto::TranslateCoordinatesReply, X11Error> {
+        self.xcb_connection()
+            .translate_coordinates(window, root, 0, 0)?
+            .reply()
+            .map_err(Into::into)
     }
 
     // This is adequate for inner_size
-    pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry = Geometry::default();
-
-        let _status = unsafe {
-            (self.xlib.XGetGeometry)(
-                self.display,
-                window,
-                &mut geometry.root,
-                &mut geometry.x_rel_parent,
-                &mut geometry.y_rel_parent,
-                &mut geometry.width,
-                &mut geometry.height,
-                &mut geometry.border,
-                &mut geometry.depth,
-            )
-        };
-
-        self.check_errors()?;
-        Ok(geometry)
+    pub fn get_geometry(
+        &self,
+        window: xproto::Window,
+    ) -> Result<xproto::GetGeometryReply, X11Error> {
+        self.xcb_connection()
+            .get_geometry(window)?
+            .reply()
+            .map_err(Into::into)
     }
 
-    fn get_frame_extents(&self, window: ffi::Window) -> Option<FrameExtents> {
-        let extents_atom = unsafe { self.get_atom_unchecked(b"_NET_FRAME_EXTENTS\0") };
+    fn get_frame_extents(&self, window: xproto::Window) -> Option<FrameExtents> {
+        let atoms = self.atoms();
+        let extents_atom = atoms[_NET_FRAME_EXTENTS];
 
         if !hint_is_supported(extents_atom) {
             return None;
@@ -198,8 +168,12 @@ impl XConnection {
         // Of the WMs tested, xmonad, i3, dwm, IceWM (1.3.x and earlier), and blackbox don't
         // support this. As this is part of EWMH (Extended Window Manager Hints), it's likely to
         // be unsupported by many smaller WMs.
-        let extents: Option<Vec<c_ulong>> = self
-            .get_property(window, extents_atom, ffi::XA_CARDINAL)
+        let extents: Option<Vec<u32>> = self
+            .get_property(
+                window,
+                extents_atom,
+                xproto::Atom::from(xproto::AtomEnum::CARDINAL),
+            )
             .ok();
 
         extents.and_then(|extents| {
@@ -216,52 +190,35 @@ impl XConnection {
         })
     }
 
-    pub fn is_top_level(&self, window: ffi::Window, root: ffi::Window) -> Option<bool> {
-        let client_list_atom = unsafe { self.get_atom_unchecked(b"_NET_CLIENT_LIST\0") };
+    pub fn is_top_level(&self, window: xproto::Window, root: xproto::Window) -> Option<bool> {
+        let atoms = self.atoms();
+        let client_list_atom = atoms[_NET_CLIENT_LIST];
 
         if !hint_is_supported(client_list_atom) {
             return None;
         }
 
-        let client_list: Option<Vec<ffi::Window>> = self
-            .get_property(root, client_list_atom, ffi::XA_WINDOW)
+        let client_list: Option<Vec<xproto::Window>> = self
+            .get_property(
+                root,
+                client_list_atom,
+                xproto::Atom::from(xproto::AtomEnum::WINDOW),
+            )
             .ok();
 
-        client_list.map(|client_list| client_list.contains(&window))
+        client_list.map(|client_list| client_list.contains(&(window as xproto::Window)))
     }
 
-    fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
-        let parent = unsafe {
-            let mut root = 0;
-            let mut parent = 0;
-            let mut children: *mut ffi::Window = ptr::null_mut();
-            let mut nchildren = 0;
-
-            // What's filled into `parent` if `window` is the root window?
-            let _status = (self.xlib.XQueryTree)(
-                self.display,
-                window,
-                &mut root,
-                &mut parent,
-                &mut children,
-                &mut nchildren,
-            );
-
-            // The list of children isn't used
-            if !children.is_null() {
-                (self.xlib.XFree)(children as *mut _);
-            }
-
-            parent
-        };
-        self.check_errors().map(|_| parent)
+    fn get_parent_window(&self, window: xproto::Window) -> Result<xproto::Window, X11Error> {
+        let parent = self.xcb_connection().query_tree(window)?.reply()?.parent;
+        Ok(parent)
     }
 
     fn climb_hierarchy(
         &self,
-        window: ffi::Window,
-        root: ffi::Window,
-    ) -> Result<ffi::Window, XError> {
+        window: xproto::Window,
+        root: xproto::Window,
+    ) -> Result<xproto::Window, X11Error> {
         let mut outer_window = window;
         loop {
             let candidate = self.get_parent_window(outer_window)?;
@@ -275,8 +232,8 @@ impl XConnection {
 
     pub fn get_frame_extents_heuristic(
         &self,
-        window: ffi::Window,
-        root: ffi::Window,
+        window: xproto::Window,
+        root: xproto::Window,
     ) -> FrameExtentsHeuristic {
         use self::FrameExtentsHeuristicPath::*;
 
@@ -288,7 +245,7 @@ impl XConnection {
             let coords = self
                 .translate_coords(window, root)
                 .expect("Failed to translate window coordinates");
-            (coords.y_rel_root, coords.child)
+            (coords.dst_y, coords.child)
         };
 
         let (width, height, border) = {
@@ -298,7 +255,7 @@ impl XConnection {
             (
                 inner_geometry.width,
                 inner_geometry.height,
-                inner_geometry.border,
+                inner_geometry.border_width,
             )
         };
 
@@ -353,7 +310,7 @@ impl XConnection {
                     .get_geometry(outer_window)
                     .expect("Failed to get outer window geometry");
                 (
-                    outer_geometry.y_rel_parent,
+                    outer_geometry.y,
                     outer_geometry.width,
                     outer_geometry.height,
                 )
@@ -361,21 +318,16 @@ impl XConnection {
 
             // Since we have the geometry of the outermost window and the geometry of the client
             // area, we can figure out what's in between.
-            let diff_x = outer_width.saturating_sub(width);
-            let diff_y = outer_height.saturating_sub(height);
-            let offset_y = inner_y_rel_root.saturating_sub(outer_y) as c_uint;
+            let diff_x = outer_width.saturating_sub(width) as u32;
+            let diff_y = outer_height.saturating_sub(height) as u32;
+            let offset_y = inner_y_rel_root.saturating_sub(outer_y) as u32;
 
             let left = diff_x / 2;
             let right = left;
             let top = offset_y;
             let bottom = diff_y.saturating_sub(offset_y);
 
-            let frame_extents = FrameExtents::new(
-                left as c_ulong,
-                right as c_ulong,
-                top as c_ulong,
-                bottom as c_ulong,
-            );
+            let frame_extents = FrameExtents::new(left, right, top, bottom);
             FrameExtentsHeuristic {
                 frame_extents,
                 heuristic_path: UnsupportedNested,
@@ -383,7 +335,7 @@ impl XConnection {
         } else {
             // This is the case for xmonad and dwm, AKA the only WMs tested that supplied a
             // border value. This is convenient, since we can use it to get an accurate frame.
-            let frame_extents = FrameExtents::from_border(border as c_ulong);
+            let frame_extents = FrameExtents::from_border(border.into());
             FrameExtentsHeuristic {
                 frame_extents,
                 heuristic_path: UnsupportedBordered,
