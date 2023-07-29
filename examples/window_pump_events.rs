@@ -10,7 +10,7 @@
 ))]
 
 fn main() -> std::process::ExitCode {
-    use std::{process::ExitCode, thread::sleep, time::Duration, rc::Rc};
+    use std::{process::ExitCode, rc::Rc, thread::sleep, time::Duration};
 
     use simple_logger::SimpleLogger;
     use winit::{

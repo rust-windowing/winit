@@ -1709,6 +1709,6 @@ fn cvt_rwh_06_to_05(handle: RawWindowHandle) -> raw_window_handle_05::RawWindowH
             v5::RawWindowHandle::Xlib(handle)
         }
 
-        handle => panic!("Unsupported raw window handle type: {:?}", handle),
+        handle => panic!("unsupported raw window handle type: {:?}", handle),
     }
 }

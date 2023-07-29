@@ -3,7 +3,7 @@
 // Limit this example to only compatible platforms.
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform,))]
 fn main() -> Result<(), impl std::error::Error> {
-    use std::time::Duration;
+    use std::{rc::Rc, time::Duration};
 
     use simple_logger::SimpleLogger;
 
@@ -21,7 +21,7 @@ fn main() -> Result<(), impl std::error::Error> {
     #[derive(Default)]
     struct App {
         window_id: Option<WindowId>,
-        window: Option<Window>,
+        window: Option<Rc<Window>>,
     }
 
     SimpleLogger::new().init().unwrap();
@@ -56,8 +56,9 @@ fn main() -> Result<(), impl std::error::Error> {
                         window_id,
                     } if id == window_id => {
                         println!("--------------------------------------------------------- Window {idx} Destroyed");
-                        app.window_id = None;
+                        let wid = app.window_id.take().unwrap();
                         control_flow.set_exit();
+                        fill::discard_window(&wid);
                     }
                     _ => (),
                 }
@@ -68,7 +69,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         .build(event_loop)
                         .unwrap();
                 app.window_id = Some(window.id());
-                app.window = Some(window);
+                app.window = Some(Rc::new(window));
             }
         })
     }

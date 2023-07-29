@@ -18,7 +18,8 @@ pub(super) trait FullHandleTy:
 impl<T: AsRef<Window> + HasDisplayHandle + HasWindowHandle + 'static> FullHandleTy for T {}
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub(super) fn fill_window(window: &(impl FullHandleTy + Clone)) {
+mod fill {
+    use super::FullHandleTy;
     use softbuffer::{Context, Surface};
     use std::cell::RefCell;
     use std::collections::HashMap;
@@ -62,35 +63,57 @@ pub(super) fn fill_window(window: &(impl FullHandleTy + Clone)) {
         static GC: RefCell<Option<GraphicsContext>> = RefCell::new(None);
     }
 
-    GC.with(|gc| {
-        // Either get the last context used or create a new one.
-        let mut gc = gc.borrow_mut();
-        let surface = gc
-            .get_or_insert_with(|| GraphicsContext::new(window))
-            .surface(window);
+    pub(crate) fn fill_window(window: &(impl FullHandleTy + Clone)) {
+        GC.with(|gc| {
+            // Either get the last context used or create a new one.
+            let mut gc = gc.borrow_mut();
+            let surface = gc
+                .get_or_insert_with(|| GraphicsContext::new(window))
+                .surface(window);
 
-        // Fill a buffer with a solid color.
-        const DARK_GRAY: u32 = 0xFF181818;
-        let size = window.as_ref().inner_size();
+            // Fill a buffer with a solid color.
+            const DARK_GRAY: u32 = 0xFF181818;
+            let size = window.as_ref().inner_size();
 
-        surface
-            .resize(
-                NonZeroU32::new(size.width).expect("Width must be greater than zero"),
-                NonZeroU32::new(size.height).expect("Height must be greater than zero"),
-            )
-            .expect("Failed to resize the softbuffer surface");
+            surface
+                .resize(
+                    NonZeroU32::new(size.width).expect("Width must be greater than zero"),
+                    NonZeroU32::new(size.height).expect("Height must be greater than zero"),
+                )
+                .expect("Failed to resize the softbuffer surface");
 
-        let mut buffer = surface
-            .buffer_mut()
-            .expect("Failed to get the softbuffer buffer");
-        buffer.fill(DARK_GRAY);
-        buffer
-            .present()
-            .expect("Failed to present the softbuffer buffer");
-    })
+            let mut buffer = surface
+                .buffer_mut()
+                .expect("Failed to get the softbuffer buffer");
+            buffer.fill(DARK_GRAY);
+            buffer
+                .present()
+                .expect("Failed to present the softbuffer buffer");
+        })
+    }
+
+    pub(crate) fn discard_window(window: &WindowId) {
+        GC.with(|gc| {
+            let mut gc = gc.borrow_mut();
+            if let Some(gc) = &mut *gc {
+                gc.surfaces.remove(window);
+            }
+        })
+    }
 }
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
-pub(super) fn fill_window(_window: &impl FullHandleTy) {
-    // No-op on mobile platforms.
+mod fill {
+    use super::FullHandleTy;
+    use winit::window::WindowId;
+
+    pub(crate) fn fill_window(_window: &impl FullHandleTy) {
+        // No-op on mobile platforms.
+    }
+
+    pub(crate) fn discard_window(_window: &WindowId) {
+        // No-op on mobile platforms.
+    }
 }
+
+pub(super) use fill::{discard_window, fill_window};

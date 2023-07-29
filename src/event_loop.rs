@@ -350,7 +350,7 @@ unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoop<T> {
 
         match result {
             Ok(handle) => cvt_rdh_06_to_05(handle),
-            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+            Err(e) => panic!("failed to get raw display handle: {:?}", e),
         }
     }
 }
@@ -435,7 +435,7 @@ unsafe impl<T> raw_window_handle_05::HasRawDisplayHandle for EventLoopWindowTarg
 
         match result {
             Ok(handle) => cvt_rdh_06_to_05(handle),
-            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+            Err(e) => panic!("failed to get raw display handle: {:?}", e),
         }
     }
 }
@@ -476,7 +476,7 @@ unsafe impl raw_window_handle_05::HasRawDisplayHandle for OwnedDisplayHandle {
 
         match result {
             Ok(handle) => cvt_rdh_06_to_05(handle),
-            Err(e) => panic!("Failed to get raw display handle: {:?}", e),
+            Err(e) => panic!("failed to get raw display handle: {:?}", e),
         }
     }
 }
