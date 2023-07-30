@@ -6,7 +6,7 @@ use std::{
     rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Mutex, MutexGuard,
+        Arc, Mutex, MutexGuard,
     },
     time::Instant,
 };
@@ -19,7 +19,7 @@ use once_cell::sync::Lazy;
 use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     dpi::LogicalSize,
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
@@ -34,8 +34,8 @@ use crate::{
 
 static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 
-impl<'a, Never> Event<'a, Never> {
-    fn userify<T: 'static>(self) -> Event<'a, T> {
+impl<Never> Event<Never> {
+    fn userify<T: 'static>(self) -> Event<T> {
         self.map_nonuser_event()
             // `Never` can't be constructed, so the `UserEvent` variant can't
             // be present here.
@@ -45,12 +45,11 @@ impl<'a, Never> Event<'a, Never> {
 
 pub trait EventHandler: Debug {
     // Not sure probably it should accept Event<'static, Never>
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
-pub(crate) type Callback<T> =
-    RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>;
+pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
@@ -62,7 +61,7 @@ impl<T> EventLoopHandler<T> {
     where
         F: FnOnce(
             &mut EventLoopHandler<T>,
-            RefMut<'_, dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+            RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
         ),
     {
         // The `NSApp` and our `HANDLER` are global state and so it's possible that
@@ -90,7 +89,7 @@ impl<T> Debug for EventLoopHandler<T> {
 }
 
 impl<T> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
             if let ControlFlow::ExitWithCode(code) = *control_flow {
                 // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
@@ -338,19 +337,19 @@ impl Handler {
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     ) {
-        let mut size = suggested_size.to_physical(scale_factor);
-        let new_inner_size = &mut size;
+        let new_inner_size = Arc::new(Mutex::new(suggested_size.to_physical(scale_factor)));
         let event = Event::WindowEvent {
             window_id: WindowId(window.id()),
             event: WindowEvent::ScaleFactorChanged {
                 scale_factor,
-                new_inner_size,
+                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
             },
         };
 
         callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
 
-        let physical_size = *new_inner_size;
+        let physical_size = *new_inner_size.lock().unwrap();
+        drop(new_inner_size);
         let logical_size = physical_size.to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
         window.setContentSize(size);

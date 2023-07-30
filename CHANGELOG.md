@@ -9,6 +9,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
+- **Breaking:** Remove lifetime parameter from `Event` and `WindowEvent`.
+- **Breaking:** `ScaleFactorChanged` now contains a writer instead of a reference to update inner size.
 - On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
 - **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
 - On Wayland, make double clicking and moving the CSD frame more reliable.

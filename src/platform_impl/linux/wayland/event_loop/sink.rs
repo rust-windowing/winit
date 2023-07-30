@@ -12,7 +12,7 @@ use super::{DeviceId, WindowId};
 /// to the winit's user.
 #[derive(Default)]
 pub struct EventSink {
-    pub window_events: Vec<Event<'static, ()>>,
+    pub window_events: Vec<Event<()>>,
 }
 
 impl EventSink {
@@ -31,7 +31,7 @@ impl EventSink {
 
     /// Add new window event to a queue.
     #[inline]
-    pub fn push_window_event(&mut self, event: WindowEvent<'static>, window_id: WindowId) {
+    pub fn push_window_event(&mut self, event: WindowEvent, window_id: WindowId) {
         self.window_events.push(Event::WindowEvent {
             event,
             window_id: RootWindowId(window_id),
@@ -44,7 +44,7 @@ impl EventSink {
     }
 
     #[inline]
-    pub fn drain(&mut self) -> Drain<'_, Event<'static, ()>> {
+    pub fn drain(&mut self) -> Drain<'_, Event<()>> {
         self.window_events.drain(..)
     }
 }

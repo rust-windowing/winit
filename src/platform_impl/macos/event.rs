@@ -24,7 +24,7 @@ use crate::{
 
 #[derive(Debug)]
 pub(crate) enum EventWrapper {
-    StaticEvent(Event<'static, Never>),
+    StaticEvent(Event<Never>),
     EventProxy(EventProxy),
 }
 

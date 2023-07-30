@@ -5,7 +5,7 @@ use std::{
     hash::Hash,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, RwLock,
+        mpsc, Arc, Mutex, RwLock,
     },
     time::{Duration, Instant},
 };
@@ -22,7 +22,7 @@ use raw_window_handle::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
-    event::{self, StartCause},
+    event::{self, InnerSizeWriter, StartCause},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
     keyboard::NativeKey,
     platform::pump_events::PumpStatus,
@@ -169,12 +169,12 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: event::Event<'_, T>,
+    evt: event::Event<T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::ExitWithCode sticky by providing a dummy
     // control flow reference if it is already ExitWithCode.
@@ -219,7 +219,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         trace!("Mainloop iteration");
 
@@ -289,11 +289,15 @@ impl<T: 'static> EventLoop<T> {
                     let old_scale_factor = monitor.scale_factor();
                     let scale_factor = monitor.scale_factor();
                     if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                        let mut size = MonitorHandle::new(self.android_app.clone()).size();
+                        let new_inner_size = Arc::new(Mutex::new(
+                            MonitorHandle::new(self.android_app.clone()).size(),
+                        ));
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::ScaleFactorChanged {
-                                new_inner_size: &mut size,
+                                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                    &new_inner_size,
+                                )),
                                 scale_factor,
                             },
                         };
@@ -523,14 +527,14 @@ impl<T: 'static> EventLoop<T> {
     pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+            + FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
             return Err(RunLoopError::AlreadyRunning);
@@ -553,7 +557,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -593,7 +597,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let start = Instant::now();
 
@@ -996,8 +1000,8 @@ pub struct MonitorHandle {
     app: AndroidApp,
 }
 impl PartialOrd for MonitorHandle {
-    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        Some(std::cmp::Ordering::Equal)
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 impl Ord for MonitorHandle {

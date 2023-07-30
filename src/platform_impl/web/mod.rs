@@ -38,4 +38,4 @@ pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId
 
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(self) use crate::platform_impl::Fullscreen;
+pub(crate) use crate::platform_impl::Fullscreen;
