@@ -6,17 +6,17 @@ on:
     branches: [master]
 
 jobs:
-  Check_Formatting:
+  fmt:
+    name: Check formatting
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: hecrj/setup-rust-action@v1
+    - uses: dtolnay/rust-toolchain@stable
       with:
-        rust-version: stable
         components: rustfmt
     - name: Check Formatting
-      run: cargo +stable fmt --all -- --check
-  
+      run: cargo fmt -- --check
+
   cargo-deny:
     name: cargo-deny
 
@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust_version: ['1.64.0', stable, nightly]
+        toolchain: ['1.64.0', stable, nightly]
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -74,7 +74,6 @@ jobs:
 
     env:
       RUST_BACKTRACE: 1
-      CARGO_INCREMENTAL: 0
       RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
@@ -89,11 +88,11 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo
-        key: ${{ matrix.platform.target }}-cargo-${{ matrix.rust_version }}
+        key: ${{ matrix.platform.target }}-cargo-${{ matrix.toolchain }}
 
-    - uses: hecrj/setup-rust-action@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
-        rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
+        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
         components: clippy
 
@@ -116,7 +115,7 @@ jobs:
       shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.rust_version != '1.64.0'
+        matrix.toolchain != '1.64.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Run tests
@@ -126,19 +125,19 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.rust_version != '1.64.0'
+        matrix.toolchain != '1.64.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Lint with clippy
       shell: bash
-      if: (matrix.rust_version == 'stable') && !contains(matrix.platform.options, '--no-default-features')
+      if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build tests with serde enabled
       shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.rust_version != '1.64.0'
+        matrix.toolchain != '1.64.0'
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
@@ -147,5 +146,5 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.rust_version != '1.64.0'
+        matrix.toolchain != '1.64.0'
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
