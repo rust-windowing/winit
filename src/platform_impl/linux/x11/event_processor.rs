@@ -4,7 +4,7 @@ use std::{
     os::raw::{c_char, c_int, c_long, c_ulong},
     rc::Rc,
     slice,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
@@ -16,13 +16,16 @@ use super::{
     WindowId, XExtension,
 };
 
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
     keyboard::ModifiersState,
     platform_impl::platform::common::{keymap, xkb_state::KbdState},
+};
+use crate::{
+    event::InnerSizeWriter,
+    platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest},
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
@@ -126,7 +129,7 @@ impl<T: 'static> EventProcessor<T> {
 
     pub(super) fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
-        F: FnMut(Event<'_, T>),
+        F: FnMut(Event<T>),
     {
         let wt = get_xtarget(&self.target);
         let atoms = wt.x_connection().atoms();
@@ -437,18 +440,24 @@ impl<T: 'static> EventProcessor<T> {
                             );
 
                             let old_inner_size = PhysicalSize::new(width, height);
-                            let mut new_inner_size = PhysicalSize::new(new_width, new_height);
+                            let new_inner_size = PhysicalSize::new(new_width, new_height);
 
                             // Unlock shared state to prevent deadlock in callback below
                             drop(shared_state_lock);
 
+                            let inner_size = Arc::new(Mutex::new(new_inner_size));
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::ScaleFactorChanged {
                                     scale_factor: new_scale_factor,
-                                    new_inner_size: &mut new_inner_size,
+                                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                        &inner_size,
+                                    )),
                                 },
                             });
+
+                            let new_inner_size = *inner_size.lock().unwrap();
+                            drop(inner_size);
 
                             if new_inner_size != old_inner_size {
                                 window.request_inner_size_physical(
@@ -1308,16 +1317,21 @@ impl<T: 'static> EventProcessor<T> {
 
                                             let window_id = crate::window::WindowId(*window_id);
                                             let old_inner_size = PhysicalSize::new(width, height);
-                                            let mut new_inner_size =
-                                                PhysicalSize::new(new_width, new_height);
-
+                                            let inner_size = Arc::new(Mutex::new(
+                                                PhysicalSize::new(new_width, new_height),
+                                            ));
                                             callback(Event::WindowEvent {
                                                 window_id,
                                                 event: WindowEvent::ScaleFactorChanged {
                                                     scale_factor: new_monitor.scale_factor,
-                                                    new_inner_size: &mut new_inner_size,
+                                                    inner_size_writer: InnerSizeWriter::new(
+                                                        Arc::downgrade(&inner_size),
+                                                    ),
                                                 },
                                             });
+
+                                            let new_inner_size = *inner_size.lock().unwrap();
+                                            drop(inner_size);
 
                                             if new_inner_size != old_inner_size {
                                                 let (new_width, new_height) = new_inner_size.into();
@@ -1400,7 +1414,7 @@ impl<T: 'static> EventProcessor<T> {
         kb_state: &mut KbdState,
         callback: &mut F,
     ) where
-        F: FnMut(Event<'_, T>),
+        F: FnMut(Event<T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
 

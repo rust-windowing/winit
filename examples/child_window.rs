@@ -46,7 +46,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("parent window: {parent_window:?})");
 
-    event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
+    event_loop.run(move |event: Event<()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         if let Event::WindowEvent { event, window_id } = event {

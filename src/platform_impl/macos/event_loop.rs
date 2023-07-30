@@ -195,7 +195,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         self.run_ondemand(callback)
     }
@@ -206,7 +206,7 @@ impl<T> EventLoop<T> {
     // redundant wake ups.
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         if AppState::is_running() {
             return Err(RunLoopError::AlreadyRunning);
@@ -223,8 +223,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -293,7 +293,7 @@ impl<T> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
@@ -306,8 +306,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 

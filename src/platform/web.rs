@@ -116,11 +116,7 @@ pub trait EventLoopExtWebSys {
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static
-            + FnMut(
-                Event<'_, Self::UserEvent>,
-                &EventLoopWindowTarget<Self::UserEvent>,
-                &mut ControlFlow,
-            );
+            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -129,11 +125,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static
-            + FnMut(
-                Event<'_, Self::UserEvent>,
-                &EventLoopWindowTarget<Self::UserEvent>,
-                &mut ControlFlow,
-            ),
+            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
     {
         self.event_loop.spawn(event_handler)
     }

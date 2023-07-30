@@ -31,7 +31,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.spawn_inner(event_handler, false);
 
@@ -46,14 +46,14 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.spawn_inner(event_handler, true);
     }
 
     fn spawn_inner<F>(self, mut event_handler: F, event_loop_recreation: bool)
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),

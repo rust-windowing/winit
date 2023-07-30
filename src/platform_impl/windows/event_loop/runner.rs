@@ -4,6 +4,7 @@ use std::{
     collections::VecDeque,
     mem, panic,
     rc::Rc,
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -11,7 +12,7 @@ use windows_sys::Win32::Foundation::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{WindowData, GWL_USERDATA},
@@ -22,7 +23,7 @@ use crate::{
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
 
-type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>;
+type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>>;
 
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
@@ -59,7 +60,7 @@ pub(crate) enum RunnerState {
 }
 
 enum BufferedEvent<T: 'static> {
-    Event(Event<'static, T>),
+    Event(Event<T>),
     ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
@@ -90,11 +91,11 @@ impl<T> EventLoopRunner<T> {
     /// undefined behaviour.
     pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
     where
-        F: FnMut(Event<'_, T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &mut ControlFlow),
     {
         let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
         >(Some(Box::new(f))));
         assert!(old_event_handler.is_none());
     }
@@ -196,7 +197,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
-    pub(crate) fn send_event(&self, event: Event<'_, T>) {
+    pub(crate) fn send_event(&self, event: Event<T>) {
         if let Event::RedrawRequested(_) = event {
             self.call_event_handler(event);
             // As a rule, to ensure that `pump_events` can't block an external event loop
@@ -219,7 +220,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::Destroyed);
     }
 
-    fn call_event_handler(&self, event: Event<'_, T>) {
+    fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
@@ -361,38 +362,50 @@ impl<T> EventLoopRunner<T> {
 }
 
 impl<T> BufferedEvent<T> {
-    pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
+    pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
                 event:
                     WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size,
+                        inner_size_writer,
                     },
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
+            } => BufferedEvent::ScaleFactorChanged(
+                window_id,
+                scale_factor,
+                *inner_size_writer
+                    .new_inner_size
+                    .upgrade()
+                    .unwrap()
+                    .lock()
+                    .unwrap(),
+            ),
+            event => BufferedEvent::Event(event),
         }
     }
 
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<'_, T>)) {
+    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<T>)) {
         match self {
             Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
+            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
+                let new_inner_size = Arc::new(Mutex::new(new_inner_size));
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size: &mut new_inner_size,
+                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
                     },
                 });
+                let inner_size = *new_inner_size.lock().unwrap();
+                drop(new_inner_size);
 
                 let window_flags = unsafe {
                     let userdata =
                         get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData<T>;
                     (*userdata).window_state_lock().window_flags
                 };
-                window_flags.set_size((window_id.0).0, new_inner_size);
+                window_flags.set_size((window_id.0).0, inner_size);
             }
         }
     }
