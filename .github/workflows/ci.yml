@@ -63,20 +63,24 @@ jobs:
         targets: ${{ matrix.platform.target }}
         components: clippy
 
-    # Generate the lockfile so that `actions/cache` can use it in the key
-    - name: Generate Cargo.lock
-      run: cargo generate-lockfile
-
-    - name: Cache cargo folder
-      uses: actions/cache@v3
+    - name: Restore cache of cargo folder
+      # We use `restore` and later `save`, so that we can create the key after
+      # the cache has been downloaded.
+      #
+      # This could be avoided if we added Cargo.lock to the repository.
+      uses: actions/cache/restore@v3
       with:
         # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
-        # Note: We don't cache `~/.cargo/bin`, that is done separately when needed.
         path: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
+        key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-never-intended-to-be-found
+        restore-keys: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}
+
+    - name: Generate lockfile
+      # Also updates the crates.io index
+      run: cargo generate-lockfile
 
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
@@ -141,6 +145,16 @@ jobs:
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
       run: cargo $CMD test $OPTIONS --features serde
+
+    # See restore step above
+    - name: Save cache of cargo folder
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
   cargo-deny:
     name: Run cargo-deny on ${{ matrix.platform.name }}
