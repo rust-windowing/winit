@@ -33,9 +33,9 @@ jobs:
           - { name: 'Windows 32bit GNU',  target: i686-pc-windows-gnu,      os: windows-latest, host: -i686-pc-windows-gnu }
           - { name: 'Linux 32bit',        target: i686-unknown-linux-gnu,   os: ubuntu-latest,   }
           - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
-          - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: x11 }
-          - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: "wayland,wayland-dlopen" }
-          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: -p winit, cmd: 'apk --', features: "android-native-activity" }
+          - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
+          - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
+          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
@@ -43,12 +43,16 @@ jobs:
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
 
     env:
+      # Set more verbose terminal output
+      CARGO_TERM_VERBOSE: true
       RUST_BACKTRACE: 1
-      RUSTFLAGS: "-C debuginfo=0 --deny warnings"
-      OPTIONS: ${{ matrix.platform.options }}
-      FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
+
+      # Faster compilation and error on warnings
+      RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings'
+      RUSTDOCFLAGS: '--deny=warnings'
+
+      OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
       CMD: ${{ matrix.platform.cmd }}
-      RUSTDOCFLAGS: -Dwarnings
 
     steps:
     - uses: actions/checkout@v3
@@ -93,18 +97,18 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
+      run: cargo doc --no-deps $OPTIONS --document-private-items
 
     - name: Build crate
       shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD build $OPTIONS
 
     - name: Build tests
       shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
-      run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
       shell: bash
@@ -114,19 +118,20 @@ jobs:
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
-      run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
       shell: bash
       if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
-      run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
+      run: cargo clippy --all-targets $OPTIONS -- -Dwarnings
 
     - name: Build tests with serde enabled
       shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
-      run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+      run: cargo $CMD test --no-run $OPTIONS --features serde
+
     - name: Run tests with serde enabled
       shell: bash
       if: >
@@ -135,7 +140,7 @@ jobs:
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
-      run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
+      run: cargo $CMD test $OPTIONS --features serde
 
   cargo-deny:
     name: Run cargo-deny on ${{ matrix.platform.name }}
