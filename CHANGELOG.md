@@ -8,6 +8,22 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Removed platform-specific extensions that should be retrieved through `raw-window-handle` trait implementations instead:
+  - `platform::windows::HINSTANCE`.
+  - `WindowExtWindows::hinstance`.
+  - `WindowExtWindows::hwnd`.
+  - `WindowExtIOS::ui_window`.
+  - `WindowExtIOS::ui_view_controller`.
+  - `WindowExtIOS::ui_view`.
+  - `WindowExtMacOS::ns_window`.
+  - `WindowExtMacOS::ns_view`.
+  - `EventLoopWindowTargetExtWayland::wayland_display`.
+  - `WindowExtWayland::wayland_surface`.
+  - `WindowExtWayland::wayland_display`.
+  - `WindowExtX11::xlib_window`.
+  - `WindowExtX11::xlib_display`.
+  - `WindowExtX11::xlib_screen_id`.
+  - `WindowExtX11::xcb_connection`.
 - On Web, use `Window.requestAnimationFrame()` to throttle `RedrawRequested` events.
 - On Wayland, use frame callbacks to throttle `RedrawRequested` events so redraws will align with compositor.
 - Add `Window::pre_present_notify` to notify winit before presenting to the windowing system.
