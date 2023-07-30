@@ -13,7 +13,6 @@ use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
 use std::cell::RefCell;
-use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -344,8 +343,8 @@ impl Inner {
     }
 
     #[inline]
-    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
-        VecDeque::new().into_iter()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        VecDeque::new()
     }
 
     #[inline]
