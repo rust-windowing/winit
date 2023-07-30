@@ -52,12 +52,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    # Used to cache cargo-web
-    - name: Cache cargo folder
-      uses: actions/cache@v1
-      with:
-        path: ~/.cargo
-        key: ${{ matrix.platform.target }}-cargo-${{ matrix.toolchain }}
 
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -65,12 +59,37 @@ jobs:
         targets: ${{ matrix.platform.target }}
         components: clippy
 
+    # Generate the lockfile so that `actions/cache` can use it in the key
+    - name: Generate Cargo.lock
+      run: cargo generate-lockfile
+
+    - name: Cache cargo folder
+      uses: actions/cache@v3
+      with:
+        # https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+        # Note: We don't cache `~/.cargo/bin`, that is done separately when needed.
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
-    - name: Install cargo-apk
+
+    - name: Cache cargo-apk
       if: contains(matrix.platform.target, 'android')
-      run: cargo install cargo-apk
+      id: cargo-apk-cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/bin/cargo-apk
+        # Change this key if we update the required cargo-apk version
+        key: cargo-apk-${{ matrix.toolchain }}-${{ matrix.platform.name }}-v0-9-7
+
+    - name: Install cargo-apk
+      if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
+      run: cargo install cargo-apk --version=^0.9.7
 
     - name: Check documentation
       shell: bash
