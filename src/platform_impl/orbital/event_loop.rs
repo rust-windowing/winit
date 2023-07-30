@@ -308,7 +308,7 @@ impl<T: 'static> EventLoop<T> {
         event_state: &mut EventState,
         mut event_handler: F,
     ) where
-        F: FnMut(event::Event<'_, T>),
+        F: FnMut(event::Event<T>),
     {
         match event_option {
             EventOption::Key(KeyEvent {
@@ -446,11 +446,11 @@ impl<T: 'static> EventLoop<T> {
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), RunLoopError>
     where
         F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+            + FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // Wrapper for event handler function that prevents ExitWithCode from being unset.
         let mut event_handler =
-            move |event: event::Event<'_, T>,
+            move |event: event::Event<T>,
                   window_target: &event_loop::EventLoopWindowTarget<T>,
                   control_flow: &mut ControlFlow| {
                 if let ControlFlow::ExitWithCode(code) = control_flow {

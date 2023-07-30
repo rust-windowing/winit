@@ -821,7 +821,7 @@ impl WinitView {
         WindowId(self.window().id())
     }
 
-    fn queue_event(&self, event: WindowEvent<'static>) {
+    fn queue_event(&self, event: WindowEvent) {
         let event = Event::WindowEvent {
             window_id: self.window_id(),
             event,

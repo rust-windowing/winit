@@ -174,11 +174,7 @@ pub trait EventLoopExtPumpEvents {
     ///   callback.
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(
-            Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
-            &mut ControlFlow,
-        );
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
@@ -186,11 +182,7 @@ impl<T> EventLoopExtPumpEvents for EventLoop<T> {
 
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(
-            Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
-            &mut ControlFlow,
-        ),
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
     {
         self.event_loop.pump_events(timeout, event_handler)
     }

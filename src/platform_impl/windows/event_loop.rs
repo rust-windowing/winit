@@ -76,7 +76,10 @@ use windows_sys::Win32::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::RunLoopError,
-    event::{DeviceEvent, Event, Force, Ime, RawKeyEvent, Touch, TouchPhase, WindowEvent},
+    event::{
+        DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+        WindowEvent,
+    },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     keyboard::{KeyCode, ModifiersState},
     platform::{pump_events::PumpStatus, scancode::KeyCodeExtScancode},
@@ -142,7 +145,7 @@ pub(crate) struct WindowData<T: 'static> {
 }
 
 impl<T> WindowData<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -157,7 +160,7 @@ struct ThreadMsgTargetData<T: 'static> {
 }
 
 impl<T> ThreadMsgTargetData<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -245,14 +248,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -298,7 +301,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -2051,7 +2054,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_physical_inner_size = match allow_resize {
+            let new_physical_inner_size = match allow_resize {
                 // We calculate our own size because the default suggested rect doesn't do a great job
                 // of preserving the window's logical size.
                 true => old_physical_inner_size
@@ -2060,13 +2063,17 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 false => old_physical_inner_size,
             };
 
+            let new_inner_size = Arc::new(Mutex::new(new_physical_inner_size));
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    new_inner_size: &mut new_physical_inner_size,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
                 },
             });
+
+            let new_physical_inner_size = *new_inner_size.lock().unwrap();
+            drop(new_inner_size);
 
             let dragging_window: bool;
 

@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
@@ -17,7 +18,7 @@ use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{OsError as RootOsError, RunLoopError};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
@@ -147,7 +148,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
             return Err(RunLoopError::AlreadyRunning);
@@ -178,7 +179,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -216,7 +217,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let start = Instant::now();
 
@@ -321,7 +322,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, mut callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // NOTE currently just indented to simplify the diff
 
@@ -370,7 +371,7 @@ impl<T: 'static> EventLoop<T> {
         for mut compositor_update in compositor_updates.drain(..) {
             let window_id = compositor_update.window_id;
             if let Some(scale_factor) = compositor_update.scale_factor {
-                let mut physical_size = self.with_state(|state| {
+                let physical_size = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let mut window = windows.get(&window_id).unwrap().lock().unwrap();
 
@@ -383,12 +384,15 @@ impl<T: 'static> EventLoop<T> {
                 // Stash the old window size.
                 let old_physical_size = physical_size;
 
+                let new_inner_size = Arc::new(Mutex::new(physical_size));
                 sticky_exit_callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::ScaleFactorChanged {
                             scale_factor,
-                            new_inner_size: &mut physical_size,
+                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                &new_inner_size,
+                            )),
                         },
                     },
                     &self.window_target,
@@ -396,6 +400,8 @@ impl<T: 'static> EventLoop<T> {
                     &mut callback,
                 );
 
+                let physical_size = *new_inner_size.lock().unwrap();
+                drop(new_inner_size);
                 let new_logical_size = physical_size.to_logical(scale_factor);
 
                 // Resize the window when user altered the size.

@@ -59,11 +59,7 @@ pub trait EventLoopExtRunOnDemand {
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
     fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(
-            Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
-            &mut ControlFlow,
-        );
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
@@ -71,11 +67,7 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
 
     fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(
-            Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
-            &mut ControlFlow,
-        ),
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
     {
         self.event_loop.run_ondemand(event_handler)
     }

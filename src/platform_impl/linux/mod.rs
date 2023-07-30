@@ -48,7 +48,7 @@ use crate::{
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-pub(self) use crate::platform_impl::Fullscreen;
+pub(crate) use crate::platform_impl::Fullscreen;
 
 pub mod common;
 #[cfg(wayland_platform)]
@@ -832,21 +832,21 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(callback)
     }
 
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
@@ -928,12 +928,12 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<'_, T>,
+    evt: Event<T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::ExitWithCode sticky by providing a dummy
     // control flow reference if it is already ExitWithCode.
