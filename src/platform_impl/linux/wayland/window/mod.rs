@@ -607,11 +607,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn display(&self) -> &WlDisplay {
-        &self.display
-    }
-
-    #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
     }
