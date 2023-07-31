@@ -267,6 +267,10 @@ impl Window {
                 f.set(WindowFlags::RESIZABLE, resizable)
             });
         });
+        //Nonresizable windows can still contain a maximize button, so we'd have to additionally remove the button.
+        let mut buttons = self.enabled_buttons();
+        buttons.set(WindowButtons::MAXIMIZE, resizable);
+        self.set_enabled_buttons(buttons);
     }
 
     #[inline]
@@ -1055,7 +1059,10 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        win.set_enabled_buttons(attributes.enabled_buttons);
+        //Nonresizable windows can still contain a maximize button, so we'd have to additionally remove the button.
+        let mut buttons = attributes.enabled_buttons;
+        buttons.set(WindowButtons::MAXIMIZE, attributes.resizable);
+        win.set_enabled_buttons(buttons);
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen.map(Into::into));
