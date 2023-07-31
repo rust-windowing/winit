@@ -3,7 +3,7 @@ use icrate::Foundation::{
 };
 use objc2::encode::{Encode, Encoding};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::{
@@ -116,31 +116,31 @@ extern_methods!(
         pub(crate) fn registerForDraggedTypes(&self, types: &NSArray<NSPasteboardType>);
 
         #[method(makeKeyAndOrderFront:)]
-        pub(crate) fn makeKeyAndOrderFront(&self, sender: Option<&Object>);
+        pub(crate) fn makeKeyAndOrderFront(&self, sender: Option<&AnyObject>);
 
         #[method(orderFront:)]
-        pub(crate) fn orderFront(&self, sender: Option<&Object>);
+        pub(crate) fn orderFront(&self, sender: Option<&AnyObject>);
 
         #[method(miniaturize:)]
-        pub(crate) fn miniaturize(&self, sender: Option<&Object>);
+        pub(crate) fn miniaturize(&self, sender: Option<&AnyObject>);
 
         #[method(sender:)]
-        pub(crate) fn deminiaturize(&self, sender: Option<&Object>);
+        pub(crate) fn deminiaturize(&self, sender: Option<&AnyObject>);
 
         #[method(toggleFullScreen:)]
-        pub(crate) fn toggleFullScreen(&self, sender: Option<&Object>);
+        pub(crate) fn toggleFullScreen(&self, sender: Option<&AnyObject>);
 
         #[method(orderOut:)]
-        pub(crate) fn orderOut(&self, sender: Option<&Object>);
+        pub(crate) fn orderOut(&self, sender: Option<&AnyObject>);
 
         #[method(zoom:)]
-        pub(crate) fn zoom(&self, sender: Option<&Object>);
+        pub(crate) fn zoom(&self, sender: Option<&AnyObject>);
 
         #[method(selectNextKeyView:)]
-        pub(crate) fn selectNextKeyView(&self, sender: Option<&Object>);
+        pub(crate) fn selectNextKeyView(&self, sender: Option<&AnyObject>);
 
         #[method(selectPreviousKeyView:)]
-        pub(crate) fn selectPreviousKeyView(&self, sender: Option<&Object>);
+        pub(crate) fn selectPreviousKeyView(&self, sender: Option<&AnyObject>);
 
         #[method_id(firstResponder)]
         pub(crate) fn firstResponder(&self) -> Option<Id<NSResponder>>;
