@@ -100,22 +100,18 @@ jobs:
       run: cargo install cargo-apk --version=^0.9.7
 
     - name: Check documentation
-      shell: bash
       run: cargo doc --no-deps $OPTIONS --document-private-items
 
     - name: Build crate
-      shell: bash
       run: cargo $CMD build $OPTIONS
 
     - name: Build tests
-      shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
-      shell: bash
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
@@ -125,19 +121,16 @@ jobs:
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
-      shell: bash
       if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets $OPTIONS -- -Dwarnings
 
     - name: Build tests with serde enabled
-      shell: bash
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.64.0'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
     - name: Run tests with serde enabled
-      shell: bash
       if: >
         !contains(matrix.platform.target, 'android') &&
         !contains(matrix.platform.target, 'ios') &&
