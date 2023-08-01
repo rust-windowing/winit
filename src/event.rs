@@ -378,8 +378,6 @@ pub enum WindowEvent {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
-    TextInputState(TextInputState),
-
     /// The cursor has moved on the window.
     ///
     /// ## Platform-specific
@@ -890,6 +888,19 @@ pub enum Ime {
     /// Right before this event winit will send empty [`Self::Preedit`] event.
     Commit(String),
 
+    /// Notifies when the complete text should be replaced.
+    /// This event should be used in combination with
+    /// [`Window::set_ime_surrounding_text`] to set the initial text of the
+    /// currently selected input field.
+    ///
+    /// ## Platform-specific
+    /// This will only be fired on **Android**.
+    Replace {
+        text: String,
+        selection: (usize, usize),
+        compose_region: Option<(usize, usize)>,
+    },
+
     /// Notifies when the IME was disabled.
     ///
     /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
@@ -1096,28 +1107,4 @@ impl PartialEq for InnerSizeWriter {
     fn eq(&self, other: &Self) -> bool {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
     }
-}
-
-/// This struct holds a span within a region of text from `start` (inclusive) to
-/// `end` (exclusive).
-///
-/// An empty span or cursor position is specified with `start == end`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TextSpan {
-    /// The start of the span (inclusive)
-    pub start: usize,
-
-    /// The end of the span (exclusive)
-    pub end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TextInputState {
-    pub text: String,
-    /// A selection defined on the text.
-    pub selection: TextSpan,
-    /// A composing region defined on the text.
-    pub compose_region: Option<TextSpan>,
 }

@@ -12,7 +12,6 @@ use crate::{
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
-use crate::event::TextInputState;
 
 pub use crate::icon::{BadIcon, Icon};
 
@@ -1112,21 +1111,14 @@ impl Window {
         self.window.set_ime_purpose(purpose);
     }
 
-    /// Opens the IME input (soft keyboard) if the platform supports it.
-    /// Currently only supported on Android.
-    #[inline]
-    pub fn begin_ime_input(&self) {
-        self.window.begin_ime_input();
-    }
-
-    /// Hides the IME input (soft keyboard).
-    #[inline]
-    pub fn end_ime_input(&self) {
-        self.window.end_ime_input();
-    }
-
-    pub fn set_text_input_state(&self, state: TextInputState) {
-        self.window.set_text_input_state(state);
+    /// Sets the surrounding text for IME.
+    ///
+    /// ## Platform-specific
+    /// - **Android**: should be set when a textfield is focused, so the keyboard has context
+    /// for autocomplete. If this is not set, the text will be cleared when the user starts typing.
+    /// - **iOS / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    pub fn set_ime_surrounding_text(&self, text: String, selection: (usize, usize)) {
+        self.window.set_ime_surrounding_text(text, selection);
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is
