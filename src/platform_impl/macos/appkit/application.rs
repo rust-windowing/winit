@@ -1,6 +1,6 @@
 use icrate::Foundation::{MainThreadMarker, NSArray, NSInteger, NSObject, NSUInteger};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 use objc2::{Encode, Encoding};
 
@@ -50,23 +50,23 @@ extern_methods!(
 
         // TODO: NSApplicationDelegate
         #[method(setDelegate:)]
-        pub fn setDelegate(&self, delegate: &Object);
+        pub fn setDelegate(&self, delegate: &AnyObject);
 
         #[method(setPresentationOptions:)]
         pub fn setPresentationOptions(&self, options: NSApplicationPresentationOptions);
 
         #[method(hide:)]
-        pub fn hide(&self, sender: Option<&Object>);
+        pub fn hide(&self, sender: Option<&AnyObject>);
 
         #[method(orderFrontCharacterPalette:)]
         #[allow(dead_code)]
-        pub fn orderFrontCharacterPalette(&self, sender: Option<&Object>);
+        pub fn orderFrontCharacterPalette(&self, sender: Option<&AnyObject>);
 
         #[method(hideOtherApplications:)]
-        pub fn hideOtherApplications(&self, sender: Option<&Object>);
+        pub fn hideOtherApplications(&self, sender: Option<&AnyObject>);
 
         #[method(stop:)]
-        pub fn stop(&self, sender: Option<&Object>);
+        pub fn stop(&self, sender: Option<&AnyObject>);
 
         #[method(activateIgnoringOtherApps:)]
         pub fn activateIgnoringOtherApps(&self, ignore: bool);

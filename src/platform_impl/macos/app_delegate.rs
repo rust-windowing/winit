@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use icrate::Foundation::NSObject;
 use objc2::declare::{IvarBool, IvarEncode};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send, msg_send_id, mutability, ClassType};
 
 use super::app_state::AppState;
@@ -43,7 +43,7 @@ declare_class!(
         }
 
         #[method(applicationDidFinishLaunching:)]
-        fn did_finish_launching(&self, _sender: Option<&Object>) {
+        fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationDidFinishLaunching:");
             AppState::launched(
                 *self.activation_policy,
@@ -53,7 +53,7 @@ declare_class!(
         }
 
         #[method(applicationWillTerminate:)]
-        fn will_terminate(&self, _sender: Option<&Object>) {
+        fn will_terminate(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
             AppState::exit();
