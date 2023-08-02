@@ -5,7 +5,7 @@ use std::ptr::{self, NonNull};
 use icrate::Foundation::{NSArray, NSObject, NSSize, NSString};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::{autoreleasepool, Id};
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
 
 use super::appkit::{
@@ -83,7 +83,7 @@ declare_class!(
                 this.window.setDelegate(Some(this));
 
                 // Enable theme change event
-                let notification_center: Id<Object> =
+                let notification_center: Id<AnyObject> =
                     unsafe { msg_send_id![class!(NSDistributedNotificationCenter), defaultCenter] };
                 let notification_name =
                     NSString::from_str("AppleInterfaceThemeChangedNotification");
@@ -93,7 +93,7 @@ declare_class!(
                         addObserver: &*this
                         selector: sel!(effectiveAppearanceDidChange:)
                         name: &*notification_name
-                        object: ptr::null::<Object>()
+                        object: ptr::null::<AnyObject>()
                     ]
                 };
 
@@ -105,14 +105,14 @@ declare_class!(
     // NSWindowDelegate + NSDraggingDestination protocols
     unsafe impl WinitWindowDelegate {
         #[method(windowShouldClose:)]
-        fn window_should_close(&self, _: Option<&Object>) -> bool {
+        fn window_should_close(&self, _: Option<&AnyObject>) -> bool {
             trace_scope!("windowShouldClose:");
             self.queue_event(WindowEvent::CloseRequested);
             false
         }
 
         #[method(windowWillClose:)]
-        fn window_will_close(&self, _: Option<&Object>) {
+        fn window_will_close(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillClose:");
             // `setDelegate:` retains the previous value and then autoreleases it
             autoreleasepool(|_| {
@@ -124,14 +124,14 @@ declare_class!(
         }
 
         #[method(windowDidResize:)]
-        fn window_did_resize(&self, _: Option<&Object>) {
+        fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
             // NOTE: WindowEvent::Resized is reported in frameDidChange.
             self.emit_move_event();
         }
 
         #[method(windowWillStartLiveResize:)]
-        fn window_will_start_live_resize(&self, _: Option<&Object>) {
+        fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillStartLiveResize:");
 
             let increments = self
@@ -142,26 +142,26 @@ declare_class!(
         }
 
         #[method(windowDidEndLiveResize:)]
-        fn window_did_end_live_resize(&self, _: Option<&Object>) {
+        fn window_did_end_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidEndLiveResize:");
             self.window.set_resize_increments_inner(NSSize::new(1., 1.));
         }
 
         // This won't be triggered if the move was part of a resize.
         #[method(windowDidMove:)]
-        fn window_did_move(&self, _: Option<&Object>) {
+        fn window_did_move(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidMove:");
             self.emit_move_event();
         }
 
         #[method(windowDidChangeBackingProperties:)]
-        fn window_did_change_backing_properties(&self, _: Option<&Object>) {
+        fn window_did_change_backing_properties(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeBackingProperties:");
             self.queue_static_scale_factor_changed_event();
         }
 
         #[method(windowDidBecomeKey:)]
-        fn window_did_become_key(&self, _: Option<&Object>) {
+        fn window_did_become_key(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidBecomeKey:");
             // TODO: center the cursor if the window had mouse grab when it
             // lost focus
@@ -169,7 +169,7 @@ declare_class!(
         }
 
         #[method(windowDidResignKey:)]
-        fn window_did_resign_key(&self, _: Option<&Object>) {
+        fn window_did_resign_key(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResignKey:");
             // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
             // NSWindowDelegate will receive a didResignKey event despite no event
@@ -243,7 +243,7 @@ declare_class!(
 
         /// Invoked when before enter fullscreen
         #[method(windowWillEnterFullScreen:)]
-        fn window_will_enter_fullscreen(&self, _: Option<&Object>) {
+        fn window_will_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillEnterFullScreen:");
 
             let mut shared_state = self
@@ -272,7 +272,7 @@ declare_class!(
 
         /// Invoked when before exit fullscreen
         #[method(windowWillExitFullScreen:)]
-        fn window_will_exit_fullscreen(&self, _: Option<&Object>) {
+        fn window_will_exit_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillExitFullScreen:");
 
             let mut shared_state = self.window.lock_shared_state("window_will_exit_fullscreen");
@@ -282,7 +282,7 @@ declare_class!(
         #[method(window:willUseFullScreenPresentationOptions:)]
         fn window_will_use_fullscreen_presentation_options(
             &self,
-            _: Option<&Object>,
+            _: Option<&AnyObject>,
             proposed_options: NSApplicationPresentationOptions,
         ) -> NSApplicationPresentationOptions {
             trace_scope!("window:willUseFullScreenPresentationOptions:");
@@ -309,7 +309,7 @@ declare_class!(
 
         /// Invoked when entered fullscreen
         #[method(windowDidEnterFullScreen:)]
-        fn window_did_enter_fullscreen(&self, _: Option<&Object>) {
+        fn window_did_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidEnterFullScreen:");
             self.state.initial_fullscreen.set(false);
             let mut shared_state = self.window.lock_shared_state("window_did_enter_fullscreen");
@@ -323,7 +323,7 @@ declare_class!(
 
         /// Invoked when exited fullscreen
         #[method(windowDidExitFullScreen:)]
-        fn window_did_exit_fullscreen(&self, _: Option<&Object>) {
+        fn window_did_exit_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidExitFullScreen:");
 
             self.window.restore_state_from_fullscreen();
@@ -353,7 +353,7 @@ declare_class!(
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
         #[method(windowDidFailToEnterFullScreen:)]
-        fn window_did_fail_to_enter_fullscreen(&self, _: Option<&Object>) {
+        fn window_did_fail_to_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidFailToEnterFullScreen:");
             let mut shared_state = self
                 .window
@@ -366,7 +366,7 @@ declare_class!(
                     let _: () = msg_send![
                         &*self.window,
                         performSelector: sel!(toggleFullScreen:),
-                        withObject: ptr::null::<Object>(),
+                        withObject: ptr::null::<AnyObject>(),
                         afterDelay: 0.5,
                     ];
                 };
@@ -377,7 +377,7 @@ declare_class!(
 
         // Invoked when the occlusion state of the window changes
         #[method(windowDidChangeOcclusionState:)]
-        fn window_did_change_occlusion_state(&self, _: Option<&Object>) {
+        fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
             self.queue_event(WindowEvent::Occluded(
                 !self
@@ -389,7 +389,7 @@ declare_class!(
 
         // Observe theme change
         #[method(effectiveAppearanceDidChange:)]
-        fn effective_appearance_did_change(&self, sender: Option<&Object>) {
+        fn effective_appearance_did_change(&self, sender: Option<&AnyObject>) {
             trace_scope!("Triggered `effectiveAppearanceDidChange:`");
             unsafe {
                 msg_send![
@@ -402,7 +402,7 @@ declare_class!(
         }
 
         #[method(effectiveAppearanceDidChangedOnMainThread:)]
-        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&Object>) {
+        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
             let theme = get_ns_theme();
             let mut shared_state = self
                 .window
@@ -416,7 +416,7 @@ declare_class!(
         }
 
         #[method(windowDidChangeScreen:)]
-        fn window_did_change_screen(&self, _: Option<&Object>) {
+        fn window_did_change_screen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeScreen:");
             let is_simple_fullscreen = self
                 .window

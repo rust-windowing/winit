@@ -4,7 +4,7 @@ use std::ptr;
 
 use icrate::Foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow};
@@ -74,7 +74,7 @@ extern_methods!(
         unsafe fn inner_addTrackingRect(
             &self,
             rect: NSRect,
-            owner: &Object,
+            owner: &AnyObject,
             user_data: *mut c_void,
             assume_inside: bool,
         ) -> Option<NSTrackingRectTag>;

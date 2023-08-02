@@ -18,7 +18,7 @@ use core_foundation::runloop::{
 };
 use icrate::Foundation::{CGRect, CGSize, NSInteger, NSProcessInfo};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
@@ -538,7 +538,7 @@ pub unsafe fn did_finish_launching() {
         // completed. This may result in incorrect visual appearance.
         // ```
         let screen = window.screen();
-        let _: () = msg_send![&window, setScreen: ptr::null::<Object>()];
+        let _: () = msg_send![&window, setScreen: ptr::null::<AnyObject>()];
         window.setScreen(&screen);
 
         let controller = window.rootViewController();

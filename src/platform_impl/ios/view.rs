@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::Id;
-use objc2::runtime::Class;
+use objc2::runtime::AnyClass;
 use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
 
 use super::uikit::{
@@ -167,7 +167,7 @@ extern_methods!(
 
         // TODO: Allow the user to customize this
         #[method(layerClass)]
-        pub(crate) fn layerClass() -> &'static Class;
+        pub(crate) fn layerClass() -> &'static AnyClass;
     }
 );
 
