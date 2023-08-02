@@ -8,7 +8,7 @@ use std::{
 
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
@@ -646,8 +646,8 @@ impl From<u64> for WindowId {
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
-impl From<&Object> for WindowId {
-    fn from(window: &Object) -> WindowId {
+impl From<&AnyObject> for WindowId {
+    fn from(window: &AnyObject) -> WindowId {
         WindowId {
             window: window as *const _ as _,
         }

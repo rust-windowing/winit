@@ -1,7 +1,7 @@
 use icrate::ns_string;
 use icrate::Foundation::{CGFloat, NSArray, NSDictionary, NSNumber, NSObject, NSRect, NSString};
 use objc2::rc::Id;
-use objc2::runtime::Object;
+use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
 extern_class!(
@@ -33,7 +33,7 @@ extern_methods!(
         pub fn visibleFrame(&self) -> NSRect;
 
         #[method_id(deviceDescription)]
-        pub fn deviceDescription(&self) -> Id<NSDictionary<NSDeviceDescriptionKey, Object>>;
+        pub fn deviceDescription(&self) -> Id<NSDictionary<NSDeviceDescriptionKey, AnyObject>>;
 
         pub fn display_id(&self) -> u32 {
             let key = ns_string!("NSScreenNumber");
@@ -49,7 +49,7 @@ extern_methods!(
                 let obj = device_description
                     .get(key)
                     .expect("failed getting screen display id from device description");
-                let obj: *const Object = obj;
+                let obj: *const AnyObject = obj;
                 let obj: *const NSNumber = obj.cast();
                 let obj: &NSNumber = unsafe { &*obj };
 

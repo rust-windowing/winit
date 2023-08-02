@@ -10,7 +10,7 @@ use icrate::Foundation::{
 };
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::{Id, WeakId};
-use objc2::runtime::{Object, Sel};
+use objc2::runtime::{AnyObject, Sel};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
 
 use super::{
@@ -182,7 +182,7 @@ declare_class!(
 
                 this.setPostsFrameChangedNotifications(true);
 
-                let notification_center: &Object =
+                let notification_center: &AnyObject =
                     unsafe { msg_send![class!(NSNotificationCenter), defaultCenter] };
                 // About frame change
                 let frame_did_change_notification_name =
@@ -550,7 +550,7 @@ declare_class!(
         }
 
         #[method(insertTab:)]
-        fn insert_tab(&self, _sender: Option<&Object>) {
+        fn insert_tab(&self, _sender: Option<&AnyObject>) {
             trace_scope!("insertTab:");
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
@@ -561,7 +561,7 @@ declare_class!(
         }
 
         #[method(insertBackTab:)]
-        fn insert_back_tab(&self, _sender: Option<&Object>) {
+        fn insert_back_tab(&self, _sender: Option<&AnyObject>) {
             trace_scope!("insertBackTab:");
             let window = self.window();
             if let Some(first_responder) = window.firstResponder() {
@@ -574,7 +574,7 @@ declare_class!(
         // Allows us to receive Cmd-. (the shortcut for closing a dialog)
         // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
         #[method(cancelOperation:)]
-        fn cancel_operation(&self, _sender: Option<&Object>) {
+        fn cancel_operation(&self, _sender: Option<&AnyObject>) {
             trace_scope!("cancelOperation:");
 
             let event = NSApp()

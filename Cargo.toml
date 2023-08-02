@@ -74,14 +74,14 @@ ndk-sys = "0.4.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = "0.4.0"
+objc2 = "0.4.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.22.3"
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]
-version = "0.0.3"
+version = "0.0.4"
 features = [
     "Foundation",
     "Foundation_NSArray",
@@ -96,7 +96,7 @@ features = [
 ]
 
 [target.'cfg(target_os = "ios")'.dependencies.icrate]
-version = "0.0.3"
+version = "0.0.4"
 features = [
     "Foundation",
     "Foundation_NSArray",
