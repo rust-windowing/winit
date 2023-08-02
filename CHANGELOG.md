@@ -17,7 +17,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
 - **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
 - On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
-- Implement `PartialOrd` and `Ord` for `KeyCode` and `NativeKeyCode`.
+- Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey` and `NativeKeyCode`.
 - On Web, implement `WindowEvent::Occluded`.
 - On Web, fix touch location to be as accurate as mouse position.
 - On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
