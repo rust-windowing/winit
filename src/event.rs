@@ -1020,7 +1020,7 @@ pub enum ElementState {
 }
 
 impl ElementState {
-    /// True if `self == Pressed`
+    /// True if `self == Pressed`.
     pub fn is_pressed(self) -> bool {
         self == ElementState::Pressed
     }
