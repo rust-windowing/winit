@@ -1019,6 +1019,13 @@ pub enum ElementState {
     Released,
 }
 
+impl ElementState {
+    /// True if `self == Pressed`.
+    pub fn is_pressed(self) -> bool {
+        self == ElementState::Pressed
+    }
+}
+
 /// Describes a button of a mouse controller.
 ///
 /// ## Platform-specific

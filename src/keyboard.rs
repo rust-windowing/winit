@@ -69,7 +69,7 @@
 //
 // --------- END OF W3C SHORT NOTICE ---------------------------------------------------------------
 
-use smol_str::SmolStr;
+pub use smol_str::SmolStr;
 
 /// Contains the platform-native physical key identifier
 ///
@@ -135,7 +135,7 @@ impl std::fmt::Debug for NativeKeyCode {
 /// This enum is primarily used to store raw keysym when Winit doesn't map a given native logical
 /// key identifier to a meaningful [`Key`] variant. This lets you use [`Key`], and let the user
 /// define keybinds which work in the presence of identifiers we haven't mapped for you yet.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum NativeKey {
     Unidentified,
@@ -662,7 +662,7 @@ pub enum KeyCode {
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Key<Str = SmolStr> {
     /// A key string that corresponds to the character typed by the user, taking into account the
