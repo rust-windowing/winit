@@ -380,33 +380,33 @@ pub enum WindowEvent {
 
     PointerMoved {
         device_id: DeviceId,
-        position: PhysicalPosition<f64>,
-        source: PointerMoved,
+        source: PointerSource,
+        location: PhysicalPosition<f64>,
+        force: Option<Force>,
     },
 
-    PointerDown {
+    PointerInput {
         device_id: DeviceId,
-        source: PointerDown,
-    },
-
-    PointerUp {
-        device_id: DeviceId,
-        source: PointerUp,
+        source: PointerSource,
+        state: ElementState,
+        button: Option<MouseButton>,
+        location: Option<PhysicalPosition<f64>>,
+        force: Option<Force>,
     },
 
     PointerEntered {
         device_id: DeviceId,
-        source: PointerEntered,
+        source: PointerSource,
     },
 
     PointerLeft {
         device_id: DeviceId,
-        source: PointerLeft,
+        source: PointerSource,
     },
 
     PointerCancelled {
         device_id: DeviceId,
-        source: PointerCancelled,
+        source: PointerSource,
     },
 
     // /// An mouse button press has been received.
@@ -877,47 +877,9 @@ pub enum Ime {
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerEntered {
+pub enum PointerSource {
     Cursor,
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerLeft {
-    Cursor,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerMoved {
-    Cursor,
-    Touch { finger: u64, force: Option<Force> },
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerDown {
-    Cursor {
-        button: MouseButton,
-    },
-    Touch {
-        finger: u64,
-        force: Option<Force>,
-        location: PhysicalPosition<f64>,
-    },
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerUp {
-    Cursor { button: MouseButton },
-    Touch { finger: u64, force: Option<Force> },
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerCancelled {
-    Touch { finger: u64, force: Option<Force> },
+    Touch { finger: u64 },
 }
 
 /// Describes touch-screen input state.
