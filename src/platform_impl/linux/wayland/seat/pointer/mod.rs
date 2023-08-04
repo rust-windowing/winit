@@ -22,7 +22,7 @@ use sctk::shell::xdg::frame::FrameClick;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::event::{
-    ElementState, MouseButton, MouseScrollDelta, PointerSource, TouchPhase, WindowEvent,
+    ElementState, MouseButton, MouseScrollDelta, PointerId, TouchPhase, WindowEvent,
 };
 
 use crate::platform_impl::wayland::state::WinitState;
@@ -120,7 +120,7 @@ impl PointerHandler for WinitState {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerEntered {
                             device_id,
-                            source: PointerSource::Cursor,
+                            source: PointerId::Cursor,
                         },
                         window_id,
                     );
@@ -136,7 +136,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerMoved {
                             device_id,
                             location: position,
-                            source: PointerSource::Cursor,
+                            source: PointerId::Cursor,
                             force: None,
                         },
                         window_id,
@@ -153,7 +153,7 @@ impl PointerHandler for WinitState {
                     self.events_sink.push_window_event(
                         WindowEvent::PointerLeft {
                             device_id,
-                            source: PointerSource::Cursor,
+                            source: PointerId::Cursor,
                         },
                         window_id,
                     );
@@ -163,7 +163,7 @@ impl PointerHandler for WinitState {
                         WindowEvent::PointerMoved {
                             device_id,
                             location: position,
-                            source: PointerSource::Cursor,
+                            source: PointerId::Cursor,
                             force: None,
                         },
                         window_id,
@@ -186,9 +186,9 @@ impl PointerHandler for WinitState {
                         ElementState::Released
                     };
                     self.events_sink.push_window_event(
-                        WindowEvent::PointerInput {
+                        WindowEvent::PointerButton {
                             device_id,
-                            source: PointerSource::Cursor,
+                            source: PointerId::Cursor,
                             state,
                             button: Some(button),
                             location: None,

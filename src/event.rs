@@ -378,35 +378,10 @@ pub enum WindowEvent {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
-    PointerMoved {
+    Pointer {
         device_id: DeviceId,
-        source: PointerSource,
-        location: PhysicalPosition<f64>,
-        force: Option<Force>,
-    },
-
-    PointerInput {
-        device_id: DeviceId,
-        source: PointerSource,
-        state: ElementState,
-        button: Option<MouseButton>,
-        location: Option<PhysicalPosition<f64>>,
-        force: Option<Force>,
-    },
-
-    PointerEntered {
-        device_id: DeviceId,
-        source: PointerSource,
-    },
-
-    PointerLeft {
-        device_id: DeviceId,
-        source: PointerSource,
-    },
-
-    PointerCancelled {
-        device_id: DeviceId,
-        source: PointerSource,
+        pointer_id: PointerId,
+        event: PointerEvent,
     },
 
     // /// An mouse button press has been received.
@@ -417,7 +392,7 @@ pub enum WindowEvent {
     // },
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
-        device_id: DeviceId,
+        device_id: DeviceId,g
         delta: MouseScrollDelta,
         phase: TouchPhase,
     },
@@ -875,21 +850,45 @@ pub enum Ime {
     Disabled,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PointerSource {
-    Cursor,
-    Touch { finger: u64 },
-}
-
-/// Describes touch-screen input state.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
     Moved,
     Ended,
     Cancelled,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerEvent {
+    Created,
+    Destroyed,
+    Entered,
+    Left,
+    UpdateForce(Force),
+    UpdateTilt(Tilt),
+    UpdateAngle(f64),
+    Moved(PhysicalPosition<f64>),
+    Button {
+        button: PointerButton,
+        state: ElementState,
+    },
+    MotionCancelled,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerId {
+    Cursor,
+    Touch { finger: u64 },
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Tilt {
+    angle_x: f64,
+    angle_y: f64,
 }
 
 /// Describes the force of a touch event
@@ -985,6 +984,15 @@ pub enum MouseButton {
     Back,
     Forward,
     Other(u16),
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerButton {
+    Mouse(MouseButton),
+    // Touch (probably) doesn't have any variations, different fingers
+    // are different pointers.
+    Touch,
 }
 
 /// Describes a difference in the mouse scroll wheel state.
