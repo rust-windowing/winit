@@ -392,7 +392,7 @@ pub enum WindowEvent {
     // },
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
-        device_id: DeviceId,g
+        device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
     },
