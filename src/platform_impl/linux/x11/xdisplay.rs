@@ -18,8 +18,8 @@ pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
 
-    /// I'd like to remove this, but apparently Xlib and Xinput2 are tied together
-    /// for some reason.
+    // TODO(notgull): I'd like to remove this, but apparently Xlib and Xinput2 are tied together
+    // for some reason.
     pub xinput2: ffi::XInput2,
 
     pub display: *mut ffi::Display,

@@ -162,9 +162,9 @@ impl XConnection {
                 crtc.rotation,
                 &crtc.outputs,
             )?
-            .reply()?;
-
-        Ok(())
+            .reply()
+            .map(|_| ())
+            .map_err(Into::into)
     }
 
     pub fn get_crtc_mode(&self, crtc_id: randr::Crtc) -> Result<randr::Mode, X11Error> {

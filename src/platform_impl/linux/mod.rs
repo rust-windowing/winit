@@ -850,8 +850,8 @@ impl<T> EventLoopWindowTarget<T> {
             EventLoopWindowTarget::X(ref evlp) => evlp
                 .x_connection()
                 .available_monitors()
-                .expect("Failed to list monitors")
                 .into_iter()
+                .flatten()
                 .map(MonitorHandle::X)
                 .collect(),
         }
