@@ -20,6 +20,12 @@ impl EventSink {
         Default::default()
     }
 
+    /// Return `true` if there're pending events.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.window_events.is_empty()
+    }
+
     /// Add new device event to a queue.
     #[inline]
     pub fn push_device_event(&mut self, event: DeviceEvent, device_id: DeviceId) {

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::error::Error;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use fnv::FnvHashMap;
@@ -104,6 +105,10 @@ pub struct WinitState {
 
     /// Loop handle to re-register event sources, such as keyboard repeat.
     pub loop_handle: LoopHandle<'static, Self>,
+
+    /// Whether we have dispatched events to the user thus we want to
+    /// send `AboutToWait` and normally wakeup the user.
+    pub dispatched_events: bool,
 }
 
 impl WinitState {
@@ -167,6 +172,8 @@ impl WinitState {
             monitors: Arc::new(Mutex::new(monitors)),
             events_sink: EventSink::new(),
             loop_handle,
+            // Make it true by default.
+            dispatched_events: true,
         })
     }
 
@@ -327,6 +334,18 @@ impl CompositorHandler for WinitState {
             Some(window) => window,
             None => return,
         };
+
+        // In case we have a redraw requested we must indicate the wake up.
+        if self
+            .window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .load(Ordering::Relaxed)
+        {
+            self.dispatched_events = true;
+        }
 
         window.lock().unwrap().frame_callback_received();
     }

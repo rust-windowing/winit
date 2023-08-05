@@ -287,10 +287,14 @@ impl Window {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.window_requests
+        if self
+            .window_requests
             .redraw_requested
-            .store(true, Ordering::Relaxed);
-        self.event_loop_awakener.ping();
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            self.event_loop_awakener.ping();
+        }
     }
 
     #[inline]
