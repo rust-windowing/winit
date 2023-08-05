@@ -17,8 +17,6 @@ pub type HWND = isize;
 pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
-/// Instance Handle type used by Win32 API
-pub type HINSTANCE = isize;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
@@ -113,13 +111,6 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
-    /// Returns the HINSTANCE of the window
-    fn hinstance(&self) -> HINSTANCE;
-    /// Returns the native handle that is used by this window.
-    ///
-    /// The pointer will become invalid when the native window was destroyed.
-    fn hwnd(&self) -> HWND;
-
     /// Enables or disables mouse and keyboard input to the specified window.
     ///
     /// A window must be enabled before it can be activated.
@@ -148,16 +139,6 @@ pub trait WindowExtWindows {
 }
 
 impl WindowExtWindows for Window {
-    #[inline]
-    fn hinstance(&self) -> HINSTANCE {
-        self.window.hinstance()
-    }
-
-    #[inline]
-    fn hwnd(&self) -> HWND {
-        self.window.hwnd()
-    }
-
     #[inline]
     fn set_enable(&self, enabled: bool) {
         self.window.set_enable(enabled)

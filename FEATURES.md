@@ -146,9 +146,6 @@ If your PR makes notable changes to Winit's features, please update this section
 
 ### iOS
 * `winit` has a minimum OS requirement of iOS 8
-* Get the `UIWindow` object pointer
-* Get the `UIViewController` object pointer
-* Get the `UIView` object pointer
 * Get the `UIScreen` object pointer
 * Setting the `UIView` hidpi factor
 * Valid orientations
