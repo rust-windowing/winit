@@ -215,6 +215,8 @@ impl<T> Dispatcher<T> {
     #[track_caller]
     pub fn new(value: T) -> Option<Self> {
         MainThreadSafe::new(value, |value, Closure(closure)| {
+            // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+            // funny with it here. See `Self::queue()`.
             closure(value.read().unwrap().as_ref().unwrap())
         })
         .map(Self)
@@ -228,18 +230,22 @@ impl<T> Dispatcher<T> {
         }
     }
 
-    pub fn queue<R: 'static + Send>(&self, f: impl 'static + FnOnce(&T) -> R + Send) -> R {
+    pub fn queue<R: Send>(&self, f: impl FnOnce(&T) -> R + Send) -> R {
         if self.is_main_thread() {
             self.0.with(f).unwrap()
         } else {
             let pair = Arc::new((Mutex::new(None), Condvar::new()));
-            let closure = Closure(Box::new({
+            let closure = Box::new({
                 let pair = pair.clone();
-                move |value| {
+                move |value: &T| {
                     *pair.0.lock().unwrap() = Some(f(value));
                     pair.1.notify_one();
                 }
-            }));
+            }) as Box<dyn FnOnce(&T) + Send>;
+            // SAFETY: The `transmute` is necessary because `Closure` requires `'static`. This is
+            // safe because this function won't return until `f` has finished executing. See
+            // `Self::new()`.
+            let closure = Closure(unsafe { std::mem::transmute(closure) });
 
             self.0.send(closure);
 

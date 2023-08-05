@@ -78,11 +78,7 @@ impl Window {
         self.inner.dispatch(f)
     }
 
-    // TODO: Find a way to make this non-static
-    pub(crate) fn maybe_wait_on_main<R: Send + 'static>(
-        &self,
-        f: impl FnOnce(&Inner) -> R + Send + 'static,
-    ) -> R {
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
         self.inner.queue(f)
     }
 

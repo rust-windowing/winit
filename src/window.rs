@@ -745,7 +745,7 @@ impl Window {
     pub fn request_inner_size<S: Into<Size>>(&self, size: S) -> Option<PhysicalSize<u32>> {
         let size = size.into();
         self.window
-            .maybe_wait_on_main(move |w| w.request_inner_size(size))
+            .maybe_wait_on_main(|w| w.request_inner_size(size))
     }
 
     /// Returns the physical size of the entire window.
@@ -851,10 +851,7 @@ impl Window {
     /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_title(&self, title: &str) {
-        // TODO: Fix this clone when `maybe_wait_on_main` no longer
-        // requires 'static closures.
-        let title = title.to_string();
-        self.window.maybe_wait_on_main(move |w| w.set_title(&title))
+        self.window.maybe_wait_on_main(|w| w.set_title(title))
     }
 
     /// Change the window transparency state.
@@ -1315,7 +1312,7 @@ impl Window {
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         let position = position.into();
         self.window
-            .maybe_wait_on_main(move |w| w.set_cursor_position(position))
+            .maybe_wait_on_main(|w| w.set_cursor_position(position))
     }
 
     /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
@@ -1335,8 +1332,7 @@ impl Window {
     /// ```
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        self.window
-            .maybe_wait_on_main(move |w| w.set_cursor_grab(mode))
+        self.window.maybe_wait_on_main(|w| w.set_cursor_grab(mode))
     }
 
     /// Modifies the cursor's visibility.
@@ -1385,7 +1381,7 @@ impl Window {
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window
-            .maybe_wait_on_main(move |w| w.drag_resize_window(direction))
+            .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
     /// Modifies whether the window catches cursor events.
@@ -1399,7 +1395,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window
-            .maybe_wait_on_main(move |w| w.set_cursor_hittest(hittest))
+            .maybe_wait_on_main(|w| w.set_cursor_hittest(hittest))
     }
 }
 
