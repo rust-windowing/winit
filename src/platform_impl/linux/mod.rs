@@ -24,7 +24,7 @@ use std::time::Duration;
 #[cfg(x11_platform)]
 pub use self::x11::XNotSupported;
 #[cfg(x11_platform)]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, X11Error, XConnection, XError};
+use self::x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
@@ -96,7 +96,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
-    pub visual_infos: Option<XVisualInfo>,
+    pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
     #[cfg(x11_platform)]
     pub screen_id: Option<i32>,
     #[cfg(x11_platform)]
@@ -113,7 +113,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             name: None,
             activation_token: None,
             #[cfg(x11_platform)]
-            visual_infos: None,
+            visual_id: None,
             #[cfg(x11_platform)]
             screen_id: None,
             #[cfg(x11_platform)]
