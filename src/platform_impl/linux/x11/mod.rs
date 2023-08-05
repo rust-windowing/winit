@@ -49,7 +49,7 @@ use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use x11rb::protocol::{
     xinput,
-    xproto::{self, ConnectionExt},
+    xproto::{self, ConnectionExt as _},
 };
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::{
@@ -229,7 +229,7 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let randr_event_offset = xconn
-            .select_xrandr_input(root as ffi::Window)
+            .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
@@ -894,6 +894,9 @@ pub enum X11Error {
     /// Got an invalid activation token.
     InvalidActivationToken(Vec<u8>),
 
+    /// An extension that we rely on is not available.
+    MissingExtension(&'static str),
+
     /// Could not find a matching X11 visual for this visualid
     NoSuchVisual(xproto::Visualid),
 }
@@ -912,6 +915,7 @@ impl fmt::Display for X11Error {
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
+            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
             X11Error::NoSuchVisual(visualid) => {
                 write!(
                     f,

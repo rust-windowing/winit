@@ -10,7 +10,6 @@ pub const VIRTUAL_CORE_KEYBOARD: u16 = 3;
 // re-allocate (and make another round-trip) in the *vast* majority of cases.
 // To test if `lookup_utf8` works correctly, set this to 1.
 const TEXT_BUFFER_SIZE: usize = 1024;
-
 // NOTE: Some of these fields are not used, but may be of use in the future.
 pub struct PointerState<'a> {
     xconn: &'a XConnection,

@@ -11,7 +11,7 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::Serialize;
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, monitor, util, CookieResultExt, Device, DeviceId,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId,
     DeviceInfo, Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
     WindowId, XExtension,
 };
@@ -35,7 +35,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
     pub(super) ime_event_receiver: ImeEventReceiver,
-    pub(super) randr_event_offset: c_int,
+    pub(super) randr_event_offset: u8,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) xkbext: XExtension,
@@ -420,7 +420,10 @@ impl<T: 'static> EventProcessor<T> {
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let monitor = wt
+                                .xconn
+                                .get_monitor_for_window(Some(window_rect))
+                                .expect("Failed to find monitor for window");
 
                             if monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
@@ -1285,11 +1288,14 @@ impl<T: 'static> EventProcessor<T> {
                         _ => {}
                     }
                 }
-                if event_type == self.randr_event_offset {
+                if event_type == self.randr_event_offset as c_int {
                     // In the future, it would be quite easy to emit monitor hotplug events.
-                    let prev_list = monitor::invalidate_cached_monitor_list();
+                    let prev_list = wt.xconn.invalidate_cached_monitor_list();
                     if let Some(prev_list) = prev_list {
-                        let new_list = wt.xconn.available_monitors();
+                        let new_list = wt
+                            .xconn
+                            .available_monitors()
+                            .expect("Failed to get monitor list");
                         for new_monitor in new_list {
                             // Previous list may be empty, in case of disconnecting and
                             // reconnecting the only one monitor. We still need to emit events in

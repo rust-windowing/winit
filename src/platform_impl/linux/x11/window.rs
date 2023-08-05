@@ -10,12 +10,11 @@ use std::{
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
-    properties::WmHintsState,
-    protocol::xproto::{self, ConnectionExt as _},
-};
-use x11rb::{
-    properties::{WmHints, WmSizeHints, WmSizeHintsSpecification},
-    protocol::xinput,
+    properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
+    protocol::{
+        randr, xinput,
+        xproto::{self, ConnectionExt as _},
+    },
 };
 
 use crate::{
@@ -55,7 +54,7 @@ pub struct SharedState {
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
-    pub desktop_video_mode: Option<(ffi::RRCrtc, ffi::RRMode)>,
+    pub desktop_video_mode: Option<(randr::Crtc, randr::Mode)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -151,7 +150,7 @@ impl UnownedWindow {
             None => event_loop.root,
         };
 
-        let mut monitors = xconn.available_monitors();
+        let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
             X11MonitorHandle::dummy()
         } else {
@@ -740,8 +739,12 @@ impl UnownedWindow {
                 &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
-                shared_state_lock.desktop_video_mode =
-                    Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
+                shared_state_lock.desktop_video_mode = Some((
+                    monitor.id,
+                    self.xconn
+                        .get_crtc_mode(monitor.id)
+                        .expect("Failed to get desktop video mode"),
+                ));
             }
             // Restore desktop video mode upon exiting exclusive fullscreen
             (&Some(Fullscreen::Exclusive(_)), &None)
@@ -877,11 +880,15 @@ impl UnownedWindow {
     }
 
     pub fn available_monitors(&self) -> Vec<X11MonitorHandle> {
-        self.xconn.available_monitors()
+        self.xconn
+            .available_monitors()
+            .expect("Failed to get available monitors")
     }
 
     pub fn primary_monitor(&self) -> X11MonitorHandle {
-        self.xconn.primary_monitor()
+        self.xconn
+            .primary_monitor()
+            .expect("Failed to get primary monitor")
     }
 
     #[inline]
