@@ -886,6 +886,9 @@ pub enum X11Error {
 
     /// Got an invalid activation token.
     InvalidActivationToken(Vec<u8>),
+
+    /// Could not find a matching X11 visual for this visualid
+    NoSuchVisual(xproto::Visualid),
 }
 
 impl fmt::Display for X11Error {
@@ -902,6 +905,13 @@ impl fmt::Display for X11Error {
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
+            X11Error::NoSuchVisual(visualid) => {
+                write!(
+                    f,
+                    "Could not find a matching X11 visual for ID `{:x}`",
+                    visualid
+                )
+            }
         }
     }
 }
