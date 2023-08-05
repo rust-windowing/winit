@@ -445,8 +445,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), RunLoopError>
     where
-        F: 'static
-            + FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // Wrapper for event handler function that prevents ExitWithCode from being unset.
         let mut event_handler =
