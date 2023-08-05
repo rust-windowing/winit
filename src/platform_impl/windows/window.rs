@@ -14,8 +14,7 @@ use std::{
 
 use windows_sys::Win32::{
     Foundation::{
-        HMODULE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
-        WPARAM,
+        HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
     },
     Graphics::{
         Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
@@ -323,15 +322,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn hinstance(&self) -> HMODULE {
-        unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) }
-    }
-
-    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = Win32WindowHandle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
-        window_handle.hinstance = self.hinstance() as *mut _;
+        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        window_handle.hinstance = hinstance as *mut _;
         RawWindowHandle::Win32(window_handle)
     }
 

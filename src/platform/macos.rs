@@ -10,16 +10,6 @@ use crate::{
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
-    /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn ns_window(&self) -> *mut c_void;
-
-    /// Returns a pointer to the cocoa `NSView` that is used by this window.
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn ns_view(&self) -> *mut c_void;
-
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
 
@@ -92,16 +82,6 @@ pub trait WindowExtMacOS {
 }
 
 impl WindowExtMacOS for Window {
-    #[inline]
-    fn ns_window(&self) -> *mut c_void {
-        self.window.ns_window()
-    }
-
-    #[inline]
-    fn ns_view(&self) -> *mut c_void {
-        self.window.ns_view()
-    }
-
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.window.simple_fullscreen()

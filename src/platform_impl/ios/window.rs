@@ -2,7 +2,6 @@
 
 use std::{
     collections::VecDeque,
-    ffi::c_void,
     ops::{Deref, DerefMut},
 };
 
@@ -511,16 +510,6 @@ impl Window {
 
 // WindowExtIOS
 impl Inner {
-    pub fn ui_window(&self) -> *mut c_void {
-        Id::as_ptr(&self.window) as *mut c_void
-    }
-    pub fn ui_view_controller(&self) -> *mut c_void {
-        Id::as_ptr(&self.view_controller) as *mut c_void
-    }
-    pub fn ui_view(&self) -> *mut c_void {
-        Id::as_ptr(&self.view) as *mut c_void
-    }
-
     pub fn set_scale_factor(&self, scale_factor: f64) {
         assert!(
             dpi::validate_scale_factor(scale_factor),
