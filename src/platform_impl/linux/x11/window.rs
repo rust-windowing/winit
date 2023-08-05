@@ -242,11 +242,8 @@ impl UnownedWindow {
                 // Find a suitable visual, true color with 32 bits of depth.
                 all_visuals
                     .find_map(|(visual, depth)| {
-                        if visual.class == xproto::VisualClass::TRUE_COLOR {
-                            Some((Some(visual), depth, true))
-                        } else {
-                            None
-                        }
+                        (visual.class == xproto::VisualClass::TRUE_COLOR)
+                            .then_some((Some(visual), depth, true))
                     })
                     .unwrap_or_else(|| {
                         debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
