@@ -90,8 +90,15 @@ impl<T: 'static> EventLoop<T> {
         // Register Wayland source.
         let wayland_source = WaylandSource::new(event_queue)?;
         let wayland_dispatcher =
-            calloop::Dispatcher::new(wayland_source, |_, queue, winit_state| {
-                queue.dispatch_pending(winit_state)
+            calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
+                let result = queue.dispatch_pending(winit_state);
+                if result.is_ok()
+                    && (!winit_state.events_sink.is_empty()
+                        || !winit_state.window_compositor_updates.is_empty())
+                {
+                    winit_state.dispatched_events = true;
+                }
+                result
             });
 
         event_loop
@@ -102,21 +109,25 @@ impl<T: 'static> EventLoop<T> {
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
         let pending_user_events_clone = pending_user_events.clone();
         let (user_events_sender, user_events_channel) = calloop::channel::channel();
-        event_loop
-            .handle()
-            .insert_source(user_events_channel, move |event, _, _| {
+        event_loop.handle().insert_source(
+            user_events_channel,
+            move |event, _, winit_state: &mut WinitState| {
                 if let calloop::channel::Event::Msg(msg) = event {
+                    winit_state.dispatched_events = true;
                     pending_user_events_clone.borrow_mut().push(msg);
                 }
-            })?;
+            },
+        )?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
         let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping()?;
-        event_loop
-            .handle()
-            .insert_source(event_loop_awakener_source, move |_, _, _| {
+        event_loop.handle().insert_source(
+            event_loop_awakener_source,
+            move |_, _, winit_state: &mut WinitState| {
                 // No extra handling is required, we just need to wake-up.
-            })?;
+                winit_state.dispatched_events = true;
+            },
+        )?;
 
         let window_target = EventLoopWindowTarget {
             connection: connection.clone(),
@@ -220,49 +231,101 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let start = Instant::now();
+        let cause = loop {
+            let start = Instant::now();
 
-        // TODO(rib): remove this workaround and instead make sure that the calloop
-        // WaylandSource correctly implements the cooperative prepare_read protocol
-        // that support multithreaded wayland clients that may all read from the
-        // same socket.
-        //
-        // During the run of the user callback, some other code monitoring and reading the
-        // Wayland socket may have been run (mesa for example does this with vsync), if that
-        // is the case, some events may have been enqueued in our event queue.
-        //
-        // If some messages are there, the event loop needs to behave as if it was instantly
-        // woken up by messages arriving from the Wayland socket, to avoid delaying the
-        // dispatch of these events until we're woken up again.
-        let instant_wakeup = {
-            let mut wayland_source = self.wayland_dispatcher.as_source_mut();
-            let queue = wayland_source.queue();
-            let state = match &mut self.window_target.p {
-                PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                    window_target.state.get_mut()
+            // TODO(rib): remove this workaround and instead make sure that the calloop
+            // WaylandSource correctly implements the cooperative prepare_read protocol
+            // that support multithreaded wayland clients that may all read from the
+            // same socket.
+            //
+            // During the run of the user callback, some other code monitoring and reading the
+            // Wayland socket may have been run (mesa for example does this with vsync), if that
+            // is the case, some events may have been enqueued in our event queue.
+            //
+            // If some messages are there, the event loop needs to behave as if it was instantly
+            // woken up by messages arriving from the Wayland socket, to avoid delaying the
+            // dispatch of these events until we're woken up again.
+            let instant_wakeup = {
+                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+                let queue = wayland_source.queue();
+                let state = match &mut self.window_target.p {
+                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                        window_target.state.get_mut()
+                    }
+                    #[cfg(x11_platform)]
+                    _ => unreachable!(),
+                };
+
+                match queue.dispatch_pending(state) {
+                    Ok(dispatched) => {
+                        state.dispatched_events |= !state.events_sink.is_empty()
+                            || !state.window_compositor_updates.is_empty();
+                        dispatched > 0
+                    }
+                    Err(error) => {
+                        error!("Error dispatching wayland queue: {}", error);
+                        self.control_flow = ControlFlow::ExitWithCode(1);
+                        return;
+                    }
                 }
-                #[cfg(x11_platform)]
-                _ => unreachable!(),
             };
 
-            match queue.dispatch_pending(state) {
-                Ok(dispatched) => dispatched > 0,
-                Err(error) => {
-                    error!("Error dispatching wayland queue: {}", error);
-                    self.control_flow = ControlFlow::ExitWithCode(1);
-                    return;
-                }
-            }
-        };
+            timeout = if instant_wakeup {
+                Some(Duration::ZERO)
+            } else {
+                let control_flow_timeout = match self.control_flow {
+                    ControlFlow::Wait => None,
+                    ControlFlow::Poll => Some(Duration::ZERO),
+                    ControlFlow::WaitUntil(wait_deadline) => {
+                        Some(wait_deadline.saturating_duration_since(start))
+                    }
+                    // This function shouldn't have to handle any requests to exit
+                    // the application (there should be no need to poll for events
+                    // if the application has requested to exit) so we consider
+                    // it a bug in the backend if we ever see `ExitWithCode` here.
+                    ControlFlow::ExitWithCode(_code) => unreachable!(),
+                };
+                min_timeout(control_flow_timeout, timeout)
+            };
 
-        timeout = if instant_wakeup {
-            Some(Duration::ZERO)
-        } else {
-            let control_flow_timeout = match self.control_flow {
-                ControlFlow::Wait => None,
-                ControlFlow::Poll => Some(Duration::ZERO),
-                ControlFlow::WaitUntil(wait_deadline) => {
-                    Some(wait_deadline.saturating_duration_since(start))
+            // NOTE Ideally we should flush as the last thing we do before polling
+            // to wait for events, and this should be done by the calloop
+            // WaylandSource but we currently need to flush writes manually.
+            let _ = self.connection.flush();
+
+            if let Err(error) = self.loop_dispatch(timeout) {
+                // NOTE We exit on errors from dispatches, since if we've got protocol error
+                // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
+                // really an option. Instead we inform that the event loop got destroyed. We may
+                // communicate an error that something was terminated, but winit doesn't provide us
+                // with an API to do that via some event.
+                // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
+                let exit_code = error.raw_os_error().unwrap_or(1);
+                self.control_flow = ControlFlow::ExitWithCode(exit_code);
+                return;
+            }
+
+            // NB: `StartCause::Init` is handled as a special case and doesn't need
+            // to be considered here
+            let cause = match self.control_flow {
+                ControlFlow::Poll => StartCause::Poll,
+                ControlFlow::Wait => StartCause::WaitCancelled {
+                    start,
+                    requested_resume: None,
+                },
+                ControlFlow::WaitUntil(deadline) => {
+                    if Instant::now() < deadline {
+                        StartCause::WaitCancelled {
+                            start,
+                            requested_resume: Some(deadline),
+                        }
+                    } else {
+                        StartCause::ResumeTimeReached {
+                            start,
+                            requested_resume: deadline,
+                        }
+                    }
                 }
                 // This function shouldn't have to handle any requests to exit
                 // the application (there should be no need to poll for events
@@ -270,52 +333,14 @@ impl<T: 'static> EventLoop<T> {
                 // it a bug in the backend if we ever see `ExitWithCode` here.
                 ControlFlow::ExitWithCode(_code) => unreachable!(),
             };
-            min_timeout(control_flow_timeout, timeout)
-        };
 
-        // NOTE Ideally we should flush as the last thing we do before polling
-        // to wait for events, and this should be done by the calloop
-        // WaylandSource but we currently need to flush writes manually.
-        let _ = self.connection.flush();
-
-        if let Err(error) = self.loop_dispatch(timeout) {
-            // NOTE We exit on errors from dispatches, since if we've got protocol error
-            // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
-            // really an option. Instead we inform that the event loop got destroyed. We may
-            // communicate an error that something was terminated, but winit doesn't provide us
-            // with an API to do that via some event.
-            // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
-            let exit_code = error.raw_os_error().unwrap_or(1);
-            self.control_flow = ControlFlow::ExitWithCode(exit_code);
-            return;
-        }
-
-        // NB: `StartCause::Init` is handled as a special case and doesn't need
-        // to be considered here
-        let cause = match self.control_flow {
-            ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
-            ControlFlow::WaitUntil(deadline) => {
-                if Instant::now() < deadline {
-                    StartCause::WaitCancelled {
-                        start,
-                        requested_resume: Some(deadline),
-                    }
-                } else {
-                    StartCause::ResumeTimeReached {
-                        start,
-                        requested_resume: deadline,
-                    }
-                }
+            // Reduce spurious wake-ups.
+            let dispatched_events = self.with_state(|state| state.dispatched_events);
+            if matches!(cause, StartCause::WaitCancelled { .. }) && !dispatched_events {
+                continue;
             }
-            // This function shouldn't have to handle any requests to exit
-            // the application (there should be no need to poll for events
-            // if the application has requested to exit) so we consider
-            // it a bug in the backend if we ever see `ExitWithCode` here.
-            ControlFlow::ExitWithCode(_code) => unreachable!(),
+
+            break cause;
         };
 
         self.single_iteration(&mut callback, cause);
@@ -530,6 +555,11 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
         }
+
+        // Reset the hint that we've dispatched events.
+        self.with_state(|state| {
+            state.dispatched_events = false;
+        });
 
         // This is always the last event we dispatch before poll again
         sticky_exit_callback(
