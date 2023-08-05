@@ -214,30 +214,45 @@ impl UnownedWindow {
             None => xconn.default_screen_index() as c_int,
         };
 
+        // An iterator over all of the visuals combined with their depths.
+        let mut all_visuals = xconn
+            .xcb_connection()
+            .setup()
+            .roots
+            .iter()
+            .flat_map(|root| &root.allowed_depths)
+            .flat_map(|depth| {
+                depth
+                    .visuals
+                    .iter()
+                    .map(move |visual| (visual, depth.depth))
+            });
+
         // creating
-        let (visual, depth, require_colormap) = match pl_attribs.visual_infos {
-            Some(vi) => (vi.visualid as _, vi.depth as _, false),
+        let (visualtype, depth, require_colormap) = match pl_attribs.visual_id {
+            Some(vi) => {
+                // Find this specific visual.
+                let (visualtype, depth) = all_visuals
+                    .find(|(visual, _)| visual.visual_id == vi)
+                    .ok_or_else(|| os_error!(OsError::XError(X11Error::NoSuchVisual(vi).into())))?;
+
+                (Some(visualtype), depth, true)
+            }
             None if window_attrs.transparent => {
                 // Find a suitable visual, true color with 32 bits of depth.
-                xconn.xcb_connection().setup().roots
-                    .iter()
-                    .flat_map(|root| &root.allowed_depths)
-                    .filter(|depth| depth.depth == 32)
-                    .flat_map(|depth| depth.visuals.iter().map(move |visual| (visual, depth.depth)))
-                    .find(|(visual, _)| {
-                        visual.class == xproto::VisualClass::TRUE_COLOR
+                all_visuals
+                    .find_map(|(visual, depth)| {
+                        (visual.class == xproto::VisualClass::TRUE_COLOR)
+                            .then_some((Some(visual), depth, true))
                     })
-                    .map_or_else(|| {
+                    .unwrap_or_else(|| {
                         debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
-                        (x11rb::COPY_FROM_PARENT as _, x11rb::COPY_FROM_PARENT as _, false)
-                    }, |(visual, depth)| (visual.visual_id, depth, true))
+                        (None as _, x11rb::COPY_FROM_PARENT as _, false)
+                    })
             }
-            _ => (
-                x11rb::COPY_FROM_PARENT as _,
-                x11rb::COPY_FROM_PARENT as _,
-                false,
-            ),
+            _ => (None, x11rb::COPY_FROM_PARENT as _, false),
         };
+        let visual = visualtype.map_or(x11rb::COPY_FROM_PARENT, |v| v.visual_id);
 
         let window_attributes = {
             use xproto::EventMask;
@@ -260,8 +275,8 @@ impl UnownedWindow {
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match pl_attribs.visual_infos {
-                Some(vi) => Some(vi.visualid as u32),
+            let colormap_visual = match pl_attribs.visual_id {
+                Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
             };

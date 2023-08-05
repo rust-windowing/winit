@@ -1,5 +1,3 @@
-use std::ptr;
-
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -7,7 +5,7 @@ use crate::{
 };
 
 use crate::dpi::Size;
-use crate::platform_impl::{x11::ffi::XVisualInfo, ApplicationName, Backend, XLIB_ERROR_HOOKS};
+use crate::platform_impl::{ApplicationName, Backend, XLIB_ERROR_HOOKS};
 
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
@@ -18,6 +16,9 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 /// [`XErrorEvent`]: https://linux.die.net/man/3/xerrorevent
 pub type XlibErrorHook =
     Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
+
+/// A unique identifer for an X11 visual.
+pub type XVisualID = u32;
 
 /// Hook to winit's xlib error handling callback.
 ///
@@ -84,7 +85,8 @@ impl WindowExtX11 for Window {}
 
 /// Additional methods on [`WindowBuilder`] that are specific to X11.
 pub trait WindowBuilderExtX11 {
-    fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+    /// Create this window with a specific X11 visual.
+    fn with_x11_visual(self, visual_id: XVisualID) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
 
@@ -120,11 +122,8 @@ pub trait WindowBuilderExtX11 {
 
 impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
-    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
-        {
-            self.platform_specific.visual_infos =
-                Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
-        }
+    fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
+        self.platform_specific.visual_id = Some(visual_id);
         self
     }
 
