@@ -310,8 +310,11 @@ impl<T> EventLoop<T> {
     ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
     ///   current thread of execution like it does on other platforms.
     ///
+    ///   This function won't be available with `target_feature = "exception-handling"`.
+    ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
+    #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),

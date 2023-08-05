@@ -29,11 +29,23 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, mut event_handler: F) -> !
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.spawn_inner(event_handler, false);
+        let target = RootEventLoopWindowTarget {
+            p: self.elw.p.clone(),
+            _marker: PhantomData,
+        };
+
+        // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
+        let handler: Box<dyn FnMut(_, _)> =
+            Box::new(|event, flow| event_handler(event, &target, flow));
+        // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
+        // because this function will never return and all resources not cleaned up by the point we
+        // `throw` will leak, making this actually `'static`.
+        let handler = unsafe { std::mem::transmute(handler) };
+        self.elw.p.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -44,14 +56,7 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn<F>(self, event_handler: F)
-    where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
-    {
-        self.spawn_inner(event_handler, true);
-    }
-
-    fn spawn_inner<F>(self, mut event_handler: F, event_loop_recreation: bool)
+    pub fn spawn<F>(self, mut event_handler: F)
     where
         F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -62,7 +67,7 @@ impl<T> EventLoop<T> {
 
         self.elw.p.run(
             Box::new(move |event, flow| event_handler(event, &target, flow)),
-            event_loop_recreation,
+            true,
         );
     }
 
