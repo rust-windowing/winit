@@ -118,7 +118,7 @@ mod tests {
 
     // Eat attributes for testing
     #[test]
-    fn attr_coverage() {
+    fn ensure_fmt_does_not_panic() {
         let _ = format!(
             "{:?}, {}",
             NotSupportedError::new(),
