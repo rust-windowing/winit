@@ -7,7 +7,7 @@
 //!
 //! ```no_run
 //! use winit::event_loop::EventLoop;
-//! let event_loop = EventLoop::new();
+//! let event_loop = EventLoop::new().unwrap();
 //! ```
 //!
 //! Once this is done there are two ways to create a [`Window`]:
@@ -48,7 +48,7 @@
 //!     window::WindowBuilder,
 //! };
 //!
-//! let event_loop = EventLoop::new();
+//! let event_loop = EventLoop::new().unwrap();
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //!
 //! event_loop.run(move |event, _, control_flow| {

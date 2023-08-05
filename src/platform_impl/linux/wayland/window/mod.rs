@@ -36,7 +36,7 @@ use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
 use super::types::xdg_activation::XdgActivationTokenData;
-use super::{EventLoopWindowTarget, WindowId};
+use super::{EventLoopWindowTarget, WaylandError, WindowId};
 
 pub(crate) mod state;
 
@@ -205,18 +205,18 @@ impl Window {
         let event_queue = wayland_source.queue();
 
         // Do a roundtrip.
-        event_queue.roundtrip(&mut state).map_err(|_| {
-            os_error!(OsError::WaylandMisc(
-                "failed to do initial roundtrip for the window."
-            ))
+        event_queue.roundtrip(&mut state).map_err(|error| {
+            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                error
+            ))))
         })?;
 
         // XXX Wait for the initial configure to arrive.
         while !window_state.lock().unwrap().is_configured() {
-            event_queue.blocking_dispatch(&mut state).map_err(|_| {
-                os_error!(OsError::WaylandMisc(
-                    "failed to dispatch queue while waiting for initial configure."
-                ))
+            event_queue.blocking_dispatch(&mut state).map_err(|error| {
+                os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                    error
+                ))))
             })?;
         }
 
@@ -570,9 +570,7 @@ impl Window {
             Ok(())
         } else {
             let region = Region::new(&*self.compositor).map_err(|_| {
-                ExternalError::Os(os_error!(OsError::WaylandMisc(
-                    "failed to set input region."
-                )))
+                ExternalError::Os(os_error!(OsError::Misc("failed to set input region.")))
             })?;
             region.add(0, 0, 0, 0);
             surface.set_input_region(Some(region.wl_region()));
