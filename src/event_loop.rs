@@ -314,7 +314,7 @@ impl<T> EventLoop<T> {
     #[inline]
     pub fn run<F>(self, event_handler: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.event_loop.run(event_handler)
     }

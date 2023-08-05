@@ -31,7 +31,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.spawn_inner(event_handler, false);
 

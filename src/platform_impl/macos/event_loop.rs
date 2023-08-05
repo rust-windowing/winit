@@ -195,7 +195,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
-        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         self.run_ondemand(callback)
     }
