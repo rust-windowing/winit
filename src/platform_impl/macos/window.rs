@@ -1250,8 +1250,8 @@ impl WinitWindow {
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = AppKitWindowHandle::empty();
-        window_handle.ns_window = self.ns_window();
-        window_handle.ns_view = self.ns_view();
+        window_handle.ns_window = self as *const Self as *mut _;
+        window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
         RawWindowHandle::AppKit(window_handle)
     }
 
@@ -1303,16 +1303,6 @@ impl WinitWindow {
 }
 
 impl WindowExtMacOS for WinitWindow {
-    #[inline]
-    fn ns_window(&self) -> *mut c_void {
-        self as *const Self as *mut _
-    }
-
-    #[inline]
-    fn ns_view(&self) -> *mut c_void {
-        Id::as_ptr(&self.contentView()) as *mut _
-    }
-
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.lock_shared_state("simple_fullscreen")

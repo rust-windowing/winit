@@ -22,27 +22,6 @@ impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
 
 /// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
-    /// Returns a pointer to the [`UIWindow`] that is used by this window.
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    ///
-    /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
-    fn ui_window(&self) -> *mut c_void;
-
-    /// Returns a pointer to the [`UIViewController`] that is used by this window.
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    ///
-    /// [`UIViewController`]: https://developer.apple.com/documentation/uikit/uiviewcontroller?language=objc
-    fn ui_view_controller(&self) -> *mut c_void;
-
-    /// Returns a pointer to the [`UIView`] that is used by this window.
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    ///
-    /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
-    fn ui_view(&self) -> *mut c_void;
-
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
@@ -97,21 +76,6 @@ pub trait WindowExtIOS {
 }
 
 impl WindowExtIOS for Window {
-    #[inline]
-    fn ui_window(&self) -> *mut c_void {
-        self.window.ui_window()
-    }
-
-    #[inline]
-    fn ui_view_controller(&self) -> *mut c_void {
-        self.window.ui_view_controller()
-    }
-
-    #[inline]
-    fn ui_view(&self) -> *mut c_void {
-        self.window.ui_view()
-    }
-
     #[inline]
     fn set_scale_factor(&self, scale_factor: f64) {
         self.window.set_scale_factor(scale_factor)

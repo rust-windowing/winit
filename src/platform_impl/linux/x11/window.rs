@@ -1396,18 +1396,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn xlib_screen_id(&self) -> c_int {
-        self.screen_id
-    }
-
-    #[inline]
     pub fn xlib_window(&self) -> c_ulong {
         self.xwindow as ffi::Window
-    }
-
-    #[inline]
-    pub fn xcb_connection(&self) -> *mut c_void {
-        self.xconn.xcb_connection().get_raw_xcb_connection()
     }
 
     #[inline]

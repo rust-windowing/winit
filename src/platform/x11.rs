@@ -1,4 +1,3 @@
-use std::os::raw;
 use std::ptr;
 
 use crate::{
@@ -8,9 +7,7 @@ use crate::{
 };
 
 use crate::dpi::Size;
-use crate::platform_impl::{
-    x11::ffi::XVisualInfo, ApplicationName, Backend, Window as LinuxWindow, XLIB_ERROR_HOOKS,
-};
+use crate::platform_impl::{x11::ffi::XVisualInfo, ApplicationName, Backend, XLIB_ERROR_HOOKS};
 
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
@@ -81,66 +78,9 @@ impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to X11.
-pub trait WindowExtX11 {
-    /// Returns the ID of the [`Window`] xlib object that is used by this window.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    fn xlib_window(&self) -> Option<raw::c_ulong>;
+pub trait WindowExtX11 {}
 
-    /// Returns a pointer to the `Display` object of xlib that is used by this window.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn xlib_display(&self) -> Option<*mut raw::c_void>;
-
-    fn xlib_screen_id(&self) -> Option<raw::c_int>;
-
-    /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn xcb_connection(&self) -> Option<*mut raw::c_void>;
-}
-
-impl WindowExtX11 for Window {
-    #[inline]
-    fn xlib_window(&self) -> Option<raw::c_ulong> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xlib_display(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xlib_screen_id(&self) -> Option<raw::c_int> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-}
+impl WindowExtX11 for Window {}
 
 /// Additional methods on [`WindowBuilder`] that are specific to X11.
 pub trait WindowBuilderExtX11 {
