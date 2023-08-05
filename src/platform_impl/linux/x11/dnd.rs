@@ -44,7 +44,7 @@ impl From<io::Error> for DndDataParseError {
 pub(crate) struct Dnd {
     xconn: Arc<XConnection>,
     // Populated by XdndEnter event handler
-    pub version: Option<c_long>,
+    pub version: Option<u32>,
     pub type_list: Option<Vec<xproto::Atom>>,
     // Populated by XdndPosition event handler
     pub source_window: Option<xproto::Window>,

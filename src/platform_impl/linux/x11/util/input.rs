@@ -80,27 +80,16 @@ impl XConnection {
 
     fn lookup_utf8_inner(
         &self,
-        ic: ffi::XIC,
-        key_event: &mut ffi::XKeyEvent,
-        buffer: *mut u8,
-        size: usize,
+        _ic: ffi::XIC,
+        _key_event: &xproto::KeyPressEvent,
+        _buffer: *mut u8,
+        _size: usize,
     ) -> (ffi::KeySym, ffi::Status, c_int) {
-        let mut keysym: ffi::KeySym = 0;
-        let mut status: ffi::Status = 0;
-        let count = unsafe {
-            (self.xlib.Xutf8LookupString)(
-                ic,
-                key_event,
-                buffer as *mut c_char,
-                size as c_int,
-                &mut keysym,
-                &mut status,
-            )
-        };
-        (keysym, status, count)
+        // TODO: Fix up XIM
+        panic!("XIM is not supported yet")
     }
 
-    pub fn lookup_utf8(&self, ic: ffi::XIC, key_event: &mut ffi::XKeyEvent) -> String {
+    pub fn lookup_utf8(&self, ic: ffi::XIC, key_event: &xproto::KeyPressEvent) -> String {
         // `assume_init` is safe here because the array consists of `MaybeUninit` values,
         // which do not require initialization.
         let mut buffer: [MaybeUninit<u8>; TEXT_BUFFER_SIZE] =
