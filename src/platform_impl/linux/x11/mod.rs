@@ -28,7 +28,7 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
-    mem::{self, MaybeUninit},
+    mem::MaybeUninit,
     ops::Deref,
     os::{
         raw::*,
@@ -36,7 +36,7 @@ use std::{
     },
     ptr,
     rc::Rc,
-    slice,
+    str,
     sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
@@ -48,7 +48,7 @@ use atoms::*;
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use x11rb::protocol::{
-    xinput,
+    xinput::{self, ConnectionExt as _},
     xproto::{self, ConnectionExt as _},
 };
 use x11rb::x11_utils::X11Error as LogicalError;
@@ -280,20 +280,13 @@ impl<T: 'static> EventLoop<T> {
             ext
         };
 
-        unsafe {
-            let mut xinput_major_ver = ffi::XI_2_Major;
-            let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
-                &mut xinput_major_ver,
-                &mut xinput_minor_ver,
-            ) != ffi::Success as std::os::raw::c_int
-            {
-                panic!(
-                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
-                );
-            }
-        }
+        // Check for XInput2 support.
+        xconn
+            .xcb_connection()
+            .xinput_xi_query_version(2, 3)
+            .expect("Failed to send XInput2 query version request")
+            .reply()
+            .expect("Error while checking for XInput2 query version reply");
 
         xconn.update_cached_wm_info(root);
 
@@ -387,7 +380,7 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xinput_events(
                 root,
-                ffi::XIAllDevices as _,
+                ALL_DEVICES,
                 x11rb::protocol::xinput::XIEventMask::HIERARCHY,
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
@@ -400,7 +393,7 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
-        event_processor.init_device(ffi::XIAllDevices);
+        event_processor.init_device(0);
 
         EventLoop {
             loop_running: false,
@@ -761,7 +754,7 @@ impl<T> EventLoopWindowTarget<T> {
         }
 
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllMasterDevices as _, mask)
+            .select_xinput_events(self.root, ALL_MASTER_DEVICES, mask)
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
@@ -781,48 +774,27 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-struct DeviceInfo<'a> {
-    xconn: &'a XConnection,
-    info: *const ffi::XIDeviceInfo,
-    count: usize,
+struct DeviceInfo {
+    info: Vec<xinput::XIDeviceInfo>,
 }
 
-impl<'a> DeviceInfo<'a> {
-    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
-        unsafe {
-            let mut count = 0;
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok()?;
+impl DeviceInfo {
+    fn get(xconn: &XConnection, device: xinput::DeviceId) -> Option<Self> {
+        let device_data = xconn
+            .xcb_connection()
+            .xinput_xi_query_device(device)
+            .ok()?
+            .reply()
+            .ok()?;
 
-            if info.is_null() || count == 0 {
-                None
-            } else {
-                Some(DeviceInfo {
-                    xconn,
-                    info,
-                    count: count as usize,
-                })
-            }
-        }
-    }
-}
-
-impl<'a> Drop for DeviceInfo<'a> {
-    fn drop(&mut self) {
-        assert!(!self.info.is_null());
-        unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
-    }
-}
-
-impl<'a> Deref for DeviceInfo<'a> {
-    type Target = [ffi::XIDeviceInfo];
-    fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.info, self.count) }
+        Some(DeviceInfo {
+            info: device_data.infos,
+        })
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
@@ -1047,17 +1019,17 @@ struct XExtension {
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
-fn mkdid(w: c_int) -> crate::event::DeviceId {
+fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
 }
 
 #[derive(Debug)]
 struct Device {
     _name: String,
-    scroll_axes: Vec<(i32, ScrollAxis)>,
+    scroll_axes: Vec<(u16, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
-    attachment: c_int,
+    attachment: u16,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1074,25 +1046,21 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new(info: &ffi::XIDeviceInfo) -> Self {
-        let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
+    fn new(info: &xinput::XIDeviceInfo) -> Result<Self, X11Error> {
+        let name = str::from_utf8(&info.name).expect("device name is not valid utf8");
         let mut scroll_axes = Vec::new();
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIScrollClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
-                    };
+            for class in info.classes.iter() {
+                if let xinput::DeviceClassData::Scroll(info) = &class.data {
                     scroll_axes.push((
                         info.number,
                         ScrollAxis {
-                            increment: info.increment,
+                            increment: xinput_fp3232_to_float(info.increment),
                             orientation: match info.scroll_type {
-                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                xinput::ScrollType::HORIZONTAL => ScrollOrientation::Horizontal,
+                                xinput::ScrollType::VERTICAL => ScrollOrientation::Vertical,
                                 _ => unreachable!(),
                             },
                             position: 0.0,
@@ -1103,28 +1071,24 @@ impl Device {
         }
 
         let mut device = Device {
-            _name: name.into_owned(),
+            _name: name.to_string(),
             scroll_axes,
             attachment: info.attachment,
         };
         device.reset_scroll_position(info);
-        device
+        Ok(device)
     }
 
-    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
+    fn reset_scroll_position(&mut self, info: &xinput::XIDeviceInfo) {
         if Device::physical_device(info) {
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIValuatorClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
-                    };
+            for class in info.classes.iter() {
+                if let xinput::DeviceClassData::Valuator(info) = &class.data {
                     if let Some(&mut (_, ref mut axis)) = self
                         .scroll_axes
                         .iter_mut()
                         .find(|&&mut (axis, _)| axis == info.number)
                     {
-                        axis.position = info.value;
+                        axis.position = xinput_fp3232_to_float(info.value);
                     }
                 }
             }
@@ -1132,19 +1096,19 @@ impl Device {
     }
 
     #[inline]
-    fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard
-            || info._use == ffi::XISlavePointer
-            || info._use == ffi::XIFloatingSlave
-    }
-
-    #[inline]
-    fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe {
-            slice::from_raw_parts(
-                info.classes as *const *const ffi::XIAnyClassInfo,
-                info.num_classes as usize,
-            )
-        }
+    fn physical_device(info: &xinput::XIDeviceInfo) -> bool {
+        use xinput::DeviceType;
+        info.type_ == DeviceType::SLAVE_KEYBOARD
+            || info.type_ == DeviceType::SLAVE_POINTER
+            || info.type_ == DeviceType::FLOATING_SLAVE
     }
 }
+
+fn xinput_fp3232_to_float(fp: xinput::Fp3232) -> f64 {
+    let xinput::Fp3232 { integral, frac } = fp;
+    integral as f64 + (frac as f64 / (1u64 << 32) as f64)
+}
+
+// Xinput constants not defined in x11rb
+const ALL_DEVICES: u16 = 0;
+const ALL_MASTER_DEVICES: u16 = 1;

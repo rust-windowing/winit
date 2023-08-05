@@ -17,7 +17,6 @@ use x11rb::{connection::Connection, protocol::xproto, xcb_ffi::XCBConnection};
 pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
-    pub xinput2: ffi::XInput2,
     pub display: *mut ffi::Display,
     /// The manager for the XCB connection.
     ///
@@ -54,7 +53,6 @@ impl XConnection {
         // opening the libraries
         let xlib = ffi::Xlib::open()?;
         let xcursor = ffi::Xcursor::open()?;
-        let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
 
         unsafe { (xlib.XInitThreads)() };
@@ -95,7 +93,6 @@ impl XConnection {
         Ok(XConnection {
             xlib,
             xcursor,
-            xinput2,
             display,
             xcb: Some(xcb),
             atoms: Box::new(atoms),

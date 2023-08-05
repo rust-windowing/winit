@@ -523,7 +523,7 @@ impl UnownedWindow {
                 | xinput::XIEventMask::TOUCH_BEGIN
                 | xinput::XIEventMask::TOUCH_UPDATE
                 | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, ffi::XIAllMasterDevices as u16, mask))
+            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
                 .ignore_error();
 
             {

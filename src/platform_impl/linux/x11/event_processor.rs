@@ -7,13 +7,16 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::{
+    xinput,
+    xproto::{self, ConnectionExt as _},
+};
 use x11rb::x11_utils::Serialize;
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId,
-    DeviceInfo, Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
-    WindowId, XExtension,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
+    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
+    XExtension,
 };
 
 use crate::{
@@ -55,12 +58,15 @@ pub(super) struct EventProcessor<T: 'static> {
 }
 
 impl<T: 'static> EventProcessor<T> {
-    pub(super) fn init_device(&self, device: c_int) {
+    pub(super) fn init_device(&self, device: xinput::DeviceId) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
-            for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(info));
+            for info in info.info.iter() {
+                devices.insert(
+                    DeviceId(info.deviceid),
+                    Device::new(info).expect("Failed to get device info"),
+                );
             }
         }
     }
@@ -599,7 +605,7 @@ impl<T: 'static> EventProcessor<T> {
                 };
 
                 let window_id = mkwid(window);
-                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
+                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
                 let keycode = xkev.keycode as _;
 
@@ -694,7 +700,7 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let window_id = mkwid(xev.event as xproto::Window);
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
@@ -790,7 +796,7 @@ impl<T: 'static> EventProcessor<T> {
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
@@ -823,7 +829,9 @@ impl<T: 'static> EventProcessor<T> {
                                 )
                             };
                             let mut devices = self.devices.borrow_mut();
-                            let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
+                            let physical_device = match devices
+                                .get_mut(&DeviceId(xev.sourceid as xinput::DeviceId))
+                            {
                                 Some(device) => device,
                                 None => return,
                             };
@@ -835,7 +843,7 @@ impl<T: 'static> EventProcessor<T> {
                                     if let Some(&mut (_, ref mut info)) = physical_device
                                         .scroll_axes
                                         .iter_mut()
-                                        .find(|&&mut (axis, _)| axis == i)
+                                        .find(|&&mut (axis, _)| axis == i as _)
                                     {
                                         let delta = (x - info.position) / info.increment;
                                         info.position = x;
@@ -882,17 +890,17 @@ impl<T: 'static> EventProcessor<T> {
 
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
-                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, ffi::XIAllDevices) {
+                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, 0) {
                             let mut devices = self.devices.borrow_mut();
-                            for device_info in all_info.iter() {
-                                if device_info.deviceid == xev.sourceid
+                            for device_info in all_info.info.iter() {
+                                if device_info.deviceid == xev.sourceid as xinput::DeviceId
                                 // This is needed for resetting to work correctly on i3, and
                                 // presumably some other WMs. On those, `XI_Enter` doesn't include
                                 // the physical device ID, so both `sourceid` and `deviceid` are
                                 // the virtual device.
-                                || device_info.attachment == xev.sourceid
+                                || device_info.attachment == xev.sourceid as xinput::DeviceId
                                 {
                                     let device_id = DeviceId(device_info.deviceid);
                                     if let Some(device) = devices.get_mut(&device_id) {
@@ -933,7 +941,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::WindowEvent {
                                 window_id: mkwid(window),
                                 event: CursorLeft {
-                                    device_id: mkdid(xev.deviceid),
+                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                 },
                             });
                         }
@@ -981,7 +989,7 @@ impl<T: 'static> EventProcessor<T> {
                             let pointer_id = self
                                 .devices
                                 .borrow()
-                                .get(&DeviceId(xev.deviceid))
+                                .get(&DeviceId(xev.deviceid as xinput::DeviceId))
                                 .map(|device| device.attachment)
                                 .unwrap_or(2);
 
@@ -1079,7 +1087,7 @@ impl<T: 'static> EventProcessor<T> {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
-                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER.into()),
+                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                                         position: location.cast(),
                                     },
                                 });
@@ -1088,7 +1096,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::Touch(Touch {
-                                    device_id: mkdid(xev.deviceid),
+                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                     phase,
                                     location,
                                     force: None, // TODO
@@ -1106,7 +1114,7 @@ impl<T: 'static> EventProcessor<T> {
 
                         if xev.flags & ffi::XIPointerEmulated == 0 {
                             callback(Event::DeviceEvent {
-                                device_id: mkdid(xev.deviceid),
+                                device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                 event: DeviceEvent::Button {
                                     button: xev.detail as u32,
                                     state: match xev.evtype {
@@ -1125,7 +1133,7 @@ impl<T: 'static> EventProcessor<T> {
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                        let did = mkdid(xev.deviceid);
+                        let did = mkdid(xev.deviceid as xinput::DeviceId);
 
                         let mask = unsafe {
                             slice::from_raw_parts(
@@ -1185,7 +1193,7 @@ impl<T: 'static> EventProcessor<T> {
                             _ => unreachable!(),
                         };
 
-                        let device_id = mkdid(xev.sourceid);
+                        let device_id = mkdid(xev.sourceid as xinput::DeviceId);
                         let keycode = xev.detail as u32;
                         if keycode < KEYCODE_OFFSET as u32 {
                             return;
@@ -1211,19 +1219,19 @@ impl<T: 'static> EventProcessor<T> {
                             unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) }
                         {
                             if 0 != info.flags & (ffi::XISlaveAdded | ffi::XIMasterAdded) {
-                                self.init_device(info.deviceid);
+                                self.init_device(info.deviceid as xinput::DeviceId);
                                 callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid),
+                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
                                     event: DeviceEvent::Added,
                                 });
                             } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved)
                             {
                                 callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid),
+                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
                                     event: DeviceEvent::Removed,
                                 });
                                 let mut devices = self.devices.borrow_mut();
-                                devices.remove(&DeviceId(info.deviceid));
+                                devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
                             }
                         }
                     }
@@ -1425,7 +1433,7 @@ impl<T: 'static> EventProcessor<T> {
     ) where
         F: FnMut(Event<T>),
     {
-        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
+        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt
