@@ -106,7 +106,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let application = UIApplication::shared(MainThreadMarker::new().unwrap());
@@ -116,10 +116,18 @@ impl<T: 'static> EventLoop<T> {
                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
             );
-            app_state::will_launch(Box::new(EventLoopHandler {
+
+            let event_handler = std::mem::transmute::<
+                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow)>,
+                Box<EventHandlerCallback<T>>,
+            >(Box::new(event_handler));
+
+            let handler = EventLoopHandler {
                 f: event_handler,
                 event_loop: self.window_target,
-            }));
+            };
+
+            app_state::will_launch(Box::new(handler));
 
             // Ensure application delegate is initialized
             view::WinitApplicationDelegate::class();
@@ -314,17 +322,20 @@ fn setup_control_flow_observers() {
 #[derive(Debug)]
 pub enum Never {}
 
+type EventHandlerCallback<T> =
+    dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static;
+
 pub trait EventHandler: Debug {
     fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
-struct EventLoopHandler<F, T: 'static> {
-    f: F,
+struct EventLoopHandler<T: 'static> {
+    f: Box<EventHandlerCallback<T>>,
     event_loop: RootEventLoopWindowTarget<T>,
 }
 
-impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
+impl<T: 'static> Debug for EventLoopHandler<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EventLoopHandler")
             .field("event_loop", &self.event_loop)
@@ -332,11 +343,7 @@ impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
     }
 }
 
-impl<F, T> EventHandler for EventLoopHandler<F, T>
-where
-    F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
-    T: 'static,
-{
+impl<T: 'static> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
         (self.f)(
             event.map_nonuser_event().unwrap(),
