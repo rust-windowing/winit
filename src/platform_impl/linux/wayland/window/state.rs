@@ -712,7 +712,7 @@ impl WindowState {
         // Positon can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
             return Err(ExternalError::Os(os_error!(
-                crate::platform_impl::OsError::Misc(
+                crate::platform_impl::OsError::WaylandMisc(
                     "cursor position can be set only for locked cursor."
                 )
             )));

@@ -19,19 +19,17 @@ use objc2::rc::Id;
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
+use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
+use super::view::WinitUIWindow;
+use super::{app_state, monitor, view, MonitorHandle};
 use crate::{
     dpi::LogicalSize,
-    error::EventLoopError,
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
 };
-
-use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
-use super::view::WinitUIWindow;
-use super::{app_state, monitor, view, MonitorHandle};
 
 #[derive(Debug)]
 pub(crate) enum EventWrapper {
@@ -77,9 +75,7 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        _: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<EventLoop<T>, EventLoopError> {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> EventLoop<T> {
         assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
 
         static mut SINGLETON_INIT: bool = false;
@@ -97,7 +93,7 @@ impl<T: 'static> EventLoop<T> {
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
-        Ok(EventLoop {
+        EventLoop {
             window_target: RootEventLoopWindowTarget {
                 p: EventLoopWindowTarget {
                     receiver,
@@ -105,7 +101,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
-        })
+        }
     }
 
     pub fn run<F>(self, event_handler: F) -> !

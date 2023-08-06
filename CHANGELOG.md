@@ -8,7 +8,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- **Breaking:** `EventLoop::new` and `EventLoopBuilder::build` now return `Result<Self, EventLoopError>`
 - **Breaking:** on Wayland, dispatching user created wayland queue won't wake up the loop unless winit has event to send back.
 - Removed platform-specific extensions that should be retrieved through `raw-window-handle` trait implementations instead:
   - `platform::windows::HINSTANCE`.
@@ -51,7 +50,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 - On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
 - On Windows, add `drag_resize_window` method support.
-- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), RunLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
   - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`

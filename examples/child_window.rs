@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut windows = HashMap::new();
 
-    let event_loop: EventLoop<()> = EventLoop::new().unwrap();
+    let event_loop: EventLoop<()> = EventLoop::new();
     let parent_window = WindowBuilder::new()
         .with_title("parent window")
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))

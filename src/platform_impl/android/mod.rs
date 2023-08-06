@@ -30,7 +30,7 @@ use crate::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
     },
 };
-use crate::{error::EventLoopError, platform_impl::Fullscreen};
+use crate::{error::RunLoopError, platform_impl::Fullscreen};
 
 mod keycodes;
 
@@ -186,15 +186,13 @@ fn sticky_exit_callback<T, F>(
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
 
         let android_app = attributes.android_app.as_ref().expect("An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on Android");
         let redraw_flag = SharedFlag::new();
 
-        Ok(Self {
+        Self {
             android_app: android_app.clone(),
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -216,7 +214,7 @@ impl<T: 'static> EventLoop<T> {
             control_flow: Default::default(),
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
-        })
+        }
     }
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
@@ -526,19 +524,19 @@ impl<T: 'static> EventLoop<T> {
         self.pending_redraw = pending_redraw;
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
+            return Err(RunLoopError::AlreadyRunning);
         }
 
         loop {
@@ -547,7 +545,7 @@ impl<T: 'static> EventLoop<T> {
                     break Ok(());
                 }
                 PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
+                    break Err(RunLoopError::ExitFailure(code));
                 }
                 _ => {
                     continue;
