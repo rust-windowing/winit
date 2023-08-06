@@ -23,7 +23,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let icon = load_icon(Path::new(path));
 
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("An iconic window!")

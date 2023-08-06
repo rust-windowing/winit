@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'R' to toggle request_redraw() calls.");
     println!("Press 'Esc' to close the window.");
 
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
         .build(&event_loop)

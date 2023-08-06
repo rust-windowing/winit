@@ -22,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
     mod fill;
 
     simple_logger::SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400.0, 200.0))

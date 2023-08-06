@@ -64,7 +64,7 @@ use self::{
 };
 use super::{common::xkb_state::KbdState, OsError};
 use crate::{
-    error::{EventLoopError, OsError as RootOsError},
+    error::{OsError as RootOsError, RunLoopError},
     event::{Event, StartCause},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
@@ -432,12 +432,12 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
+            return Err(RunLoopError::AlreadyRunning);
         }
 
         let exit = loop {
@@ -446,7 +446,7 @@ impl<T: 'static> EventLoop<T> {
                     break Ok(());
                 }
                 PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
+                    break Err(RunLoopError::ExitFailure(code));
                 }
                 _ => {
                     continue;
@@ -460,7 +460,7 @@ impl<T: 'static> EventLoop<T> {
         // X Server.
         let wt = get_xtarget(&self.target);
         wt.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
+            RunLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
         })?;
 
         exit

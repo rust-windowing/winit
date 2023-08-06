@@ -485,7 +485,7 @@ impl UnownedWindow {
                     &mut supported_ptr,
                 );
                 if supported_ptr == ffi::False {
-                    return Err(os_error!(OsError::Misc(
+                    return Err(os_error!(OsError::XMisc(
                         "`XkbSetDetectableAutoRepeat` failed"
                     )));
                 }
@@ -1488,7 +1488,7 @@ impl UnownedWindow {
                     }
                     _ => unreachable!(),
                 }
-                .map_err(|err| ExternalError::Os(os_error!(OsError::Misc(err))))
+                .map_err(|err| ExternalError::Os(os_error!(OsError::XMisc(err))))
             }
             CursorGrabMode::Locked => {
                 return Err(ExternalError::NotSupported(NotSupportedError::new()));
