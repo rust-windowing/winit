@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On X11, set `visual_id` in returned `raw-window-handle`.
 - **Breaking:** on Wayland, dispatching user created wayland queue won't wake up the loop unless winit has event to send back.
 - Removed platform-specific extensions that should be retrieved through `raw-window-handle` trait implementations instead:
   - `platform::windows::HINSTANCE`.

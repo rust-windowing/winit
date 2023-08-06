@@ -113,6 +113,7 @@ unsafe impl Sync for UnownedWindow {}
 pub(crate) struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
+    visual: u32,                        // never changes
     root: xproto::Window,               // never changes
     screen_id: i32,                     // never changes
     cursor: Mutex<CursorIcon>,
@@ -252,7 +253,7 @@ impl UnownedWindow {
             }
             _ => (None, x11rb::COPY_FROM_PARENT as _, false),
         };
-        let visual = visualtype.map_or(x11rb::COPY_FROM_PARENT, |v| v.visual_id);
+        let mut visual = visualtype.map_or(x11rb::COPY_FROM_PARENT, |v| v.visual_id);
 
         let window_attributes = {
             use xproto::EventMask;
@@ -319,10 +320,22 @@ impl UnownedWindow {
             wid
         };
 
+        // The COPY_FROM_PARENT is a special value for the visual used to copy
+        // the visual from the parent window, thus we have to query the visual
+        // we've got when we built the window above.
+        if visual == x11rb::COPY_FROM_PARENT {
+            visual = leap!(leap!(xconn
+                .xcb_connection()
+                .get_window_attributes(xwindow as xproto::Window))
+            .reply())
+            .visual;
+        }
+
         #[allow(clippy::mutex_atomic)]
         let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow: xwindow as xproto::Window,
+            visual,
             root,
             screen_id,
             cursor: Default::default(),
@@ -1745,6 +1758,7 @@ impl UnownedWindow {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut window_handle = XlibWindowHandle::empty();
         window_handle.window = self.xlib_window();
+        window_handle.visual_id = self.visual as c_ulong;
         RawWindowHandle::Xlib(window_handle)
     }
 
