@@ -1,16 +1,18 @@
+use std::marker::PhantomData;
+
+use crate::error::EventLoopError;
+use crate::event::Event;
+use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+
+use super::{backend, device, window};
+
 mod proxy;
 pub(crate) mod runner;
 mod state;
 mod window_target;
 
-pub use self::proxy::EventLoopProxy;
-pub use self::window_target::EventLoopWindowTarget;
-
-use super::{backend, device, window};
-use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
-
-use std::marker::PhantomData;
+pub use proxy::EventLoopProxy;
+pub use window_target::EventLoopWindowTarget;
 
 pub struct EventLoop<T: 'static> {
     elw: RootEventLoopWindowTarget<T>,
@@ -20,13 +22,13 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
-        EventLoop {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        Ok(EventLoop {
             elw: RootEventLoopWindowTarget {
                 p: EventLoopWindowTarget::new(),
                 _marker: PhantomData,
             },
-        }
+        })
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !

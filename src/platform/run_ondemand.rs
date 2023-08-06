@@ -1,5 +1,5 @@
 use crate::{
-    error::RunLoopError,
+    error::EventLoopError,
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
 };
@@ -57,7 +57,7 @@ pub trait EventLoopExtRunOnDemand {
     ///   polled to ask for new events. Events are delivered via callbacks based
     ///   on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
-    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), RunLoopError>
+    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
@@ -65,7 +65,7 @@ pub trait EventLoopExtRunOnDemand {
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), RunLoopError>
+    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
     {
