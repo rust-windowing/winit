@@ -21,7 +21,7 @@ mod fill;
 #[cfg(target_os = "macos")]
 fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let mut windows = HashMap::new();
     let window = Window::new(&event_loop).unwrap();

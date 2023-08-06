@@ -53,7 +53,7 @@ pub trait EventLoopExtPumpEvents {
     /// #         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
     /// #         window::WindowBuilder,
     /// #     };
-    ///     let mut event_loop = EventLoop::new();
+    ///     let mut event_loop = EventLoop::new().unwrap();
     /// #
     /// #   SimpleLogger::new().init().unwrap();
     ///     let window = WindowBuilder::new()
