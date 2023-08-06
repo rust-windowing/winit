@@ -15,7 +15,7 @@ mod fill;
 
 fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {

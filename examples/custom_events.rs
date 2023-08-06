@@ -18,7 +18,9 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
+    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event()
+        .build()
+        .unwrap();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
