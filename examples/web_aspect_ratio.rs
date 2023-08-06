@@ -31,7 +31,7 @@ This example demonstrates the desired future functionality which will possibly b
     #[wasm_bindgen(start)]
     pub fn run() {
         console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
-        let event_loop = EventLoop::new().unwrap();
+        let event_loop = EventLoop::new();
 
         let window = WindowBuilder::new()
             .with_title("A fantastic window!")

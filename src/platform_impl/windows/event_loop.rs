@@ -75,7 +75,7 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    error::EventLoopError,
+    error::RunLoopError,
     event::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
@@ -201,9 +201,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        attributes: &mut PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -230,7 +228,7 @@ impl<T: 'static> EventLoop<T> {
             Default::default(),
         );
 
-        Ok(EventLoop {
+        EventLoop {
             thread_msg_sender,
             window_target: RootELW {
                 p: EventLoopWindowTarget {
@@ -241,28 +239,28 @@ impl<T: 'static> EventLoop<T> {
                 _marker: PhantomData,
             },
             msg_hook: attributes.msg_hook.take(),
-        })
+        }
     }
 
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         {
             let runner = &self.window_target.p.runner_shared;
             if runner.state() != RunnerState::Uninitialized {
-                return Err(EventLoopError::AlreadyRunning);
+                return Err(RunLoopError::AlreadyRunning);
             }
 
             let event_loop_windows_ref = &self.window_target;
@@ -297,7 +295,7 @@ impl<T: 'static> EventLoop<T> {
         if exit_code == 0 {
             Ok(())
         } else {
-            Err(EventLoopError::ExitFailure(exit_code))
+            Err(RunLoopError::ExitFailure(exit_code))
         }
     }
 

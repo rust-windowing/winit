@@ -22,7 +22,7 @@ fn main() -> std::process::ExitCode {
     #[path = "util/fill.rs"]
     mod fill;
 
-    let mut event_loop = EventLoop::new().unwrap();
+    let mut event_loop = EventLoop::new();
 
     SimpleLogger::new().init().unwrap();
     let window = WindowBuilder::new()

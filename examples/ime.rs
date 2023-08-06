@@ -24,7 +24,7 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press F2 to toggle IME. See the documentation of `set_ime_allowed` for more info");
     println!("Press F3 to cycle through IME purposes.");
 
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_inner_size(winit::dpi::LogicalSize::new(256f64, 128f64))
