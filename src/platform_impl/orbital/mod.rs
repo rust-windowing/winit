@@ -1,8 +1,6 @@
 #![cfg(target_os = "redox")]
 
-use std::fmt::{self, Display, Formatter};
 use std::str;
-use std::sync::Arc;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
@@ -178,18 +176,13 @@ impl<'a> fmt::Display for WindowProperties<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct OsError(Arc<syscall::Error>);
+#[derive(Default, Clone, Debug)]
+pub struct OsError;
 
-impl OsError {
-    fn new(error: syscall::Error) -> Self {
-        Self(Arc::new(error))
-    }
-}
-
+use std::fmt::{self, Display, Formatter};
 impl Display for OsError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        self.0.fmt(fmt)
+        write!(fmt, "Redox OS Error")
     }
 }
 

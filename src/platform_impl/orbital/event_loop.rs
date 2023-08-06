@@ -12,7 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
-    error::EventLoopError,
+    error::RunLoopError,
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow},
     keyboard::{
@@ -22,8 +22,8 @@ use crate::{
 };
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    DeviceId, KeyEventExtra, MonitorHandle, PlatformSpecificEventLoopAttributes, RedoxSocket,
+    TimeSocket, WindowId, WindowProperties,
 };
 
 fn convert_scancode(scancode: u8) -> KeyCode {
@@ -270,20 +270,12 @@ pub struct EventLoop<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
 
-        let event_socket = Arc::new(
-            RedoxSocket::event()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let event_socket = Arc::new(RedoxSocket::event().unwrap());
 
-        let wake_socket = Arc::new(
-            TimeSocket::open()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let wake_socket = Arc::new(TimeSocket::open().unwrap());
 
         event_socket
             .write(&syscall::Event {
@@ -291,10 +283,9 @@ impl<T: 'static> EventLoop<T> {
                 flags: syscall::EventFlags::EVENT_READ,
                 data: wake_socket.0.fd,
             })
-            .map_err(OsError::new)
-            .map_err(|error| EventLoopError::Os(os_error!(error)))?;
+            .unwrap();
 
-        Ok(Self {
+        Self {
             windows: Vec::new(),
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -308,7 +299,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
-        })
+        }
     }
 
     fn process_event<F>(
@@ -452,7 +443,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), RunLoopError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -694,7 +685,7 @@ impl<T: 'static> EventLoop<T> {
         if code == 0 {
             Ok(())
         } else {
-            Err(EventLoopError::ExitFailure(code))
+            Err(RunLoopError::ExitFailure(code))
         }
     }
 

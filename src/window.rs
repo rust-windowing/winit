@@ -29,7 +29,7 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 ///     window::Window,
 /// };
 ///
-/// let mut event_loop = EventLoop::new().unwrap();
+/// let mut event_loop = EventLoop::new();
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
@@ -570,7 +570,7 @@ impl Window {
     /// ```no_run
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// # fn swap_buffers() {}
     /// // Do the actual drawing with OpenGL.
@@ -660,7 +660,7 @@ impl Window {
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the position in logical dimensions like this:
     /// window.set_outer_position(LogicalPosition::new(400.0, 200.0));
@@ -720,7 +720,7 @@ impl Window {
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_inner_size(LogicalSize::new(400.0, 200.0));
@@ -763,7 +763,7 @@ impl Window {
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the size in logical dimensions like this:
     /// window.set_min_inner_size(Some(LogicalSize::new(400.0, 200.0)));
@@ -786,7 +786,7 @@ impl Window {
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the size in logical dimensions like this:
     /// window.set_max_inner_size(Some(LogicalSize::new(400.0, 200.0)));
@@ -1098,7 +1098,7 @@ impl Window {
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the position in logical dimensions like this:
     /// window.set_ime_cursor_area(LogicalPosition::new(400.0, 200.0), LogicalSize::new(100, 100));
@@ -1266,7 +1266,7 @@ impl Window {
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0));
@@ -1292,7 +1292,7 @@ impl Window {
     /// ```no_run
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::{CursorGrabMode, Window};
-    /// # let mut event_loop = EventLoop::new().unwrap();
+    /// # let mut event_loop = EventLoop::new();
     /// # let window = Window::new(&event_loop).unwrap();
     /// window.set_cursor_grab(CursorGrabMode::Confined)
     ///             .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))

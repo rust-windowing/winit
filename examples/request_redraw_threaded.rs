@@ -15,7 +15,7 @@ fn main() -> Result<(), impl std::error::Error> {
     mod fill;
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let window = {
         let window = WindowBuilder::new()

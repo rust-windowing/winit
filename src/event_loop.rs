@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
 use web_time::{Duration, Instant};
 
-use crate::error::EventLoopError;
+use crate::error::RunLoopError;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -88,18 +88,21 @@ impl<T> EventLoopBuilder<T> {
     /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
     /// and only once per application.***
     ///
-    /// Attempting to create the event loop on a different thread, or multiple
-    /// event loops in the same application, will panic. This restriction
-    /// isn't strictly necessary on all platforms, but is imposed to eliminate
-    /// any nasty surprises when porting to platforms that require it.
-    /// `EventLoopBuilderExt::any_thread` functions are exposed in the relevant
-    /// [`platform`] module if the target platform supports creating an event
-    /// loop on any thread.
+    /// Attempting to create the event loop on a different thread, or multiple event loops in
+    /// the same application, will panic. This restriction isn't
+    /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
+    /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
+    /// in the relevant [`platform`] module if the target platform supports creating an event loop on
+    /// any thread.
     ///
     /// Calling this function will result in display backend initialisation.
     ///
     /// ## Platform-specific
     ///
+    /// - **Linux:** Backend type can be controlled using an environment variable
+    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
+    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
     /// - **Android:** Must be configured with an `AndroidApp` from `android_main()` by calling
     ///     [`.with_android_app(app)`] before calling `.build()`.
     ///
@@ -113,17 +116,17 @@ impl<T> EventLoopBuilder<T> {
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
     #[inline]
-    pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
+    pub fn build(&mut self) -> EventLoop<T> {
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
-            return Err(EventLoopError::AlreadyRunning);
+            panic!("Creating EventLoop multiple times is not supported.");
         }
 
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
-        Ok(EventLoop {
-            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?,
+        EventLoop {
+            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
-        })
+        }
     }
 
     #[cfg(wasm_platform)]
@@ -266,14 +269,20 @@ impl EventLoop<()> {
     ///
     /// [`EventLoopBuilder::new().build()`]: EventLoopBuilder::build
     #[inline]
-    pub fn new() -> Result<EventLoop<()>, EventLoopError> {
+    pub fn new() -> EventLoop<()> {
         EventLoopBuilder::new().build()
+    }
+}
+
+impl Default for EventLoop<()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl<T> EventLoop<T> {
     #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
-    pub fn with_user_event() -> Result<EventLoop<T>, EventLoopError> {
+    pub fn with_user_event() -> EventLoop<T> {
         EventLoopBuilder::<T>::with_user_event().build()
     }
 
@@ -306,7 +315,7 @@ impl<T> EventLoop<T> {
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(self, event_handler: F) -> Result<(), RunLoopError>
     where
         F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {

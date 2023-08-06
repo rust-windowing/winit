@@ -3,22 +3,33 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
-use std::sync::Arc;
-use std::time::Duration;
+#[cfg(wayland_platform)]
+use std::error::Error;
+
 use std::{collections::VecDeque, env, fmt};
 #[cfg(x11_platform)]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
+use std::{
+    ffi::CStr,
+    mem::MaybeUninit,
+    os::raw::*,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
+use std::time::Duration;
 
+#[cfg(x11_platform)]
+pub use self::x11::XNotSupported;
+#[cfg(x11_platform)]
+use self::x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError, RunLoopError},
     event::{Event, KeyEvent},
     event_loop::{
         AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
@@ -35,10 +46,6 @@ use crate::{
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
-#[cfg(x11_platform)]
-pub use x11::XNotSupported;
-#[cfg(x11_platform)]
-use x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -48,6 +55,15 @@ pub mod common;
 pub mod wayland;
 #[cfg(x11_platform)]
 pub mod x11;
+
+/// Environment variable specifying which backend should be used on unix platform.
+///
+/// Legal values are x11 and wayland. If this variable is set only the named backend
+/// will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// and if it fails will fallback on x11.
+///
+/// If this variable is set with any other value, winit will panic.
+const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
@@ -116,21 +132,23 @@ pub(crate) static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported
 
 #[derive(Debug, Clone)]
 pub enum OsError {
-    Misc(&'static str),
     #[cfg(x11_platform)]
     XError(Arc<X11Error>),
+    #[cfg(x11_platform)]
+    XMisc(&'static str),
     #[cfg(wayland_platform)]
-    WaylandError(Arc<wayland::WaylandError>),
+    WaylandMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            OsError::Misc(e) => _f.pad(e),
             #[cfg(x11_platform)]
             OsError::XError(ref e) => fmt::Display::fmt(e, _f),
+            #[cfg(x11_platform)]
+            OsError::XMisc(e) => _f.pad(e),
             #[cfg(wayland_platform)]
-            OsError::WaylandError(ref e) => fmt::Display::fmt(e, _f),
+            OsError::WaylandMisc(e) => _f.pad(e),
         }
     }
 }
@@ -726,9 +744,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         if !attributes.any_thread && !is_main_thread() {
             panic!(
                 "Initializing the event loop outside of the main thread is a significant \
@@ -738,26 +754,65 @@ impl<T: 'static> EventLoop<T> {
             );
         }
 
-        // NOTE: Wayland first because of X11 could be present under wayland as well.
-        #[cfg(wayland_platform)]
-        if attributes.forced_backend == Some(Backend::Wayland)
-            || env::var("WAYLAND_DISPLAY").is_ok()
-        {
-            return EventLoop::new_wayland_any_thread().map_err(Into::into);
+        #[cfg(x11_platform)]
+        if attributes.forced_backend == Some(Backend::X) {
+            // TODO: Propagate
+            return EventLoop::new_x11_any_thread().unwrap();
         }
+
+        #[cfg(wayland_platform)]
+        if attributes.forced_backend == Some(Backend::Wayland) {
+            // TODO: Propagate
+            return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
+        }
+
+        if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
+            match env_var.as_str() {
+                "x11" => {
+                    // TODO: propagate
+                    #[cfg(x11_platform)]
+                    return EventLoop::new_x11_any_thread()
+                        .expect("Failed to initialize X11 backend");
+                    #[cfg(not(x11_platform))]
+                    panic!("x11 feature is not enabled")
+                }
+                "wayland" => {
+                    #[cfg(wayland_platform)]
+                    return EventLoop::new_wayland_any_thread()
+                        .expect("Failed to initialize Wayland backend");
+                    #[cfg(not(wayland_platform))]
+                    panic!("wayland feature is not enabled");
+                }
+                _ => panic!(
+                    "Unknown environment variable value for {BACKEND_PREFERENCE_ENV_VAR}, try one of `x11`,`wayland`",
+                ),
+            }
+        }
+
+        #[cfg(wayland_platform)]
+        let wayland_err = match EventLoop::new_wayland_any_thread() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
         #[cfg(x11_platform)]
-        if attributes.forced_backend == Some(Backend::X) || env::var("DISPLAY").is_ok() {
-            return Ok(EventLoop::new_x11_any_thread().unwrap());
-        }
+        let x11_err = match EventLoop::new_x11_any_thread() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
-        Err(EventLoopError::Os(os_error!(OsError::Misc(
-            "neither WAYLAND_DISPLAY nor DISPLAY is set."
-        ))))
+        #[cfg(not(wayland_platform))]
+        let wayland_err = "backend disabled";
+        #[cfg(not(x11_platform))]
+        let x11_err = "backend disabled";
+
+        panic!(
+            "Failed to initialize any backend! Wayland status: {wayland_err:?} X11 status: {x11_err:?}",
+        );
     }
 
     #[cfg(wayland_platform)]
-    fn new_wayland_any_thread() -> Result<EventLoop<T>, EventLoopError> {
+    fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
@@ -775,14 +830,14 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(callback)
     }
 
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
