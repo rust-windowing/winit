@@ -17,7 +17,7 @@ fn main() -> Result<(), impl std::error::Error> {
     const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
