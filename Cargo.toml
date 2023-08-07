@@ -67,8 +67,8 @@ simple_logger = { version = "2.1.0", default_features = false }
 softbuffer = "0.3.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
-# Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
-android-activity = "0.4.0"
+# Coordinate the next winit release android-activity 0.5 release
+android-activity = { git = "https://github.com/rust-mobile/android-activity" }
 ndk = "0.7.0"
 ndk-sys = "0.4.0"
 
