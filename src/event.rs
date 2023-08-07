@@ -888,6 +888,19 @@ pub enum Ime {
     /// Right before this event winit will send empty [`Self::Preedit`] event.
     Commit(String),
 
+    /// Notifies when the complete text should be replaced.
+    /// This event should be used in combination with
+    /// [`Window::set_ime_surrounding_text`] to set the initial text of the
+    /// currently selected input field.
+    ///
+    /// ## Platform-specific
+    /// This will only be fired on **Android**.
+    Replace {
+        text: String,
+        selection: (usize, usize),
+        compose_region: Option<(usize, usize)>,
+    },
+
     /// Notifies when the IME was disabled.
     ///
     /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or

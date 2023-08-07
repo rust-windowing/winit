@@ -1155,6 +1155,16 @@ impl Window {
         self.window.set_ime_purpose(purpose);
     }
 
+    /// Sets the surrounding text for IME.
+    ///
+    /// ## Platform-specific
+    /// - **Android**: should be set when a textfield is focused, so the keyboard has context
+    /// for autocomplete. If this is not set, the text will be cleared when the user starts typing.
+    /// - **iOS / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+    pub fn set_ime_surrounding_text(&self, text: String, selection: (usize, usize)) {
+        self.window.set_ime_surrounding_text(text, selection);
+    }
+
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.
     ///

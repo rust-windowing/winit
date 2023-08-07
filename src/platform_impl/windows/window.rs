@@ -760,6 +760,9 @@ impl Window {
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
 
     #[inline]
+    pub fn set_ime_surrounding_text(&self, _text: String, _selection: (usize, usize)) {}
+
+    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
         let active_window_handle = unsafe { GetActiveWindow() };

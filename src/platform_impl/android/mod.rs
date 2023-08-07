@@ -469,6 +469,24 @@ impl<T: 'static> EventLoop<T> {
                         }
                     }
                 }
+                InputEvent::TextEvent(ime_state) => {
+                    let event = event::Event::WindowEvent {
+                        window_id: window::WindowId(WindowId),
+                        event: event::WindowEvent::Ime(
+                            event::Ime::Replace {
+                                text: ime_state.text.to_string(),
+                                selection: (ime_state.selection.start, ime_state.selection.end),
+                                compose_region: ime_state.compose_region.map(|region| (region.start, region.end))
+                            }
+                        )
+                    };
+                    sticky_exit_callback(
+                        event,
+                        self.window_target(),
+                        control_flow,
+                        callback
+                    );
+                }
                 _ => {
                     warn!("Unknown android_activity input event {event:?}")
                 }
@@ -902,9 +920,27 @@ impl Window {
 
     pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {}
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.app.show_soft_input(true);
+        } else {
+            self.app.hide_soft_input(true);
+        }
+    }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {}
+
+    pub fn set_ime_surrounding_text(&self, text: String, selection: (usize, usize)) {
+        self.app
+            .set_text_input_state(android_activity::input::TextInputState {
+                text,
+                selection: android_activity::input::TextSpan {
+                    start: selection.0,
+                    end: selection.1,
+                },
+                compose_region: None,
+            });
+    }
 
     pub fn focus_window(&self) {}
 
@@ -988,6 +1024,7 @@ impl Window {
 pub struct OsError;
 
 use std::fmt::{self, Display, Formatter};
+
 impl Display for OsError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         write!(fmt, "Android OS Error")

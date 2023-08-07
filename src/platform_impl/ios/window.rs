@@ -307,6 +307,10 @@ impl Inner {
         warn!("`Window::set_ime_allowed` is ignored on iOS")
     }
 
+    pub fn set_ime_surrounding_text(&self, _text: String, _selection: (usize, usize)) {
+        warn!("`Window::set_ime_surrounding_text` is ignored on iOS")
+    }
+
     pub fn focus_window(&self) {
         warn!("`Window::set_focus` is ignored on iOS")
     }
