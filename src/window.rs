@@ -29,7 +29,7 @@ pub use raw_window_handle;
 /// This is `Send + Sync`, meaning that it can be freely used from other
 /// threads.
 ///
-/// However, some platforms (macOS, web and iOS) only allow user interface
+/// However, some platforms (macOS, Web and iOS) only allow user interface
 /// interactions on the main thread, so on those platforms, if you use the
 /// window from a thread other than the main, the code is scheduled to run on
 /// the main thread, and your thread may be blocked until that completes.
