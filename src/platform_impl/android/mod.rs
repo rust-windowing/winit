@@ -24,7 +24,6 @@ use crate::{
     error,
     event::{self, InnerSizeWriter, StartCause},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    keyboard::NativeKey,
     platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
@@ -151,6 +150,7 @@ pub struct EventLoop<T: 'static> {
     control_flow: ControlFlow,
     cause: StartCause,
     ignore_volume_keys: bool,
+    combining_accent: Option<char>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -214,6 +214,7 @@ impl<T: 'static> EventLoop<T> {
             control_flow: Default::default(),
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
+            combining_accent: None,
         }
     }
 
@@ -353,128 +354,25 @@ impl<T: 'static> EventLoop<T> {
             trace!("No main event to handle");
         }
 
+        // temporarily decouple `android_app` from `self` so we aren't holding
+        // a borrow of `self` while iterating
+        let android_app = self.android_app.clone();
+
         // Process input events
-        self.android_app.input_events(|event| {
-            let mut input_status = InputStatus::Handled;
-            match event {
-                InputEvent::MotionEvent(motion_event) => {
-                    let window_id = window::WindowId(WindowId);
-                    let device_id = event::DeviceId(DeviceId);
+        match android_app.input_events_iter() {
+            Ok(mut input_iter) => loop {
+                let read_event = input_iter.next(|event| {
+                    self.handle_input_event(&android_app, event, &mut control_flow, callback)
+                });
 
-                    let phase = match motion_event.action() {
-                        MotionAction::Down | MotionAction::PointerDown => {
-                            Some(event::TouchPhase::Started)
-                        }
-                        MotionAction::Up | MotionAction::PointerUp => {
-                            Some(event::TouchPhase::Ended)
-                        }
-                        MotionAction::Move => Some(event::TouchPhase::Moved),
-                        MotionAction::Cancel => {
-                            Some(event::TouchPhase::Cancelled)
-                        }
-                        _ => {
-                            None // TODO mouse events
-                        }
-                    };
-                    if let Some(phase) = phase {
-                        let pointers: Box<
-                            dyn Iterator<Item = android_activity::input::Pointer<'_>>,
-                        > = match phase {
-                            event::TouchPhase::Started
-                            | event::TouchPhase::Ended => {
-                                Box::new(
-                                    std::iter::once(motion_event.pointer_at_index(
-                                        motion_event.pointer_index(),
-                                    ))
-                                )
-                            },
-                            event::TouchPhase::Moved
-                            | event::TouchPhase::Cancelled => {
-                                Box::new(motion_event.pointers())
-                            }
-                        };
-
-                        for pointer in pointers {
-                            let location = PhysicalPosition {
-                                x: pointer.x() as _,
-                                y: pointer.y() as _,
-                            };
-                            trace!("Input event {device_id:?}, {phase:?}, loc={location:?}, pointer={pointer:?}");
-                            let event = event::Event::WindowEvent {
-                                window_id,
-                                event: event::WindowEvent::Touch(
-                                    event::Touch {
-                                        device_id,
-                                        phase,
-                                        location,
-                                        id: pointer.pointer_id() as u64,
-                                        force: None,
-                                    },
-                                ),
-                            };
-                            sticky_exit_callback(
-                                event,
-                                self.window_target(),
-                                &mut control_flow,
-                                callback
-                            );
-                        }
-                    }
+                if !read_event {
+                    break;
                 }
-                InputEvent::KeyEvent(key) => {
-                    match key.key_code() {
-                        // Flag keys related to volume as unhandled. While winit does not have a way for applications
-                        // to configure what keys to flag as handled, this appears to be a good default until winit
-                        // can be configured.
-                        Keycode::VolumeUp |
-                        Keycode::VolumeDown |
-                        Keycode::VolumeMute => {
-                            if self.ignore_volume_keys {
-                                input_status = InputStatus::Unhandled
-                            }
-                        },
-                        keycode => {
-                            let state = match key.action() {
-                                KeyAction::Down => event::ElementState::Pressed,
-                                KeyAction::Up => event::ElementState::Released,
-                                _ => event::ElementState::Released,
-                            };
-
-                            let native = NativeKey::Android(keycode.into());
-                            let logical_key = keycodes::to_logical(keycode, native);
-                            // TODO: maybe use getUnicodeChar to get the logical key
-
-                            let event = event::Event::WindowEvent {
-                                window_id: window::WindowId(WindowId),
-                                event: event::WindowEvent::KeyboardInput {
-                                    device_id: event::DeviceId(DeviceId),
-                                    event: event::KeyEvent {
-                                        state,
-                                        physical_key: keycodes::to_physical_keycode(keycode),
-                                        logical_key,
-                                        location: keycodes::to_location(keycode),
-                                        repeat: key.repeat_count() > 0,
-                                        text: None,
-                                        platform_specific: KeyEventExtra {},
-                                    },
-                                    is_synthetic: false,
-                                },
-                            };
-                            sticky_exit_callback(
-                                event,
-                                self.window_target(),
-                                &mut control_flow,
-                                callback,
-                            );
-                        }
-                    }
-                }
-                _ => {
-                    warn!("Unknown android_activity input event {event:?}")
-                }
+            },
+            Err(err) => {
+                log::warn!("Failed to get input events iterator: {err:?}");
             }
-            input_status
-        });
+        }
 
         // Empty the user event buffer
         {
@@ -522,6 +420,117 @@ impl<T: 'static> EventLoop<T> {
 
         self.control_flow = control_flow;
         self.pending_redraw = pending_redraw;
+    }
+
+    fn handle_input_event<F>(
+        &mut self,
+        android_app: &AndroidApp,
+        event: &InputEvent<'_>,
+        control_flow: &mut ControlFlow,
+        callback: &mut F,
+    ) -> InputStatus
+    where
+        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let mut input_status = InputStatus::Handled;
+        match event {
+            InputEvent::MotionEvent(motion_event) => {
+                let window_id = window::WindowId(WindowId);
+                let device_id = event::DeviceId(DeviceId);
+
+                let phase = match motion_event.action() {
+                    MotionAction::Down | MotionAction::PointerDown => {
+                        Some(event::TouchPhase::Started)
+                    }
+                    MotionAction::Up | MotionAction::PointerUp => Some(event::TouchPhase::Ended),
+                    MotionAction::Move => Some(event::TouchPhase::Moved),
+                    MotionAction::Cancel => Some(event::TouchPhase::Cancelled),
+                    _ => {
+                        None // TODO mouse events
+                    }
+                };
+                if let Some(phase) = phase {
+                    let pointers: Box<dyn Iterator<Item = android_activity::input::Pointer<'_>>> =
+                        match phase {
+                            event::TouchPhase::Started | event::TouchPhase::Ended => {
+                                Box::new(std::iter::once(
+                                    motion_event.pointer_at_index(motion_event.pointer_index()),
+                                ))
+                            }
+                            event::TouchPhase::Moved | event::TouchPhase::Cancelled => {
+                                Box::new(motion_event.pointers())
+                            }
+                        };
+
+                    for pointer in pointers {
+                        let location = PhysicalPosition {
+                            x: pointer.x() as _,
+                            y: pointer.y() as _,
+                        };
+                        trace!("Input event {device_id:?}, {phase:?}, loc={location:?}, pointer={pointer:?}");
+                        let event = event::Event::WindowEvent {
+                            window_id,
+                            event: event::WindowEvent::Touch(event::Touch {
+                                device_id,
+                                phase,
+                                location,
+                                id: pointer.pointer_id() as u64,
+                                force: None,
+                            }),
+                        };
+                        sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                    }
+                }
+            }
+            InputEvent::KeyEvent(key) => {
+                match key.key_code() {
+                    // Flag keys related to volume as unhandled. While winit does not have a way for applications
+                    // to configure what keys to flag as handled, this appears to be a good default until winit
+                    // can be configured.
+                    Keycode::VolumeUp | Keycode::VolumeDown | Keycode::VolumeMute => {
+                        if self.ignore_volume_keys {
+                            input_status = InputStatus::Unhandled
+                        }
+                    }
+                    keycode => {
+                        let state = match key.action() {
+                            KeyAction::Down => event::ElementState::Pressed,
+                            KeyAction::Up => event::ElementState::Released,
+                            _ => event::ElementState::Released,
+                        };
+
+                        let key_char = keycodes::character_map_and_combine_key(
+                            android_app,
+                            key,
+                            &mut self.combining_accent,
+                        );
+
+                        let event = event::Event::WindowEvent {
+                            window_id: window::WindowId(WindowId),
+                            event: event::WindowEvent::KeyboardInput {
+                                device_id: event::DeviceId(DeviceId),
+                                event: event::KeyEvent {
+                                    state,
+                                    physical_key: keycodes::to_physical_keycode(keycode),
+                                    logical_key: keycodes::to_logical(key_char, keycode),
+                                    location: keycodes::to_location(keycode),
+                                    repeat: key.repeat_count() > 0,
+                                    text: None,
+                                    platform_specific: KeyEventExtra {},
+                                },
+                                is_synthetic: false,
+                            },
+                        };
+                        sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                    }
+                }
+            }
+            _ => {
+                warn!("Unknown android_activity input event {event:?}")
+            }
+        }
+
+        input_status
     }
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), RunLoopError>
