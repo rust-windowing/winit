@@ -151,6 +151,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 keyboard_state.repeat_token = keyboard_state
                     .loop_handle
                     .insert_source(timer, move |_, _, state| {
+                        // Required to handle the wakeups from the repeat sources.
+                        state.dispatched_events = true;
+
                         let data = wl_keyboard.data::<KeyboardData>().unwrap();
                         let seat_state = state.seats.get_mut(&data.seat.id()).unwrap();
 
