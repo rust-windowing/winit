@@ -124,7 +124,7 @@ impl<T: 'static> EventLoop<T> {
         event_loop.handle().insert_source(
             event_loop_awakener_source,
             move |_, _, winit_state: &mut WinitState| {
-                // No extra handling is required, we just need to wake-up.
+                // Mark that we have something to dispatch.
                 winit_state.dispatched_events = true;
             },
         )?;
