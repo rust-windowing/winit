@@ -287,6 +287,10 @@ impl Window {
 
     #[inline]
     pub fn request_redraw(&self) {
+        // NOTE: try to not wake up the loop when the event was already scheduled and not yet
+        // processed by the loop, because if at this point the value was `true` it could only
+        // mean that the loop still haven't dispatched the value to the client and will do
+        // eventually, resetting it to `false`.
         if self
             .window_requests
             .redraw_requested
