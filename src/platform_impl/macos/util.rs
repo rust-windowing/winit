@@ -1,9 +1,3 @@
-#![allow(clippy::unnecessary_cast)]
-
-mod r#async;
-
-pub(crate) use self::r#async::*;
-
 use core_graphics::display::CGDisplay;
 use icrate::Foundation::{CGFloat, NSNotFound, NSPoint, NSRange, NSRect, NSUInteger};
 
@@ -50,6 +44,7 @@ impl Drop for TraceGuard {
 // For consistency with other platforms, this will...
 // 1. translate the bottom-left window corner into the top-left window corner
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
+#[allow(clippy::unnecessary_cast)]
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height) as f64
 }

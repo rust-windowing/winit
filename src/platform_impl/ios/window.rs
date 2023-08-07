@@ -506,6 +506,16 @@ impl Window {
             },
         })
     }
+
+    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
+        // TODO
+        f(self)
+    }
+
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
+        // TODO
+        f(self)
+    }
 }
 
 // WindowExtIOS
