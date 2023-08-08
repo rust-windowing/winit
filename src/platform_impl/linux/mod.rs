@@ -107,7 +107,7 @@ pub struct X11WindowBuilderAttributes {
     pub base_size: Option<Size>,
     pub override_redirect: bool,
     pub x11_window_types: Vec<XWindowType>,
-    
+
     /// The parent window to embed this window into.
     pub embed_window: Option<x11rb::protocol::xproto::Window>,
 }

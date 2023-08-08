@@ -577,7 +577,8 @@ impl UnownedWindow {
             atoms[_XEMBED],
             xproto::PropMode::REPLACE,
             &[0u32, 1u32],
-        )).check());
+        ))
+        .check());
 
         Ok(())
     }
