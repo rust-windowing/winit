@@ -133,9 +133,9 @@ pub trait WindowBuilderExtX11 {
     /// let event_loop = winit::event_loop::EventLoop::new();
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
     /// let window = WindowBuilder::new()
-    ///     .with_x11_parent_window(parent_window_id)
+    ///     .with_embed_parent_window(parent_window_id)
     ///     .build(&event_loop)?;
-    /// # }
+    /// # Ok(()) }
     /// ```
     fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
 }
