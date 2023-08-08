@@ -126,6 +126,15 @@ pub(crate) struct UnownedWindow {
     activation_sender: WakeSender<super::ActivationToken>,
 }
 
+macro_rules! leap {
+    ($e:expr) => {
+        match $e {
+            Ok(x) => x,
+            Err(err) => return Err(os_error!(OsError::XError(X11Error::from(err).into()))),
+        }
+    };
+}
+
 impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
     pub(crate) fn new<T>(
@@ -133,15 +142,6 @@ impl UnownedWindow {
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
-        macro_rules! leap {
-            ($e:expr) => {
-                match $e {
-                    Ok(x) => x,
-                    Err(err) => return Err(os_error!(OsError::XError(X11Error::from(err).into()))),
-                }
-            };
-        }
-
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         let root = match window_attrs.parent_window {
@@ -210,7 +210,7 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match pl_attribs.screen_id {
+        let screen_id = match pl_attribs.x11.screen_id {
             Some(id) => id,
             None => xconn.default_screen_index() as c_int,
         };
@@ -230,7 +230,7 @@ impl UnownedWindow {
             });
 
         // creating
-        let (visualtype, depth, require_colormap) = match pl_attribs.visual_id {
+        let (visualtype, depth, require_colormap) = match pl_attribs.x11.visual_id {
             Some(vi) => {
                 // Find this specific visual.
                 let (visualtype, depth) = all_visuals
@@ -271,12 +271,12 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if pl_attribs.override_redirect {
+            if pl_attribs.x11.override_redirect {
                 aux = aux.override_redirect(true as u32);
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match pl_attribs.visual_id {
+            let colormap_visual = match pl_attribs.x11.visual_id {
                 Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
@@ -298,6 +298,9 @@ impl UnownedWindow {
             aux
         };
 
+        // Figure out the window's parent.
+        let parent = pl_attribs.x11.embed_window.unwrap_or(root);
+
         // finally creating the window
         let xwindow = {
             let (x, y) = position.map_or((0, 0), Into::into);
@@ -305,7 +308,7 @@ impl UnownedWindow {
             let result = xconn.xcb_connection().create_window(
                 depth,
                 wid,
-                root,
+                parent,
                 x,
                 y,
                 dimensions.0.try_into().unwrap(),
@@ -355,6 +358,11 @@ impl UnownedWindow {
 
         if let Some(theme) = window_attrs.preferred_theme {
             leap!(window.set_theme_inner(Some(theme))).ignore_error();
+        }
+
+        // Embed the window if needed.
+        if pl_attribs.x11.embed_window.is_some() {
+            window.embed_window()?;
         }
 
         {
@@ -407,7 +415,7 @@ impl UnownedWindow {
                 flusher.ignore_error()
             }
 
-            leap!(window.set_window_types(pl_attribs.x11_window_types)).ignore_error();
+            leap!(window.set_window_types(pl_attribs.x11.x11_window_types)).ignore_error();
 
             // Set size hints.
             let mut min_inner_size = window_attrs
@@ -430,7 +438,7 @@ impl UnownedWindow {
             shared_state.min_inner_size = min_inner_size.map(Into::into);
             shared_state.max_inner_size = max_inner_size.map(Into::into);
             shared_state.resize_increments = window_attrs.resize_increments;
-            shared_state.base_size = pl_attribs.base_size;
+            shared_state.base_size = pl_attribs.x11.base_size;
 
             let normal_hints = WmSizeHints {
                 position: position.map(|PhysicalPosition { x, y }| {
@@ -447,6 +455,7 @@ impl UnownedWindow {
                     .resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
                 base_size: pl_attribs
+                    .x11
                     .base_size
                     .map(|size| cast_size_to_hint(size, scale_factor)),
                 aspect: None,
@@ -557,6 +566,20 @@ impl UnownedWindow {
         let window = leap!(xconn.sync_with_server().map(|_| window));
 
         Ok(window)
+    }
+
+    /// Embed this window into a parent window.
+    pub(super) fn embed_window(&self) -> Result<(), RootOsError> {
+        let atoms = self.xconn.atoms();
+        leap!(leap!(self.xconn.change_property(
+            self.xwindow,
+            atoms[_XEMBED],
+            atoms[_XEMBED],
+            xproto::PropMode::REPLACE,
+            &[0u32, 1u32],
+        )).check());
+
+        Ok(())
     }
 
     pub(super) fn shared_state_lock(&self) -> MutexGuard<'_, SharedState> {

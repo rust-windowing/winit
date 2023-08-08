@@ -99,7 +99,8 @@ atom_manager! {
     _NET_CLIENT_LIST,
     _NET_FRAME_EXTENTS,
     _NET_SUPPORTED,
-    _NET_SUPPORTING_WM_CHECK
+    _NET_SUPPORTING_WM_CHECK,
+    _XEMBED
 }
 
 impl Index<AtomName> for Atoms {
