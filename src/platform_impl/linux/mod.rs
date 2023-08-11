@@ -96,15 +96,20 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
+    pub x11: X11WindowBuilderAttributes,
+}
+
+#[derive(Clone)]
+#[cfg(x11_platform)]
+pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
-    #[cfg(x11_platform)]
     pub screen_id: Option<i32>,
-    #[cfg(x11_platform)]
     pub base_size: Option<Size>,
-    #[cfg(x11_platform)]
     pub override_redirect: bool,
-    #[cfg(x11_platform)]
     pub x11_window_types: Vec<XWindowType>,
+
+    /// The parent window to embed this window into.
+    pub embed_window: Option<x11rb::protocol::xproto::Window>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -113,15 +118,14 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             name: None,
             activation_token: None,
             #[cfg(x11_platform)]
-            visual_id: None,
-            #[cfg(x11_platform)]
-            screen_id: None,
-            #[cfg(x11_platform)]
-            base_size: None,
-            #[cfg(x11_platform)]
-            override_redirect: false,
-            #[cfg(x11_platform)]
-            x11_window_types: vec![XWindowType::Normal],
+            x11: X11WindowBuilderAttributes {
+                visual_id: None,
+                screen_id: None,
+                base_size: None,
+                override_redirect: false,
+                x11_window_types: vec![XWindowType::Normal],
+                embed_window: None,
+            },
         }
     }
 }
