@@ -3,6 +3,7 @@
 use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Weak};
+use std::time::Duration;
 
 use log::{info, warn};
 
@@ -10,14 +11,16 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
+use sctk::reexports::csd_frame::{
+    DecorationsFrame, FrameAction, FrameClick, ResizeEdge, WindowState as XdgWindowState,
+};
 use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
-use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
+use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 
-use sctk::compositor::{CompositorState, Region, SurfaceData};
+use sctk::compositor::{CompositorState, Region};
 use sctk::seat::pointer::ThemedPointer;
-use sctk::shell::xdg::frame::{DecorationsFrame, FrameAction, FrameClick};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
@@ -27,6 +30,9 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::{ExternalError, NotSupportedError};
+use crate::event::WindowEvent;
+use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::make_wid;
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::WindowId;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
@@ -39,7 +45,7 @@ use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
 #[cfg(not(feature = "sctk-adwaita"))]
-pub type WinitFrame = sctk::shell::xdg::frame::fallback_frame::FallbackFrame<WinitState>;
+pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState>;
 
 // Minimum window inner size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
@@ -245,6 +251,7 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Arc<SubcompositorState>,
+        event_sink: &mut EventSink,
     ) -> LogicalSize<u32> {
         if configure.decoration_mode == DecorationMode::Client
             && self.frame.is_none()
@@ -260,6 +267,7 @@ impl WindowState {
             ) {
                 Ok(mut frame) => {
                     frame.set_title(&self.title);
+                    frame.set_scaling_factor(self.scale_factor);
                     // Hide the frame if we were asked to not decorate.
                     frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
@@ -275,6 +283,19 @@ impl WindowState {
         }
 
         let stateless = Self::is_stateless(&configure);
+
+        // Emit `Occluded` event on suspension change.
+        let occluded = configure.state.contains(XdgWindowState::SUSPENDED);
+        if self
+            .last_configure
+            .as_ref()
+            .map(|c| c.state.contains(XdgWindowState::SUSPENDED))
+            .unwrap_or(false)
+            != occluded
+        {
+            let window_id = make_wid(self.window.wl_surface());
+            event_sink.push_window_event(WindowEvent::Occluded(occluded), window_id);
+        }
 
         let new_size = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
@@ -342,23 +363,40 @@ impl WindowState {
     }
 
     /// Tells whether the window should be closed.
+    #[allow(clippy::too_many_arguments)]
     pub fn frame_click(
         &mut self,
         click: FrameClick,
         pressed: bool,
         seat: &WlSeat,
         serial: u32,
+        timestamp: Duration,
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        match self.frame.as_mut()?.on_click(click, pressed)? {
+        match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
             FrameAction::Minimize => self.window.set_minimized(),
             FrameAction::Maximize => self.window.set_maximized(),
             FrameAction::UnMaximize => self.window.unset_maximized(),
             FrameAction::Close => WinitState::queue_close(updates, window_id),
             FrameAction::Move => self.has_pending_move = Some(serial),
-            FrameAction::Resize(edge) => self.window.resize(seat, serial, edge),
+            FrameAction::Resize(edge) => {
+                let edge = match edge {
+                    ResizeEdge::None => XdgResizeEdge::None,
+                    ResizeEdge::Top => XdgResizeEdge::Top,
+                    ResizeEdge::Bottom => XdgResizeEdge::Bottom,
+                    ResizeEdge::Left => XdgResizeEdge::Left,
+                    ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
+                    ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
+                    ResizeEdge::Right => XdgResizeEdge::Right,
+                    ResizeEdge::TopRight => XdgResizeEdge::TopRight,
+                    ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
+                    _ => return None,
+                };
+                self.window.resize(seat, serial, edge);
+            }
             FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
+            _ => (),
         };
 
         Some(false)
@@ -375,14 +413,15 @@ impl WindowState {
         &mut self,
         seat: &WlSeat,
         surface: &WlSurface,
+        timestamp: Duration,
         x: f64,
         y: f64,
-    ) -> Option<&str> {
+    ) -> Option<CursorIcon> {
         // Take the serial if we had any, so it doesn't stick around.
         let serial = self.has_pending_move.take();
 
         if let Some(frame) = self.frame.as_mut() {
-            let cursor = frame.click_point_moved(surface, x, y);
+            let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
             // If we have a cursor change, that means that cursor is over the decorations,
             // so try to apply move.
             if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
@@ -498,14 +537,12 @@ impl WindowState {
     /// Refresh the decorations frame if it's present returning whether the client should redraw.
     pub fn refresh_frame(&mut self) -> bool {
         if let Some(frame) = self.frame.as_mut() {
-            let dirty = frame.is_dirty();
-            if dirty {
-                frame.draw();
+            if frame.is_dirty() {
+                return frame.draw();
             }
-            dirty
-        } else {
-            false
         }
+
+        false
     }
 
     /// Reload the cursor style on the given window.
@@ -592,20 +629,8 @@ impl WindowState {
             return;
         }
 
-        self.apply_on_poiner(|pointer, data| {
-            let surface = data.cursor_surface();
-            let scale_factor = surface.data::<SurfaceData>().unwrap().scale_factor();
-
-            if pointer
-                .set_cursor(
-                    &self.connection,
-                    cursor_icon.name(),
-                    &self.shm,
-                    surface,
-                    scale_factor,
-                )
-                .is_err()
-            {
+        self.apply_on_poiner(|pointer, _| {
+            if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
         })
@@ -707,6 +732,15 @@ impl WindowState {
         }
 
         Ok(())
+    }
+
+    pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
+        // TODO(kchibisov) handle touch serials.
+        self.apply_on_poiner(|_, data| {
+            let serial = data.latest_button_serial();
+            let seat = data.seat();
+            self.window.show_window_menu(seat, serial, position.into());
+        });
     }
 
     /// Set the position of the cursor.
@@ -844,6 +878,10 @@ impl WindowState {
         if self.fractional_scale.is_none() {
             let _ = self.window.set_buffer_scale(self.scale_factor as _);
         }
+
+        if let Some(frame) = self.frame.as_mut() {
+            frame.set_scaling_factor(scale_factor);
+        }
     }
 
     /// Make window background blurred
@@ -926,8 +964,18 @@ impl Drop for WindowState {
             ManuallyDrop::drop(&mut self.window);
         }
 
-        if let Some(blur) = &self.blur {
+        // Cleanup objects.
+
+        if let Some(blur) = self.blur.take() {
             blur.release();
+        }
+
+        if let Some(fs) = self.fractional_scale.take() {
+            fs.destroy();
+        }
+
+        if let Some(viewport) = self.viewport.take() {
+            viewport.destroy();
         }
 
         surface.destroy();
@@ -965,17 +1013,17 @@ pub enum FrameCallbackState {
     Received,
 }
 
-impl From<ResizeDirection> for ResizeEdge {
+impl From<ResizeDirection> for XdgResizeEdge {
     fn from(value: ResizeDirection) -> Self {
         match value {
-            ResizeDirection::North => ResizeEdge::Top,
-            ResizeDirection::West => ResizeEdge::Left,
-            ResizeDirection::NorthWest => ResizeEdge::TopLeft,
-            ResizeDirection::NorthEast => ResizeEdge::TopRight,
-            ResizeDirection::East => ResizeEdge::Right,
-            ResizeDirection::SouthWest => ResizeEdge::BottomLeft,
-            ResizeDirection::SouthEast => ResizeEdge::BottomRight,
-            ResizeDirection::South => ResizeEdge::Bottom,
+            ResizeDirection::North => XdgResizeEdge::Top,
+            ResizeDirection::West => XdgResizeEdge::Left,
+            ResizeDirection::NorthWest => XdgResizeEdge::TopLeft,
+            ResizeDirection::NorthEast => XdgResizeEdge::TopRight,
+            ResizeDirection::East => XdgResizeEdge::Right,
+            ResizeDirection::SouthWest => XdgResizeEdge::BottomLeft,
+            ResizeDirection::SouthEast => XdgResizeEdge::BottomRight,
+            ResizeDirection::South => XdgResizeEdge::Bottom,
         }
     }
 }
