@@ -18,6 +18,9 @@ pub use crate::icon::{BadIcon, Icon};
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
+#[doc(inline)]
+pub use raw_window_handle;
+
 /// Represents a window.
 ///
 /// # Example
