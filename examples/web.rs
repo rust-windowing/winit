@@ -8,7 +8,7 @@ use winit::{
 };
 
 pub fn main() -> Result<(), impl std::error::Error> {
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let builder = WindowBuilder::new().with_title("A fantastic window!");
     #[cfg(wasm_platform)]

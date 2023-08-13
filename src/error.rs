@@ -30,15 +30,23 @@ pub struct OsError {
 
 /// A general error that may occur while running the Winit event loop
 #[derive(Debug)]
-pub enum RunLoopError {
+pub enum EventLoopError {
     /// The operation is not supported by the backend.
     NotSupported(NotSupportedError),
     /// The OS cannot perform the operation.
     Os(OsError),
     /// The event loop can't be re-run while it's already running
     AlreadyRunning,
+    /// The event loop can't be re-created.
+    RecreationAttempt,
     /// Application has exit with an error status.
     ExitFailure(i32),
+}
+
+impl From<OsError> for EventLoopError {
+    fn from(value: OsError) -> Self {
+        Self::Os(value)
+    }
 }
 
 impl NotSupportedError {
@@ -94,13 +102,14 @@ impl fmt::Display for NotSupportedError {
     }
 }
 
-impl fmt::Display for RunLoopError {
+impl fmt::Display for EventLoopError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            RunLoopError::AlreadyRunning => write!(f, "EventLoop is already running"),
-            RunLoopError::NotSupported(e) => e.fmt(f),
-            RunLoopError::Os(e) => e.fmt(f),
-            RunLoopError::ExitFailure(status) => write!(f, "Exit Failure: {status}"),
+            EventLoopError::AlreadyRunning => write!(f, "EventLoop is already running"),
+            EventLoopError::RecreationAttempt => write!(f, "EventLoop can't be recreated"),
+            EventLoopError::NotSupported(e) => e.fmt(f),
+            EventLoopError::Os(e) => e.fmt(f),
+            EventLoopError::ExitFailure(status) => write!(f, "Exit Failure: {status}"),
         }
     }
 }
@@ -108,7 +117,7 @@ impl fmt::Display for RunLoopError {
 impl error::Error for OsError {}
 impl error::Error for ExternalError {}
 impl error::Error for NotSupportedError {}
-impl error::Error for RunLoopError {}
+impl error::Error for EventLoopError {}
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::error::Error;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +23,7 @@ use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
 use crate::dpi::LogicalSize;
+use crate::platform_impl::OsError;
 
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
@@ -35,7 +35,7 @@ use super::types::wp_fractional_scaling::FractionalScalingManager;
 use super::types::wp_viewporter::ViewporterState;
 use super::types::xdg_activation::XdgActivationState;
 use super::window::{WindowRequests, WindowState};
-use super::WindowId;
+use super::{WaylandError, WindowId};
 
 /// Winit's Wayland state.
 pub struct WinitState {
@@ -116,14 +116,16 @@ impl WinitState {
         globals: &GlobalList,
         queue_handle: &QueueHandle<Self>,
         loop_handle: LoopHandle<'static, WinitState>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, OsError> {
         let registry_state = RegistryState::new(globals);
-        let compositor_state = CompositorState::bind(globals, queue_handle)?;
+        let compositor_state =
+            CompositorState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
         let subcompositor_state = SubcompositorState::bind(
             compositor_state.wl_compositor().clone(),
             globals,
             queue_handle,
-        )?;
+        )
+        .map_err(WaylandError::Bind)?;
 
         let output_state = OutputState::new(globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
@@ -148,9 +150,9 @@ impl WinitState {
             subcompositor_state: Arc::new(subcompositor_state),
             output_state,
             seat_state,
-            shm: Shm::bind(globals, queue_handle)?,
+            shm: Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
 
-            xdg_shell: XdgShell::bind(globals, queue_handle)?,
+            xdg_shell: XdgShell::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
 
             windows: Default::default(),

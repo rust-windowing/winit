@@ -23,7 +23,7 @@ mod imple {
             .parse::<u32>()?;
 
         SimpleLogger::new().init().unwrap();
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::new()?;
 
         let window = WindowBuilder::new()
             .with_title("An embedded window!")
