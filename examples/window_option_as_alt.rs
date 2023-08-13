@@ -19,7 +19,7 @@ mod fill;
 /// A left mouse click will toggle option_is_alt.
 #[cfg(target_os = "macos")]
 fn main() -> Result<(), impl std::error::Error> {
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")

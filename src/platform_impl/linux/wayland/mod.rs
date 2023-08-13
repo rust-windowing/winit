@@ -2,10 +2,14 @@
 
 //! Winit's Wayland backend.
 
-use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::Proxy;
+use std::fmt::Display;
+use std::sync::Arc;
 
-pub use crate::platform_impl::platform::WindowId;
+use sctk::reexports::client::globals::{BindError, GlobalError};
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
+use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
+
+pub use crate::platform_impl::platform::{OsError, WindowId};
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use output::{MonitorHandle, VideoMode};
 pub use window::Window;
@@ -16,6 +20,46 @@ mod seat;
 mod state;
 mod types;
 mod window;
+
+#[derive(Debug)]
+pub enum WaylandError {
+    /// Error connecting to the socket.
+    Connection(ConnectError),
+
+    /// Error binding the global.
+    Global(GlobalError),
+
+    // Bind error.
+    Bind(BindError),
+
+    /// Error during the dispatching the event queue.
+    Dispatch(DispatchError),
+
+    /// Calloop error.
+    Calloop(calloop::Error),
+
+    /// Wayland
+    Wire(client::backend::WaylandError),
+}
+
+impl Display for WaylandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WaylandError::Connection(error) => error.fmt(f),
+            WaylandError::Global(error) => error.fmt(f),
+            WaylandError::Bind(error) => error.fmt(f),
+            WaylandError::Dispatch(error) => error.fmt(f),
+            WaylandError::Calloop(error) => error.fmt(f),
+            WaylandError::Wire(error) => error.fmt(f),
+        }
+    }
+}
+
+impl From<WaylandError> for OsError {
+    fn from(value: WaylandError) -> Self {
+        Self::WaylandError(Arc::new(value))
+    }
+}
 
 /// Dummy device id, since Wayland doesn't have device events.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

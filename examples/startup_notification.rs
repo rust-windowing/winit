@@ -19,7 +19,7 @@ mod example {
 
     pub(super) fn main() -> Result<(), impl std::error::Error> {
         // Create the event loop and get the activation token.
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::new().unwrap();
         let mut current_token = match event_loop.read_token_from_env() {
             Some(token) => Some(token),
             None => {

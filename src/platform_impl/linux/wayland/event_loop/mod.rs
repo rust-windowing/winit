@@ -1,7 +1,6 @@
 //! The event-loop routines.
 
 use std::cell::RefCell;
-use std::error::Error;
 use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
@@ -13,11 +12,12 @@ use std::time::{Duration, Instant};
 use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
 
 use sctk::reexports::calloop;
+use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
-use crate::error::{OsError as RootOsError, RunLoopError};
+use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform::pump_events::PumpStatus;
@@ -33,7 +33,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{DeviceId, WindowId};
+use super::{DeviceId, WaylandError, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -73,22 +73,38 @@ pub struct EventLoop<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, Box<dyn Error>> {
-        let connection = Connection::connect_to_env()?;
+    pub fn new() -> Result<EventLoop<T>, EventLoopError> {
+        macro_rules! map_err {
+            ($e:expr, $err:expr) => {
+                $e.map_err(|error| os_error!($err(error).into()))
+            };
+        }
 
-        let (globals, mut event_queue) = globals::registry_queue_init(&connection)?;
+        let connection = map_err!(Connection::connect_to_env(), WaylandError::Connection)?;
+
+        let (globals, mut event_queue) = map_err!(
+            globals::registry_queue_init(&connection),
+            WaylandError::Global
+        )?;
         let queue_handle = event_queue.handle();
 
-        let event_loop = calloop::EventLoop::<WinitState>::try_new()?;
+        let event_loop = map_err!(
+            calloop::EventLoop::<WinitState>::try_new(),
+            WaylandError::Calloop
+        )?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())?;
+        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
+            .map_err(|error| os_error!(error))?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
-        event_queue.roundtrip(&mut winit_state)?;
+        map_err!(
+            event_queue.roundtrip(&mut winit_state),
+            WaylandError::Dispatch
+        )?;
 
         // Register Wayland source.
-        let wayland_source = WaylandSource::new(event_queue)?;
+        let wayland_source = map_err!(WaylandSource::new(event_queue), WaylandError::Wire)?;
         let wayland_dispatcher =
             calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
                 let result = queue.dispatch_pending(winit_state);
@@ -101,33 +117,49 @@ impl<T: 'static> EventLoop<T> {
                 result
             });
 
-        event_loop
-            .handle()
-            .register_dispatcher(wayland_dispatcher.clone())?;
+        map_err!(
+            event_loop
+                .handle()
+                .register_dispatcher(wayland_dispatcher.clone()),
+            WaylandError::Calloop
+        )?;
 
         // Setup the user proxy.
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
         let pending_user_events_clone = pending_user_events.clone();
         let (user_events_sender, user_events_channel) = calloop::channel::channel();
-        event_loop.handle().insert_source(
-            user_events_channel,
-            move |event, _, winit_state: &mut WinitState| {
-                if let calloop::channel::Event::Msg(msg) = event {
-                    winit_state.dispatched_events = true;
-                    pending_user_events_clone.borrow_mut().push(msg);
-                }
-            },
-        )?;
+        let result = event_loop
+            .handle()
+            .insert_source(
+                user_events_channel,
+                move |event, _, winit_state: &mut WinitState| {
+                    if let calloop::channel::Event::Msg(msg) = event {
+                        winit_state.dispatched_events = true;
+                        pending_user_events_clone.borrow_mut().push(msg);
+                    }
+                },
+            )
+            .map_err(|error| error.error);
+        map_err!(result, WaylandError::Calloop)?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
-        let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping()?;
-        event_loop.handle().insert_source(
-            event_loop_awakener_source,
-            move |_, _, winit_state: &mut WinitState| {
-                // Mark that we have something to dispatch.
-                winit_state.dispatched_events = true;
-            },
+        let (event_loop_awakener, event_loop_awakener_source) = map_err!(
+            calloop::ping::make_ping()
+                .map_err(|error| CalloopError::OtherError(Box::new(error).into())),
+            WaylandError::Calloop
         )?;
+
+        let result = event_loop
+            .handle()
+            .insert_source(
+                event_loop_awakener_source,
+                move |_, _, winit_state: &mut WinitState| {
+                    // Mark that we have something to dispatch.
+                    winit_state.dispatched_events = true;
+                },
+            )
+            .map_err(|error| error.error);
+        map_err!(result, WaylandError::Calloop)?;
 
         let window_target = EventLoopWindowTarget {
             connection: connection.clone(),
@@ -158,12 +190,12 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), RunLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
-            return Err(RunLoopError::AlreadyRunning);
+            return Err(EventLoopError::AlreadyRunning);
         }
 
         let exit = loop {
@@ -172,7 +204,7 @@ impl<T: 'static> EventLoop<T> {
                     break Ok(());
                 }
                 PumpStatus::Exit(code) => {
-                    break Err(RunLoopError::ExitFailure(code));
+                    break Err(EventLoopError::ExitFailure(code));
                 }
                 _ => {
                     continue;
@@ -184,7 +216,7 @@ impl<T: 'static> EventLoop<T> {
         // `run_ondemand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // compositor.
-        let _ = self.roundtrip().map_err(RunLoopError::Os);
+        let _ = self.roundtrip().map_err(EventLoopError::Os);
 
         exit
     }
@@ -617,10 +649,10 @@ impl<T: 'static> EventLoop<T> {
 
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
-        event_queue.roundtrip(state).map_err(|_| {
-            os_error!(OsError::WaylandMisc(
-                "failed to do a final roundtrip before exiting the loop."
-            ))
+        event_queue.roundtrip(state).map_err(|error| {
+            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                error
+            ))))
         })
     }
 }
