@@ -24,7 +24,7 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent, NSWindow};
 use crate::{
-    error::RunLoopError,
+    error::EventLoopError,
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
@@ -148,7 +148,9 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<Self, EventLoopError> {
         if !is_main_thread() {
             panic!("On macOS, `EventLoop` must be created on the main thread!");
         }
@@ -178,7 +180,7 @@ impl<T> EventLoop<T> {
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
-        EventLoop {
+        Ok(EventLoop {
             _delegate: delegate,
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
@@ -186,14 +188,14 @@ impl<T> EventLoop<T> {
             }),
             panic_info,
             _callback: None,
-        }
+        })
     }
 
     pub fn window_target(&self) -> &RootWindowTarget<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), RunLoopError>
+    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
@@ -204,12 +206,12 @@ impl<T> EventLoop<T> {
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), RunLoopError>
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         if AppState::is_running() {
-            return Err(RunLoopError::AlreadyRunning);
+            return Err(EventLoopError::AlreadyRunning);
         }
 
         // # Safety
@@ -287,7 +289,7 @@ impl<T> EventLoop<T> {
         if exit_code == 0 {
             Ok(())
         } else {
-            Err(RunLoopError::ExitFailure(exit_code))
+            Err(EventLoopError::ExitFailure(exit_code))
         }
     }
 
