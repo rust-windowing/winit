@@ -104,6 +104,16 @@ impl Window {
         unsafe { init(w_attr, pl_attr, event_loop) }
     }
 
+    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
+        // TODO: Use `thread_executor` here
+        f(self)
+    }
+
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
+        // TODO: Use `thread_executor` here
+        f(self)
+    }
+
     fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
         self.window_state.lock().unwrap()
     }

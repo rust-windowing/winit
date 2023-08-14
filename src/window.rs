@@ -23,6 +23,18 @@ pub use raw_window_handle;
 
 /// Represents a window.
 ///
+///
+/// # Threading
+///
+/// This is `Send + Sync`, meaning that it can be freely used from other
+/// threads.
+///
+/// However, some platforms (macOS, Web and iOS) only allow user interface
+/// interactions on the main thread, so on those platforms, if you use the
+/// window from a thread other than the main, the code is scheduled to run on
+/// the main thread, and your thread may be blocked until that completes.
+///
+///
 /// # Example
 ///
 /// ```no_run
@@ -59,13 +71,15 @@ impl fmt::Debug for Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        // If the window is in exclusive fullscreen, we must restore the desktop
-        // video mode (generally this would be done on application exit, but
-        // closing the window doesn't necessarily always mean application exit,
-        // such as when there are multiple windows)
-        if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
-            self.set_fullscreen(None);
-        }
+        self.window.maybe_wait_on_main(|w| {
+            // If the window is in exclusive fullscreen, we must restore the desktop
+            // video mode (generally this would be done on application exit, but
+            // closing the window doesn't necessarily always mean application exit,
+            // such as when there are multiple windows)
+            if let Some(Fullscreen::Exclusive(_)) = w.fullscreen().map(|f| f.into()) {
+                w.set_fullscreen(None);
+            }
+        })
     }
 }
 
@@ -468,12 +482,10 @@ impl WindowBuilder {
         self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific).map(
-            |window| {
-                window.request_redraw();
-                Window { window }
-            },
-        )
+        let window =
+            platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)?;
+        window.maybe_queue_on_main(|w| w.request_redraw());
+        Ok(Window { window })
     }
 }
 
@@ -501,7 +513,7 @@ impl Window {
     /// Returns an identifier unique to the window.
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.window.id())
+        self.window.maybe_wait_on_main(|w| WindowId(w.id()))
     }
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
@@ -524,7 +536,7 @@ impl Window {
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.window.scale_factor()
+        self.window.maybe_wait_on_main(|w| w.scale_factor())
     }
 
     /// Queues a [`Event::RedrawRequested`] event to be emitted that aligns with the windowing
@@ -555,7 +567,7 @@ impl Window {
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
     #[inline]
     pub fn request_redraw(&self) {
-        self.window.request_redraw()
+        self.window.maybe_queue_on_main(|w| w.request_redraw())
     }
 
     /// Notify the windowing system that you're before presenting to the window.
@@ -592,7 +604,7 @@ impl Window {
     /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
     #[inline]
     pub fn pre_present_notify(&self) {
-        self.window.pre_present_notify();
+        self.window.maybe_queue_on_main(|w| w.pre_present_notify());
     }
 
     /// Reset the dead key state of the keyboard.
@@ -608,7 +620,7 @@ impl Window {
     // at least, then this function should be provided through a platform specific
     // extension trait
     pub fn reset_dead_keys(&self) {
-        self.window.reset_dead_keys();
+        self.window.maybe_queue_on_main(|w| w.reset_dead_keys())
     }
 }
 
@@ -630,7 +642,7 @@ impl Window {
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        self.window.inner_position()
+        self.window.maybe_wait_on_main(|w| w.inner_position())
     }
 
     /// Returns the position of the top-left hand corner of the window relative to the
@@ -651,7 +663,7 @@ impl Window {
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        self.window.outer_position()
+        self.window.maybe_wait_on_main(|w| w.outer_position())
     }
 
     /// Modifies the position of the window.
@@ -683,7 +695,9 @@ impl Window {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
-        self.window.set_outer_position(position.into())
+        let position = position.into();
+        self.window
+            .maybe_queue_on_main(move |w| w.set_outer_position(position))
     }
 
     /// Returns the physical size of the window's client area.
@@ -700,7 +714,7 @@ impl Window {
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.window.inner_size()
+        self.window.maybe_wait_on_main(|w| w.inner_size())
     }
 
     /// Request the new size for the window.
@@ -741,7 +755,9 @@ impl Window {
     #[inline]
     #[must_use]
     pub fn request_inner_size<S: Into<Size>>(&self, size: S) -> Option<PhysicalSize<u32>> {
-        self.window.request_inner_size(size.into())
+        let size = size.into();
+        self.window
+            .maybe_wait_on_main(|w| w.request_inner_size(size))
     }
 
     /// Returns the physical size of the entire window.
@@ -757,7 +773,7 @@ impl Window {
     ///   [`Window::inner_size`]._
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        self.window.outer_size()
+        self.window.maybe_wait_on_main(|w| w.outer_size())
     }
 
     /// Sets a minimum dimension size for the window.
@@ -780,7 +796,9 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
-        self.window.set_min_inner_size(min_size.map(|s| s.into()))
+        let min_size = min_size.map(|s| s.into());
+        self.window
+            .maybe_queue_on_main(move |w| w.set_min_inner_size(min_size))
     }
 
     /// Sets a maximum dimension size for the window.
@@ -803,7 +821,9 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
-        self.window.set_max_inner_size(max_size.map(|s| s.into()))
+        let max_size = max_size.map(|s| s.into());
+        self.window
+            .maybe_queue_on_main(move |w| w.set_max_inner_size(max_size))
     }
 
     /// Returns window resize increments if any were set.
@@ -813,7 +833,7 @@ impl Window {
     /// - **iOS / Android / Web / Wayland / Windows / Orbital:** Always returns [`None`].
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        self.window.resize_increments()
+        self.window.maybe_wait_on_main(|w| w.resize_increments())
     }
 
     /// Sets window resize increments.
@@ -828,8 +848,9 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_resize_increments<S: Into<Size>>(&self, increments: Option<S>) {
+        let increments = increments.map(Into::into);
         self.window
-            .set_resize_increments(increments.map(Into::into))
+            .maybe_queue_on_main(move |w| w.set_resize_increments(increments))
     }
 }
 
@@ -842,7 +863,7 @@ impl Window {
     /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_title(&self, title: &str) {
-        self.window.set_title(title)
+        self.window.maybe_wait_on_main(|w| w.set_title(title))
     }
 
     /// Change the window transparency state.
@@ -859,7 +880,8 @@ impl Window {
     /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
-        self.window.set_transparent(transparent)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_transparent(transparent))
     }
 
     /// Modifies the window's visibility.
@@ -872,7 +894,8 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        self.window.set_visible(visible)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_visible(visible))
     }
 
     /// Gets the window's current visibility state.
@@ -885,7 +908,7 @@ impl Window {
     /// - **Wayland / iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        self.window.is_visible()
+        self.window.maybe_wait_on_main(|w| w.is_visible())
     }
 
     /// Sets whether the window is resizable or not.
@@ -904,7 +927,8 @@ impl Window {
     /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        self.window.set_resizable(resizable)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_resizable(resizable))
     }
 
     /// Gets the window's current resizable state.
@@ -915,7 +939,7 @@ impl Window {
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        self.window.is_resizable()
+        self.window.maybe_wait_on_main(|w| w.is_resizable())
     }
 
     /// Sets the enabled window buttons.
@@ -925,7 +949,8 @@ impl Window {
     /// - **Wayland / X11 / Orbital:** Not implemented.
     /// - **Web / iOS / Android:** Unsupported.
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
-        self.window.set_enabled_buttons(buttons)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_enabled_buttons(buttons))
     }
 
     /// Gets the enabled window buttons.
@@ -935,7 +960,7 @@ impl Window {
     /// - **Wayland / X11 / Orbital:** Not implemented. Always returns [`WindowButtons::all`].
     /// - **Web / iOS / Android:** Unsupported. Always returns [`WindowButtons::all`].
     pub fn enabled_buttons(&self) -> WindowButtons {
-        self.window.enabled_buttons()
+        self.window.maybe_wait_on_main(|w| w.enabled_buttons())
     }
 
     /// Sets the window to minimized or back
@@ -946,7 +971,8 @@ impl Window {
     /// - **Wayland:** Un-minimize is unsupported.
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
-        self.window.set_minimized(minimized);
+        self.window
+            .maybe_queue_on_main(move |w| w.set_minimized(minimized))
     }
 
     /// Gets the window's current minimized state.
@@ -963,7 +989,7 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn is_minimized(&self) -> Option<bool> {
-        self.window.is_minimized()
+        self.window.maybe_wait_on_main(|w| w.is_minimized())
     }
 
     /// Sets the window to maximized or back.
@@ -973,7 +999,8 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        self.window.set_maximized(maximized)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_maximized(maximized))
     }
 
     /// Gets the window's current maximized state.
@@ -983,7 +1010,7 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        self.window.is_maximized()
+        self.window.maybe_wait_on_main(|w| w.is_maximized())
     }
 
     /// Sets the window to fullscreen or back.
@@ -1012,7 +1039,8 @@ impl Window {
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        self.window.set_fullscreen(fullscreen.map(|f| f.into()))
+        self.window
+            .maybe_queue_on_main(move |w| w.set_fullscreen(fullscreen.map(|f| f.into())))
     }
 
     /// Gets the window's current fullscreen state.
@@ -1024,7 +1052,8 @@ impl Window {
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        self.window.fullscreen().map(|f| f.into())
+        self.window
+            .maybe_wait_on_main(|w| w.fullscreen().map(|f| f.into()))
     }
 
     /// Turn window decorations on or off.
@@ -1038,7 +1067,8 @@ impl Window {
     /// - **iOS / Android / Web:** No effect.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        self.window.set_decorations(decorations)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_decorations(decorations))
     }
 
     /// Gets the window's current decorations state.
@@ -1051,7 +1081,7 @@ impl Window {
     /// - **iOS / Android / Web:** Always returns `true`.
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        self.window.is_decorated()
+        self.window.maybe_wait_on_main(|w| w.is_decorated())
     }
 
     /// Change the window level.
@@ -1060,7 +1090,8 @@ impl Window {
     ///
     /// See [`WindowLevel`] for details.
     pub fn set_window_level(&self, level: WindowLevel) {
-        self.window.set_window_level(level)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_window_level(level))
     }
 
     /// Sets the window icon.
@@ -1079,7 +1110,8 @@ impl Window {
     ///   said, it's usually in the same ballpark as on Windows.
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
-        self.window.set_window_icon(window_icon)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_window_icon(window_icon))
     }
 
     /// Set the IME cursor editing area, where the `position` is the top left corner of that area
@@ -1119,8 +1151,10 @@ impl Window {
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[inline]
     pub fn set_ime_cursor_area<P: Into<Position>, S: Into<Size>>(&self, position: P, size: S) {
+        let position = position.into();
+        let size = size.into();
         self.window
-            .set_ime_cursor_area(position.into(), size.into())
+            .maybe_queue_on_main(move |w| w.set_ime_cursor_area(position, size))
     }
 
     /// Sets whether the window should get IME events
@@ -1145,7 +1179,8 @@ impl Window {
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        self.window.set_ime_allowed(allowed);
+        self.window
+            .maybe_queue_on_main(move |w| w.set_ime_allowed(allowed))
     }
 
     /// Sets the IME purpose for the window using [`ImePurpose`].
@@ -1155,7 +1190,8 @@ impl Window {
     /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
     #[inline]
     pub fn set_ime_purpose(&self, purpose: ImePurpose) {
-        self.window.set_ime_purpose(purpose);
+        self.window
+            .maybe_queue_on_main(move |w| w.set_ime_purpose(purpose))
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is
@@ -1170,7 +1206,7 @@ impl Window {
     /// - **iOS / Android / Wayland / Orbital:** Unsupported.
     #[inline]
     pub fn focus_window(&self) {
-        self.window.focus_window()
+        self.window.maybe_queue_on_main(|w| w.focus_window())
     }
 
     /// Gets whether the window has keyboard focus.
@@ -1180,7 +1216,7 @@ impl Window {
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.window.has_focus()
+        self.window.maybe_wait_on_main(|w| w.has_focus())
     }
 
     /// Requests user attention to the window, this has no effect if the application
@@ -1198,7 +1234,8 @@ impl Window {
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        self.window.request_user_attention(request_type)
+        self.window
+            .maybe_queue_on_main(move |w| w.request_user_attention(request_type))
     }
 
     /// Sets the current window theme. Use `None` to fallback to system default.
@@ -1212,7 +1249,7 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
     pub fn set_theme(&self, theme: Option<Theme>) {
-        self.window.set_theme(theme)
+        self.window.maybe_queue_on_main(move |w| w.set_theme(theme))
     }
 
     /// Returns the current window theme.
@@ -1223,7 +1260,7 @@ impl Window {
     /// - **iOS / Android / Wayland / x11 / Orbital:** Unsupported.
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        self.window.theme()
+        self.window.maybe_wait_on_main(|w| w.theme())
     }
 
     /// Prevents the window contents from being captured by other apps.
@@ -1237,7 +1274,8 @@ impl Window {
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, _protected: bool) {
         #[cfg(any(macos_platform, windows_platform))]
-        self.window.set_content_protected(_protected);
+        self.window
+            .maybe_queue_on_main(move |w| w.set_content_protected(_protected))
     }
 
     /// Gets the current title of the window.
@@ -1247,7 +1285,7 @@ impl Window {
     /// - **iOS / Android / x11 / Wayland / Web:** Unsupported. Always returns an empty string.
     #[inline]
     pub fn title(&self) -> String {
-        self.window.title()
+        self.window.maybe_wait_on_main(|w| w.title())
     }
 }
 
@@ -1260,7 +1298,8 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window.set_cursor_icon(cursor);
+        self.window
+            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -1283,7 +1322,9 @@ impl Window {
     /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position.into())
+        let position = position.into();
+        self.window
+            .maybe_wait_on_main(|w| w.set_cursor_position(position))
     }
 
     /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
@@ -1303,7 +1344,7 @@ impl Window {
     /// ```
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab(mode)
+        self.window.maybe_wait_on_main(|w| w.set_cursor_grab(mode))
     }
 
     /// Modifies the cursor's visibility.
@@ -1320,7 +1361,8 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.window.set_cursor_visible(visible)
+        self.window
+            .maybe_queue_on_main(move |w| w.set_cursor_visible(visible))
     }
 
     /// Moves the window with the left mouse button until the button is released.
@@ -1336,7 +1378,7 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        self.window.drag_window()
+        self.window.maybe_wait_on_main(|w| w.drag_window())
     }
 
     /// Resizes the window with the left mouse button until the button is released.
@@ -1350,7 +1392,8 @@ impl Window {
     /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
-        self.window.drag_resize_window(direction)
+        self.window
+            .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
     /// Modifies whether the window catches cursor events.
@@ -1363,7 +1406,8 @@ impl Window {
     /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        self.window.set_cursor_hittest(hittest)
+        self.window
+            .maybe_wait_on_main(|w| w.set_cursor_hittest(hittest))
     }
 }
 
@@ -1379,8 +1423,7 @@ impl Window {
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window
-            .current_monitor()
-            .map(|inner| MonitorHandle { inner })
+            .maybe_wait_on_main(|w| w.current_monitor().map(|inner| MonitorHandle { inner }))
     }
 
     /// Returns the list of all the monitors available on the system.
@@ -1394,11 +1437,11 @@ impl Window {
     /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        #[allow(clippy::useless_conversion)] // false positive on some platforms
-        self.window
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
+        self.window.maybe_wait_on_main(|w| {
+            w.available_monitors()
+                .into_iter()
+                .map(|inner| MonitorHandle { inner })
+        })
     }
 
     /// Returns the primary monitor of the system.
@@ -1416,10 +1459,10 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.window
-            .primary_monitor()
-            .map(|inner| MonitorHandle { inner })
+            .maybe_wait_on_main(|w| w.primary_monitor().map(|inner| MonitorHandle { inner }))
     }
 }
+
 unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
@@ -1437,7 +1480,11 @@ unsafe impl HasRawWindowHandle for Window {
     /// [`Event::Resumed`]: crate::event::Event::Resumed
     /// [`Event::Suspended`]: crate::event::Event::Suspended
     fn raw_window_handle(&self) -> RawWindowHandle {
-        self.window.raw_window_handle()
+        struct Wrapper(RawWindowHandle);
+        unsafe impl Send for Wrapper {}
+        self.window
+            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle()))
+            .0
     }
 }
 
@@ -1447,7 +1494,11 @@ unsafe impl HasRawDisplayHandle for Window {
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
     fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.window.raw_display_handle()
+        struct Wrapper(RawDisplayHandle);
+        unsafe impl Send for Wrapper {}
+        self.window
+            .maybe_wait_on_main(|w| Wrapper(w.raw_display_handle()))
+            .0
     }
 }
 
