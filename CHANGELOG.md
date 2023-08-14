@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.29.0-beta.1
+
 - Make iOS windows usable from other threads.
 - Reexport `raw-window-handle` in `window` module.
 - **Breaking:** `WINIT_UNIX_BACKEND` was removed in favor of standard `WAYLAND_DISPLAY` and `DISPLAY` variables.
