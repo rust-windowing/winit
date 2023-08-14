@@ -17,12 +17,12 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use icrate::Foundation::is_main_thread;
+use icrate::Foundation::MainThreadMarker;
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
-use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent, NSWindow};
+use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent, NSWindow};
 use crate::{
     error::EventLoopError,
     event::Event,
@@ -66,15 +66,8 @@ impl PanicInfo {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
     pub receiver: mpsc::Receiver<T>,
-}
-
-impl<T> Default for EventLoopWindowTarget<T> {
-    fn default() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        EventLoopWindowTarget { sender, receiver }
-    }
+    mtm: MainThreadMarker,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
@@ -97,11 +90,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
 impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn hide_application(&self) {
-        NSApp().hide(None)
+        NSApplication::shared(self.mtm).hide(None)
     }
 
     pub(crate) fn hide_other_applications(&self) {
-        NSApp().hideOtherApplications(None)
+        NSApplication::shared(self.mtm).hideOtherApplications(None)
     }
 
     pub(crate) fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
@@ -118,8 +111,10 @@ pub struct EventLoop<T: 'static> {
     /// it around here as well.
     _delegate: Id<ApplicationDelegate>,
 
+    sender: mpsc::Sender<T>,
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
+    mtm: MainThreadMarker,
 
     /// We make sure that the callback closure is dropped during a panic
     /// by making the event loop own it.
@@ -151,9 +146,8 @@ impl<T> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
-        if !is_main_thread() {
-            panic!("On macOS, `EventLoop` must be created on the main thread!");
-        }
+        let mtm = MainThreadMarker::new()
+            .expect("On macOS, `EventLoop` must be created on the main thread!");
 
         // This must be done before `NSApp()` (equivalent to sending
         // `sharedApplication`) is called anywhere else, or we'll end up
@@ -180,12 +174,16 @@ impl<T> EventLoop<T> {
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
+
+        let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
             _delegate: delegate,
+            sender,
             window_target: Rc::new(RootWindowTarget {
-                p: Default::default(),
+                p: EventLoopWindowTarget { receiver, mtm },
                 _marker: PhantomData,
             }),
+            mtm,
             panic_info,
             _callback: None,
         })
@@ -233,7 +231,7 @@ impl<T> EventLoop<T> {
         self._callback = Some(Rc::clone(&callback));
 
         let exit_code = autoreleasepool(|_| {
-            let app = NSApp();
+            let app = NSApplication::shared(self.mtm);
 
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
@@ -408,7 +406,7 @@ impl<T> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.window_target.p.sender.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
 }
 

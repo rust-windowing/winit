@@ -16,8 +16,6 @@ pub use self::resize_scaling::ResizeScaleHandle;
 pub use self::timeout::{IdleCallback, Timeout};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::platform::web::WindowExtWebSys;
-use crate::window::Window;
 use wasm_bindgen::closure::Closure;
 use web_sys::{
     CssStyleDeclaration, Document, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
@@ -49,12 +47,6 @@ pub fn on_page_transition(
     PageTransitionEventHandle {
         _show_listener: show_listener,
         _hide_listener: hide_listener,
-    }
-}
-
-impl WindowExtWebSys for Window {
-    fn canvas(&self) -> Option<HtmlCanvasElement> {
-        self.window.canvas()
     }
 }
 

@@ -17,10 +17,8 @@ mod view;
 mod window;
 mod window_delegate;
 
-use std::{fmt, ops::Deref};
+use std::fmt;
 
-use self::window::WinitWindow;
-use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
     event::KeyEventExtra,
     event_loop::{
@@ -29,11 +27,9 @@ pub(crate) use self::{
     monitor::{MonitorHandle, VideoMode},
     window::{PlatformSpecificWindowBuilderAttributes, WindowId},
 };
-use crate::{
-    error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
-};
-use objc2::rc::{autoreleasepool, Id};
+use crate::event::DeviceId as RootDeviceId;
 
+pub(crate) use self::window::Window;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
@@ -49,45 +45,10 @@ impl DeviceId {
 // Constant device ID; to be removed when if backend is updated to report real device IDs.
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
-pub(crate) struct Window {
-    pub(crate) window: Id<WinitWindow>,
-    // We keep this around so that it doesn't get dropped until the window does.
-    _delegate: Id<WinitWindowDelegate>,
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        // Ensure the window is closed
-        util::close_sync(&self.window);
-    }
-}
-
 #[derive(Debug)]
 pub enum OsError {
     CGError(core_graphics::base::CGError),
     CreationError(&'static str),
-}
-
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
-
-impl Deref for Window {
-    type Target = WinitWindow;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.window
-    }
-}
-
-impl Window {
-    pub(crate) fn new<T: 'static>(
-        _window_target: &EventLoopWindowTarget<T>,
-        attributes: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
-        Ok(Window { window, _delegate })
-    }
 }
 
 impl fmt::Display for OsError {

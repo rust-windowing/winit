@@ -4,10 +4,12 @@ use core_foundation::{
     base::CFRelease,
     data::{CFDataGetBytePtr, CFDataRef},
 };
+use icrate::Foundation::MainThreadMarker;
 use objc2::rc::Id;
 use smol_str::SmolStr;
 
 use super::appkit::{NSEvent, NSEventModifierFlags};
+use super::util::Never;
 use super::window::WinitWindow;
 use crate::{
     dpi::LogicalSize,
@@ -16,10 +18,7 @@ use crate::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
     },
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
-    platform_impl::platform::{
-        ffi,
-        util::{get_kbd_type, Never},
-    },
+    platform_impl::platform::ffi,
 };
 
 #[derive(Debug)]
@@ -75,7 +74,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         }
         layout = CFDataGetBytePtr(layout_data as CFDataRef) as *const ffi::UCKeyboardLayout;
     }
-    let keyboard_type = get_kbd_type();
+    let keyboard_type = MainThreadMarker::run_on_main(|_mtm| unsafe { ffi::LMGetKbdType() });
 
     let mut result_len = 0;
     let mut dead_keys = 0;
