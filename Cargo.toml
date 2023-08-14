@@ -78,11 +78,11 @@ objc2 = "0.4.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.22.3"
-dispatch = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]
 version = "0.0.4"
 features = [
+    "dispatch",
     "Foundation",
     "Foundation_NSArray",
     "Foundation_NSAttributedString",
@@ -98,6 +98,7 @@ features = [
 [target.'cfg(target_os = "ios")'.dependencies.icrate]
 version = "0.0.4"
 features = [
+    "dispatch",
     "Foundation",
     "Foundation_NSArray",
     "Foundation_NSString",

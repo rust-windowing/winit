@@ -1,11 +1,8 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{
-    collections::VecDeque,
-    ops::{Deref, DerefMut},
-};
+use std::collections::VecDeque;
 
-use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadMarker};
+use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
@@ -31,9 +28,9 @@ use crate::{
 };
 
 pub struct Inner {
-    pub(crate) window: Id<WinitUIWindow>,
-    pub(crate) view_controller: Id<WinitViewController>,
-    pub(crate) view: Id<WinitView>,
+    window: Id<WinitUIWindow>,
+    view_controller: Id<WinitViewController>,
+    view: Id<WinitView>,
     gl_or_metal_backed: bool,
 }
 
@@ -76,68 +73,58 @@ impl Inner {
     pub fn pre_present_notify(&self) {}
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        unsafe {
-            let safe_area = self.safe_area_screen_space();
-            let position = LogicalPosition {
-                x: safe_area.origin.x as f64,
-                y: safe_area.origin.y as f64,
-            };
-            let scale_factor = self.scale_factor();
-            Ok(position.to_physical(scale_factor))
-        }
+        let safe_area = self.safe_area_screen_space();
+        let position = LogicalPosition {
+            x: safe_area.origin.x as f64,
+            y: safe_area.origin.y as f64,
+        };
+        let scale_factor = self.scale_factor();
+        Ok(position.to_physical(scale_factor))
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        unsafe {
-            let screen_frame = self.screen_frame();
-            let position = LogicalPosition {
-                x: screen_frame.origin.x as f64,
-                y: screen_frame.origin.y as f64,
-            };
-            let scale_factor = self.scale_factor();
-            Ok(position.to_physical(scale_factor))
-        }
+        let screen_frame = self.screen_frame();
+        let position = LogicalPosition {
+            x: screen_frame.origin.x as f64,
+            y: screen_frame.origin.y as f64,
+        };
+        let scale_factor = self.scale_factor();
+        Ok(position.to_physical(scale_factor))
     }
 
     pub fn set_outer_position(&self, physical_position: Position) {
-        unsafe {
-            let scale_factor = self.scale_factor();
-            let position = physical_position.to_logical::<f64>(scale_factor);
-            let screen_frame = self.screen_frame();
-            let new_screen_frame = CGRect {
-                origin: CGPoint {
-                    x: position.x as _,
-                    y: position.y as _,
-                },
-                size: screen_frame.size,
-            };
-            let bounds = self.rect_from_screen_space(new_screen_frame);
-            self.window.setBounds(bounds);
-        }
+        let scale_factor = self.scale_factor();
+        let position = physical_position.to_logical::<f64>(scale_factor);
+        let screen_frame = self.screen_frame();
+        let new_screen_frame = CGRect {
+            origin: CGPoint {
+                x: position.x as _,
+                y: position.y as _,
+            },
+            size: screen_frame.size,
+        };
+        let bounds = self.rect_from_screen_space(new_screen_frame);
+        self.window.setBounds(bounds);
     }
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        unsafe {
-            let scale_factor = self.scale_factor();
-            let safe_area = self.safe_area_screen_space();
-            let size = LogicalSize {
-                width: safe_area.size.width as f64,
-                height: safe_area.size.height as f64,
-            };
-            size.to_physical(scale_factor)
-        }
+        let scale_factor = self.scale_factor();
+        let safe_area = self.safe_area_screen_space();
+        let size = LogicalSize {
+            width: safe_area.size.width as f64,
+            height: safe_area.size.height as f64,
+        };
+        size.to_physical(scale_factor)
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        unsafe {
-            let scale_factor = self.scale_factor();
-            let screen_frame = self.screen_frame();
-            let size = LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
-            };
-            size.to_physical(scale_factor)
-        }
+        let scale_factor = self.scale_factor();
+        let screen_frame = self.screen_frame();
+        let size = LogicalSize {
+            width: screen_frame.size.width as f64,
+            height: screen_frame.size.height as f64,
+        };
+        size.to_physical(scale_factor)
     }
 
     pub fn request_inner_size(&self, _size: Size) -> Option<PhysicalSize<u32>> {
@@ -262,22 +249,20 @@ impl Inner {
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
-        unsafe {
-            let monitor = self.current_monitor_inner();
-            let uiscreen = monitor.ui_screen();
-            let screen_space_bounds = self.screen_frame();
-            let screen_bounds = uiscreen.bounds();
+        let monitor = self.current_monitor_inner();
+        let uiscreen = monitor.ui_screen();
+        let screen_space_bounds = self.screen_frame();
+        let screen_bounds = uiscreen.bounds();
 
-            // TODO: track fullscreen instead of relying on brittle float comparisons
-            if screen_space_bounds.origin.x == screen_bounds.origin.x
-                && screen_space_bounds.origin.y == screen_bounds.origin.y
-                && screen_space_bounds.size.width == screen_bounds.size.width
-                && screen_space_bounds.size.height == screen_bounds.size.height
-            {
-                Some(Fullscreen::Borderless(Some(monitor)))
-            } else {
-                None
-            }
+        // TODO: track fullscreen instead of relying on brittle float comparisons
+        if screen_space_bounds.origin.x == screen_bounds.origin.x
+            && screen_space_bounds.origin.y == screen_bounds.origin.y
+            && screen_space_bounds.size.width == screen_bounds.size.width
+            && screen_space_bounds.size.height == screen_bounds.size.height
+        {
+            Some(Fullscreen::Borderless(Some(monitor)))
+        } else {
+            None
         }
     }
 
@@ -375,32 +360,7 @@ impl Inner {
 }
 
 pub struct Window {
-    pub inner: Inner,
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
-    }
-}
-
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
-
-impl Deref for Window {
-    type Target = Inner;
-
-    fn deref(&self) -> &Inner {
-        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        &self.inner
-    }
-}
-
-impl DerefMut for Window {
-    fn deref_mut(&mut self) -> &mut Inner {
-        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        &mut self.inner
-    }
+    inner: MainThreadBound<Inner>,
 }
 
 impl Window {
@@ -497,14 +457,24 @@ impl Window {
             }
         }
 
+        let inner = Inner {
+            window,
+            view_controller,
+            view,
+            gl_or_metal_backed,
+        };
         Ok(Window {
-            inner: Inner {
-                window,
-                view_controller,
-                view,
-                gl_or_metal_backed,
-            },
+            inner: MainThreadBound::new(inner, mtm),
         })
+    }
+
+    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
+        // For now, don't actually do queuing, since it may be less predictable
+        self.maybe_wait_on_main(f)
+    }
+
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
+        self.inner.get_on_main(|inner, _mtm| f(inner))
     }
 }
 
@@ -542,27 +512,23 @@ impl Inner {
 }
 
 impl Inner {
-    // requires main thread
-    unsafe fn screen_frame(&self) -> CGRect {
+    fn screen_frame(&self) -> CGRect {
         self.rect_to_screen_space(self.window.bounds())
     }
 
-    // requires main thread
-    unsafe fn rect_to_screen_space(&self, rect: CGRect) -> CGRect {
+    fn rect_to_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
         self.window
             .convertRect_toCoordinateSpace(rect, &screen_space)
     }
 
-    // requires main thread
-    unsafe fn rect_from_screen_space(&self, rect: CGRect) -> CGRect {
+    fn rect_from_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
         self.window
             .convertRect_fromCoordinateSpace(rect, &screen_space)
     }
 
-    // requires main thread
-    unsafe fn safe_area_screen_space(&self) -> CGRect {
+    fn safe_area_screen_space(&self) -> CGRect {
         let bounds = self.window.bounds();
         if app_state::os_capabilities().safe_area {
             let safe_area = self.window.safeAreaInsets();
@@ -580,7 +546,7 @@ impl Inner {
         } else {
             let screen_frame = self.rect_to_screen_space(bounds);
             let status_bar_frame = {
-                let app = UIApplication::shared(MainThreadMarker::new().unwrap_unchecked()).expect(
+                let app = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
                     "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS",
                 );
                 app.statusBarFrame()
