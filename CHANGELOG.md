@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Reexport `raw-window-handle` in `window` module.
 - **Breaking:** `WINIT_UNIX_BACKEND` was removed in favor of standard `WAYLAND_DISPLAY` and `DISPLAY` variables.
 - **Breaking:** `EventLoop::new` and `EventLoopBuilder::build` now return `Result<Self, EventLoopError>`
 - On X11, set `visual_id` in returned `raw-window-handle`.
