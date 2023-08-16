@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
-rust-version = "1.64.0"
+rust-version = "1.65.0"
 
 [package.metadata.docs.rs]
 features = ["serde"]
