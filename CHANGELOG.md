@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-# 0.29.0-beta.1
+# 0.29.1-beta
 
 - **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `v0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
 - **Breaking:** Bump MSRV from `1.64` to `1.65`.
