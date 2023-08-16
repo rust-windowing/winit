@@ -68,9 +68,9 @@ softbuffer = "0.3.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Coordinate the next winit release android-activity 0.5 release
-android-activity = { git = "https://github.com/rust-mobile/android-activity", rev = "535994f4a2dde7e1abc3566e75d62518e0c7da74" }
-ndk = "0.7.0"
-ndk-sys = "0.4.0"
+android-activity = "0.5.0-beta.1"
+ndk = "0.8.0-beta.0"
+ndk-sys = "0.5.0-beta.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
