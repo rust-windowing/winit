@@ -189,8 +189,13 @@ features = [
     'ResizeObserverSize',
     'VisibilityState',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
 ]
+
+[target.'cfg(target_family = "wasm")'.dev-dependencies.web_sys]
+package = "web-sys"
+version = "0.3.22"
+features = ['HtmlScriptElement']
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 atomic-waker = "1"
