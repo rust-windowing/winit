@@ -2407,7 +2407,10 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             if let Some(state) = *state {
                 userdata.send_event(Event::DeviceEvent {
                     device_id,
-                    event: Button { button: button as _, state },
+                    event: Button {
+                        button: button as _,
+                        state,
+                    },
                 });
             }
         }

@@ -1105,7 +1105,7 @@ impl<T: 'static> EventProcessor<T> {
                                     button: match xev.detail {
                                         2 => 2,
                                         3 => 1,
-                                        other => other - 1,
+                                        other => other as u32 - 1,
                                     },
                                     state: match xev.evtype {
                                         ffi::XI_RawButtonPress => Pressed,
