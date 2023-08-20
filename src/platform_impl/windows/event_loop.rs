@@ -55,10 +55,10 @@ use windows_sys::Win32::{
             RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
-            PT_TOUCH, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE,
-            SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA,
-            WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
-            WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
+            PT_TOUCH, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE,
+            SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+            WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY,
+            WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
             WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
             WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
             WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
@@ -1489,7 +1489,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
             use crate::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
-            let value = value as i32;
             let value = value as f32 / WHEEL_DELTA as f32;
 
             update_modifiers(window, userdata);
@@ -1510,7 +1509,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
             use crate::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
-            let value = value as i32;
             let value = -value as f32 / WHEEL_DELTA as f32; // NOTE: inverted! See https://github.com/rust-windowing/winit/pull/2105/
 
             update_modifiers(window, userdata);
@@ -2382,7 +2380,6 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
         }
 
         let button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
-
         if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
             let button_data = mouse.Anonymous.Anonymous.usButtonData;
             // We must cast to i16 first, becaues `usButtonData` must be interpreted as signed.
@@ -2394,18 +2391,23 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
                 },
             });
         }
+        if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
+            let button_data = mouse.Anonymous.Anonymous.usButtonData as i16;
+            let delta = -button_data as f32 / WHEEL_DELTA as f32;
+            userdata.send_event(Event::DeviceEvent {
+                device_id,
+                event: MouseWheel {
+                    delta: LineDelta(delta, 0.0),
+                },
+            });
+        }
 
         let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);
-        // Left, middle, and right, respectively.
-        for (index, state) in button_state.iter().enumerate() {
+        for (button, state) in button_state.iter().enumerate() {
             if let Some(state) = *state {
-                // This gives us consistency with X11, since there doesn't
-                // seem to be anything else reasonable to do for a mouse
-                // button ID.
-                let button = (index + 1) as _;
                 userdata.send_event(Event::DeviceEvent {
                     device_id,
-                    event: Button { button, state },
+                    event: Button { button: button as _, state },
                 });
             }
         }
