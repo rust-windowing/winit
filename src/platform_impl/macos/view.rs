@@ -15,8 +15,8 @@ use objc2::{class, declare_class, msg_send, msg_send_id, mutability, sel, ClassT
 
 use super::{
     appkit::{
-        NSApp, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag,
-        NSView,
+        NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder,
+        NSTextInputClient, NSTrackingRectTag, NSView,
     },
     event::{code_to_key, code_to_location},
 };
@@ -125,6 +125,7 @@ pub struct ViewState {
     ime_size: Cell<LogicalSize<f64>>,
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
+    capslock_pressed: Cell<bool>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
     ime_state: Cell<ImeState>,
     input_source: RefCell<String>,
@@ -922,6 +923,33 @@ impl WinitView {
         if is_flags_changed_event {
             let scancode = ns_event.key_code();
             let keycode = KeyCode::from_scancode(scancode as u32);
+
+            {
+                // macOS has a special behavior on CapsLock: only the CapsLock
+                // state is received, not the Key press/release events.
+                // A full press/release cycle is generated to simulate the
+                // keyboard events.
+                let prev_capslock_pressed = self.state.capslock_pressed.get();
+                let capslock_pressed = ns_event
+                    .modifierFlags()
+                    .contains(NSEventModifierFlags::NSAlphaShiftKeyMask);
+                self.state.capslock_pressed.set(capslock_pressed);
+
+                println!("prev_capslock_pressed={prev_capslock_pressed} != capslock_pressed={capslock_pressed}");
+                if prev_capslock_pressed != capslock_pressed {
+                    for pressed in [true, false] {
+                        let event =
+                            create_key_event(ns_event, pressed, false, Some(KeyCode::CapsLock));
+                        self.queue_event(WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event,
+                            is_synthetic: false,
+                        });
+                    }
+
+                    return;
+                }
+            }
 
             // We'll correct the `is_press` later.
             let mut event = create_key_event(ns_event, false, false, Some(keycode));
