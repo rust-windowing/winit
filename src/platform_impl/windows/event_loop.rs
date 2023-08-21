@@ -2381,9 +2381,8 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
 
         let button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
         if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
-            let button_data = mouse.Anonymous.Anonymous.usButtonData;
-            // We must cast to i16 first, becaues `usButtonData` must be interpreted as signed.
-            let delta = button_data as i16 as f32 / WHEEL_DELTA as f32;
+            let button_data = mouse.Anonymous.Anonymous.usButtonData as i16;
+            let delta = button_data as f32 / WHEEL_DELTA as f32;
             userdata.send_event(Event::DeviceEvent {
                 device_id,
                 event: MouseWheel {
