@@ -1538,13 +1538,13 @@ pub enum CursorGrabMode {
 /// Describes the appearance of the mouse cursor.
 #[derive(Clone)]
 pub enum CursorIcon {
-    Named(cursor_icon::CursorIcon),
+    Named(NamedCursorIcon),
     Custom(Icon),
 }
 
 impl Default for CursorIcon {
     fn default() -> Self {
-        NamedCursorIcon::default().into()
+        Self::Named(NamedCursorIcon::Default)
     }
 }
 

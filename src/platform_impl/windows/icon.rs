@@ -1,12 +1,14 @@
-use std::{fmt, io, mem, path::Path, sync::Arc};
+use std::{ffi, fmt, io, mem, path::Path, ptr, sync::Arc};
 
+use windows_sys::Win32::Graphics::Gdi::CreateBitmap;
+use windows_sys::Win32::UI::WindowsAndMessaging::{CreateIconIndirect, ICONINFO};
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
-            CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
-            IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
+            DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL, IMAGE_ICON,
+            LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
         },
     },
 };
@@ -26,24 +28,30 @@ impl RgbaIcon {
     fn into_windows_icon(self) -> Result<WinIcon, BadIcon> {
         let rgba = self.rgba;
         let pixel_count = rgba.len() / PIXEL_SIZE;
-        let mut and_mask = Vec::with_capacity(pixel_count);
         let pixels =
             unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
         for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
             pixel.convert_to_bgra();
         }
-        assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {
-            CreateIcon(
-                0,
+            let hbm_mask = CreateBitmap(self.width as i32, self.height as i32, 1, 1, ptr::null());
+            let hbm_color = CreateBitmap(
                 self.width as i32,
                 self.height as i32,
                 1,
-                (PIXEL_SIZE * 8) as u8,
-                and_mask.as_ptr(),
-                rgba.as_ptr(),
-            )
+                (PIXEL_SIZE * 8) as u32,
+                rgba.as_ptr() as *const ffi::c_void,
+            );
+
+            let icon_info = ICONINFO {
+                fIcon: 0,
+                xHotspot: self.hotspot_x,
+                yHotspot: self.hotspot_y,
+                hbmMask: hbm_mask,
+                hbmColor: hbm_color,
+            };
+
+            CreateIconIndirect(&icon_info as *const _)
         };
         if handle != 0 {
             Ok(WinIcon::from_handle(handle))
@@ -125,8 +133,14 @@ impl WinIcon {
         }
     }
 
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        let rgba_icon = RgbaIcon::from_rgba(rgba, width, height)?;
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadIcon> {
+        let rgba_icon = RgbaIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
         rgba_icon.into_windows_icon()
     }
 

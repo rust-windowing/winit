@@ -60,6 +60,8 @@ pub(crate) struct RgbaIcon {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u32,
     pub(crate) height: u32,
+    pub(crate) hotspot_x: u32,
+    pub(crate) hotspot_y: u32,
 }
 
 /// For platforms which don't have window icons (e.g. web)
@@ -71,7 +73,13 @@ mod constructors {
     use super::*;
 
     impl RgbaIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        pub fn from_rgba(
+            rgba: Vec<u8>,
+            width: u32,
+            height: u32,
+            hotspot_x: u32,
+            hotspot_y: u32,
+        ) -> Result<Self, BadIcon> {
             if rgba.len() % PIXEL_SIZE != 0 {
                 return Err(BadIcon::ByteCountNotDivisibleBy4 {
                     byte_count: rgba.len(),
@@ -90,15 +98,23 @@ mod constructors {
                     rgba,
                     width,
                     height,
+                    hotspot_x,
+                    hotspot_y,
                 })
             }
         }
     }
 
     impl NoIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        pub fn from_rgba(
+            rgba: Vec<u8>,
+            width: u32,
+            height: u32,
+            hotspot_x: u32,
+            hotspot_y: u32,
+        ) -> Result<Self, BadIcon> {
             // Create the rgba icon anyway to validate the input
-            let _ = RgbaIcon::from_rgba(rgba, width, height)?;
+            let _ = RgbaIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
             Ok(NoIcon)
         }
     }
@@ -122,8 +138,18 @@ impl Icon {
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        Self::from_rgba_with_hotspot(rgba, width, height, width / 2, height / 2)
+    }
+
+    pub fn from_rgba_with_hotspot(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadIcon> {
         Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba, width, height)?,
+            inner: PlatformIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?,
         })
     }
 }

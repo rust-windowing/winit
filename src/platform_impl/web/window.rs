@@ -12,6 +12,7 @@ use web_sys::{Document, HtmlCanvasElement};
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
+use image::{ColorType, ImageFormat};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -27,7 +28,7 @@ pub struct Inner {
     pub window: web_sys::Window,
     document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
-    previous_pointer: RefCell<&'static str>,
+    previous_pointer: RefCell<String>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
     has_focus: Arc<AtomicBool>,
 }
@@ -59,7 +60,7 @@ impl Window {
             window: window.clone(),
             document: document.clone(),
             canvas,
-            previous_pointer: RefCell::new("auto"),
+            previous_pointer: RefCell::new("auto".to_owned()),
             destroy_fn: Some(destroy_fn),
             has_focus,
         };
@@ -196,8 +197,31 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        *self.previous_pointer.borrow_mut() = cursor.name();
-        backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", cursor.name());
+        let cursor = match cursor {
+            CursorIcon::Named(named_icon) => named_icon.name().to_owned(),
+            CursorIcon::Custom(icon) => {
+                let mut data = std::io::Cursor::new(vec![]);
+                image::write_buffer_with_format(
+                    &mut data,
+                    &icon.inner.rgba,
+                    icon.inner.width,
+                    icon.inner.height,
+                    ColorType::Rgba8,
+                    ImageFormat::Png,
+                )
+                .unwrap();
+
+                format!(
+                    "url(data:image/png;base64,{}) {} {}, auto",
+                    base64::encode(&data.into_inner()),
+                    icon.inner.hotspot_x,
+                    icon.inner.hotspot_y
+                )
+            }
+        };
+
+        backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", &cursor);
+        *self.previous_pointer.borrow_mut() = cursor;
     }
 
     #[inline]
