@@ -1300,7 +1300,7 @@ impl Window {
     pub fn set_cursor_icon(&self, cursor: impl Into<CursorIcon>) {
         let cursor = cursor.into();
         self.window
-            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor.into()))
+            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
     }
 
     /// Changes the position of the cursor in window coordinates.

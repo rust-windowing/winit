@@ -11,7 +11,7 @@ use std::{
 
 use once_cell::sync::Lazy;
 use windows_sys::{
-    core::{HRESULT, PCWSTR},
+    core::HRESULT,
     Win32::{
         Foundation::{BOOL, HMODULE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, HMONITOR},
