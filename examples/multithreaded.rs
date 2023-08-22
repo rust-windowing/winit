@@ -10,7 +10,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::EventLoop,
         keyboard::{Key, ModifiersState},
-        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
+        window::{CursorGrabMode, Fullscreen, NamedCursorIcon, WindowBuilder, WindowLevel},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -85,8 +85,8 @@ fn main() -> Result<(), impl std::error::Error> {
                                 "2" => window.set_window_level(WindowLevel::AlwaysOnBottom),
                                 "3" => window.set_window_level(WindowLevel::Normal),
                                 "c" => window.set_cursor_icon(match state {
-                                    true => CursorIcon::Progress,
-                                    false => CursorIcon::Default,
+                                    true => NamedCursorIcon::Progress,
+                                    false => NamedCursorIcon::Default,
                                 }),
                                 "d" => window.set_decorations(!state),
                                 "f" => window.set_fullscreen(match (state, modifiers.alt_key()) {

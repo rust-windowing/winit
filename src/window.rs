@@ -16,7 +16,7 @@ use crate::{
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
-pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+pub use cursor_icon::{CursorIcon as NamedCursorIcon, ParseError as NamedCursorIconParseError};
 
 #[doc(inline)]
 pub use raw_window_handle;
@@ -1297,9 +1297,10 @@ impl Window {
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+    pub fn set_cursor_icon(&self, cursor: impl Into<CursorIcon>) {
+        let cursor = cursor.into();
         self.window
-            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
+            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor.into()))
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -1534,6 +1535,31 @@ pub enum CursorGrabMode {
     Locked,
 }
 
+/// Describes the appearance of the mouse cursor.
+#[derive(Clone)]
+pub enum CursorIcon {
+    Named(cursor_icon::CursorIcon),
+    Custom(Icon),
+}
+
+impl Default for CursorIcon {
+    fn default() -> Self {
+        NamedCursorIcon::default().into()
+    }
+}
+
+impl From<NamedCursorIcon> for CursorIcon {
+    fn from(value: NamedCursorIcon) -> Self {
+        Self::Named(value)
+    }
+}
+
+impl From<Icon> for CursorIcon {
+    fn from(value: Icon) -> Self {
+        Self::Custom(value)
+    }
+}
+
 /// Defines the orientation that a window resize will be performed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ResizeDirection {
@@ -1551,14 +1577,14 @@ impl From<ResizeDirection> for CursorIcon {
     fn from(direction: ResizeDirection) -> Self {
         use ResizeDirection::*;
         match direction {
-            East => CursorIcon::EResize,
-            North => CursorIcon::NResize,
-            NorthEast => CursorIcon::NeResize,
-            NorthWest => CursorIcon::NwResize,
-            South => CursorIcon::SResize,
-            SouthEast => CursorIcon::SeResize,
-            SouthWest => CursorIcon::SwResize,
-            West => CursorIcon::WResize,
+            East => CursorIcon::Named(NamedCursorIcon::EResize),
+            North => CursorIcon::Named(NamedCursorIcon::NResize),
+            NorthEast => CursorIcon::Named(NamedCursorIcon::NeResize),
+            NorthWest => CursorIcon::Named(NamedCursorIcon::NwResize),
+            South => CursorIcon::Named(NamedCursorIcon::SResize),
+            SouthEast => CursorIcon::Named(NamedCursorIcon::SeResize),
+            SouthWest => CursorIcon::Named(NamedCursorIcon::SwResize),
+            West => CursorIcon::Named(NamedCursorIcon::WResize),
         }
     }
 }

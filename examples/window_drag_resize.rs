@@ -5,7 +5,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
-    window::{CursorIcon, ResizeDirection, WindowBuilder},
+    window::{NamedCursorIcon, ResizeDirection, WindowBuilder},
 };
 
 const BORDER: f64 = 8.0;
@@ -77,19 +77,19 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-fn cursor_direction_icon(resize_direction: Option<ResizeDirection>) -> CursorIcon {
+fn cursor_direction_icon(resize_direction: Option<ResizeDirection>) -> NamedCursorIcon {
     match resize_direction {
         Some(resize_direction) => match resize_direction {
-            ResizeDirection::East => CursorIcon::EResize,
-            ResizeDirection::North => CursorIcon::NResize,
-            ResizeDirection::NorthEast => CursorIcon::NeResize,
-            ResizeDirection::NorthWest => CursorIcon::NwResize,
-            ResizeDirection::South => CursorIcon::SResize,
-            ResizeDirection::SouthEast => CursorIcon::SeResize,
-            ResizeDirection::SouthWest => CursorIcon::SwResize,
-            ResizeDirection::West => CursorIcon::WResize,
+            ResizeDirection::East => NamedCursorIcon::EResize,
+            ResizeDirection::North => NamedCursorIcon::NResize,
+            ResizeDirection::NorthEast => NamedCursorIcon::NeResize,
+            ResizeDirection::NorthWest => NamedCursorIcon::NwResize,
+            ResizeDirection::South => NamedCursorIcon::SResize,
+            ResizeDirection::SouthEast => NamedCursorIcon::SeResize,
+            ResizeDirection::SouthWest => NamedCursorIcon::SwResize,
+            ResizeDirection::West => NamedCursorIcon::WResize,
         },
-        None => CursorIcon::Default,
+        None => NamedCursorIcon::Default,
     }
 }
 

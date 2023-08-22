@@ -24,16 +24,17 @@ use windows_sys::{
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
                 ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
-                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
-                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
-                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
+                GetWindowRect, IsIconic, LoadCursorW, ShowCursor, HCURSOR, IDC_APPSTARTING,
+                IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL,
+                IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN,
+                SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
+                WINDOWPLACEMENT,
             },
         },
     },
 };
 
-use crate::window::CursorIcon;
+use crate::window::{CursorIcon, NamedCursorIcon};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -164,30 +165,44 @@ pub fn get_instance_handle() -> HMODULE {
     unsafe { &__ImageBase as *const _ as _ }
 }
 
-pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
+pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> HCURSOR {
     match cursor {
-        CursorIcon::Default => IDC_ARROW,
-        CursorIcon::Pointer => IDC_HAND,
-        CursorIcon::Crosshair => IDC_CROSS,
-        CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
-        CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
-        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-            IDC_SIZEALL
+        CursorIcon::Named(named_icon) => {
+            unsafe {
+                LoadCursorW(
+                    0,
+                    match named_icon {
+                        NamedCursorIcon::Pointer => IDC_HAND,
+                        NamedCursorIcon::Crosshair => IDC_CROSS,
+                        NamedCursorIcon::Text | NamedCursorIcon::VerticalText => IDC_IBEAM,
+                        NamedCursorIcon::NotAllowed | NamedCursorIcon::NoDrop => IDC_NO,
+                        NamedCursorIcon::Grab
+                        | NamedCursorIcon::Grabbing
+                        | NamedCursorIcon::Move
+                        | NamedCursorIcon::AllScroll => IDC_SIZEALL,
+                        NamedCursorIcon::EResize
+                        | NamedCursorIcon::WResize
+                        | NamedCursorIcon::EwResize
+                        | NamedCursorIcon::ColResize => IDC_SIZEWE,
+                        NamedCursorIcon::NResize
+                        | NamedCursorIcon::SResize
+                        | NamedCursorIcon::NsResize
+                        | NamedCursorIcon::RowResize => IDC_SIZENS,
+                        NamedCursorIcon::NeResize
+                        | NamedCursorIcon::SwResize
+                        | NamedCursorIcon::NeswResize => IDC_SIZENESW,
+                        NamedCursorIcon::NwResize
+                        | NamedCursorIcon::SeResize
+                        | NamedCursorIcon::NwseResize => IDC_SIZENWSE,
+                        NamedCursorIcon::Wait => IDC_WAIT,
+                        NamedCursorIcon::Progress => IDC_APPSTARTING,
+                        NamedCursorIcon::Help => IDC_HELP,
+                        _ => IDC_ARROW, // use arrow as default.
+                    },
+                )
+            }
         }
-        CursorIcon::EResize
-        | CursorIcon::WResize
-        | CursorIcon::EwResize
-        | CursorIcon::ColResize => IDC_SIZEWE,
-        CursorIcon::NResize
-        | CursorIcon::SResize
-        | CursorIcon::NsResize
-        | CursorIcon::RowResize => IDC_SIZENS,
-        CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
-        CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
-        CursorIcon::Wait => IDC_WAIT,
-        CursorIcon::Progress => IDC_APPSTARTING,
-        CursorIcon::Help => IDC_HELP,
-        _ => IDC_ARROW, // use arrow for the missing cases.
+        CursorIcon::Custom(icon) => icon.inner.as_raw_handle(),
     }
 }
 

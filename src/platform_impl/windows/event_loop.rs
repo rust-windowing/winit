@@ -1950,7 +1950,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
                 let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
                 if in_client_area {
-                    Some(window_state.mouse.cursor)
+                    Some(window_state.mouse.cursor.clone())
                 } else {
                     None
                 }
@@ -1958,8 +1958,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             match set_cursor_to {
                 Some(cursor) => {
-                    let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
-                    SetCursor(cursor);
+                    SetCursor(util::to_windows_cursor(cursor));
                     result = ProcResult::Value(0);
                 }
                 None => result = ProcResult::DefWindowProc(wparam),

@@ -347,10 +347,9 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state_lock().mouse.cursor = cursor;
+        self.window_state_lock().mouse.cursor = cursor.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
-            SetCursor(cursor);
+            SetCursor(util::to_windows_cursor(cursor.clone()));
         });
     }
 
