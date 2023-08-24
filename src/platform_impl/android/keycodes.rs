@@ -226,9 +226,7 @@ pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
     let native = NativeKey::Android(keycode.into());
 
     match key_char {
-        Some(KeyMapChar::Unicode(c)) => {
-            Key::Character(smol_str::SmolStr::from_iter([c].into_iter()))
-        }
+        Some(KeyMapChar::Unicode(c)) => Key::Character(smol_str::SmolStr::from_iter([c])),
         Some(KeyMapChar::CombiningAccent(c)) => Key::Dead(Some(c)),
         None | Some(KeyMapChar::None) => match keycode {
             // Using `BrowserHome` instead of `GoHome` according to
