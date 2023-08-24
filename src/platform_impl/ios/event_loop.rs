@@ -15,12 +15,10 @@ use core_foundation::runloop::{
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use icrate::Foundation::{MainThreadMarker, NSString};
-use objc2::rc::Id;
 use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use crate::{
-    dpi::LogicalSize,
     error::EventLoopError,
     event::Event,
     event_loop::{
@@ -30,23 +28,7 @@ use crate::{
 };
 
 use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
-use super::view::WinitUIWindow;
 use super::{app_state, monitor, view, MonitorHandle};
-
-#[derive(Debug)]
-pub(crate) enum EventWrapper {
-    StaticEvent(Event<Never>),
-    EventProxy(EventProxy),
-}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum EventProxy {
-    DpiChangedProxy {
-        window: Id<WinitUIWindow>,
-        suggested_size: LogicalSize<f64>,
-        scale_factor: f64,
-    },
-}
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,

@@ -22,13 +22,13 @@ use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
+use super::event_loop::{EventHandler, Never};
 use super::uikit::UIView;
 use super::view::WinitUIWindow;
 use crate::{
-    dpi::LogicalSize,
+    dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::event_loop::{EventHandler, EventProxy, EventWrapper, Never},
     window::WindowId as RootWindowId,
 };
 
@@ -42,6 +42,19 @@ macro_rules! bug_assert {
     ($test:expr, $($msg:tt)*) => {
         assert!($test, "winit iOS bug, file an issue: {}", format!($($msg)*))
     };
+}
+
+#[derive(Debug)]
+pub enum EventWrapper {
+    StaticEvent(Event<Never>),
+    ScaleFactorChanged(ScaleFactorChanged),
+}
+
+#[derive(Debug)]
+pub struct ScaleFactorChanged {
+    pub(super) window: Id<WinitUIWindow>,
+    pub(super) suggested_size: PhysicalSize<u32>,
+    pub(super) scale_factor: f64,
 }
 
 enum UserCallbackTransitionResult<'a> {
@@ -615,8 +628,8 @@ pub(crate) unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>
                 }
                 event_handler.handle_nonuser_event(event, &mut control_flow)
             }
-            EventWrapper::EventProxy(proxy) => {
-                handle_event_proxy(&mut event_handler, control_flow, proxy)
+            EventWrapper::ScaleFactorChanged(event) => {
+                handle_hidpi_proxy(&mut event_handler, control_flow, event)
             }
         }
     }
@@ -672,8 +685,8 @@ pub(crate) unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>
                     }
                     event_handler.handle_nonuser_event(event, &mut control_flow)
                 }
-                EventWrapper::EventProxy(proxy) => {
-                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                EventWrapper::ScaleFactorChanged(event) => {
+                    handle_hidpi_proxy(&mut event_handler, control_flow, event)
                 }
             }
         }
@@ -734,8 +747,8 @@ unsafe fn handle_user_events() {
                 EventWrapper::StaticEvent(event) => {
                     event_handler.handle_nonuser_event(event, &mut control_flow)
                 }
-                EventWrapper::EventProxy(proxy) => {
-                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                EventWrapper::ScaleFactorChanged(event) => {
+                    handle_hidpi_proxy(&mut event_handler, control_flow, event)
                 }
             }
         }
@@ -789,34 +802,17 @@ pub unsafe fn terminated() {
     event_handler.handle_nonuser_event(Event::LoopExiting, &mut control_flow)
 }
 
-fn handle_event_proxy(
-    event_handler: &mut Box<dyn EventHandler>,
-    control_flow: ControlFlow,
-    proxy: EventProxy,
-) {
-    match proxy {
-        EventProxy::DpiChangedProxy {
-            suggested_size,
-            scale_factor,
-            window,
-        } => handle_hidpi_proxy(
-            event_handler,
-            control_flow,
-            suggested_size,
-            scale_factor,
-            window,
-        ),
-    }
-}
-
 fn handle_hidpi_proxy(
     event_handler: &mut Box<dyn EventHandler>,
     mut control_flow: ControlFlow,
-    suggested_size: LogicalSize<f64>,
-    scale_factor: f64,
-    window: Id<WinitUIWindow>,
+    event: ScaleFactorChanged,
 ) {
-    let new_inner_size = Arc::new(Mutex::new(suggested_size.to_physical(scale_factor)));
+    let ScaleFactorChanged {
+        suggested_size,
+        scale_factor,
+        window,
+    } = event;
+    let new_inner_size = Arc::new(Mutex::new(suggested_size));
     let event = Event::WindowEvent {
         window_id: RootWindowId(window.id()),
         event: WindowEvent::ScaleFactorChanged {

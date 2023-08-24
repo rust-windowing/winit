@@ -8,6 +8,7 @@ use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
 
+use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
     UIResponder, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView, UIViewController,
@@ -19,8 +20,6 @@ use crate::{
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::ValidOrientations,
     platform_impl::platform::{
-        app_state,
-        event_loop::{EventProxy, EventWrapper},
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId, Fullscreen,
@@ -112,17 +111,19 @@ declare_class!(
             let screen_space = screen.coordinateSpace();
             let screen_frame = self.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
             unsafe {
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-                        window,
-                        scale_factor,
-                        suggested_size: size,
-                    }))
+                    std::iter::once(EventWrapper::ScaleFactorChanged(
+                        app_state::ScaleFactorChanged {
+                            window,
+                            scale_factor,
+                            suggested_size: size.to_physical(scale_factor),
+                        },
+                    ))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id,

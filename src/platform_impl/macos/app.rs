@@ -4,7 +4,7 @@ use icrate::Foundation::NSObject;
 use objc2::{declare_class, msg_send, mutability, ClassType};
 
 use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
-use super::{app_state::AppState, event::EventWrapper, DEVICE_ID};
+use super::{app_state::AppState, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 declare_class!(
@@ -96,5 +96,5 @@ fn queue_device_event(event: DeviceEvent) {
         device_id: DEVICE_ID,
         event,
     };
-    AppState::queue_event(EventWrapper::StaticEvent(event));
+    AppState::queue_event(event);
 }

@@ -8,6 +8,7 @@ use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
+use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
@@ -17,9 +18,7 @@ use crate::{
     icon::Icon,
     platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state,
-        event_loop::{EventProxy, EventWrapper},
-        monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
+        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -436,17 +435,19 @@ impl Window {
             let screen_space = screen.coordinateSpace();
             let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
             unsafe {
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-                        window: window.clone(),
-                        scale_factor,
-                        suggested_size: size,
-                    }))
+                    std::iter::once(EventWrapper::ScaleFactorChanged(
+                        app_state::ScaleFactorChanged {
+                            window: window.clone(),
+                            scale_factor,
+                            suggested_size: size.to_physical(scale_factor),
+                        },
+                    ))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id,
