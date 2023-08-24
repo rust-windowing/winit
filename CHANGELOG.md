@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
+- Fix window size sometimes being invalid when resizing on macOS.
 
 # 0.29.1-beta
 

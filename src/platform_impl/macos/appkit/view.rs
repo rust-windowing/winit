@@ -44,9 +44,6 @@ extern_methods!(
             // _mtm: MainThreadMarker,
         ) -> Option<Id<NSTextInputContext>>;
 
-        #[method(visibleRect)]
-        pub fn visibleRect(&self) -> NSRect;
-
         #[method(hasMarkedText)]
         pub fn hasMarkedText(&self) -> bool;
 
