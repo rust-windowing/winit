@@ -62,7 +62,7 @@ pub enum Event<T: 'static> {
     ///
     /// This event type is useful as a place to put code that should be done before you start
     /// processing events, such as updating frame timing information for benchmarking or checking
-    /// the [`StartCause`][crate::event::StartCause] to see if a timer set by
+    /// the [`StartCause`] to see if a timer set by
     /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
     NewEvents(StartCause),
 
@@ -218,8 +218,7 @@ pub enum Event<T: 'static> {
     /// ups and also lots of corresponding `AboutToWait` events.
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`Event::RedrawRequested`](crate::event::Event::RedrawRequested)
-    /// events.
+    /// should render in response to [`Event::RedrawRequested`] events.
     AboutToWait,
 
     /// Emitted when a window should be redrawn.
