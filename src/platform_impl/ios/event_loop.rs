@@ -30,9 +30,9 @@ use crate::{
 use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::{app_state, monitor, view, MonitorHandle};
 
+#[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
-    receiver: Receiver<T>,
-    sender_to_clone: Sender<T>,
+    p: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
@@ -52,6 +52,8 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    sender: Sender<T>,
+    receiver: Receiver<T>,
     window_target: RootEventLoopWindowTarget<T>,
 }
 
@@ -74,17 +76,16 @@ impl<T: 'static> EventLoop<T> {
             SINGLETON_INIT = true;
         }
 
-        let (sender_to_clone, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
 
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
 
         Ok(EventLoop {
+            sender,
+            receiver,
             window_target: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    receiver,
-                    sender_to_clone,
-                },
+                p: EventLoopWindowTarget { p: PhantomData },
                 _marker: PhantomData,
             },
         })
@@ -110,6 +111,7 @@ impl<T: 'static> EventLoop<T> {
 
             let handler = EventLoopHandler {
                 f: event_handler,
+                receiver: self.receiver,
                 event_loop: self.window_target,
             };
 
@@ -129,7 +131,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.window_target.p.sender_to_clone.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
@@ -318,6 +320,7 @@ pub trait EventHandler: Debug {
 
 struct EventLoopHandler<T: 'static> {
     f: Box<EventHandlerCallback<T>>,
+    receiver: Receiver<T>,
     event_loop: RootEventLoopWindowTarget<T>,
 }
 
@@ -339,7 +342,7 @@ impl<T: 'static> EventHandler for EventLoopHandler<T> {
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
-        for event in self.event_loop.p.receiver.try_iter() {
+        for event in self.receiver.try_iter() {
             (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
         }
     }

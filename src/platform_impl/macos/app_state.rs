@@ -6,7 +6,7 @@ use std::{
     rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        mpsc, Arc, Mutex, MutexGuard,
     },
     time::Instant,
 };
@@ -49,6 +49,7 @@ pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
     window_target: Rc<RootWindowTarget<T>>,
+    receiver: Rc<mpsc::Receiver<T>>,
 }
 
 impl<T> EventLoopHandler<T> {
@@ -98,7 +99,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
-            for event in this.window_target.p.receiver.try_iter() {
+            for event in this.receiver.try_iter() {
                 if let ControlFlow::ExitWithCode(code) = *control_flow {
                     // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
                     let dummy = &mut ControlFlow::ExitWithCode(code);
@@ -373,10 +374,12 @@ impl AppState {
     pub unsafe fn set_callback<T>(
         callback: Weak<Callback<T>>,
         window_target: Rc<RootWindowTarget<T>>,
+        receiver: Rc<mpsc::Receiver<T>>,
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
             window_target,
+            receiver,
         }));
     }
 
