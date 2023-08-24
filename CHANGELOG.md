@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Fix window size sometimes being invalid when resizing on macOS.
+- On Web, use `setTimeout()` for `ControlFlow::Poll` with a trick to circumvent throttling to 4ms.
 
 # 0.29.1-beta
 

@@ -179,6 +179,8 @@ features = [
     'IntersectionObserverEntry',
     'KeyboardEvent',
     'MediaQueryList',
+    'MessageChannel',
+    'MessagePort',
     'Node',
     'PageTransitionEvent',
     'PointerEvent',

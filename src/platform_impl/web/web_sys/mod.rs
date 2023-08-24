@@ -13,7 +13,7 @@ pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
-pub use self::timeout::{IdleCallback, Timeout};
+pub use self::timeout::Timeout;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use wasm_bindgen::closure::Closure;
