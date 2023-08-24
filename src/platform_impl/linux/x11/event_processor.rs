@@ -732,7 +732,7 @@ impl<T: 'static> EventProcessor<T> {
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
-                            4 | 5 | 6 | 7 => {
+                            4..=7 => {
                                 if xev.flags & ffi::XIPointerEmulated == 0 {
                                     callback(Event::WindowEvent {
                                         window_id,
