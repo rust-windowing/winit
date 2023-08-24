@@ -44,9 +44,6 @@ extern_methods!(
             unsafe { msg_send_id![self, inputContext] }
         }
 
-        #[sel(visibleRect)]
-        pub fn visibleRect(&self) -> NSRect;
-
         #[sel(hasMarkedText)]
         pub fn hasMarkedText(&self) -> bool;
 

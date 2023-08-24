@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Fix window size sometimes being invalid when resizing on macOS 14 Sonoma.
+
 # 0.28.6
 
 - On macOS, fixed memory leak when getting monitor handle.
