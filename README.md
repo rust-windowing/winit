@@ -67,6 +67,16 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
 * `mint`: Enables mint (math interoperability standard types) conversions.
 
+## MSRV Policy
+
+The Minimum Supported Rust Version (MSRV) of this crate is **1.65**.
+
+As a **tentative** policy, the MSRV will not advance past the [current Rust version provided by Debian Testing](https://packages.debian.org/testing/rustc). At the time of writing, this version of Rust is *1.66*. However, the MSRV may be advanced further in the event of a major ecosystem shift or a security vulnerability.
+
+The exception to this is for the Android platform, where a higher Rust version must be used for certain Android features. In this case, the MSRV will be capped at the latest stable version of Rust minus three. This inconsistency is not reflected in Cargo metadata, as it is not powerful enough to expose this restriction.
+
+All crates in the [`rust-windowing`](https://github.com/rust-windowing) and [`rust-mobile`](https://github.com/rust-mobile) organizations have the same MSRV policy.
+
 ### Platform-specific usage
 
 #### Wayland
