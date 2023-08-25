@@ -217,14 +217,17 @@ impl Inner {
     }
 
     pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+        let mtm = MainThreadMarker::new().unwrap();
         let uiscreen = match &monitor {
             Some(Fullscreen::Exclusive(video_mode)) => {
-                let uiscreen = video_mode.monitor.ui_screen();
-                uiscreen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                let uiscreen = video_mode.monitor.ui_screen(mtm);
+                uiscreen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 uiscreen.clone()
             }
-            Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen().clone(),
-            Some(Fullscreen::Borderless(None)) => self.current_monitor_inner().ui_screen().clone(),
+            Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen(mtm).clone(),
+            Some(Fullscreen::Borderless(None)) => {
+                self.current_monitor_inner().ui_screen(mtm).clone()
+            }
             None => {
                 warn!("`Window::set_fullscreen(None)` ignored on iOS");
                 return;
@@ -247,8 +250,9 @@ impl Inner {
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        let mtm = MainThreadMarker::new().unwrap();
         let monitor = self.current_monitor_inner();
-        let uiscreen = monitor.ui_screen();
+        let uiscreen = monitor.ui_screen(mtm);
         let screen_space_bounds = self.screen_frame();
         let screen_bounds = uiscreen.bounds();
 
@@ -381,8 +385,8 @@ impl Window {
         let main_screen = UIScreen::main(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
-            Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(),
-            Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
+            Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
+            Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(None)) | None => &main_screen,
         };
 

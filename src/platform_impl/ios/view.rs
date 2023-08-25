@@ -463,7 +463,7 @@ declare_class!(
 
 impl WinitUIWindow {
     pub(crate) fn new(
-        _mtm: MainThreadMarker,
+        mtm: MainThreadMarker,
         window_attributes: &WindowAttributes,
         _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
@@ -476,12 +476,12 @@ impl WinitUIWindow {
         match window_attributes.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Exclusive(ref video_mode)) => {
                 let monitor = video_mode.monitor();
-                let screen = monitor.ui_screen();
-                screen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                let screen = monitor.ui_screen(mtm);
+                screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 this.setScreen(screen);
             }
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
-                let screen = monitor.ui_screen();
+                let screen = monitor.ui_screen(mtm);
                 this.setScreen(screen);
             }
             _ => (),

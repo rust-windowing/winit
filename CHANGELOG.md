@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
 - Fix window size sometimes being invalid when resizing on macOS.
 - On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
 - On Web, never return a `MonitorHandle`.
