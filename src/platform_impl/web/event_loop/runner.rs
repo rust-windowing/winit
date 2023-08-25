@@ -627,7 +627,7 @@ impl<T: 'static> Shared<T> {
             ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    request: backend::Timeout::new(
+                    request: backend::Schedule::new(
                         self.window().clone(),
                         move || cloned.poll(),
                         None,
@@ -651,7 +651,7 @@ impl<T: 'static> Shared<T> {
                 State::WaitUntil {
                     start,
                     end,
-                    timeout: backend::Timeout::new(
+                    timeout: backend::Schedule::new(
                         self.window().clone(),
                         move || cloned.resume_time_reached(start, end),
                         Some(delay),

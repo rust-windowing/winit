@@ -164,6 +164,8 @@ redox_syscall = "0.3"
 package = "web-sys"
 version = "0.3.64"
 features = [
+    'AbortController',
+    'AbortSignal',
     'console',
     'CssStyleDeclaration',
     'Document',
