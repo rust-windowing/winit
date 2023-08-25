@@ -43,7 +43,10 @@ mod imple {
                 Event::AboutToWait => {
                     window.request_redraw();
                 }
-                Event::RedrawRequested(_) => {
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
                     // Notify the windowing system that we'll be presenting to the window.
                     window.pre_present_notify();
                     fill::fill_window(&window);

@@ -576,7 +576,10 @@ impl<T: 'static> EventProcessor<T> {
                     let window = xev.window as xproto::Window;
                     let window_id = mkwid(window);
 
-                    callback(Event::RedrawRequested(window_id));
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::RedrawRequested,
+                    });
                 }
             }
 

@@ -43,7 +43,10 @@ fn main() -> Result<(), impl std::error::Error> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => control_flow.set_exit(),
-            Event::RedrawRequested(_) => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 println!("\nredrawing!\n");
                 fill::fill_window(&window);
             }

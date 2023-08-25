@@ -218,19 +218,8 @@ pub enum Event<T: 'static> {
     /// ups and also lots of corresponding `AboutToWait` events.
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`Event::RedrawRequested`] events.
+    /// should render in response to [`WindowEvent::RedrawRequested`] events.
     AboutToWait,
-
-    /// Emitted when a window should be redrawn.
-    ///
-    /// This gets triggered in two scenarios:
-    /// - The OS has performed an operation that's invalidated the window's contents (such as
-    ///   resizing the window).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
-    ///
-    /// Winit will aggregate duplicate redraw requests into a single event, to
-    /// help avoid duplicating rendering work.
-    RedrawRequested(WindowId),
 
     /// Emitted when the event loop is being shut down.
     ///
@@ -249,7 +238,6 @@ impl<T> Event<T> {
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
             AboutToWait => Ok(AboutToWait),
-            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
@@ -553,6 +541,17 @@ pub enum WindowEvent {
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
+
+    /// Emitted when a window should be redrawn.
+    ///
+    /// This gets triggered in two scenarios:
+    /// - The OS has performed an operation that's invalidated the window's contents (such as
+    ///   resizing the window).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    ///
+    /// Winit will aggregate duplicate redraw requests into a single event, to
+    /// help avoid duplicating rendering work.
+    RedrawRequested,
 }
 
 /// Identifier of an input device.
@@ -1122,7 +1121,6 @@ mod tests {
                 let wid = unsafe { WindowId::dummy() };
                 x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
-                x(RedrawRequested(wid));
                 x(AboutToWait);
                 x(LoopExiting);
                 x(Suspended);

@@ -37,8 +37,8 @@ In other words, the deltas indicate the direction in which to move the content (
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
 
-        match event {
-            Event::WindowEvent { event, .. } => match event {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
                 WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
@@ -57,12 +57,11 @@ In other words, the deltas indicate the direction in which to move the content (
                         window.set_outer_position(pos)
                     }
                 },
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
-            },
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
             }
-            _ => (),
         }
     })
 }
