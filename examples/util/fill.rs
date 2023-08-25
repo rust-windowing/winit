@@ -9,8 +9,14 @@
 
 use winit::window::Window;
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub(super) fn fill_window(window: &Window) {
+    // Fill a buffer with a solid color.
+    const DARK_GRAY: u32 = 0xFF181818;
+    fill_window_with_color(window, DARK_GRAY);
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub(super) fn fill_window_with_color(window: &Window, color: u32) {
     use softbuffer::{Context, Surface};
     use std::cell::RefCell;
     use std::collections::HashMap;
@@ -59,8 +65,6 @@ pub(super) fn fill_window(window: &Window) {
             .get_or_insert_with(|| GraphicsContext::new(window))
             .surface(window);
 
-        // Fill a buffer with a solid color.
-        const DARK_GRAY: u32 = 0xFF181818;
         let size = window.inner_size();
 
         surface
@@ -73,7 +77,7 @@ pub(super) fn fill_window(window: &Window) {
         let mut buffer = surface
             .buffer_mut()
             .expect("Failed to get the softbuffer buffer");
-        buffer.fill(DARK_GRAY);
+        buffer.fill(color);
         buffer
             .present()
             .expect("Failed to present the softbuffer buffer");
@@ -81,6 +85,6 @@ pub(super) fn fill_window(window: &Window) {
 }
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
-pub(super) fn fill_window(_window: &Window) {
+pub(super) fn fill_window_with_color(_window: &Window, color: u32) {
     // No-op on mobile platforms.
 }

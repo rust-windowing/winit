@@ -32,7 +32,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 ..
             } => control_flow.set_exit(),
             Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
+                fill::fill_window_with_color(&window, 0x33181818);
             }
             _ => (),
         }
