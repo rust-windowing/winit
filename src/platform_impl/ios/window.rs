@@ -52,20 +52,19 @@ impl Inner {
     }
 
     pub fn request_redraw(&self) {
-        unsafe {
-            if self.gl_or_metal_backed {
-                // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
-                // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
-                // raw or gl/metal for drawing this work is completely avoided.
-                //
-                // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
-                // testing.
-                //
-                // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
-                app_state::queue_gl_or_metal_redraw(self.window.clone());
-            } else {
-                self.view.setNeedsDisplay();
-            }
+        if self.gl_or_metal_backed {
+            let mtm = MainThreadMarker::new().unwrap();
+            // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
+            // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
+            // raw or gl/metal for drawing this work is completely avoided.
+            //
+            // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
+            // testing.
+            //
+            // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
+            app_state::queue_gl_or_metal_redraw(mtm, self.window.clone());
+        } else {
+            self.view.setNeedsDisplay();
         }
     }
 
@@ -364,11 +363,11 @@ pub struct Window {
 
 impl Window {
     pub(crate) fn new<T>(
-        _event_loop: &EventLoopWindowTarget<T>,
+        event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
-        let mtm = MainThreadMarker::new().unwrap();
+        let mtm = event_loop.mtm;
 
         if window_attributes.min_inner_size.is_some() {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
@@ -423,7 +422,7 @@ impl Window {
             &view_controller,
         );
 
-        unsafe { app_state::set_key_window(&window) };
+        app_state::set_key_window(mtm, &window);
 
         // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
         // event on window creation if the DPI factor != 1.0
@@ -439,23 +438,22 @@ impl Window {
                 height: screen_frame.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
-            unsafe {
-                app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::ScaleFactorChanged(
-                        app_state::ScaleFactorChanged {
-                            window: window.clone(),
-                            scale_factor,
-                            suggested_size: size.to_physical(scale_factor),
-                        },
-                    ))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
-                        },
-                    ))),
-                );
-            }
+            app_state::handle_nonuser_events(
+                mtm,
+                std::iter::once(EventWrapper::ScaleFactorChanged(
+                    app_state::ScaleFactorChanged {
+                        window: window.clone(),
+                        scale_factor,
+                        suggested_size: size.to_physical(scale_factor),
+                    },
+                ))
+                .chain(std::iter::once(EventWrapper::StaticEvent(
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                    },
+                ))),
+            );
         }
 
         let inner = Inner {

@@ -32,18 +32,17 @@ use super::{app_state, monitor, view, MonitorHandle};
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
+    pub(super) mtm: MainThreadMarker,
     p: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::uiscreens(MainThreadMarker::new().unwrap())
+        monitor::uiscreens(self.mtm)
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(UIScreen::main(
-            MainThreadMarker::new().unwrap(),
-        )))
+        Some(MonitorHandle::new(UIScreen::main(self.mtm)))
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
@@ -52,6 +51,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    mtm: MainThreadMarker,
     sender: Sender<T>,
     receiver: Receiver<T>,
     window_target: RootEventLoopWindowTarget<T>,
@@ -64,7 +64,8 @@ impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         _: &PlatformSpecificEventLoopAttributes,
     ) -> Result<EventLoop<T>, EventLoopError> {
-        assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
+        let mtm = MainThreadMarker::new()
+            .expect("On iOS, `EventLoop` must be created on the main thread");
 
         static mut SINGLETON_INIT: bool = false;
         unsafe {
@@ -82,10 +83,14 @@ impl<T: 'static> EventLoop<T> {
         setup_control_flow_observers();
 
         Ok(EventLoop {
+            mtm,
             sender,
             receiver,
             window_target: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget { p: PhantomData },
+                p: EventLoopWindowTarget {
+                    mtm,
+                    p: PhantomData,
+                },
                 _marker: PhantomData,
             },
         })
@@ -96,7 +101,7 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let application = UIApplication::shared(MainThreadMarker::new().unwrap());
+            let application = UIApplication::shared(self.mtm);
             assert!(
                 application.is_none(),
                 "\
@@ -115,7 +120,7 @@ impl<T: 'static> EventLoop<T> {
                 event_loop: self.window_target,
             };
 
-            app_state::will_launch(Box::new(handler));
+            app_state::will_launch(self.mtm, Box::new(handler));
 
             // Ensure application delegate is initialized
             view::WinitApplicationDelegate::class();
@@ -142,9 +147,7 @@ impl<T: 'static> EventLoop<T> {
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
-        UIDevice::current(MainThreadMarker::new().unwrap())
-            .userInterfaceIdiom()
-            .into()
+        UIDevice::current(self.mtm).userInterfaceIdiom().into()
     }
 }
 
@@ -222,12 +225,11 @@ fn setup_control_flow_observers() {
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
-            unsafe {
-                #[allow(non_upper_case_globals)]
-                match activity {
-                    kCFRunLoopAfterWaiting => app_state::handle_wakeup_transition(),
-                    _ => unreachable!(),
-                }
+            let mtm = MainThreadMarker::new().unwrap();
+            #[allow(non_upper_case_globals)]
+            match activity {
+                kCFRunLoopAfterWaiting => app_state::handle_wakeup_transition(mtm),
+                _ => unreachable!(),
             }
         }
 
@@ -247,13 +249,12 @@ fn setup_control_flow_observers() {
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
-            unsafe {
-                #[allow(non_upper_case_globals)]
-                match activity {
-                    kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(),
-                    kCFRunLoopExit => unimplemented!(), // not expected to ever happen
-                    _ => unreachable!(),
-                }
+            let mtm = MainThreadMarker::new().unwrap();
+            #[allow(non_upper_case_globals)]
+            match activity {
+                kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(mtm),
+                kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                _ => unreachable!(),
             }
         }
 
@@ -263,13 +264,12 @@ fn setup_control_flow_observers() {
             activity: CFRunLoopActivity,
             _: *mut c_void,
         ) {
-            unsafe {
-                #[allow(non_upper_case_globals)]
-                match activity {
-                    kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(),
-                    kCFRunLoopExit => unimplemented!(), // not expected to ever happen
-                    _ => unreachable!(),
-                }
+            let mtm = MainThreadMarker::new().unwrap();
+            #[allow(non_upper_case_globals)]
+            match activity {
+                kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(mtm),
+                kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                _ => unreachable!(),
             }
         }
 
