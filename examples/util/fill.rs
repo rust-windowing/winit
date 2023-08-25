@@ -85,6 +85,6 @@ pub(super) fn fill_window_with_color(window: &Window, color: u32) {
 }
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
-pub(super) fn fill_window_with_color(_window: &Window, color: u32) {
+pub(super) fn fill_window_with_color(_window: &Window, _color: u32) {
     // No-op on mobile platforms.
 }
