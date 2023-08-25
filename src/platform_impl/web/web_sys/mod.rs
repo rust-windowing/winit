@@ -7,13 +7,13 @@ mod intersection_handle;
 mod media_query_handle;
 mod pointer;
 mod resize_scaling;
-mod timeout;
+mod schedule;
 
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
-pub use self::timeout::{IdleCallback, Timeout};
+pub use self::schedule::Schedule;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use wasm_bindgen::closure::Closure;
