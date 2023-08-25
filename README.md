@@ -69,9 +69,9 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ## MSRV Policy
 
-The Minimum Supported Rust Version (MSRV) of this crate is **1.65**.
+The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to the MSRV will be released as patch version updates to `winit`. Once `winit` v1.0 is released, they will instead be released as minor version updates.
 
-As a **tentative** policy, the MSRV will not advance past the [current Rust version provided by Debian Testing](https://packages.debian.org/testing/rustc). At the time of writing, this version of Rust is *1.66*. However, the MSRV may be advanced further in the event of a major ecosystem shift or a security vulnerability.
+As a **tentative** policy, the MSRV will not advance past the [current Rust version provided by Debian Sid](https://packages.debian.org/sid/rustc). At the time of writing, this version of Rust is *1.66*. However, the MSRV may be advanced further in the event of a major ecosystem shift or a security vulnerability.
 
 The exception to this is for the Android platform, where a higher Rust version must be used for certain Android features. In this case, the MSRV will be capped at the latest stable version of Rust minus three. This inconsistency is not reflected in Cargo metadata, as it is not powerful enough to expose this restriction.
 
