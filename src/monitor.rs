@@ -108,20 +108,12 @@ impl MonitorHandle {
     /// Returns a human-readable name of the monitor.
     ///
     /// Returns `None` if the monitor doesn't exist anymore.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns None
     #[inline]
     pub fn name(&self) -> Option<String> {
         self.inner.name()
     }
 
     /// Returns the monitor's resolution.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.inner.size()
@@ -129,10 +121,6 @@ impl MonitorHandle {
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         self.inner.position()
@@ -158,7 +146,6 @@ impl MonitorHandle {
     ///
     /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
-    /// - **Web:** Always returns 1.0
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.inner.scale_factor()
