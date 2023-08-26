@@ -746,7 +746,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

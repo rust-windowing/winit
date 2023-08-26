@@ -274,7 +274,7 @@ impl Inner {
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
-            Some(Fullscreen::Borderless(Some(MonitorHandle)))
+            Some(Fullscreen::Borderless(None))
         } else {
             None
         }
@@ -335,7 +335,7 @@ impl Inner {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     #[inline]
@@ -345,7 +345,7 @@ impl Inner {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     #[inline]

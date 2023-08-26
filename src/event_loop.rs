@@ -355,7 +355,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland:** Always returns `None`.
+    /// **Wayland / Web:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p
