@@ -26,7 +26,7 @@ use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
     platform_impl::platform::{
         app::WinitApplication,
@@ -71,6 +71,21 @@ pub struct EventLoopWindowTarget<T: 'static> {
     p: PhantomData<T>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    Exit,
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
+    }
+}
+
 impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -86,6 +101,22 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    }
+
+    pub(crate) fn set_poll(&self) {
+        AppState::set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        AppState::set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        AppState::set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        AppState::set_control_flow(ControlFlow::Exit)
     }
 }
 
@@ -204,7 +235,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         self.run_ondemand(callback)
     }
@@ -215,7 +246,7 @@ impl<T> EventLoop<T> {
     // redundant wake ups.
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         if AppState::is_running() {
             return Err(EventLoopError::AlreadyRunning);
@@ -232,14 +263,14 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|_| {
+        autoreleasepool(|_| {
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
@@ -289,22 +320,17 @@ impl<T> EventLoop<T> {
             drop(self._callback.take());
             AppState::clear_callback();
 
-            match catch_result {
-                Ok(exit_code) => exit_code,
-                Err(payload) => resume_unwind(payload),
+            if let Err(payload) = catch_result {
+                resume_unwind(payload)
             }
         });
 
-        if exit_code == 0 {
-            Ok(())
-        } else {
-            Err(EventLoopError::ExitFailure(exit_code))
-        }
+        Ok(())
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
@@ -317,8 +343,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -398,9 +424,9 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                if let ControlFlow::ExitWithCode(code) = AppState::control_flow() {
+                if let ControlFlow::Exit = AppState::control_flow() {
                     AppState::exit();
-                    PumpStatus::Exit(code)
+                    PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
                 }
