@@ -1,5 +1,4 @@
 use super::backend;
-use crate::event_loop::ControlFlow;
 
 use web_time::Instant;
 
@@ -23,15 +22,5 @@ pub enum State {
 impl State {
     pub fn is_exit(&self) -> bool {
         matches!(self, State::Exit)
-    }
-
-    pub fn control_flow(&self) -> ControlFlow {
-        match self {
-            State::Init => ControlFlow::Poll,
-            State::WaitUntil { end, .. } => ControlFlow::WaitUntil(*end),
-            State::Wait { .. } => ControlFlow::Wait,
-            State::Poll { .. } => ControlFlow::Poll,
-            State::Exit => ControlFlow::Exit,
-        }
     }
 }

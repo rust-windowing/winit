@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
 
 use super::{backend, device, window};
 
@@ -33,7 +33,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -41,8 +41,7 @@ impl<T> EventLoop<T> {
         };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(_, _)> =
-            Box::new(|event, flow| event_handler(event, &target, flow));
+        let handler: Box<dyn FnMut(_)> = Box::new(|event| event_handler(event, &target));
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
@@ -60,17 +59,16 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
             _marker: PhantomData,
         };
 
-        self.elw.p.run(
-            Box::new(move |event, flow| event_handler(event, &target, flow)),
-            true,
-        );
+        self.elw
+            .p
+            .run(Box::new(move |event| event_handler(event, &target)), true);
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {

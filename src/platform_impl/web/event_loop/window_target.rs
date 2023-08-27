@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::sync::atomic::Ordering;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
+use web_time::Instant;
 
 use super::runner::EventWrapper;
 use super::{
@@ -39,6 +40,21 @@ impl ModifiersShared {
 impl Clone for ModifiersShared {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    Exit,
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
     }
 }
 
@@ -678,5 +694,22 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.runner.listen_device_events(allowed)
+    }
+
+    pub(crate) fn set_poll(&self) {
+        self.runner.set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        self.runner.set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        self.runner
+            .set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner.set_control_flow(ControlFlow::Exit)
     }
 }
