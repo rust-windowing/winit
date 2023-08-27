@@ -27,21 +27,21 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let timer_length = Duration::new(1, 0);
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, elwt| {
         println!("{event:?}");
 
         match event {
             Event::NewEvents(StartCause::Init) => {
-                control_flow.set_wait_until(Instant::now() + timer_length);
+                elwt.set_wait_until(Instant::now() + timer_length);
             }
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                control_flow.set_wait_until(Instant::now() + timer_length);
+                elwt.set_wait_until(Instant::now() + timer_length);
                 println!("\nTimer\n");
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => control_flow.set_exit(),
+            } => elwt.exit(),
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..

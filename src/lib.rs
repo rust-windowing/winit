@@ -30,8 +30,7 @@
 //!
 //! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until the `control_flow` argument given to the closure is set to
-//! [`ControlFlow`]`::`[`ExitWithCode`] (which [`ControlFlow`]`::`[`Exit`] aliases to), at which
+//! will run until [`exit()`] is used, at which
 //! point [`Event`]`::`[`LoopExiting`] is emitted and the entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
@@ -51,15 +50,15 @@
 //! let event_loop = EventLoop::new().unwrap();
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //!
-//! event_loop.run(move |event, _, control_flow| {
-//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//! event_loop.run(move |event, elwt| {
+//!     // `set_poll()` continuously runs the event loop, even if the OS hasn't
 //!     // dispatched any events. This is ideal for games and similar applications.
-//!     control_flow.set_poll();
+//!     elwt.set_poll();
 //!
-//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!     // `set_wait()` pauses the event loop if no events are available to process.
 //!     // This is ideal for non-game applications that only update in response to user
-//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//!     control_flow.set_wait();
+//!     // input, and uses significantly less power/CPU time than `set_poll()`.
+//!     elwt.set_wait();
 //!
 //!     match event {
 //!         Event::WindowEvent {
@@ -67,7 +66,7 @@
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             control_flow.set_exit();
+//!             elwt.exit();
 //!         },
 //!         Event::AboutToWait => {
 //!             // Application update code.
@@ -115,9 +114,7 @@
 //! [`EventLoopExtPumpEvents::pump_events`]: ./platform/pump_events/trait.EventLoopExtPumpEvents.html#tymethod.pump_events
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
-//! [`ControlFlow`]: event_loop::ControlFlow
-//! [`Exit`]: event_loop::ControlFlow::Exit
-//! [`ExitWithCode`]: event_loop::ControlFlow::ExitWithCode
+//! [`exit()`]: event_loop::EventLoopWindowTarget::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowBuilder`]: window::WindowBuilder

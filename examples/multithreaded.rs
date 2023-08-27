@@ -173,10 +173,10 @@ fn main() -> Result<(), impl std::error::Error> {
             }
         });
     }
-    event_loop.run(move |event, _event_loop, control_flow| {
+    event_loop.run(move |event, elwt| {
         match !window_senders.is_empty() {
-            true => control_flow.set_wait(),
-            false => control_flow.set_exit(),
+            true => elwt.set_wait(),
+            false => elwt.exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

@@ -7,32 +7,31 @@
 //! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
-//! let mut control_flow = ControlFlow::Poll;
 //! let mut start_cause = StartCause::Init;
 //!
-//! while control_flow != ControlFlow::Exit {
-//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//! while !elwt.is_exit() {
+//!     event_handler(NewEvents(start_cause), elwt);
 //!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, ..., &mut control_flow);
+//!         event_handler(e, elwt);
 //!     }
 //!
 //!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!         event_handler(RedrawRequested(w), elwt);
 //!     }
 //!
-//!     event_handler(AboutToWait, ..., &mut control_flow);
-//!     start_cause = wait_if_necessary(control_flow);
+//!     event_handler(AboutToWait, elwt);
+//!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, ..., &mut control_flow);
+//! event_handler(LoopExiting, elwt);
 //! ```
 //!
-//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
+//! This leaves out timing details like [`set_wait_until()`] but hopefully
 //! describes what happens in what order.
 //!
 //! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
-//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+//! [`set_wait_until()`]: crate::event_loop::EventLoopWindowTarget::set_wait_until
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(wasm_platform))]
@@ -63,7 +62,7 @@ pub enum Event<T: 'static> {
     /// This event type is useful as a place to put code that should be done before you start
     /// processing events, such as updating frame timing information for benchmarking or checking
     /// the [`StartCause`] to see if a timer set by
-    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    /// [`set_wait_until()`](crate::event_loop::EventLoopWindowTarget::set_wait_until) has elapsed.
     NewEvents(StartCause),
 
     /// Emitted when the OS sends an event to a winit window.
@@ -248,11 +247,11 @@ impl<T> Event<T> {
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
-    /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
+    /// Sent if the time specified by [`set_wait_until()`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
     /// guaranteed to be equal to or after the requested resume time.
     ///
-    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+    /// [`set_wait_until()`]: crate::event_loop::EventLoopWindowTarget::set_wait_until
     ResumeTimeReached {
         start: Instant,
         requested_resume: Instant,
@@ -265,10 +264,9 @@ pub enum StartCause {
         requested_resume: Option<Instant>,
     },
 
-    /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// [`ControlFlow::Poll`].
+    /// Sent if the event loop is being resumed after [`set_poll()`] was used.
     ///
-    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    /// [`set_poll()`]: crate::event_loop::EventLoopWindowTarget::set_poll
     Poll,
 
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.

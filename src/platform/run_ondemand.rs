@@ -1,7 +1,7 @@
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{EventLoop, EventLoopWindowTarget},
 };
 
 #[cfg(doc)]
@@ -17,7 +17,7 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// Unlike [`EventLoop::run`], this function accepts non-`'static` (i.e. non-`move`) closures
     /// and it is possible to return control back to the caller without
-    /// consuming the `EventLoop` (by setting the `control_flow` to [`ControlFlow::Exit`]) and
+    /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
     ///
     /// It's expected that each run of the loop will be for orthogonal instantiations of your
@@ -32,8 +32,8 @@ pub trait EventLoopExtRunOnDemand {
     /// `NewEvents(Init)` and `Resumed` event (even on platforms that have no suspend/resume
     /// lifecycle) - which can be used to consistently initialize application state.
     ///
-    /// See the [`ControlFlow`] docs for information on how changes to `&mut ControlFlow` impact the
-    /// event loop's behavior.
+    /// See the [`set_poll()`], [`set_wait_timeout()`], [`exit()`] docs for information on how
+    /// they impact the event loop's behavior.
     ///
     /// # Caveats
     /// - This extension isn't available on all platforms, since it's not always possible to
@@ -57,9 +57,13 @@ pub trait EventLoopExtRunOnDemand {
     ///   polled to ask for new events. Events are delivered via callbacks based
     ///   on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
+    ///
+    /// [`set_poll()`]: EventLoopWindowTarget::set_poll
+    /// [`set_wait_timeout()`]: EventLoopWindowTarget::set_wait_timeout
+    /// [`exit()`]: EventLoopWindowTarget::exit
     fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
@@ -67,7 +71,7 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
 
     fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
         self.event_loop.run_ondemand(event_handler)
     }

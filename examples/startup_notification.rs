@@ -32,7 +32,7 @@ mod example {
         let mut counter = 0;
         let mut create_first_window = false;
 
-        event_loop.run(move |event, elwt, flow| {
+        event_loop.run(move |event, elwt| {
             match event {
                 Event::Resumed => create_first_window = true,
 
@@ -61,7 +61,7 @@ mod example {
                         // Remove the window from the map.
                         windows.remove(&window_id);
                         if windows.is_empty() {
-                            flow.set_exit();
+                            elwt.exit();
                             return;
                         }
                     }
@@ -103,7 +103,7 @@ mod example {
                 create_first_window = false;
             }
 
-            flow.set_wait();
+            elwt.set_wait();
         })
     }
 }

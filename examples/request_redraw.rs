@@ -19,14 +19,14 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, elwt| {
         println!("{event:?}");
 
-        control_flow.set_wait();
+        elwt.set_wait();
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::MouseInput {
                     state: ElementState::Released,
                     ..

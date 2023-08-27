@@ -38,8 +38,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_wait();
 
         match event {
             // This used to use the virtual key, but the new API
@@ -115,7 +115,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         window.set_minimized(minimized);
                     }
                     "q" => {
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                     "v" => {
                         visible = !visible;
@@ -127,7 +127,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
-                WindowEvent::CloseRequested if window_id == window.id() => control_flow.set_exit(),
+                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }

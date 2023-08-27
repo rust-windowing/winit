@@ -40,15 +40,15 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_wait();
 
         match event {
             Event::UserEvent(event) => println!("user event: {event:?}"),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => control_flow.set_exit(),
+            } => elwt.exit(),
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..

@@ -19,8 +19,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut cursor_idx = 0;
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_wait();
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
@@ -44,7 +44,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     fill::fill_window(&window);
                 }
                 WindowEvent::CloseRequested => {
-                    control_flow.set_exit();
+                    elwt.exit();
                 }
                 _ => (),
             }

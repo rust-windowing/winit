@@ -26,8 +26,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_wait();
 
         if let Event::WindowEvent { event, window_id } = event {
             match event {
@@ -38,7 +38,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     windows.remove(&window_id);
 
                     if windows.is_empty() {
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                 }
                 WindowEvent::KeyboardInput {
@@ -51,7 +51,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     is_synthetic: false,
                     ..
                 } if matches!(c.as_ref(), "n" | "N") => {
-                    let window = Window::new(event_loop).unwrap();
+                    let window = Window::new(elwt).unwrap();
                     println!("Opened a new window: {:?}", window.id());
                     windows.insert(window.id(), window);
                 }
