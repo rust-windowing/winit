@@ -28,7 +28,6 @@
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
 use crate::event::Event;
-use crate::event_loop::ControlFlow;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
 use crate::window::{Window, WindowBuilder};
@@ -122,8 +121,7 @@ pub trait EventLoopExtWebSys {
     /// event loop when switching between tabs on a single page application.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -131,8 +129,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
         self.event_loop.spawn(event_handler)
     }
