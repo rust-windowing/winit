@@ -80,7 +80,7 @@ use crate::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     keyboard::{KeyCode, ModifiersState},
     platform::{pump_events::PumpStatus, scancode::KeyCodeExtScancode},
     platform_impl::platform::{
@@ -200,6 +200,21 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    ExitWithCode(i32),
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
+    }
+}
+
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &mut PlatformSpecificEventLoopAttributes,
@@ -250,14 +265,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         self.run_ondemand(event_handler)
     }
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -270,9 +285,7 @@ impl<T: 'static> EventLoop<T> {
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
+                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
             }
         }
 
@@ -303,7 +316,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -317,9 +330,7 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
+                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
                 runner.wakeup();
             }
         }
@@ -432,7 +443,7 @@ impl<T: 'static> EventLoop<T> {
         match msg_status {
             None => {} // No MSG to dispatch
             Some(PumpStatus::Exit(code)) => {
-                runner.set_exit_control_flow(code);
+                runner.set_control_flow(ControlFlow::ExitWithCode(code));
                 return runner.control_flow();
             }
             Some(PumpStatus::Continue) => {
@@ -546,6 +557,24 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+    }
+
+    pub(crate) fn set_poll(&self) {
+        self.runner_shared.set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        self.runner_shared.set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        self.runner_shared
+            .set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner_shared
+            .set_control_flow(ControlFlow::ExitWithCode(0))
     }
 }
 
