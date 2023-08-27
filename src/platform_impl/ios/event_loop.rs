@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
     ptr,
     sync::mpsc::{self, Receiver, Sender},
+    time::Instant,
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -21,14 +22,15 @@ use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{
-        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
-    },
+    event_loop::{EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget},
     platform::ios::Idiom,
 };
 
-use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::{app_state, monitor, view, MonitorHandle};
+use super::{
+    app_state::AppState,
+    uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen},
+};
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -47,6 +49,22 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
+
+    pub(crate) fn set_poll(&self) {
+        AppState::get_mut(self.mtm).set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        AppState::get_mut(self.mtm).set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        AppState::get_mut(self.mtm).set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        AppState::get_mut(self.mtm).set_control_flow(ControlFlow::Exit)
     }
 }
 
@@ -98,7 +116,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         unsafe {
             let application = UIApplication::shared(self.mtm);
@@ -110,7 +128,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             let event_handler = std::mem::transmute::<
-                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>)>,
                 Box<EventHandlerCallback<T>>,
             >(Box::new(event_handler));
 
@@ -217,6 +235,21 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    Exit,
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
+    }
+}
+
 fn setup_control_flow_observers() {
     unsafe {
         // begin is queued with the highest priority to ensure it is processed before other observers
@@ -310,12 +343,11 @@ fn setup_control_flow_observers() {
 #[derive(Debug)]
 pub enum Never {}
 
-type EventHandlerCallback<T> =
-    dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static;
+type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>) + 'static;
 
 pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>);
+    fn handle_user_events(&mut self);
 }
 
 struct EventLoopHandler<T: 'static> {
@@ -333,17 +365,13 @@ impl<T: 'static> Debug for EventLoopHandler<T> {
 }
 
 impl<T: 'static> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
-        (self.f)(
-            event.map_nonuser_event().unwrap(),
-            &self.event_loop,
-            control_flow,
-        );
+    fn handle_nonuser_event(&mut self, event: Event<Never>) {
+        (self.f)(event.map_nonuser_event().unwrap(), &self.event_loop);
     }
 
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
+    fn handle_user_events(&mut self) {
         for event in self.receiver.try_iter() {
-            (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
+            (self.f)(Event::UserEvent(event), &self.event_loop);
         }
     }
 }
