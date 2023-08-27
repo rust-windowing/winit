@@ -4,7 +4,7 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{collections::VecDeque, env, fmt};
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
@@ -19,10 +19,9 @@ use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
-    event::{Event, KeyEvent},
+    event::KeyEvent,
     event_loop::{
-        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
-        EventLoopWindowTarget as RootELW,
+        AsyncRequestSerial, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
     keyboard::{Key, KeyCode},
@@ -789,21 +788,21 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
         self.run_ondemand(callback)
     }
 
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
@@ -882,22 +881,44 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
         x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
     }
+
+    fn control_flow(&self) -> ControlFlow {
+        x11_or_wayland!(match self; Self(evlp) => evlp.control_flow())
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.set_control_flow(control_flow))
+    }
+
+    pub(crate) fn set_poll(&self) {
+        self.set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        self.set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        self.set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        self.set_control_flow(ControlFlow::ExitWithCode(0))
+    }
 }
 
-fn sticky_exit_callback<T, F>(
-    evt: Event<T>,
-    target: &RootELW<T>,
-    control_flow: &mut ControlFlow,
-    callback: &mut F,
-) where
-    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
-{
-    // make ControlFlow::ExitWithCode sticky by providing a dummy
-    // control flow reference if it is already ExitWithCode.
-    if let ControlFlow::ExitWithCode(code) = *control_flow {
-        callback(evt, target, &mut ControlFlow::ExitWithCode(code))
-    } else {
-        callback(evt, target, control_flow)
+#[derive(Clone, Copy)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    ExitWithCode(i32),
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
     }
 }
 
