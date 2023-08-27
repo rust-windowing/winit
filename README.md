@@ -70,7 +70,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 ## MSRV Policy
 
 The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to 
-the MSRV will by a minor version bump. 
+the MSRV will be accompanied by minor version bump. 
 
 As a **tentative** policy, the upper bound of the MSRV is given by the following
 formula:
@@ -91,9 +91,11 @@ capped at the latest stable version of Rust minus three. This inconsistency is
 not reflected in Cargo metadata, as it is not powerful enough to expose this 
 restriction.
 
-All crates in the [`rust-windowing`](https://github.com/rust-windowing) and 
-[`rust-mobile`](https://github.com/rust-mobile) organizations have the same 
-MSRV policy.
+All crates in the [`rust-windowing`] and [`rust-mobile`] organizations have the 
+same MSRV policy.
+
+[`rust-windowing`]: https://github.com/rust-windowing
+[`rust-mobile`]: https://github.com/rust-mobile
 
 ### Platform-specific usage
 
