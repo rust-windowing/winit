@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    marker::PhantomData,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
     time::Instant,
@@ -267,6 +268,8 @@ impl EventState {
 pub struct EventLoop<T: 'static> {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
     window_target: event_loop::EventLoopWindowTarget<T>,
+    user_events_sender: mpsc::Sender<T>,
+    user_events_receiver: mpsc::Receiver<T>,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -298,16 +301,17 @@ impl<T: 'static> EventLoop<T> {
             windows: Vec::new(),
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
-                    user_events_sender,
-                    user_events_receiver,
                     creates: Mutex::new(VecDeque::new()),
                     redraws: Arc::new(Mutex::new(VecDeque::new())),
                     destroys: Arc::new(Mutex::new(VecDeque::new())),
                     event_socket,
                     wake_socket,
+                    p: PhantomData,
                 },
-                _marker: std::marker::PhantomData,
+                _marker: PhantomData,
             },
+            user_events_sender,
+            user_events_receiver,
         })
     }
 
@@ -594,7 +598,7 @@ impl<T: 'static> EventLoop<T> {
                 i += 1;
             }
 
-            while let Ok(event) = self.window_target.p.user_events_receiver.try_recv() {
+            while let Ok(event) = self.user_events_receiver.try_recv() {
                 event_handler(
                     event::Event::UserEvent(event),
                     &self.window_target,
@@ -707,7 +711,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            user_events_sender: self.window_target.p.user_events_sender.clone(),
+            user_events_sender: self.user_events_sender.clone(),
             wake_socket: self.window_target.p.wake_socket.clone(),
         }
     }
@@ -742,13 +746,12 @@ impl<T> Clone for EventLoopProxy<T> {
 impl<T> Unpin for EventLoopProxy<T> {}
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(super) user_events_sender: mpsc::Sender<T>,
-    pub(super) user_events_receiver: mpsc::Receiver<T>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
     pub(super) redraws: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
+    p: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
