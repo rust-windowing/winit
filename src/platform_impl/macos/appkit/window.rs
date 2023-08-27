@@ -124,7 +124,7 @@ extern_methods!(
         #[method(miniaturize:)]
         pub(crate) fn miniaturize(&self, sender: Option<&AnyObject>);
 
-        #[method(sender:)]
+        #[method(deminiaturize:)]
         pub(crate) fn deminiaturize(&self, sender: Option<&AnyObject>);
 
         #[method(toggleFullScreen:)]
