@@ -79,6 +79,10 @@ use crate::{
     window::WindowAttributes,
 };
 
+// Xinput constants not defined in x11rb
+const ALL_DEVICES: u16 = 0;
+const ALL_MASTER_DEVICES: u16 = 1;
+
 type X11Source = Generic<RawFd>;
 
 struct WakeSender<T> {
@@ -239,7 +243,7 @@ impl<T: 'static> EventLoop<T> {
         let xi2ext = xconn
             .xcb_connection()
             .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput2 extension")
+            .expect("Failed to query XInput extension")
             .expect("X server missing XInput extension");
         let xkbext = xconn
             .xcb_connection()
@@ -1101,7 +1105,3 @@ impl Device {
         }
     }
 }
-
-// Xinput constants not defined in x11rb
-const ALL_DEVICES: u16 = 0;
-const ALL_MASTER_DEVICES: u16 = 1;

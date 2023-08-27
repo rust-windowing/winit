@@ -864,11 +864,7 @@ impl<T> EventLoopWindowTarget<T> {
             EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
             #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => {
-                let primary_monitor = MonitorHandle::X(
-                    evlp.x_connection()
-                        .primary_monitor()
-                        .expect("Failed to get primary monitor"),
-                );
+                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor().ok()?);
                 Some(primary_monitor)
             }
         }
