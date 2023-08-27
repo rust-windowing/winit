@@ -8,6 +8,7 @@ use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
 
+use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
     UIResponder, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView, UIViewController,
@@ -19,8 +20,6 @@ use crate::{
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::ValidOrientations,
     platform_impl::platform::{
-        app_state,
-        event_loop::{EventProxy, EventWrapper},
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId, Fullscreen,
@@ -41,18 +40,21 @@ declare_class!(
     unsafe impl WinitView {
         #[method(drawRect:)]
         fn draw_rect(&self, rect: CGRect) {
+            let mtm = MainThreadMarker::new().unwrap();
             let window = self.window().unwrap();
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::RedrawRequested,
-                }));
-            }
+                }),
+            );
             let _: () = unsafe { msg_send![super(self), drawRect: rect] };
         }
 
         #[method(layoutSubviews)]
         fn layout_subviews(&self) {
+            let mtm = MainThreadMarker::new().unwrap();
             let _: () = unsafe { msg_send![super(self), layoutSubviews] };
 
             let window = self.window().unwrap();
@@ -75,16 +77,18 @@ declare_class!(
                 self.setFrame(window_bounds);
             }
 
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::Resized(size),
-                }));
-            }
+                }),
+            );
         }
 
         #[method(setContentScaleFactor:)]
         fn set_content_scale_factor(&self, untrusted_scale_factor: CGFloat) {
+            let mtm = MainThreadMarker::new().unwrap();
             let _: () =
                 unsafe { msg_send![super(self), setContentScaleFactor: untrusted_scale_factor] };
 
@@ -112,25 +116,26 @@ declare_class!(
             let screen_space = screen.coordinateSpace();
             let screen_frame = self.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
-            unsafe {
-                app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+            app_state::handle_nonuser_events(
+                mtm,
+                std::iter::once(EventWrapper::ScaleFactorChanged(
+                    app_state::ScaleFactorChanged {
                         window,
                         scale_factor,
-                        suggested_size: size,
-                    }))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
-                        },
-                    ))),
-                );
-            }
+                        suggested_size: size.to_physical(scale_factor),
+                    },
+                ))
+                .chain(std::iter::once(EventWrapper::StaticEvent(
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                    },
+                ))),
+            );
         }
 
         #[method(touchesBegan:withEvent:)]
@@ -255,9 +260,8 @@ impl WinitView {
                 }),
             }));
         }
-        unsafe {
-            app_state::handle_nonuser_events(touch_events);
-        }
+        let mtm = MainThreadMarker::new().unwrap();
+        app_state::handle_nonuser_events(mtm, touch_events);
     }
 }
 
@@ -431,23 +435,27 @@ declare_class!(
     unsafe impl WinitUIWindow {
         #[method(becomeKeyWindow)]
         fn become_key_window(&self) {
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(self.id()),
                     event: WindowEvent::Focused(true),
-                }));
-            }
+                }),
+            );
             let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
         }
 
         #[method(resignKeyWindow)]
         fn resign_key_window(&self) {
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(self.id()),
                     event: WindowEvent::Focused(false),
-                }));
-            }
+                }),
+            );
             let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
         }
     }
@@ -455,7 +463,7 @@ declare_class!(
 
 impl WinitUIWindow {
     pub(crate) fn new(
-        _mtm: MainThreadMarker,
+        mtm: MainThreadMarker,
         window_attributes: &WindowAttributes,
         _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
@@ -468,12 +476,12 @@ impl WinitUIWindow {
         match window_attributes.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Exclusive(ref video_mode)) => {
                 let monitor = video_mode.monitor();
-                let screen = monitor.ui_screen();
-                screen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                let screen = monitor.ui_screen(mtm);
+                screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 this.setScreen(screen);
             }
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
-                let screen = monitor.ui_screen();
+                let screen = monitor.ui_screen(mtm);
                 this.setScreen(screen);
             }
             _ => (),
@@ -500,20 +508,20 @@ declare_class!(
     unsafe impl WinitApplicationDelegate {
         #[method(application:didFinishLaunchingWithOptions:)]
         fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
-            unsafe {
-                app_state::did_finish_launching();
-            }
+            app_state::did_finish_launching(MainThreadMarker::new().unwrap());
             true
         }
 
         #[method(applicationDidBecomeActive:)]
         fn did_become_active(&self, _application: &UIApplication) {
-            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed))
         }
 
         #[method(applicationWillResignActive:)]
         fn will_resign_active(&self, _application: &UIApplication) {
-            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended))
         }
 
         #[method(applicationWillEnterForeground:)]
@@ -539,10 +547,9 @@ declare_class!(
                     }));
                 }
             }
-            unsafe {
-                app_state::handle_nonuser_events(events);
-                app_state::terminated();
-            }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_events(mtm, events);
+            app_state::terminated(mtm);
         }
     }
 );

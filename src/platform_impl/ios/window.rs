@@ -8,6 +8,7 @@ use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
+use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
@@ -17,9 +18,7 @@ use crate::{
     icon::Icon,
     platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state,
-        event_loop::{EventProxy, EventWrapper},
-        monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
+        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -53,20 +52,19 @@ impl Inner {
     }
 
     pub fn request_redraw(&self) {
-        unsafe {
-            if self.gl_or_metal_backed {
-                // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
-                // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
-                // raw or gl/metal for drawing this work is completely avoided.
-                //
-                // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
-                // testing.
-                //
-                // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
-                app_state::queue_gl_or_metal_redraw(self.window.clone());
-            } else {
-                self.view.setNeedsDisplay();
-            }
+        if self.gl_or_metal_backed {
+            let mtm = MainThreadMarker::new().unwrap();
+            // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
+            // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
+            // raw or gl/metal for drawing this work is completely avoided.
+            //
+            // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
+            // testing.
+            //
+            // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
+            app_state::queue_gl_or_metal_redraw(mtm, self.window.clone());
+        } else {
+            self.view.setNeedsDisplay();
         }
     }
 
@@ -219,14 +217,17 @@ impl Inner {
     }
 
     pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+        let mtm = MainThreadMarker::new().unwrap();
         let uiscreen = match &monitor {
             Some(Fullscreen::Exclusive(video_mode)) => {
-                let uiscreen = video_mode.monitor.ui_screen();
-                uiscreen.setCurrentMode(Some(&video_mode.screen_mode.0));
+                let uiscreen = video_mode.monitor.ui_screen(mtm);
+                uiscreen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 uiscreen.clone()
             }
-            Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen().clone(),
-            Some(Fullscreen::Borderless(None)) => self.current_monitor_inner().ui_screen().clone(),
+            Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen(mtm).clone(),
+            Some(Fullscreen::Borderless(None)) => {
+                self.current_monitor_inner().ui_screen(mtm).clone()
+            }
             None => {
                 warn!("`Window::set_fullscreen(None)` ignored on iOS");
                 return;
@@ -249,8 +250,9 @@ impl Inner {
     }
 
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
+        let mtm = MainThreadMarker::new().unwrap();
         let monitor = self.current_monitor_inner();
-        let uiscreen = monitor.ui_screen();
+        let uiscreen = monitor.ui_screen(mtm);
         let screen_space_bounds = self.screen_frame();
         let screen_bounds = uiscreen.bounds();
 
@@ -365,11 +367,11 @@ pub struct Window {
 
 impl Window {
     pub(crate) fn new<T>(
-        _event_loop: &EventLoopWindowTarget<T>,
+        event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
-        let mtm = MainThreadMarker::new().unwrap();
+        let mtm = event_loop.mtm;
 
         if window_attributes.min_inner_size.is_some() {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
@@ -383,8 +385,8 @@ impl Window {
         let main_screen = UIScreen::main(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
-            Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(),
-            Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
+            Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
+            Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(None)) | None => &main_screen,
         };
 
@@ -424,7 +426,7 @@ impl Window {
             &view_controller,
         );
 
-        unsafe { app_state::set_key_window(&window) };
+        app_state::set_key_window(mtm, &window);
 
         // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
         // event on window creation if the DPI factor != 1.0
@@ -436,25 +438,26 @@ impl Window {
             let screen_space = screen.coordinateSpace();
             let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
-            unsafe {
-                app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+            app_state::handle_nonuser_events(
+                mtm,
+                std::iter::once(EventWrapper::ScaleFactorChanged(
+                    app_state::ScaleFactorChanged {
                         window: window.clone(),
                         scale_factor,
-                        suggested_size: size,
-                    }))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
-                        },
-                    ))),
-                );
-            }
+                        suggested_size: size.to_physical(scale_factor),
+                    },
+                ))
+                .chain(std::iter::once(EventWrapper::StaticEvent(
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                    },
+                ))),
+            );
         }
 
         let inner = Inner {

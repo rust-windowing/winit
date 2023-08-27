@@ -58,17 +58,6 @@
 #![cfg(ios_platform)]
 #![allow(clippy::let_unit_value)]
 
-// TODO: (mtak-) UIKit requires main thread for virtually all function/method calls. This could be
-// worked around in the future by using GCD (grand central dispatch) and/or caching of values like
-// window size/position.
-macro_rules! assert_main_thread {
-    ($($t:tt)*) => {
-        if !::icrate::Foundation::is_main_thread() {
-            panic!($($t)*);
-        }
-    };
-}
-
 mod app_state;
 mod event_loop;
 mod ffi;
