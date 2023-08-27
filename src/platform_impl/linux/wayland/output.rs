@@ -7,6 +7,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::platform_impl::platform::{
     MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
+use crate::platform_impl::ControlFlow;
 
 use super::event_loop::EventLoopWindowTarget;
 
@@ -25,6 +26,16 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
         // There's no primary monitor on Wayland.
         None
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        if !matches!(self.control_flow.get(), ControlFlow::ExitWithCode(_)) {
+            self.control_flow.set(control_flow)
+        }
     }
 }
 
