@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     collections::VecDeque,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
@@ -14,7 +15,7 @@ use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 use crate::{
     error::EventLoopError,
     event::{self, Ime, Modifiers, StartCause},
-    event_loop::{self, ControlFlow},
+    event_loop,
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
     },
@@ -298,6 +299,7 @@ impl<T: 'static> EventLoop<T> {
             windows: Vec::new(),
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
+                    control_flow: Cell::new(ControlFlow::default()),
                     user_events_sender,
                     user_events_receiver,
                     creates: Mutex::new(VecDeque::new()),
@@ -454,40 +456,20 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
     {
-        // Wrapper for event handler function that prevents ExitWithCode from being unset.
         let mut event_handler =
-            move |event: event::Event<T>,
-                  window_target: &event_loop::EventLoopWindowTarget<T>,
-                  control_flow: &mut ControlFlow| {
-                if let ControlFlow::ExitWithCode(code) = control_flow {
-                    event_handler_inner(
-                        event,
-                        window_target,
-                        &mut ControlFlow::ExitWithCode(*code),
-                    );
-                } else {
-                    event_handler_inner(event, window_target, control_flow);
-                }
+            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget<T>| {
+                event_handler_inner(event, window_target);
             };
 
-        let mut control_flow = ControlFlow::default();
         let mut start_cause = StartCause::Init;
 
-        let code = loop {
-            event_handler(
-                event::Event::NewEvents(start_cause),
-                &self.window_target,
-                &mut control_flow,
-            );
+        loop {
+            event_handler(event::Event::NewEvents(start_cause), &self.window_target);
 
             if start_cause == StartCause::Init {
-                event_handler(
-                    event::Event::Resumed,
-                    &self.window_target,
-                    &mut control_flow,
-                );
+                event_handler(event::Event::Resumed, &self.window_target);
             }
 
             // Handle window creates.
@@ -512,7 +494,6 @@ impl<T: 'static> EventLoop<T> {
                         event: event::WindowEvent::Resized((properties.w, properties.h).into()),
                     },
                     &self.window_target,
-                    &mut control_flow,
                 );
 
                 // Send resize event on create to indicate first position.
@@ -522,7 +503,6 @@ impl<T: 'static> EventLoop<T> {
                         event: event::WindowEvent::Moved((properties.x, properties.y).into()),
                     },
                     &self.window_target,
-                    &mut control_flow,
                 );
             }
 
@@ -537,7 +517,6 @@ impl<T: 'static> EventLoop<T> {
                         event: event::WindowEvent::Destroyed,
                     },
                     &self.window_target,
-                    &mut control_flow,
                 );
 
                 self.windows
@@ -568,7 +547,7 @@ impl<T: 'static> EventLoop<T> {
                         window_id,
                         orbital_event.to_option(),
                         event_state,
-                        |event| event_handler(event, &self.window_target, &mut control_flow),
+                        |event| event_handler(event, &self.window_target),
                     );
                 }
 
@@ -595,11 +574,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             while let Ok(event) = self.window_target.p.user_events_receiver.try_recv() {
-                event_handler(
-                    event::Event::UserEvent(event),
-                    &self.window_target,
-                    &mut control_flow,
-                );
+                event_handler(event::Event::UserEvent(event), &self.window_target);
             }
 
             // To avoid deadlocks the redraws lock is not held during event processing.
@@ -613,24 +588,19 @@ impl<T: 'static> EventLoop<T> {
                         event: event::WindowEvent::RedrawRequested,
                     },
                     &self.window_target,
-                    &mut control_flow,
                 );
             }
 
-            event_handler(
-                event::Event::AboutToWait,
-                &self.window_target,
-                &mut control_flow,
-            );
+            event_handler(event::Event::AboutToWait, &self.window_target);
 
-            let requested_resume = match control_flow {
+            let requested_resume = match self.window_target.p.control_flow() {
                 ControlFlow::Poll => {
                     start_cause = StartCause::Poll;
                     continue;
                 }
                 ControlFlow::Wait => None,
                 ControlFlow::WaitUntil(instant) => Some(instant),
-                ControlFlow::ExitWithCode(code) => break code,
+                ControlFlow::Exit => break,
             };
 
             // Re-using wake socket caused extra wake events before because there were leftover
@@ -686,19 +656,11 @@ impl<T: 'static> EventLoop<T> {
                     };
                 }
             }
-        };
-
-        event_handler(
-            event::Event::LoopExiting,
-            &self.window_target,
-            &mut control_flow,
-        );
-
-        if code == 0 {
-            Ok(())
-        } else {
-            Err(EventLoopError::ExitFailure(code))
         }
+
+        event_handler(event::Event::LoopExiting, &self.window_target);
+
+        Ok(())
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
@@ -742,6 +704,7 @@ impl<T> Clone for EventLoopProxy<T> {
 impl<T> Unpin for EventLoopProxy<T> {}
 
 pub struct EventLoopWindowTarget<T: 'static> {
+    control_flow: Cell<ControlFlow>,
     pub(super) user_events_sender: mpsc::Sender<T>,
     pub(super) user_events_receiver: mpsc::Receiver<T>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
@@ -764,5 +727,46 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        if !matches!(self.control_flow.get(), ControlFlow::Exit) {
+            self.control_flow.set(control_flow)
+        }
+    }
+
+    pub(crate) fn set_poll(&self) {
+        self.set_control_flow(ControlFlow::Poll)
+    }
+
+    pub(crate) fn set_wait(&self) {
+        self.set_control_flow(ControlFlow::Wait)
+    }
+
+    pub(crate) fn set_wait_until(&self, instant: Instant) {
+        self.set_control_flow(ControlFlow::WaitUntil(instant))
+    }
+
+    pub(crate) fn exit(&self) {
+        self.set_control_flow(ControlFlow::Exit)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ControlFlow {
+    Poll,
+    Wait,
+    WaitUntil(Instant),
+    Exit,
+}
+
+impl Default for ControlFlow {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::Poll
     }
 }
