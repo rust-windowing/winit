@@ -7,25 +7,24 @@
 //! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
-//! let mut control_flow = ControlFlow::Poll;
 //! let mut start_cause = StartCause::Init;
 //!
-//! while control_flow != ControlFlow::Exit {
-//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//! while !elwt.is_exit() {
+//!     event_handler(NewEvents(start_cause), elwt);
 //!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, ..., &mut control_flow);
+//!         event_handler(e, elwt);
 //!     }
 //!
 //!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!         event_handler(RedrawRequested(w), elwt);
 //!     }
 //!
-//!     event_handler(AboutToWait, ..., &mut control_flow);
-//!     start_cause = wait_if_necessary(control_flow);
+//!     event_handler(AboutToWait, elwt);
+//!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, ..., &mut control_flow);
+//! event_handler(LoopExiting, elwt);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully

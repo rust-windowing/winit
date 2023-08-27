@@ -40,21 +40,21 @@ pub use raw_window_handle;
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
+///     event_loop::{ControlFlow, EventLoop},
 ///     window::Window,
 /// };
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
 /// let window = Window::new(&event_loop).unwrap();
 ///
-/// event_loop.run(move |event, _, control_flow| {
-///     control_flow.set_wait();
+/// event_loop.run(move |event, elwt| {
+///     elwt.set_control_flow(ControlFlow::Wait);
 ///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => control_flow.set_exit(),
+///         } => elwt.exit(),
 ///         _ => (),
 ///     }
 /// });

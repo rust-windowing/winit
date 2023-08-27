@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
     window::WindowBuilder,
 };
@@ -22,8 +22,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut close_requested = false;
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
@@ -66,7 +66,7 @@ fn main() -> Result<(), impl std::error::Error> {
                                 // event loop (i.e. if it's a multi-window application), you need to
                                 // drop the window. That closes it, and results in `Destroyed` being
                                 // sent.
-                                control_flow.set_exit();
+                                elwt.exit();
                             }
                         }
                         Key::Character("n") => {

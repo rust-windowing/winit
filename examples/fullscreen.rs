@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
-use winit::event_loop::EventLoop;
+use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::Key;
 use winit::window::{Fullscreen, WindowBuilder};
 
@@ -52,12 +52,12 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("- I\tToggle mIn size limit");
     println!("- A\tToggle mAx size limit");
 
-    event_loop.run(move |event, elwt, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -67,7 +67,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key {
-                    Key::Escape => control_flow.set_exit(),
+                    Key::Escape => elwt.exit(),
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {

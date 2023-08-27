@@ -20,6 +20,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
 - Mark `startup_notify` unsafe functions as safe.
 - Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
+- **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
+- **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::set_exit()` and `EventLoopWindowTarget::is_exit()` and removed `ControlFlow::ExitWithCode(_)` entirely.
 
 # 0.29.1-beta
 

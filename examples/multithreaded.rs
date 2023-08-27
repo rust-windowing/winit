@@ -8,7 +8,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyEvent, WindowEvent},
-        event_loop::EventLoop,
+        event_loop::{ControlFlow, EventLoop},
         keyboard::{Key, ModifiersState},
         window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
     };
@@ -173,10 +173,10 @@ fn main() -> Result<(), impl std::error::Error> {
             }
         });
     }
-    event_loop.run(move |event, _event_loop, control_flow| {
+    event_loop.run(move |event, elwt| {
         match !window_senders.is_empty() {
-            true => control_flow.set_wait(),
-            false => control_flow.set_exit(),
+            true => elwt.set_control_flow(ControlFlow::Wait),
+            false => elwt.exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

@@ -5,7 +5,7 @@ use std::path::Path;
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     window::{Icon, WindowBuilder},
 };
 
@@ -33,12 +33,12 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
                 }
