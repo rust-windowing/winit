@@ -69,13 +69,31 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ## MSRV Policy
 
-The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to the MSRV will be released as patch version updates to `winit`. Once `winit` v1.0 is released, they will instead be released as minor version updates.
+The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to 
+the MSRV will by a minor version bump. 
 
-As a **tentative** policy, the MSRV will not advance past the [current Rust version provided by Debian Sid](https://packages.debian.org/sid/rustc). At the time of writing, this version of Rust is *1.66*. However, the MSRV may be advanced further in the event of a major ecosystem shift or a security vulnerability.
+As a **tentative** policy, the upper bound of the MSRV is given by the following
+formula:
 
-The exception to this is for the Android platform, where a higher Rust version must be used for certain Android features. In this case, the MSRV will be capped at the latest stable version of Rust minus three. This inconsistency is not reflected in Cargo metadata, as it is not powerful enough to expose this restriction.
+```
+min(sid, stable - 3)
+```
 
-All crates in the [`rust-windowing`](https://github.com/rust-windowing) and [`rust-mobile`](https://github.com/rust-mobile) organizations have the same MSRV policy.
+Where `sid` is the current version of `rustc` provided by [Debian Sid], and
+`stable` is the latest stable version of Rust. This bound may be broken in the
+event of a major ecosystem shift or a security vulnerability.
+
+[Debian Sid]: https://packages.debian.org/sid/rustc
+
+The exception to this is for the Android platform, where a higher Rust version 
+must be used for certain Android features. In this case, the MSRV will be 
+capped at the latest stable version of Rust minus three. This inconsistency is 
+not reflected in Cargo metadata, as it is not powerful enough to expose this 
+restriction.
+
+All crates in the [`rust-windowing`](https://github.com/rust-windowing) and 
+[`rust-mobile`](https://github.com/rust-mobile) organizations have the same 
+MSRV policy.
 
 ### Platform-specific usage
 
