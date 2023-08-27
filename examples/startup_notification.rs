@@ -36,56 +36,49 @@ mod example {
             match event {
                 Event::Resumed => create_first_window = true,
 
-                Event::WindowEvent {
-                    window_id,
-                    event:
-                        WindowEvent::KeyboardInput {
-                            event:
-                                KeyEvent {
-                                    logical_key,
-                                    state: ElementState::Pressed,
-                                    ..
-                                },
-                            ..
-                        },
-                } => {
-                    if logical_key == Key::Character("n".into()) {
-                        if let Some(window) = windows.get(&window_id) {
-                            // Request a new activation token on this window.
-                            // Once we get it we will use it to create a window.
-                            window
-                                .request_activation_token()
-                                .expect("Failed to request activation token.");
+                Event::WindowEvent { window_id, event } => match event {
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                logical_key,
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    } => {
+                        if logical_key == Key::Character("n".into()) {
+                            if let Some(window) = windows.get(&window_id) {
+                                // Request a new activation token on this window.
+                                // Once we get it we will use it to create a window.
+                                window
+                                    .request_activation_token()
+                                    .expect("Failed to request activation token.");
+                            }
                         }
                     }
-                }
 
-                Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::CloseRequested,
-                } => {
-                    // Remove the window from the map.
-                    windows.remove(&window_id);
-                    if windows.is_empty() {
-                        flow.set_exit();
-                        return;
+                    WindowEvent::CloseRequested => {
+                        // Remove the window from the map.
+                        windows.remove(&window_id);
+                        if windows.is_empty() {
+                            flow.set_exit();
+                            return;
+                        }
                     }
-                }
 
-                Event::WindowEvent {
-                    event: WindowEvent::ActivationTokenDone { token, .. },
-                    ..
-                } => {
-                    current_token = Some(token);
-                }
-
-                Event::RedrawRequested(id) => {
-                    if let Some(window) = windows.get(&id) {
-                        super::fill::fill_window(window);
+                    WindowEvent::ActivationTokenDone { token, .. } => {
+                        current_token = Some(token);
                     }
-                }
 
-                _ => {}
+                    WindowEvent::RedrawRequested => {
+                        if let Some(window) = windows.get(&window_id) {
+                            super::fill::fill_window(window);
+                        }
+                    }
+
+                    _ => {}
+                },
+                _ => (),
             }
 
             // See if we've passed the deadline.

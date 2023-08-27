@@ -1152,7 +1152,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // redraw the window outside the normal flow of the event loop.
                 RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             } else {
-                userdata.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::RedrawRequested,
+                });
             }
             result = ProcResult::DefWindowProc(wparam);
         }

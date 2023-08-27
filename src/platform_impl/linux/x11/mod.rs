@@ -65,7 +65,7 @@ use self::{
 use super::{common::xkb_state::KbdState, OsError};
 use crate::{
     error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause},
+    event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     platform_impl::{
@@ -671,7 +671,10 @@ impl<T: 'static> EventLoop<T> {
             for window_id in windows {
                 let window_id = crate::window::WindowId(window_id);
                 sticky_exit_callback(
-                    Event::RedrawRequested(window_id),
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::RedrawRequested,
+                    },
                     &self.target,
                     &mut control_flow,
                     callback,
@@ -708,7 +711,11 @@ impl<T: 'static> EventLoop<T> {
                     target,
                     control_flow,
                     &mut |event, window_target, control_flow| {
-                        if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
+                        if let Event::WindowEvent {
+                            window_id: crate::window::WindowId(wid),
+                            event: WindowEvent::RedrawRequested,
+                        } = event
+                        {
                             wt.redraw_sender.send(wid).unwrap();
                         } else {
                             callback(event, window_target, control_flow);

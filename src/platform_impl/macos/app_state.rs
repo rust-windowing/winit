@@ -564,8 +564,10 @@ impl AppState {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
         if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
-            HANDLER
-                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            }));
             HANDLER.set_in_callback(false);
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
@@ -616,8 +618,10 @@ impl AppState {
         }
 
         for window_id in HANDLER.should_redraw() {
-            HANDLER
-                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            }));
         }
 
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::AboutToWait));
