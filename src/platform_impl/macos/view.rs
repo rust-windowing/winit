@@ -31,7 +31,7 @@ use crate::{
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{create_key_event, event_mods, EventWrapper},
+        event::{create_key_event, event_mods},
         util,
         window::WinitWindow,
         DEVICE_ID,
@@ -826,7 +826,7 @@ impl WinitView {
             window_id: self.window_id(),
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
@@ -834,7 +834,7 @@ impl WinitView {
             device_id: DEVICE_ID,
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     fn scale_factor(&self) -> f64 {

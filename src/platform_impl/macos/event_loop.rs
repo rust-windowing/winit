@@ -65,9 +65,10 @@ impl PanicInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub receiver: mpsc::Receiver<T>,
     mtm: MainThreadMarker,
+    p: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
@@ -107,14 +108,18 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    /// Store a reference to the application for convenience.
+    app: Id<WinitApplication>,
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
     _delegate: Id<ApplicationDelegate>,
 
+    // Event sender and receiver, used for EventLoopProxy.
     sender: mpsc::Sender<T>,
+    receiver: Rc<mpsc::Receiver<T>>,
+
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
-    mtm: MainThreadMarker,
 
     /// We make sure that the callback closure is dropped during a panic
     /// by making the event loop own it.
@@ -177,13 +182,17 @@ impl<T> EventLoop<T> {
 
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
+            app,
             _delegate: delegate,
             sender,
+            receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget { receiver, mtm },
+                p: EventLoopWindowTarget {
+                    mtm,
+                    p: PhantomData,
+                },
                 _marker: PhantomData,
             }),
-            mtm,
             panic_info,
             _callback: None,
         })
@@ -231,8 +240,6 @@ impl<T> EventLoop<T> {
         self._callback = Some(Rc::clone(&callback));
 
         let exit_code = autoreleasepool(|_| {
-            let app = NSApplication::shared(self.mtm);
-
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
@@ -241,7 +248,11 @@ impl<T> EventLoop<T> {
             // # Safety
             // We make sure to call `AppState::clear_callback` before returning
             unsafe {
-                AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
+                AppState::set_callback(
+                    weak_cb,
+                    Rc::clone(&self.window_target),
+                    Rc::clone(&self.receiver),
+                );
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
@@ -257,7 +268,7 @@ impl<T> EventLoop<T> {
                     debug_assert!(!AppState::is_running());
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 }
-                unsafe { app.run() };
+                unsafe { self.app.run() };
 
                 // While the app is running it's possible that we catch a panic
                 // to avoid unwinding across an objective-c ffi boundary, which
@@ -326,7 +337,11 @@ impl<T> EventLoop<T> {
             // to ensure that we don't hold on to the callback beyond its (erased)
             // lifetime
             unsafe {
-                AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
+                AppState::set_callback(
+                    weak_cb,
+                    Rc::clone(&self.window_target),
+                    Rc::clone(&self.receiver),
+                );
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
