@@ -407,7 +407,10 @@ impl<T: 'static> EventLoop<T> {
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let event = event::Event::RedrawRequested(window::WindowId(WindowId));
+                let event = event::Event::WindowEvent {
+                    window_id: window::WindowId(WindowId),
+                    event: event::WindowEvent::RedrawRequested,
+                };
                 sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
             }
         }

@@ -59,15 +59,16 @@ fn main() -> Result<(), impl std::error::Error> {
                 name_windows(entered_id, switched, &window_1, &window_2);
                 println!("Switched!")
             }
+            WindowEvent::RedrawRequested => {
+                if window_id == window_1.id() {
+                    fill::fill_window(&window_1);
+                } else if window_id == window_2.id() {
+                    fill::fill_window(&window_2);
+                }
+            }
             _ => (),
         },
-        Event::RedrawRequested(wid) => {
-            if wid == window_1.id() {
-                fill::fill_window(&window_1);
-            } else if wid == window_2.id() {
-                fill::fill_window(&window_2);
-            }
-        }
+
         _ => (),
     })
 }

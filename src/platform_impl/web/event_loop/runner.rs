@@ -567,7 +567,13 @@ impl<T: 'static> Shared<T> {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::RedrawRequested(window_id), &mut control);
+            self.handle_event(
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::RedrawRequested,
+                },
+                &mut control,
+            );
         }
 
         self.handle_event(Event::AboutToWait, &mut control);

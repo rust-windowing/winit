@@ -539,7 +539,7 @@ impl Window {
         self.window.maybe_wait_on_main(|w| w.scale_factor())
     }
 
-    /// Queues a [`Event::RedrawRequested`] event to be emitted that aligns with the windowing
+    /// Queues a [`WindowEvent::RedrawRequested`] event to be emitted that aligns with the windowing
     /// system drawing loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
@@ -562,9 +562,9 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** The events are aligned with the frame callbacks when [`Window::pre_present_notify`]
     ///                is used.
-    /// - **Web:** [`Event::RedrawRequested`] will be aligned with the `requestAnimationFrame`.
+    /// - **Web:** [`WindowEvent::RedrawRequested`] will be aligned with the `requestAnimationFrame`.
     ///
-    /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
+    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     #[inline]
     pub fn request_redraw(&self) {
         self.window.maybe_queue_on_main(|w| w.request_redraw())
@@ -575,7 +575,7 @@ impl Window {
     /// You should call this event after you've done drawing operations, but before you submit
     /// the buffer to the display or commit your drawings. Doing so will help winit to properly
     /// schedule and do assumptions about its internal state. For example, it could properly
-    /// throttle [`Event::RedrawRequested`].
+    /// throttle [`WindowEvent::RedrawRequested`].
     ///
     /// ## Example
     ///
@@ -599,9 +599,9 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland:** - schedules a frame callback to throttle [`Event::RedrawRequested`].
+    /// **Wayland:** - schedules a frame callback to throttle [`WindowEvent::RedrawRequested`].
     ///
-    /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
+    /// [`WindowEvent::RedrawRequested`]: crate::event::WindowEvent::RedrawRequested
     #[inline]
     pub fn pre_present_notify(&self) {
         self.window.maybe_queue_on_main(|w| w.pre_present_notify());

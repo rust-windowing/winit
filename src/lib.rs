@@ -79,7 +79,10 @@
 //!             // can just render here instead.
 //!             window.request_redraw();
 //!         },
-//!         Event::RedrawRequested(_) => {
+//!         Event::WindowEvent {
+//!             event: WindowEvent::RedrawRequested,
+//!             ..
+//!         } => {
 //!             // Redraw the application.
 //!             //
 //!             // It's preferable for applications that do not render continuously to render in
