@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
 - On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
+- On macOS, fix crash in `window.set_minimized(false)`.
 
 # 0.29.1-beta
 
