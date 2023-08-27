@@ -56,14 +56,15 @@ fn main() -> Result<(), impl std::error::Error> {
                     window.set_option_as_alt(option_as_alt);
                 }
                 WindowEvent::KeyboardInput { .. } => println!("KeyboardInput: {event:?}"),
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
             },
             Event::AboutToWait => {
                 window.request_redraw();
             }
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
-            }
+
             _ => (),
         }
     })

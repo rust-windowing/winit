@@ -580,7 +580,10 @@ impl<T: 'static> EventLoop<T> {
 
             if request_redraw {
                 sticky_exit_callback(
-                    Event::RedrawRequested(crate::window::WindowId(window_id)),
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::RedrawRequested,
+                    },
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,

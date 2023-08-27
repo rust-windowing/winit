@@ -72,11 +72,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 } => {
                     spawn_child_window(&parent_window, event_loop, &mut windows);
                 }
+                WindowEvent::RedrawRequested => {
+                    if let Some(window) = windows.get(&window_id) {
+                        fill::fill_window(window);
+                    }
+                }
                 _ => (),
-            }
-        } else if let Event::RedrawRequested(wid) = event {
-            if let Some(window) = windows.get(&wid) {
-                fill::fill_window(window);
             }
         }
     })

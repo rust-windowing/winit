@@ -28,36 +28,33 @@ fn main() -> Result<(), impl std::error::Error> {
         control_flow.set_wait();
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                logical_key: Key::Space,
-                                state: ElementState::Released,
-                                ..
-                            },
-                        ..
-                    },
-                window_id,
-            } if window_id == window.id() => {
-                has_increments = !has_increments;
+            Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Space,
+                            state: ElementState::Released,
+                            ..
+                        },
+                    ..
+                } => {
+                    has_increments = !has_increments;
 
-                let new_increments = match window.resize_increments() {
-                    Some(_) => None,
-                    None => Some(LogicalSize::new(25.0, 25.0)),
-                };
-                debug!("Had increments: {}", new_increments.is_none());
-                window.set_resize_increments(new_increments);
-            }
+                    let new_increments = match window.resize_increments() {
+                        Some(_) => None,
+                        None => Some(LogicalSize::new(25.0, 25.0)),
+                    };
+                    debug!("Had increments: {}", new_increments.is_none());
+                    window.set_resize_increments(new_increments);
+                }
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
+                _ => (),
+            },
             Event::AboutToWait => window.request_redraw(),
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
-            }
+
             _ => (),
         }
     })

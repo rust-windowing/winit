@@ -93,6 +93,9 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
             },
             Event::AboutToWait => {
@@ -116,9 +119,6 @@ fn main() -> Result<(), impl std::error::Error> {
                 if close_requested {
                     control_flow.set_exit();
                 }
-            }
-            Event::RedrawRequested(_window_id) => {
-                fill::fill_window(&window);
             }
             _ => (),
         }
