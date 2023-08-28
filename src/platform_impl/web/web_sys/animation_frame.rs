@@ -49,6 +49,14 @@ impl AnimationFrameHandler {
 
         self.handle.set(Some(handle));
     }
+
+    pub fn cancel(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            self.window
+                .cancel_animation_frame(handle)
+                .expect("Failed to cancel animation frame");
+        }
+    }
 }
 
 impl Drop for AnimationFrameHandler {

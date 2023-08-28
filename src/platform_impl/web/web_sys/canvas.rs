@@ -503,6 +503,8 @@ impl Canvas {
     }
 
     pub fn remove_listeners(&mut self) {
+        self.on_touch_start = None;
+        self.on_touch_end = None;
         self.on_focus = None;
         self.on_blur = None;
         self.on_keyboard_release = None;
@@ -512,6 +514,7 @@ impl Canvas {
         self.pointer_handler.remove_listeners();
         self.on_resize_scale = None;
         self.on_intersect = None;
+        self.animation_frame_handler.cancel();
     }
 }
 
