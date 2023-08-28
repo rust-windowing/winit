@@ -736,7 +736,7 @@ impl<T: 'static> Shared<T> {
         self.0.device_events.set(allowed)
     }
 
-    pub fn device_events(&self) -> bool {
+    fn device_events(&self) -> bool {
         match self.0.device_events.get() {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => self.0.all_canvases.borrow().iter().any(|(_, canvas)| {
