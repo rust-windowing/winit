@@ -201,7 +201,7 @@ impl<T: 'static> Shared<T> {
         self.init();
 
         *self.0.page_transition_event_handle.borrow_mut() = Some(backend::on_page_transition(
-            self.window(),
+            self.window().clone(),
             {
                 let runner = self.clone();
                 move |event: PageTransitionEvent| {
@@ -227,7 +227,7 @@ impl<T: 'static> Shared<T> {
         let runner = self.clone();
         let window = self.window().clone();
         *self.0.on_mouse_move.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "pointermove",
             Closure::new(move |event: PointerEvent| {
                 if !runner.device_events() {
@@ -304,7 +304,7 @@ impl<T: 'static> Shared<T> {
         let runner = self.clone();
         let window = self.window().clone();
         *self.0.on_wheel.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "wheel",
             Closure::new(move |event: WheelEvent| {
                 if !runner.device_events() {
@@ -321,7 +321,7 @@ impl<T: 'static> Shared<T> {
         ));
         let runner = self.clone();
         *self.0.on_mouse_press.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "pointerdown",
             Closure::new(move |event: PointerEvent| {
                 if !runner.device_events() {
@@ -344,7 +344,7 @@ impl<T: 'static> Shared<T> {
         ));
         let runner = self.clone();
         *self.0.on_mouse_release.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "pointerup",
             Closure::new(move |event: PointerEvent| {
                 if !runner.device_events() {
@@ -367,7 +367,7 @@ impl<T: 'static> Shared<T> {
         ));
         let runner = self.clone();
         *self.0.on_key_press.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "keydown",
             Closure::new(move |event: KeyboardEvent| {
                 if !runner.device_events() {
@@ -385,7 +385,7 @@ impl<T: 'static> Shared<T> {
         ));
         let runner = self.clone();
         *self.0.on_key_release.borrow_mut() = Some(EventListenerHandle::new(
-            self.window(),
+            self.window().clone(),
             "keyup",
             Closure::new(move |event: KeyboardEvent| {
                 if !runner.device_events() {
@@ -404,7 +404,7 @@ impl<T: 'static> Shared<T> {
         let runner = self.clone();
         *self.0.on_visibility_change.borrow_mut() = Some(EventListenerHandle::new(
             // Safari <14 doesn't support the `visibilitychange` event on `Window`.
-            self.document(),
+            self.document().clone(),
             "visibilitychange",
             Closure::new(move |_| {
                 if !runner.0.suspended.get() {
