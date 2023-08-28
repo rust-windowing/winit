@@ -8,11 +8,11 @@ pub struct EventListenerHandle<T: ?Sized> {
 }
 
 impl<T: ?Sized> EventListenerHandle<T> {
-    pub fn new<U>(target: &U, event_type: &'static str, listener: Closure<T>) -> Self
+    pub fn new<U>(target: U, event_type: &'static str, listener: Closure<T>) -> Self
     where
-        U: Clone + Into<EventTarget>,
+        U: Into<EventTarget>,
     {
-        let target = target.clone().into();
+        let target = target.into();
         target
             .add_event_listener_with_callback(event_type, listener.as_ref().unchecked_ref())
             .expect("Failed to add event listener");

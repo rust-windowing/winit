@@ -35,14 +35,15 @@ pub struct PageTransitionEventHandle {
 }
 
 pub fn on_page_transition(
-    window: &web_sys::Window,
+    window: web_sys::Window,
     show_handler: impl FnMut(PageTransitionEvent) + 'static,
     hide_handler: impl FnMut(PageTransitionEvent) + 'static,
 ) -> PageTransitionEventHandle {
     let show_closure = Closure::new(show_handler);
     let hide_closure = Closure::new(hide_handler);
 
-    let show_listener = event_handle::EventListenerHandle::new(window, "pageshow", show_closure);
+    let show_listener =
+        event_handle::EventListenerHandle::new(window.clone(), "pageshow", show_closure);
     let hide_listener = event_handle::EventListenerHandle::new(window, "pagehide", hide_closure);
     PageTransitionEventHandle {
         _show_listener: show_listener,
