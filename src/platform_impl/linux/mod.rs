@@ -716,21 +716,30 @@ impl<T: 'static> EventLoop<T> {
         }
 
         // NOTE: Wayland first because of X11 could be present under wayland as well.
-        #[cfg(wayland_platform)]
-        if attributes.forced_backend == Some(Backend::Wayland)
-            || env::var("WAYLAND_DISPLAY").is_ok()
-        {
-            return EventLoop::new_wayland_any_thread().map_err(Into::into);
-        }
+        let backend = match (
+            attributes.forced_backend,
+            env::var("WAYLAND_DISPLAY").is_ok(),
+            env::var("DISPLAY").is_ok(),
+        ) {
+            // User is forcing a backend.
+            (Some(backend), _, _) => backend,
+            // Wayland is present.
+            (None, true, _) => Backend::Wayland,
+            // X11 is present.
+            (None, false, true) => Backend::X,
+            // No backend is present.
+            (None, false, false) => {
+                return Err(EventLoopError::Os(os_error!(OsError::Misc(
+                    "neither WAYLAND_DISPLAY nor DISPLAY is set."
+                ))));
+            }
+        };
 
-        #[cfg(x11_platform)]
-        if attributes.forced_backend == Some(Backend::X) || env::var("DISPLAY").is_ok() {
-            return Ok(EventLoop::new_x11_any_thread().unwrap());
+        // Create the display based on the backend.
+        match backend {
+            Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
+            Backend::X => Ok(EventLoop::new_x11_any_thread().unwrap()),
         }
-
-        Err(EventLoopError::Os(os_error!(OsError::Misc(
-            "neither WAYLAND_DISPLAY nor DISPLAY is set."
-        ))))
     }
 
     #[cfg(wayland_platform)]
