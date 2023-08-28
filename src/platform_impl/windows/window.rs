@@ -1122,7 +1122,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
     }
 
-    unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData<T> {
+    unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData {
         let file_drop_handler = if self.pl_attribs.drag_and_drop {
             let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
             // It is ok if the initialize result is `S_FALSE` because it might happen that

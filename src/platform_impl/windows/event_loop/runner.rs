@@ -412,7 +412,7 @@ impl<T> BufferedEvent<T> {
 
                 let window_flags = unsafe {
                     let userdata =
-                        get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData<T>;
+                        get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
                     (*userdata).window_state_lock().window_flags
                 };
                 window_flags.set_size((window_id.0).0, inner_size);
