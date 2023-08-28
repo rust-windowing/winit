@@ -367,12 +367,7 @@ impl Canvas {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static
-            + FnMut(
-                ModifiersState,
-                i32,
-                &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>,
-            ),
+        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
@@ -524,17 +519,13 @@ impl Common {
     pub fn add_event<E, F>(
         &self,
         event_name: &'static str,
-        mut handler: F,
+        handler: F,
     ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
     {
-        let closure = Closure::new(move |event: E| {
-            event.as_ref().stop_propagation();
-            handler(event);
-        });
-        EventListenerHandle::new(&self.raw, event_name, closure)
+        EventListenerHandle::new(self.raw.clone(), event_name, Closure::new(handler))
     }
 
     // The difference between add_event and add_user_event is that the latter has a special meaning

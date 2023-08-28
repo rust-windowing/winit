@@ -15,6 +15,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
 - On macOS, fix crash in `window.set_minimized(false)`.
+- On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
 
 # 0.29.1-beta
 
