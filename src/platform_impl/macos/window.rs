@@ -596,6 +596,8 @@ impl WinitWindow {
         self.setOpaque(!transparent)
     }
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => self.makeKeyAndOrderFront(None),

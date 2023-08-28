@@ -151,6 +151,7 @@ pub struct WindowAttributes {
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
+    pub blur: bool,
     pub decorations: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
@@ -176,6 +177,7 @@ impl Default for WindowAttributes {
             fullscreen: None,
             visible: true,
             transparent: false,
+            blur: false,
             decorations: true,
             window_level: Default::default(),
             window_icon: None,
@@ -340,6 +342,16 @@ impl WindowBuilder {
     #[inline]
     pub fn with_transparent(mut self, transparent: bool) -> Self {
         self.window.transparent = transparent;
+        self
+    }
+
+    /// Sets whether the background of the window should be blurred by the system.
+    /// Platform specifics described for Window::set_blur apply here
+    ///
+    /// The default is `false`.
+    #[inline]
+    pub fn with_blur(mut self, blur: bool) -> Self {
+        self.window.blur = blur;
         self
     }
 
@@ -882,6 +894,19 @@ impl Window {
     pub fn set_transparent(&self, transparent: bool) {
         self.window
             .maybe_queue_on_main(move |w| w.set_transparent(transparent))
+    }
+
+    /// Change the window blur state.
+    ///
+    /// If `true`, this will make the transparent window background blurry.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / iOS / macOS / X11 / Web / Windows:** Unsupported.
+    /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
+    #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        self.window.maybe_queue_on_main(move |w| w.set_blur(blur))
     }
 
     /// Modifies the window's visibility.
