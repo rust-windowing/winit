@@ -207,7 +207,7 @@ impl<T: 'static> EventLoop<T> {
             become_dpi_aware();
         }
 
-        let thread_msg_target = create_event_target_window::<T>();
+        let thread_msg_target = create_event_target_window();
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
 
@@ -834,7 +834,7 @@ static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
-fn create_event_target_window<T: 'static>() -> HWND {
+fn create_event_target_window() -> HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_VREDRAW;
     unsafe {
