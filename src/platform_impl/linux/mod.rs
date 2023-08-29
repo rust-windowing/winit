@@ -724,11 +724,13 @@ impl<T: 'static> EventLoop<T> {
             // User is forcing a backend.
             (Some(backend), _, _) => backend,
             // Wayland is present.
+            #[cfg(wayland_platform)]
             (None, true, _) => Backend::Wayland,
             // X11 is present.
-            (None, false, true) => Backend::X,
+            #[cfg(x11_platform)]
+            (None, _, true) => Backend::X,
             // No backend is present.
-            (None, false, false) => {
+            _ => {
                 return Err(EventLoopError::Os(os_error!(OsError::Misc(
                     "neither WAYLAND_DISPLAY nor DISPLAY is set."
                 ))));
@@ -737,7 +739,9 @@ impl<T: 'static> EventLoop<T> {
 
         // Create the display based on the backend.
         match backend {
+            #[cfg(wayland_platform)]
             Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
+            #[cfg(x11_platform)]
             Backend::X => Ok(EventLoop::new_x11_any_thread().unwrap()),
         }
     }
