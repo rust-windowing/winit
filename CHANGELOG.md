@@ -17,6 +17,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
 - On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
 - On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
+- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
 
 # 0.29.1-beta
 
