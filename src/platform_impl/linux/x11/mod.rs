@@ -36,7 +36,7 @@ use std::{
     },
     ptr,
     rc::Rc,
-    slice,
+    slice, str,
     sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
@@ -47,11 +47,15 @@ use libc::{self, setlocale, LC_CTYPE};
 use atoms::*;
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
-use x11rb::protocol::{
-    xinput,
-    xproto::{self, ConnectionExt},
-};
 use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::{
+    connection::RequestConnection,
+    protocol::{
+        xinput::{self, ConnectionExt as _},
+        xkb,
+        xproto::{self, ConnectionExt as _},
+    },
+};
 use x11rb::{
     errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
     xcb_ffi::ReplyOrIdError,
@@ -74,6 +78,10 @@ use crate::{
     },
     window::WindowAttributes,
 };
+
+// Xinput constants not defined in x11rb
+const ALL_DEVICES: u16 = 0;
+const ALL_MASTER_DEVICES: u16 = 1;
 
 type X11Source = Generic<RawFd>;
 
@@ -229,71 +237,27 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let randr_event_offset = xconn
-            .select_xrandr_input(root as ffi::Window)
+            .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
-        let xi2ext = unsafe {
-            let mut ext = XExtension::default();
+        let xi2ext = xconn
+            .xcb_connection()
+            .extension_information(xinput::X11_EXTENSION_NAME)
+            .expect("Failed to query XInput extension")
+            .expect("X server missing XInput extension");
+        let xkbext = xconn
+            .xcb_connection()
+            .extension_information(xkb::X11_EXTENSION_NAME)
+            .expect("Failed to query XKB extension")
+            .expect("X server missing XKB extension");
 
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
-                b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut ext.opcode,
-                &mut ext.first_event_id,
-                &mut ext.first_error_id,
-            );
-
-            if res == ffi::False {
-                panic!("X server missing XInput extension");
-            }
-
-            ext
-        };
-
-        let xkbext = {
-            let mut ext = XExtension::default();
-
-            let res = unsafe {
-                (xconn.xlib.XkbQueryExtension)(
-                    xconn.display,
-                    &mut ext.opcode,
-                    &mut ext.first_event_id,
-                    &mut ext.first_error_id,
-                    &mut 1,
-                    &mut 0,
-                )
-            };
-
-            if res == ffi::False {
-                panic!("X server missing XKB extension");
-            }
-
-            // Enable detectable auto repeat.
-            let mut supported = 0;
-            unsafe {
-                (xconn.xlib.XkbSetDetectableAutoRepeat)(xconn.display, 1, &mut supported);
-            }
-            if supported == 0 {
-                warn!("Detectable auto repeart is not supported");
-            }
-
-            ext
-        };
-
-        unsafe {
-            let mut xinput_major_ver = ffi::XI_2_Major;
-            let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
-                &mut xinput_major_ver,
-                &mut xinput_minor_ver,
-            ) != ffi::Success as std::os::raw::c_int
-            {
-                panic!(
-                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
-                );
-            }
-        }
+        // Check for XInput2 support.
+        xconn
+            .xcb_connection()
+            .xinput_xi_query_version(2, 3)
+            .expect("Failed to send XInput2 query version request")
+            .reply()
+            .expect("Error while checking for XInput2 query version reply");
 
         xconn.update_cached_wm_info(root);
 
@@ -387,7 +351,7 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xinput_events(
                 root,
-                ffi::XIAllDevices as _,
+                ALL_DEVICES,
                 x11rb::protocol::xinput::XIEventMask::HIERARCHY,
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
@@ -396,11 +360,11 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                ffi::XkbNewKeyboardNotifyMask | ffi::XkbStateNotifyMask,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
-        event_processor.init_device(ffi::XIAllDevices);
+        event_processor.init_device(ALL_DEVICES);
 
         EventLoop {
             loop_running: false,
@@ -761,7 +725,7 @@ impl<T> EventLoopWindowTarget<T> {
         }
 
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllMasterDevices as _, mask)
+            .select_xinput_events(self.root, ALL_MASTER_DEVICES, mask)
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
@@ -822,7 +786,7 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
@@ -894,6 +858,9 @@ pub enum X11Error {
     /// Got an invalid activation token.
     InvalidActivationToken(Vec<u8>),
 
+    /// An extension that we rely on is not available.
+    MissingExtension(&'static str),
+
     /// Could not find a matching X11 visual for this visualid
     NoSuchVisual(xproto::Visualid),
 }
@@ -912,6 +879,7 @@ impl fmt::Display for X11Error {
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
+            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
             X11Error::NoSuchVisual(visualid) => {
                 write!(
                     f,
@@ -1033,17 +1001,10 @@ impl<'a> Drop for GenericEventCookie<'a> {
     }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
-struct XExtension {
-    opcode: c_int,
-    first_event_id: c_int,
-    first_error_id: c_int,
-}
-
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
-fn mkdid(w: c_int) -> crate::event::DeviceId {
+fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
 }
 

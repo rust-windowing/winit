@@ -851,6 +851,7 @@ impl<T> EventLoopWindowTarget<T> {
                 .x_connection()
                 .available_monitors()
                 .into_iter()
+                .flatten()
                 .map(MonitorHandle::X)
                 .collect(),
         }
@@ -863,7 +864,7 @@ impl<T> EventLoopWindowTarget<T> {
             EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
             #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => {
-                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
+                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor().ok()?);
                 Some(primary_monitor)
             }
         }

@@ -1,5 +1,9 @@
 use std::{slice, str};
-use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::errors::{ConnectionError, ReplyError};
+use x11rb::protocol::{
+    xinput::{self, ConnectionExt as _},
+    xkb::{self, ConnectionExt as _},
+};
 
 use super::*;
 
@@ -10,31 +14,6 @@ pub const VIRTUAL_CORE_KEYBOARD: u16 = 3;
 // re-allocate (and make another round-trip) in the *vast* majority of cases.
 // To test if `lookup_utf8` works correctly, set this to 1.
 const TEXT_BUFFER_SIZE: usize = 1024;
-
-// NOTE: Some of these fields are not used, but may be of use in the future.
-pub struct PointerState<'a> {
-    xconn: &'a XConnection,
-    pub root: xproto::Window,
-    pub child: xproto::Window,
-    pub root_x: c_double,
-    pub root_y: c_double,
-    pub win_x: c_double,
-    pub win_y: c_double,
-    buttons: ffi::XIButtonState,
-    pub group: ffi::XIGroupState,
-    pub relative_to_window: bool,
-}
-
-impl<'a> Drop for PointerState<'a> {
-    fn drop(&mut self) {
-        if !self.buttons.mask.is_null() {
-            unsafe {
-                // This is why you need to read the docs carefully...
-                (self.xconn.xlib.XFree)(self.buttons.mask as _);
-            }
-        }
-    }
-}
 
 impl XConnection {
     pub fn select_xinput_events(
@@ -54,16 +33,36 @@ impl XConnection {
             .map_err(Into::into)
     }
 
-    pub fn select_xkb_events(&self, device_id: c_int, mask: c_ulong) -> Result<bool, X11Error> {
-        let status =
-            unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id as _, mask, mask) };
+    pub fn select_xkb_events(
+        &self,
+        device_id: xkb::DeviceSpec,
+        mask: xkb::EventType,
+    ) -> Result<bool, X11Error> {
+        let result = self
+            .xcb_connection()
+            .xkb_select_events(
+                device_id,
+                xkb::EventType::from(0u8),
+                mask,
+                xkb::MapPart::from(u16::from(mask)),
+                xkb::MapPart::EXPLICIT_COMPONENTS
+                    | xkb::MapPart::KEY_ACTIONS
+                    | xkb::MapPart::KEY_BEHAVIORS
+                    | xkb::MapPart::VIRTUAL_MODS
+                    | xkb::MapPart::MODIFIER_MAP
+                    | xkb::MapPart::VIRTUAL_MOD_MAP,
+                &xkb::SelectEventsAux::new(),
+            )
+            .map_err(ReplyError::from)
+            .and_then(|x| x.check());
 
-        if status == ffi::True {
-            self.flush_requests()?;
-            Ok(true)
-        } else {
-            error!("Could not select XKB events: The XKB extension is not initialized!");
-            Ok(false)
+        match result {
+            Ok(()) => Ok(true),
+            Err(ReplyError::ConnectionError(ConnectionError::UnsupportedExtension)) => {
+                error!("Could not select XKB events: The XKB extension is not initialized!");
+                Ok(false)
+            }
+            Err(e) => Err(e.into()),
         }
     }
 
