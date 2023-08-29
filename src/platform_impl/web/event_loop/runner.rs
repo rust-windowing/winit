@@ -54,6 +54,7 @@ pub struct Execution<T: 'static> {
     on_key_press: OnEventHandle<KeyboardEvent>,
     on_key_release: OnEventHandle<KeyboardEvent>,
     on_visibility_change: OnEventHandle<web_sys::Event>,
+    on_touch_end: OnEventHandle<web_sys::Event>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -167,6 +168,7 @@ impl<T: 'static> Shared<T> {
             on_key_press: RefCell::new(None),
             on_key_release: RefCell::new(None),
             on_visibility_change: RefCell::new(None),
+            on_touch_end: RefCell::new(None),
         }))
     }
 
@@ -324,6 +326,8 @@ impl<T: 'static> Shared<T> {
             self.window().clone(),
             "pointerdown",
             Closure::new(move |event: PointerEvent| {
+                runner.transient_activation();
+
                 if !runner.device_events() {
                     return;
                 }
@@ -347,6 +351,8 @@ impl<T: 'static> Shared<T> {
             self.window().clone(),
             "pointerup",
             Closure::new(move |event: PointerEvent| {
+                runner.transient_activation();
+
                 if !runner.device_events() {
                     return;
                 }
@@ -370,6 +376,8 @@ impl<T: 'static> Shared<T> {
             self.window().clone(),
             "keydown",
             Closure::new(move |event: KeyboardEvent| {
+                runner.transient_activation();
+
                 if !runner.device_events() {
                     return;
                 }
@@ -426,6 +434,14 @@ impl<T: 'static> Shared<T> {
                         }
                     }
                 }
+            }),
+        ));
+        let runner = self.clone();
+        *self.0.on_touch_end.borrow_mut() = Some(EventListenerHandle::new(
+            self.window().clone(),
+            "touchend",
+            Closure::new(move |_| {
+                runner.transient_activation();
             }),
         ));
     }
@@ -736,7 +752,7 @@ impl<T: 'static> Shared<T> {
         self.0.device_events.set(allowed)
     }
 
-    pub fn device_events(&self) -> bool {
+    fn device_events(&self) -> bool {
         match self.0.device_events.get() {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => self.0.all_canvases.borrow().iter().any(|(_, canvas)| {
@@ -748,6 +764,14 @@ impl<T: 'static> Shared<T> {
             }),
             DeviceEvents::Never => false,
         }
+    }
+
+    fn transient_activation(&self) {
+        self.0.all_canvases.borrow().iter().for_each(|(_, canvas)| {
+            if let Some(canvas) = canvas.upgrade() {
+                canvas.borrow().transient_activation();
+            }
+        });
     }
 
     pub fn event_loop_recreation(&self, allow: bool) {

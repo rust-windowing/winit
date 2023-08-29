@@ -18,15 +18,11 @@ pub use self::schedule::Schedule;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use wasm_bindgen::closure::Closure;
 use web_sys::{
-    CssStyleDeclaration, Document, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
+    CssStyleDeclaration, Document, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
 };
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
-}
-
-pub fn exit_fullscreen(document: &Document) {
-    fullscreen::exit_fullscreen(document);
 }
 
 pub struct PageTransitionEventHandle {
@@ -173,16 +169,6 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
     style
         .set_property(property, value)
         .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
-}
-
-pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
-    match fullscreen::fullscreen_element(document) {
-        Some(elem) => {
-            let canvas: &Element = canvas;
-            canvas == &elem
-        }
-        None => false,
-    }
 }
 
 pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {
