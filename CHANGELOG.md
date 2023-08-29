@@ -16,6 +16,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
 - On macOS, fix crash in `window.set_minimized(false)`.
 - On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
+- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
+- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
 
 # 0.29.1-beta
 

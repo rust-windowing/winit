@@ -660,6 +660,8 @@ impl<T> EventLoopWindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_animation_frame(move || runner.request_redraw(RootWindowId(id)));
+
+        canvas.on_touch_end();
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
