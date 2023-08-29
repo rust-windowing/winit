@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::{Document, HtmlCanvasElement};
+use web_sys::HtmlCanvasElement;
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -25,7 +25,6 @@ pub struct Window {
 pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
-    document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
@@ -57,7 +56,6 @@ impl Window {
         let inner = Inner {
             id,
             window: window.clone(),
-            document: document.clone(),
             canvas,
             previous_pointer: RefCell::new("auto"),
             destroy_fn: Some(destroy_fn),
@@ -282,10 +280,12 @@ impl Inner {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let canvas = &self.canvas.borrow();
+
         if fullscreen.is_some() {
-            self.canvas.borrow().request_fullscreen();
-        } else if self.canvas.borrow().is_fullscreen() {
-            backend::exit_fullscreen(&self.document);
+            canvas.request_fullscreen();
+        } else {
+            canvas.exit_fullscreen()
         }
     }
 
