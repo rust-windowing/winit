@@ -395,7 +395,7 @@ impl WindowBuilder {
     ///
     /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and light".
+    ///   Possible values for env variable are: "dark" and "light".
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
@@ -1245,7 +1245,7 @@ impl Window {
     ///
     /// - **macOS:** This is an app-wide setting.
     /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and light". When unspecified, a theme is automatically selected.
+    ///   Possible values for env variable are: "dark" and "light". When unspecified, a theme is automatically selected.
     /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
