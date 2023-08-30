@@ -33,25 +33,28 @@ pub enum BadIcon {
 impl fmt::Display for BadIcon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
-                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
+            Self::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
+                "the length of the `rgba` argument ({byte_count}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels",
             ),
-            BadIcon::DimensionsVsPixelCount {
+            Self::DimensionsVsPixelCount {
                 width,
                 height,
                 width_x_height,
                 pixel_count,
             } => write!(f,
-                "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}.",
+                "the specified dimensions ({width}x{height}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count}). For those dimensions, the expected pixel count is {width_x_height}",
             ),
-            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {e:?}"),
+            Self::OsError(e) => write!(f, "OS error when instantiating the icon: {e}"),
         }
     }
 }
 
 impl Error for BadIcon {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(self)
+        match self {
+            Self::OsError(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
@@ -66,41 +69,38 @@ pub(crate) struct RgbaIcon {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NoIcon;
 
-#[allow(dead_code)] // These are not used on every platform
-mod constructors {
-    use super::*;
-
-    impl RgbaIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-            if rgba.len() % PIXEL_SIZE != 0 {
-                return Err(BadIcon::ByteCountNotDivisibleBy4 {
-                    byte_count: rgba.len(),
-                });
-            }
-            let pixel_count = rgba.len() / PIXEL_SIZE;
-            if pixel_count != (width * height) as usize {
-                Err(BadIcon::DimensionsVsPixelCount {
-                    width,
-                    height,
-                    width_x_height: (width * height) as usize,
-                    pixel_count,
-                })
-            } else {
-                Ok(RgbaIcon {
-                    rgba,
-                    width,
-                    height,
-                })
-            }
+#[allow(dead_code)] // Not used on every platform
+impl RgbaIcon {
+    pub(crate) fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        if rgba.len() % PIXEL_SIZE != 0 {
+            return Err(BadIcon::ByteCountNotDivisibleBy4 {
+                byte_count: rgba.len(),
+            });
+        }
+        let pixel_count = rgba.len() / PIXEL_SIZE;
+        if pixel_count != (width * height) as usize {
+            Err(BadIcon::DimensionsVsPixelCount {
+                width,
+                height,
+                width_x_height: (width * height) as usize,
+                pixel_count,
+            })
+        } else {
+            Ok(RgbaIcon {
+                rgba,
+                width,
+                height,
+            })
         }
     }
+}
 
-    impl NoIcon {
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-            // Create the rgba icon anyway to validate the input
-            let _ = RgbaIcon::from_rgba(rgba, width, height)?;
-            Ok(NoIcon)
-        }
+#[allow(dead_code)] // Not used on every platform
+impl NoIcon {
+    pub(crate) fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        // Create the rgba icon anyway to validate the input
+        let _ = RgbaIcon::from_rgba(rgba, width, height)?;
+        Ok(NoIcon)
     }
 }
 
