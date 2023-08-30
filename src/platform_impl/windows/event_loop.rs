@@ -110,7 +110,7 @@ use super::{window::set_skip_taskbar, SelectedCursor};
 /// as a placeholder so user events can be buffered as usual,
 /// the real `UserEvent` is pulled from the mpsc channel directly
 /// when the placeholder event is delivered to the event handler
-type UserEventPlaceholder = ();
+pub(crate) struct UserEventPlaceholder;
 
 // here below, the generic `EventLoopRunnerShared<T>` is replaced with
 // `EventLoopRunnerShared<UserEventPlaceholder>` so we can get rid
@@ -2408,7 +2408,7 @@ unsafe extern "system" fn thread_event_target_callback(
             // user event is still in the mpsc channel and will be pulled
             // once the placeholder event is delivered to the wrapper
             // `event_handler`
-            userdata.send_event(Event::UserEvent(()));
+            userdata.send_event(Event::UserEvent(UserEventPlaceholder));
             0
         }
         _ if msg == EXEC_MSG_ID.get() => {
