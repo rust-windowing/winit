@@ -19,6 +19,7 @@ use core_foundation::runloop::{
 };
 use icrate::Foundation::MainThreadMarker;
 use objc2::rc::{autoreleasepool, Id};
+use objc2::runtime::NSObjectProtocol;
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
@@ -109,7 +110,10 @@ impl<T> EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     /// Store a reference to the application for convenience.
-    app: Id<WinitApplication>,
+    ///
+    /// We intentially don't store `WinitApplication` since we want to have
+    /// the possiblity of swapping that out at some point.
+    app: Id<NSApplication>,
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
     _delegate: Id<ApplicationDelegate>,
@@ -152,14 +156,14 @@ impl<T> EventLoop<T> {
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
         let mtm = MainThreadMarker::new()
-            .expect("On macOS, `EventLoop` must be created on the main thread!");
+            .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        // This must be done before `NSApp()` (equivalent to sending
-        // `sharedApplication`) is called anywhere else, or we'll end up
-        // with the wrong `NSApplication` class and the wrong thread could
-        // be marked as main.
-        let app: Id<WinitApplication> =
+        let app: Id<NSApplication> =
             unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
+
+        if !app.is_kind_of::<WinitApplication>() {
+            panic!("`winit` requires control over the principal class. You must create the event loop before other parts of your application initialize NSApplication");
+        }
 
         use NSApplicationActivationPolicy::*;
         let activation_policy = match attributes.activation_policy {
