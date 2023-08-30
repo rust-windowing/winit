@@ -19,10 +19,10 @@ use objc2::ClassType;
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use crate::{
-    error::EventLoopError,
     event::Event,
     event_loop::{
-        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
+        ControlFlow, EventLoopClosed, EventLoopCreationError,
+        EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
 };
@@ -63,7 +63,7 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         _: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<EventLoop<T>, EventLoopError> {
+    ) -> Result<EventLoop<T>, EventLoopCreationError> {
         let mtm = MainThreadMarker::new()
             .expect("On iOS, `EventLoop` must be created on the main thread");
 

@@ -18,11 +18,11 @@ use smol_str::SmolStr;
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, KeyEvent},
     event_loop::{
-        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
-        EventLoopWindowTarget as RootELW,
+        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed, EventLoopCreationError,
+        EventLoopRunError, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
     keyboard::{Key, KeyCode},
@@ -740,7 +740,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    ) -> Result<Self, EventLoopCreationError> {
         if !attributes.any_thread && !is_main_thread() {
             panic!(
                 "Initializing the event loop outside of the main thread is a significant \
@@ -763,13 +763,13 @@ impl<T: 'static> EventLoop<T> {
             return Ok(EventLoop::new_x11_any_thread().unwrap());
         }
 
-        Err(EventLoopError::Os(os_error!(OsError::Misc(
+        Err(EventLoopCreationError::Os(os_error!(OsError::Misc(
             "neither WAYLAND_DISPLAY nor DISPLAY is set."
         ))))
     }
 
     #[cfg(wayland_platform)]
-    fn new_wayland_any_thread() -> Result<EventLoop<T>, EventLoopError> {
+    fn new_wayland_any_thread() -> Result<EventLoop<T>, EventLoopCreationError> {
         wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
@@ -787,14 +787,14 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(callback)
     }
 
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {

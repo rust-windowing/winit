@@ -24,9 +24,11 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent, NSWindow};
 use crate::{
-    error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{
+        ControlFlow, EventLoopClosed, EventLoopCreationError, EventLoopRunError,
+        EventLoopWindowTarget as RootWindowTarget,
+    },
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
     platform_impl::platform::{
         app::WinitApplication,
@@ -150,7 +152,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 impl<T> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    ) -> Result<Self, EventLoopCreationError> {
         let mtm = MainThreadMarker::new()
             .expect("On macOS, `EventLoop` must be created on the main thread!");
 
@@ -202,7 +204,7 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
@@ -213,12 +215,12 @@ impl<T> EventLoop<T> {
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         if AppState::is_running() {
-            return Err(EventLoopError::AlreadyRunning);
+            return Err(EventLoopRunError::AlreadyRunning);
         }
 
         // # Safety
@@ -298,7 +300,7 @@ impl<T> EventLoop<T> {
         if exit_code == 0 {
             Ok(())
         } else {
-            Err(EventLoopError::ExitFailure(exit_code))
+            Err(EventLoopRunError::ExitFailure(exit_code))
         }
     }
 

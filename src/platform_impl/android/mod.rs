@@ -19,17 +19,20 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
+use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, InnerSizeWriter, StartCause},
-    event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        self, ControlFlow, EventLoopCreationError, EventLoopRunError,
+        EventLoopWindowTarget as RootELW,
+    },
     platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
     },
 };
-use crate::{error::EventLoopError, platform_impl::Fullscreen};
 
 mod keycodes;
 
@@ -188,7 +191,7 @@ fn sticky_exit_callback<T, F>(
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    ) -> Result<Self, EventLoopCreationError> {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
 
         let android_app = attributes.android_app.as_ref().expect("An `AndroidApp` as passed to android_main() is required to create an `EventLoop` on Android");
@@ -538,19 +541,19 @@ impl<T: 'static> EventLoop<T> {
         input_status
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
+            return Err(EventLoopRunError::AlreadyRunning);
         }
 
         loop {
@@ -559,7 +562,7 @@ impl<T: 'static> EventLoop<T> {
                     break Ok(());
                 }
                 PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
+                    break Err(EventLoopRunError::ExitFailure(code));
                 }
                 _ => {
                     continue;

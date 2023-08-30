@@ -7,10 +7,11 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
+use std::error::Error;
+use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::{error, fmt};
 
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 #[cfg(not(wasm_platform))]
@@ -18,7 +19,7 @@ use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
 use web_time::{Duration, Instant};
 
-use crate::error::EventLoopError;
+use crate::error::OsError;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -109,9 +110,9 @@ impl<T> EventLoopBuilder<T> {
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
     #[inline]
-    pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
+    pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopCreationError> {
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
-            return Err(EventLoopError::RecreationAttempt);
+            return Err(EventLoopCreationError::RecreationAttempt);
         }
 
         // Certain platforms accept a mutable reference in their API.
@@ -262,7 +263,7 @@ impl EventLoop<()> {
     ///
     /// This is an alias of `EventLoop::builder().build()`.
     #[inline]
-    pub fn new() -> Result<EventLoop<()>, EventLoopError> {
+    pub fn new() -> Result<EventLoop<()>, EventLoopCreationError> {
         Self::builder().build()
     }
 
@@ -316,7 +317,7 @@ impl<T> EventLoop<T> {
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -426,6 +427,65 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
     }
 }
 
+/// Errors that may occur when trying to create the Winit event loop.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum EventLoopCreationError {
+    /// The event loop can't be re-created.
+    RecreationAttempt,
+    /// The OS cannot perform the operation.
+    Os(OsError),
+}
+
+impl fmt::Display for EventLoopCreationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::RecreationAttempt => write!(f, "tried to recreate EventLoop"),
+            Self::Os(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl Error for EventLoopCreationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Os(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+/// A general error that may occur while running the Winit event loop
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum EventLoopRunError {
+    /// The event loop can't be re-run while it's already running
+    AlreadyRunning,
+    /// The OS cannot perform the operation.
+    Os(OsError),
+    /// Application has exit with an error status.
+    ExitFailure(i32),
+}
+
+impl fmt::Display for EventLoopRunError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::AlreadyRunning => write!(f, "EventLoop is already running"),
+            Self::Os(e) => write!(f, "{e}"),
+            Self::ExitFailure(status) => write!(f, "exit failure: {status}"),
+        }
+    }
+}
+
+impl Error for EventLoopRunError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Os(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 /// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
 /// no longer exists.
 ///
@@ -439,7 +499,7 @@ impl<T> fmt::Display for EventLoopClosed<T> {
     }
 }
 
-impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
+impl<T: fmt::Debug> Error for EventLoopClosed<T> {}
 
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]

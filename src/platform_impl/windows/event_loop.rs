@@ -75,12 +75,14 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    error::EventLoopError,
     event::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEvents, EventLoopClosed, EventLoopCreationError, EventLoopRunError,
+        EventLoopWindowTarget as RootELW,
+    },
     keyboard::{KeyCode, ModifiersState},
     platform::{pump_events::PumpStatus, scancode::KeyCodeExtScancode},
     platform_impl::platform::{
@@ -203,7 +205,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &mut PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
+    ) -> Result<Self, EventLoopCreationError> {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -248,21 +250,21 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_ondemand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         {
             let runner = &self.window_target.p.runner_shared;
             if runner.state() != RunnerState::Uninitialized {
-                return Err(EventLoopError::AlreadyRunning);
+                return Err(EventLoopRunError::AlreadyRunning);
             }
 
             let event_loop_windows_ref = &self.window_target;
@@ -297,7 +299,7 @@ impl<T: 'static> EventLoop<T> {
         if exit_code == 0 {
             Ok(())
         } else {
-            Err(EventLoopError::ExitFailure(exit_code))
+            Err(EventLoopRunError::ExitFailure(exit_code))
         }
     }
 

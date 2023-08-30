@@ -17,9 +17,12 @@ use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::error::OsError as RootOsError;
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, EventLoopCreationError, EventLoopRunError,
+    EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::platform::sticky_exit_callback;
@@ -73,10 +76,10 @@ pub struct EventLoop<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, EventLoopError> {
+    pub fn new() -> Result<EventLoop<T>, EventLoopCreationError> {
         macro_rules! map_err {
             ($e:expr, $err:expr) => {
-                $e.map_err(|error| os_error!($err(error).into()))
+                $e.map_err(|error| EventLoopCreationError::Os(os_error!($err(error).into())))
             };
         }
 
@@ -94,7 +97,8 @@ impl<T: 'static> EventLoop<T> {
         )?;
 
         let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
-            .map_err(|error| os_error!(error))?;
+            .map_err(|error| os_error!(error))
+            .map_err(EventLoopCreationError::Os)?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
@@ -190,12 +194,12 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
+            return Err(EventLoopRunError::AlreadyRunning);
         }
 
         let exit = loop {
@@ -204,7 +208,7 @@ impl<T: 'static> EventLoop<T> {
                     break Ok(());
                 }
                 PumpStatus::Exit(code) => {
-                    break Err(EventLoopError::ExitFailure(code));
+                    break Err(EventLoopRunError::ExitFailure(code));
                 }
                 _ => {
                     continue;
@@ -216,7 +220,7 @@ impl<T: 'static> EventLoop<T> {
         // `run_ondemand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // compositor.
-        let _ = self.roundtrip().map_err(EventLoopError::Os);
+        let _ = self.roundtrip().map_err(EventLoopRunError::Os);
 
         exit
     }

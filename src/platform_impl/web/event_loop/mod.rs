@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, EventLoopCreationError, EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 
 use super::{backend, device, window};
 
@@ -22,7 +23,9 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(
+        _: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<Self, EventLoopCreationError> {
         Ok(EventLoop {
             elw: RootEventLoopWindowTarget {
                 p: EventLoopWindowTarget::new(),

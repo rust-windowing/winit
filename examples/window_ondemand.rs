@@ -8,9 +8,8 @@ fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
 
     use winit::{
-        error::EventLoopError,
         event::{Event, WindowEvent},
-        event_loop::EventLoop,
+        event_loop::{EventLoop, EventLoopRunError},
         platform::run_ondemand::EventLoopExtRunOnDemand,
         window::{Window, WindowId},
     };
@@ -27,7 +26,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let mut event_loop = EventLoop::new().unwrap();
 
-    fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopError> {
+    fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopRunError> {
         let mut app = App::default();
 
         event_loop.run_ondemand(move |event, event_loop, control_flow| {

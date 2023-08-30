@@ -12,9 +12,8 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
-    error::EventLoopError,
     event::{self, Ime, Modifiers, StartCause},
-    event_loop::{self, ControlFlow},
+    event_loop::{self, ControlFlow, EventLoopCreationError, EventLoopRunError},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
     },
@@ -270,19 +269,21 @@ pub struct EventLoop<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+    pub(crate) fn new(
+        _: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<Self, EventLoopCreationError> {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
 
         let event_socket = Arc::new(
             RedoxSocket::event()
                 .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
+                .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?,
         );
 
         let wake_socket = Arc::new(
             TimeSocket::open()
                 .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
+                .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?,
         );
 
         event_socket
@@ -292,7 +293,7 @@ impl<T: 'static> EventLoop<T> {
                 data: wake_socket.0.fd,
             })
             .map_err(OsError::new)
-            .map_err(|error| EventLoopError::Os(os_error!(error)))?;
+            .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?;
 
         Ok(Self {
             windows: Vec::new(),
@@ -452,7 +453,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
+    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopRunError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -697,7 +698,7 @@ impl<T: 'static> EventLoop<T> {
         if code == 0 {
             Ok(())
         } else {
-            Err(EventLoopError::ExitFailure(code))
+            Err(EventLoopRunError::ExitFailure(code))
         }
     }
 
