@@ -22,7 +22,7 @@ use raw_window_handle::{
 use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error,
+    error::OsError as RootOsError,
     event::{self, InnerSizeWriter, StartCause},
     event_loop::{
         self, ControlFlow, EventLoopCreationError, EventLoopRunError,
@@ -30,7 +30,8 @@ use crate::{
     },
     platform::pump_events::PumpStatus,
     window::{
-        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
+        self, CursorGrabMode, ImePurpose, NotSupportedError, ResizeDirection, Theme, WindowButtons,
+        WindowError, WindowLevel,
     },
 };
 
@@ -794,7 +795,7 @@ impl Window {
         el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, RootOsError> {
         // FIXME this ignores requested window attributes
 
         Ok(Self {
@@ -839,12 +840,12 @@ impl Window {
 
     pub fn pre_present_notify(&self) {}
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
-        Err(error::NotSupportedError::new())
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
     pub fn set_outer_position(&self, _position: Position) {
@@ -937,39 +938,26 @@ impl Window {
 
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_position(&self, _: Position) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
-    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn drag_window(&self) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn drag_resize_window(
-        &self,
-        _direction: ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {

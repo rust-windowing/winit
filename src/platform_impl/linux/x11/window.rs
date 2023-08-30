@@ -17,9 +17,10 @@ use x11rb::{
     },
 };
 
+use crate::platform::startup_notify::ActivationTokenNotFound;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::OsError as RootOsError,
     event_loop::AsyncRequestSerial,
     platform_impl::{
         x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
@@ -27,8 +28,8 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, Icon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowError, WindowLevel,
     },
 };
 
@@ -1469,7 +1470,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         let mut grabbed_lock = self.cursor_grabbed_mode.lock().unwrap();
         if mode == *grabbed_lock {
             return Ok(());
@@ -1484,7 +1485,7 @@ impl UnownedWindow {
 
         let result = match mode {
             CursorGrabMode::None => self.xconn.flush_requests().map_err(|err| {
-                ExternalError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
+                WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
             }),
             CursorGrabMode::Confined => {
                 let result = {
@@ -1532,10 +1533,10 @@ impl UnownedWindow {
                     }
                     _ => unreachable!(),
                 }
-                .map_err(|err| ExternalError::Os(os_error!(OsError::Misc(err))))
+                .map_err(|err| WindowError::Os(os_error!(OsError::Misc(err))))
             }
             CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()));
+                return Err(WindowError::NotSupported(NotSupportedError::new()));
             }
         };
 
@@ -1568,38 +1569,38 @@ impl UnownedWindow {
         self.current_monitor().scale_factor
     }
 
-    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
+    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), WindowError> {
         {
             self.xconn
                 .xcb_connection()
                 .warp_pointer(x11rb::NONE, self.xwindow, 0, 0, 0, 0, x as _, y as _)
                 .map_err(|e| {
-                    ExternalError::Os(os_error!(OsError::XError(X11Error::from(e).into())))
+                    WindowError::Os(os_error!(OsError::XError(X11Error::from(e).into())))
                 })?;
-            self.xconn.flush_requests().map_err(|e| {
-                ExternalError::Os(os_error!(OsError::XError(X11Error::Xlib(e).into())))
-            })
+            self.xconn
+                .flush_requests()
+                .map_err(|e| WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(e).into()))))
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), WindowError> {
         let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_cursor_position_physical(x, y)
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     /// Moves the window while it is being dragged.
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         self.drag_initiate(util::MOVERESIZE_MOVE)
     }
 
     /// Resizes the window while it is being dragged.
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         self.drag_initiate(match direction {
             ResizeDirection::East => util::MOVERESIZE_RIGHT,
             ResizeDirection::North => util::MOVERESIZE_TOP,
@@ -1613,13 +1614,13 @@ impl UnownedWindow {
     }
 
     /// Initiates a drag operation while the left mouse button is pressed.
-    fn drag_initiate(&self, action: isize) -> Result<(), ExternalError> {
+    fn drag_initiate(&self, action: isize) -> Result<(), WindowError> {
         let pointer = self
             .xconn
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
-            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err.into()))))?;
+            .map_err(|err| WindowError::Os(os_error!(OsError::XError(err.into()))))?;
 
-        let window = self.inner_position().map_err(ExternalError::NotSupported)?;
+        let window = self.inner_position().map_err(WindowError::NotSupported)?;
 
         let atoms = self.xconn.atoms();
         let message = atoms[_NET_WM_MOVERESIZE];
@@ -1630,12 +1631,10 @@ impl UnownedWindow {
         self.xconn
             .xcb_connection()
             .ungrab_pointer(x11rb::CURRENT_TIME)
-            .map_err(|err| {
-                ExternalError::Os(os_error!(OsError::XError(X11Error::from(err).into())))
-            })?
+            .map_err(|err| WindowError::Os(os_error!(OsError::XError(X11Error::from(err).into()))))?
             .ignore_error();
         self.xconn.flush_requests().map_err(|err| {
-            ExternalError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
+            WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
         })?;
         *grabbed_lock = CursorGrabMode::None;
 
@@ -1657,11 +1656,11 @@ impl UnownedWindow {
                     1,
                 ],
             )
-            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err.into()))))?;
+            .map_err(|err| WindowError::Os(os_error!(OsError::XError(err.into()))))?;
 
-        self.xconn.flush_requests().map_err(|err| {
-            ExternalError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
-        })
+        self.xconn
+            .flush_requests()
+            .map_err(|err| WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into()))))
     }
 
     #[inline]
@@ -1760,7 +1759,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, ActivationTokenNotFound> {
         let serial = AsyncRequestSerial::get();
         self.activation_sender
             .send((self.id(), serial))

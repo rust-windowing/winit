@@ -9,10 +9,10 @@ use raw_window_handle::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error,
+    error::OsError,
     platform_impl::Fullscreen,
-    window,
     window::ImePurpose,
+    window::{self, NotSupportedError, WindowError},
 };
 
 use super::{
@@ -41,7 +41,7 @@ impl Window {
         el: &EventLoopWindowTarget<T>,
         attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, error::OsError> {
+    ) -> Result<Self, OsError> {
         let scale = MonitorHandle.scale_factor();
 
         let (x, y) = if let Some(pos) = attrs.position {
@@ -183,7 +183,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self
             .window_socket
@@ -194,7 +194,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         //TODO: adjust for window decorations
         self.inner_position()
     }
@@ -354,44 +354,34 @@ impl Window {
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
     #[inline]
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_position(&self, _: Position) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _: window::CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_grab(&self, _: window::CursorGrabMode) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, _: bool) {}
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn drag_window(&self) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
     pub fn drag_resize_window(
         &self,
         _direction: window::ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    ) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]

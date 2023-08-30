@@ -22,8 +22,9 @@
 //! [`here`]: https://specifications.freedesktop.org/startup-notification-spec/startup-notification-latest.txt
 
 use std::env;
+use std::error::Error;
+use std::fmt;
 
-use crate::error::NotSupportedError;
 use crate::event_loop::{AsyncRequestSerial, EventLoopWindowTarget};
 use crate::window::{ActivationToken, Window, WindowBuilder};
 
@@ -32,6 +33,28 @@ const X11_VAR: &str = "DESKTOP_STARTUP_ID";
 
 /// The variable which is used mostly on Wayland.
 const WAYLAND_VAR: &str = "XDG_ACTIVATION_TOKEN";
+
+/// The error type for when the requested operation is not supported by the backend.
+#[derive(Debug)]
+pub struct ActivationTokenNotFound {
+    _marker: (),
+}
+
+impl fmt::Display for ActivationTokenNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "the requested operation is not supported by Winit")
+    }
+}
+
+impl ActivationTokenNotFound {
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn new() -> ActivationTokenNotFound {
+        ActivationTokenNotFound { _marker: () }
+    }
+}
+
+impl Error for ActivationTokenNotFound {}
 
 pub trait EventLoopExtStartupNotify {
     /// Read the token from the environment.
@@ -44,7 +67,7 @@ pub trait WindowExtStartupNotify {
     /// Request a new activation token.
     ///
     /// The token will be delivered inside
-    fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError>;
+    fn request_activation_token(&self) -> Result<AsyncRequestSerial, ActivationTokenNotFound>;
 }
 
 pub trait WindowBuilderExtStartupNotify {
@@ -69,7 +92,7 @@ impl<T> EventLoopExtStartupNotify for EventLoopWindowTarget<T> {
 }
 
 impl WindowExtStartupNotify for Window {
-    fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    fn request_activation_token(&self) -> Result<AsyncRequestSerial, ActivationTokenNotFound> {
         self.window.request_activation_token()
     }
 }

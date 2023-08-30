@@ -25,9 +25,10 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::error::{ExternalError, NotSupportedError};
 use crate::platform_impl::WindowId;
-use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
+use crate::window::{
+    CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme, WindowError,
+};
 
 use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
@@ -309,7 +310,7 @@ impl WindowState {
     }
 
     /// Start interacting drag resize.
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         let xdg_toplevel = self.window.xdg_toplevel();
 
         // TODO(kchibisov) handle touch serials.
@@ -323,7 +324,7 @@ impl WindowState {
     }
 
     /// Start the window drag.
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         let xdg_toplevel = self.window.xdg_toplevel();
         // TODO(kchibisov) handle touch serials.
         self.apply_on_poiner(|_, data| {
@@ -652,7 +653,7 @@ impl WindowState {
     }
 
     /// Set the cursor grabbing state on the top-level.
-    pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), WindowError> {
         // Replace the user grabbing mode.
         self.cursor_grab_mode.user_grab_mode = mode;
         self.set_cursor_grab_inner(mode)
@@ -665,11 +666,11 @@ impl WindowState {
     }
 
     /// Set the grabbing state on the surface.
-    fn set_cursor_grab_inner(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    fn set_cursor_grab_inner(&mut self, mode: CursorGrabMode) -> Result<(), WindowError> {
         let pointer_constraints = match self.pointer_constraints.as_ref() {
             Some(pointer_constraints) => pointer_constraints,
             None if mode == CursorGrabMode::None => return Ok(()),
-            None => return Err(ExternalError::NotSupported(NotSupportedError::new())),
+            None => return Err(WindowError::NotSupported(NotSupportedError::new())),
         };
 
         // Replace the current mode.
@@ -704,14 +705,14 @@ impl WindowState {
     }
 
     /// Set the position of the cursor.
-    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: LogicalPosition<f64>) -> Result<(), WindowError> {
         if self.pointer_constraints.is_none() {
-            return Err(ExternalError::NotSupported(NotSupportedError::new()));
+            return Err(WindowError::NotSupported(NotSupportedError::new()));
         }
 
         // Positon can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
-            return Err(ExternalError::Os(os_error!(
+            return Err(WindowError::Os(os_error!(
                 crate::platform_impl::OsError::Misc(
                     "cursor position can be set only for locked cursor."
                 )

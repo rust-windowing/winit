@@ -15,7 +15,7 @@ use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
     },
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::OsError as RootOsError,
     event::WindowEvent,
     icon::Icon,
     platform::macos::{OptionAsAlt, WindowExtMacOS},
@@ -31,8 +31,9 @@ use crate::{
         Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowError, WindowId as RootWindowId,
+        WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -833,18 +834,18 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         let associate_mouse_cursor = match mode {
             CursorGrabMode::Locked => false,
             CursorGrabMode::None => true,
             CursorGrabMode::Confined => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                return Err(WindowError::NotSupported(NotSupportedError::new()))
             }
         };
 
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
-            .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
+            .map_err(|status| WindowError::Os(os_error!(OsError::CGError(status))))
     }
 
     #[inline]
@@ -862,7 +863,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), WindowError> {
         let physical_window_position = self.inner_position().unwrap();
         let scale_factor = self.scale_factor();
         let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
@@ -872,27 +873,27 @@ impl WinitWindow {
             y: logical_cursor_position.y + window_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| WindowError::Os(os_error!(OsError::CGError(e))))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| WindowError::Os(os_error!(OsError::CGError(e))))?;
 
         Ok(())
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         let event = NSApp().currentEvent();
         self.performWindowDragWithEvent(event.as_deref());
         Ok(())
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), WindowError> {
         self.setIgnoresMouseEvents(!hittest);
         Ok(())
     }

@@ -1,5 +1,5 @@
 //! The [`Window`] struct and associated types.
-use std::fmt;
+use std::{error::Error, fmt};
 
 use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -7,7 +7,7 @@ use raw_window_handle::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError},
+    error::OsError,
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
@@ -1328,9 +1328,9 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`WindowError::NotSupported`].
     #[inline]
-    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
+    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), WindowError> {
         let position = position.into();
         self.window
             .maybe_wait_on_main(|w| w.set_cursor_position(position))
@@ -1352,7 +1352,7 @@ impl Window {
     ///             .unwrap();
     /// ```
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         self.window.maybe_wait_on_main(|w| w.set_cursor_grab(mode))
     }
 
@@ -1384,9 +1384,9 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`WindowError::NotSupported`].
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         self.window.maybe_wait_on_main(|w| w.drag_window())
     }
 
@@ -1397,10 +1397,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **macOS:** Always returns an [`WindowError::NotSupported`]
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`WindowError::NotSupported`].
     #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         self.window
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
@@ -1412,9 +1412,9 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`WindowError::NotSupported`].
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), WindowError> {
         self.window
             .maybe_wait_on_main(|w| w.set_cursor_hittest(hittest))
     }
@@ -1511,6 +1511,49 @@ unsafe impl HasRawDisplayHandle for Window {
     }
 }
 
+/// An error that may be generated when requesting window state.
+// TODO(madsmtm): Split this into further variants.
+#[derive(Debug)]
+pub enum WindowError {
+    /// The operation is not supported by the backend.
+    NotSupported(NotSupportedError),
+    /// The OS cannot perform the operation.
+    Os(OsError),
+}
+
+impl fmt::Display for WindowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::NotSupported(e) => write!(f, "{e}"),
+            Self::Os(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl Error for WindowError {}
+
+/// The error type for when the requested operation is not supported by the backend.
+#[derive(Debug)]
+pub struct NotSupportedError {
+    _marker: (),
+}
+
+impl fmt::Display for NotSupportedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "the requested operation is not supported by Winit")
+    }
+}
+
+impl NotSupportedError {
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn new() -> NotSupportedError {
+        NotSupportedError { _marker: () }
+    }
+}
+
+impl Error for NotSupportedError {}
+
 /// The behavior of cursor grabbing.
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
@@ -1527,8 +1570,8 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **macOS:** Not implemented. Always returns [`WindowError::NotSupported`] for now.
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`WindowError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1538,8 +1581,8 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **X11 / Windows:** Not implemented. Always returns [`WindowError::NotSupported`] for now.
+    /// - **iOS / Android / Orbital:** Always returns an [`WindowError::NotSupported`].
     Locked,
 }
 
@@ -1684,5 +1727,27 @@ pub struct ActivationToken {
 impl ActivationToken {
     pub(crate) fn _new(_token: String) -> Self {
         Self { _token }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::redundant_clone)]
+
+    use super::*;
+
+    // Eat attributes for testing
+    #[test]
+    fn ensure_fmt_does_not_panic() {
+        let _ = format!(
+            "{:?}, {}",
+            NotSupportedError::new(),
+            NotSupportedError::new(),
+        );
+        let _ = format!(
+            "{:?}, {}",
+            WindowError::NotSupported(NotSupportedError::new()),
+            WindowError::NotSupported(NotSupportedError::new())
+        );
     }
 }

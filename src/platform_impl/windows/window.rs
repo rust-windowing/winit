@@ -55,7 +55,7 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::OsError as RootOsError,
     icon::Icon,
     platform_impl::platform::{
         dark_mode::try_theme,
@@ -74,8 +74,8 @@ use crate::{
         Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowError, WindowLevel,
     },
 };
 
@@ -355,12 +355,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         let confine = match mode {
             CursorGrabMode::None => false,
             CursorGrabMode::Confined => true,
             CursorGrabMode::Locked => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                return Err(WindowError::NotSupported(NotSupportedError::new()))
             }
         };
 
@@ -375,7 +375,7 @@ impl Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, confine))
-                .map_err(|e| ExternalError::Os(os_error!(e)));
+                .map_err(|e| WindowError::Os(os_error!(e)));
             let _ = tx.send(result);
         });
         rx.recv().unwrap()
@@ -406,17 +406,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), WindowError> {
         let scale_factor = self.scale_factor();
         let (x, y) = position.to_physical::<i32>(scale_factor).into();
 
         let mut point = POINT { x, y };
         unsafe {
             if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(WindowError::Os(os_error!(io::Error::last_os_error())));
             }
             if SetCursorPos(point.x, point.y) == false.into() {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(WindowError::Os(os_error!(io::Error::last_os_error())));
             }
         }
         Ok(())
@@ -445,7 +445,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         unsafe {
             self.handle_os_dragging(HTCAPTION as WPARAM);
         }
@@ -454,7 +454,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         unsafe {
             self.handle_os_dragging(match direction {
                 ResizeDirection::East => HTRIGHT,
@@ -472,7 +472,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), WindowError> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {

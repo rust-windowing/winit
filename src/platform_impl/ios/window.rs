@@ -13,7 +13,7 @@ use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::OsError as RootOsError,
     event::{Event, WindowEvent},
     icon::Icon,
     platform::ios::{ScreenEdge, ValidOrientations},
@@ -21,8 +21,9 @@ use crate::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+        UserAttentionType, WindowAttributes, WindowButtons, WindowError, WindowId as RootWindowId,
+        WindowLevel,
     },
 };
 
@@ -174,28 +175,28 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_window(&self) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn set_minimized(&self, _minimized: bool) {

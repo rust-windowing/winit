@@ -20,16 +20,17 @@ use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::error::OsError as RootOsError;
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
+use crate::platform::startup_notify::ActivationTokenNotFound;
 use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons,
+    CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowError,
 };
 
 use super::event_loop::sink::EventSink;
@@ -376,7 +377,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         self.window_state
             .lock()
             .unwrap()
@@ -527,10 +528,10 @@ impl Window {
         xdg_activation_token.commit();
     }
 
-    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, ActivationTokenNotFound> {
         let xdg_activation = match self.xdg_activation.as_ref() {
             Some(xdg_activation) => xdg_activation,
-            None => return Err(NotSupportedError::new()),
+            None => return Err(ActivationTokenNotFound::new()),
         };
 
         let serial = AsyncRequestSerial::get();
@@ -544,12 +545,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         self.window_state.lock().unwrap().set_cursor_grab(mode)
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), WindowError> {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.window_state
@@ -561,12 +562,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         self.window_state.lock().unwrap().drag_window()
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), WindowError> {
         let surface = self.window.wl_surface();
 
         if hittest {
@@ -574,7 +575,7 @@ impl Window {
             Ok(())
         } else {
             let region = Region::new(&*self.compositor).map_err(|_| {
-                ExternalError::Os(os_error!(OsError::Misc("failed to set input region.")))
+                WindowError::Os(os_error!(OsError::Misc("failed to set input region.")))
             })?;
             region.add(0, 0, 0, 0);
             surface.set_input_region(Some(region.wl_region()));

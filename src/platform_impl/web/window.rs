@@ -1,9 +1,10 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
+use crate::error::OsError as RootOE;
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
+    CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme,
+    UserAttentionType, WindowAttributes, WindowButtons, WindowError, WindowId as RootWI,
+    WindowLevel,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -199,24 +200,24 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         let lock = match mode {
             CursorGrabMode::None => false,
             CursorGrabMode::Locked => true,
             CursorGrabMode::Confined => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+                return Err(WindowError::NotSupported(NotSupportedError::new()))
             }
         };
 
         self.canvas
             .borrow()
             .set_cursor_lock(lock)
-            .map_err(ExternalError::Os)
+            .map_err(WindowError::Os)
     }
 
     #[inline]
@@ -233,18 +234,18 @@ impl Inner {
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_window(&self) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), WindowError> {
+        Err(WindowError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]

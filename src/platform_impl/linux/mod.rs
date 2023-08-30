@@ -14,11 +14,12 @@ use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
 
+use crate::platform::startup_notify::ActivationTokenNotFound;
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::OsError as RootOsError,
     event::{Event, KeyEvent},
     event_loop::{
         AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed, EventLoopCreationError,
@@ -31,8 +32,9 @@ use crate::{
         scancode::KeyCodeExtScancode,
     },
     window::{
-        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
-        UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
+        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError,
+        ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons, WindowError,
+        WindowLevel,
     },
 };
 #[cfg(x11_platform)]
@@ -375,7 +377,9 @@ impl Window {
     }
 
     #[inline]
-    pub(crate) fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+    pub(crate) fn request_activation_token(
+        &self,
+    ) -> Result<AsyncRequestSerial, ActivationTokenNotFound> {
         x11_or_wayland!(match self; Window(w) => w.request_activation_token())
     }
 
@@ -425,7 +429,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), WindowError> {
         x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(mode))
     }
 
@@ -435,17 +439,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), WindowError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
     }
 
     #[inline]
-    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), WindowError> {
         x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), WindowError> {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_hittest(hittest))
     }
 
@@ -455,7 +459,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), WindowError> {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_position(position))
     }
 
