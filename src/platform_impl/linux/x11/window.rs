@@ -23,11 +23,11 @@ use crate::{
     event_loop::AsyncRequestSerial,
     platform_impl::{
         x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
         WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -469,7 +469,7 @@ impl UnownedWindow {
 
             // Set window icons
             if let Some(icon) = window_attrs.window_icon {
-                leap!(window.set_icon_inner(icon)).ignore_error();
+                leap!(window.set_icon_inner(icon.inner)).ignore_error();
             }
 
             // Opt into handling window close
@@ -886,10 +886,12 @@ impl UnownedWindow {
             .expect("Failed to get available monitors")
     }
 
-    pub fn primary_monitor(&self) -> X11MonitorHandle {
-        self.xconn
-            .primary_monitor()
-            .expect("Failed to get primary monitor")
+    pub fn primary_monitor(&self) -> Option<X11MonitorHandle> {
+        Some(
+            self.xconn
+                .primary_monitor()
+                .expect("Failed to get primary monitor"),
+        )
     }
 
     #[inline]
@@ -1078,7 +1080,7 @@ impl UnownedWindow {
             .expect("Failed to set window-level state");
     }
 
-    fn set_icon_inner(&self, icon: Icon) -> Result<VoidCookie<'_>, X11Error> {
+    fn set_icon_inner(&self, icon: PlatformIcon) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
         let icon_atom = atoms[_NET_WM_ICON];
         let data = icon.to_cardinals();
@@ -1105,7 +1107,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, icon: Option<Icon>) {
+    pub(crate) fn set_window_icon(&self, icon: Option<PlatformIcon>) {
         match icon {
             Some(icon) => self.set_icon_inner(icon),
             None => self.unset_icon_inner(),

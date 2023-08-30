@@ -316,12 +316,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        match self {
-            #[cfg(wayland_platform)]
-            Self::Wayland(window) => window.id(),
-            #[cfg(x11_platform)]
-            Self::X(window) => window.id(),
-        }
+        x11_or_wayland!(match self; Window(w) => w.id())
     }
 
     #[inline]
@@ -500,23 +495,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_level(&self, _level: WindowLevel) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.set_window_level(_level),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+    pub fn set_window_level(&self, level: WindowLevel) {
+        x11_or_wayland!(match self; Window(w) => w.set_window_level(level))
     }
 
     #[inline]
-    pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.set_window_icon(_window_icon),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+        x11_or_wayland!(match self; Window(w) => w.set_window_icon(window_icon.map(|icon| icon.inner)))
     }
 
     #[inline]
@@ -541,12 +526,7 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.focus_window(),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+        x11_or_wayland!(match self; Window(w) => w.focus_window())
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         x11_or_wayland!(match self; Window(w) => w.request_user_attention(request_type))
@@ -587,15 +567,7 @@ impl Window {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref window) => {
-                let primary_monitor = MonitorHandle::X(window.primary_monitor());
-                Some(primary_monitor)
-            }
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref window) => window.primary_monitor(),
-        }
+        Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
     }
 
     #[inline]
@@ -849,13 +821,8 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
-        match *self {
-            #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(_) => (),
-            #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => evlp.set_listen_device_events(_allowed),
-        }
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {

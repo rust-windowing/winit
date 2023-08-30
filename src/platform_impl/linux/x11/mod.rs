@@ -714,7 +714,7 @@ impl<T> EventLoopWindowTarget<T> {
         self.xconn.primary_monitor().ok()
     }
 
-    pub fn set_listen_device_events(&self, allowed: DeviceEvents) {
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.device_events.set(allowed);
     }
 
