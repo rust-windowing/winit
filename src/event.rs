@@ -365,58 +365,23 @@ pub enum WindowEvent {
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     Ime(Ime),
 
-    /// The cursor has moved on the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorMoved {
+    Pointer {
         device_id: DeviceId,
-
-        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
-        /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
-        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: PhysicalPosition<f64>,
+        pointer_id: PointerId,
+        event: PointerEvent,
     },
 
-    /// The cursor has entered the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorEntered { device_id: DeviceId },
-
-    /// The cursor has left the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    CursorLeft { device_id: DeviceId },
-
+    // /// An mouse button press has been received.
+    // MouseInput {
+    //     device_id: DeviceId,
+    //     state: ElementState,
+    //     button: MouseButton,
+    // },
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-    },
-
-    /// An mouse button press has been received.
-    MouseInput {
-        device_id: DeviceId,
-        state: ElementState,
-        button: MouseButton,
     },
 
     /// Touchpad magnification event with two-finger pinch gesture.
@@ -483,18 +448,6 @@ pub enum WindowEvent {
         axis: AxisId,
         value: f64,
     },
-
-    /// Touch event has been received
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **macOS:** Unsupported.
-    ///
-    /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-    /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-    /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-    Touch(Touch),
 
     /// The window's scale factor has changed.
     ///
@@ -592,7 +545,7 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
+    /// This represents raw, unfiltered physical motion. Not to be confused with cursor motion.
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -895,8 +848,7 @@ pub enum Ime {
     Disabled,
 }
 
-/// Describes touch-screen input state.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
@@ -905,45 +857,36 @@ pub enum TouchPhase {
     Cancelled,
 }
 
-/// Represents a touch event
-///
-/// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
-/// event is generated with the same finger id.
-///
-/// After a `Started` event has been emitted, there may be zero or more `Move`
-/// events when the finger is moved or the touch pressure changes.
-///
-/// The finger id may be reused by the system after an `Ended` event. The user
-/// should assume that a new `Started` event received with the same id has nothing
-/// to do with the old finger and is a new finger.
-///
-/// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
-/// touch, such as when the window loses focus, or on iOS if the user moves the
-/// device against their face.
-///
-/// ## Platform-specific
-///
-/// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-/// - **macOS:** Unsupported.
-///
-/// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-/// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
-/// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Touch {
-    pub device_id: DeviceId,
-    pub phase: TouchPhase,
-    pub location: PhysicalPosition<f64>,
-    /// Describes how hard the screen was pressed. May be `None` if the platform
-    /// does not support pressure sensitivity.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
-    pub force: Option<Force>,
-    /// Unique identifier of a finger.
-    pub id: u64,
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerEvent {
+    Created,
+    Destroyed,
+    Entered,
+    Left,
+    UpdateForce(Force),
+    UpdateTilt(Tilt),
+    UpdateAngle(f64),
+    Moved(PhysicalPosition<f64>),
+    Button {
+        button: PointerButton,
+        state: ElementState,
+    },
+    MotionCancelled,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerId {
+    Cursor,
+    Touch { finger: u64 },
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Tilt {
+    angle_x: f64,
+    angle_y: f64,
 }
 
 /// Describes the force of a touch event
@@ -1039,6 +982,15 @@ pub enum MouseButton {
     Back,
     Forward,
     Other(u16),
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PointerButton {
+    Mouse(MouseButton),
+    // Touch (probably) doesn't have any variations, different fingers
+    // are different pointers.
+    Touch,
 }
 
 /// Describes a difference in the mouse scroll wheel state.
