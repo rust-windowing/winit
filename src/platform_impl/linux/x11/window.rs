@@ -1809,6 +1809,8 @@ impl UnownedWindow {
         None
     }
 
+    pub fn set_content_protected(&self, _protected: bool) {}
+
     #[inline]
     pub fn has_focus(&self) -> bool {
         self.shared_state_lock().has_focus

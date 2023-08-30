@@ -379,6 +379,8 @@ impl Inner {
         })
     }
 
+    pub fn set_content_protected(&self, _protected: bool) {}
+
     #[inline]
     pub fn has_focus(&self) -> bool {
         self.has_focus.load(Ordering::Relaxed)

@@ -590,6 +590,10 @@ impl Window {
         x11_or_wayland!(match self; Window(window) => window.theme())
     }
 
+    pub fn set_content_protected(&self, protected: bool) {
+        x11_or_wayland!(match self; Window(window) => window.set_content_protected(protected))
+    }
+
     #[inline]
     pub fn has_focus(&self) -> bool {
         x11_or_wayland!(match self; Window(window) => window.has_focus())

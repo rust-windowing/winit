@@ -998,6 +998,8 @@ impl Window {
         None
     }
 
+    pub fn set_content_protected(&self, _protected: bool) {}
+
     pub fn has_focus(&self) -> bool {
         *HAS_FOCUS.read().unwrap()
     }

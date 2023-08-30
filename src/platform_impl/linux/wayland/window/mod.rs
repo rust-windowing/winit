@@ -667,6 +667,8 @@ impl Window {
         self.window_state.lock().unwrap().theme()
     }
 
+    pub fn set_content_protected(&self, _protected: bool) {}
+
     #[inline]
     pub fn title(&self) -> String {
         self.window_state.lock().unwrap().title().to_owned()
