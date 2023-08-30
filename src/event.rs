@@ -33,6 +33,7 @@
 //!
 //! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(wasm_platform))]
@@ -42,7 +43,6 @@ use smol_str::SmolStr;
 #[cfg(wasm_platform)]
 use web_time::Instant;
 
-use crate::error::ExternalError;
 #[cfg(doc)]
 use crate::window::Window;
 use crate::{
@@ -1068,6 +1068,23 @@ pub enum MouseScrollDelta {
     PixelDelta(PhysicalPosition<f64>),
 }
 
+/// The request to change the inner size synchronously was ignored.
+///
+/// See [`InnerSizeWriter::request_inner_size`] for details.
+#[derive(Debug)] // Explicitly not other traits, in case we want to extend it in the future
+#[non_exhaustive]
+pub struct RequestIgnored {
+    _priv: (),
+}
+
+impl fmt::Display for RequestIgnored {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.write_str("the request was ignored")
+    }
+}
+
+impl std::error::Error for RequestIgnored {}
+
 /// Handle to synchroniously change the size of the window from the
 /// [`WindowEvent`].
 #[derive(Debug, Clone)]
@@ -1081,16 +1098,24 @@ impl InnerSizeWriter {
         Self { new_inner_size }
     }
 
-    /// Try to request inner size which will be set synchroniously on the window.
+    /// Try to request a new inner size which will be set synchronously on the
+    /// window.
+    ///
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the request to change the inner size
+    /// of the window was ignored - likely because you tried to change the
+    /// inner size outside the event loop callback.
     pub fn request_inner_size(
         &mut self,
         new_inner_size: PhysicalSize<u32>,
-    ) -> Result<(), ExternalError> {
+    ) -> Result<(), RequestIgnored> {
         if let Some(inner) = self.new_inner_size.upgrade() {
             *inner.lock().unwrap() = new_inner_size;
             Ok(())
         } else {
-            Err(ExternalError::Ignored)
+            Err(RequestIgnored { _priv: () })
         }
     }
 }

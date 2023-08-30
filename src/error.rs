@@ -8,8 +8,6 @@ use crate::platform_impl;
 pub enum ExternalError {
     /// The operation is not supported by the backend.
     NotSupported(NotSupportedError),
-    /// The operation was ignored.
-    Ignored,
     /// The OS cannot perform the operation.
     Os(OsError),
 }
@@ -84,7 +82,6 @@ impl fmt::Display for ExternalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             ExternalError::NotSupported(e) => e.fmt(f),
-            ExternalError::Ignored => write!(f, "Operation was ignored"),
             ExternalError::Os(e) => e.fmt(f),
         }
     }
