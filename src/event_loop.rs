@@ -56,33 +56,26 @@ pub struct EventLoopWindowTarget<T: 'static> {
 ///
 /// This is used to make specifying options that affect the whole application
 /// easier. But note that constructing multiple event loops is not supported.
+///
+/// This can be created using [`EventLoop::new`] or [`EventLoop::with_user_event`].
 #[derive(Default)]
 pub struct EventLoopBuilder<T: 'static> {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
     _p: PhantomData<T>,
 }
 
+static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
+
 impl EventLoopBuilder<()> {
     /// Start building a new event loop.
     #[inline]
+    #[deprecated = "use `EventLoop::builder` instead"]
     pub fn new() -> Self {
-        Self::with_user_event()
+        EventLoop::builder()
     }
 }
 
-static EVENT_LOOP_CREATED: AtomicBool = AtomicBool::new(false);
-
 impl<T> EventLoopBuilder<T> {
-    /// Start building a new event loop, with the given type as the user event
-    /// type.
-    #[inline]
-    pub fn with_user_event() -> Self {
-        Self {
-            platform_specific: Default::default(),
-            _p: PhantomData,
-        }
-    }
-
     /// Builds a new event loop.
     ///
     /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
@@ -265,19 +258,33 @@ impl Default for ControlFlow {
 }
 
 impl EventLoop<()> {
-    /// Alias for [`EventLoopBuilder::new().build()`].
+    /// Create the event loop.
     ///
-    /// [`EventLoopBuilder::new().build()`]: EventLoopBuilder::build
+    /// This is an alias of `EventLoop::builder().build()`.
     #[inline]
     pub fn new() -> Result<EventLoop<()>, EventLoopError> {
-        EventLoopBuilder::new().build()
+        Self::builder().build()
+    }
+
+    /// Start building a new event loop.
+    ///
+    /// This returns an [`EventLoopBuilder`], to allow configuring the event loop before creation.
+    ///
+    /// To get the actual event loop, call [`build`][EventLoopBuilder::build] on that.
+    #[inline]
+    pub fn builder() -> EventLoopBuilder<()> {
+        Self::with_user_event()
     }
 }
 
 impl<T> EventLoop<T> {
-    #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
-    pub fn with_user_event() -> Result<EventLoop<T>, EventLoopError> {
-        EventLoopBuilder::<T>::with_user_event().build()
+    /// Start building a new event loop, with the given type as the user event
+    /// type.
+    pub fn with_user_event() -> EventLoopBuilder<T> {
+        EventLoopBuilder {
+            platform_specific: Default::default(),
+            _p: PhantomData,
+        }
     }
 
     /// Runs the event loop in the calling thread and calls the given `event_handler` closure
