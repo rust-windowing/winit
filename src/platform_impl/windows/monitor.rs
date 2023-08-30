@@ -101,7 +101,7 @@ unsafe extern "system" fn monitor_enum_proc(
     data: LPARAM,
 ) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorHandle>;
-    (*monitors).push_back(MonitorHandle::new(hmonitor));
+    unsafe { (*monitors).push_back(MonitorHandle::new(hmonitor)) };
     true.into() // continue enumeration
 }
 
