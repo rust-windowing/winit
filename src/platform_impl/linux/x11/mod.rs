@@ -427,7 +427,9 @@ impl<T: 'static> EventLoop<T> {
         // X Server.
         let wt = get_xtarget(&self.target);
         wt.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopRunError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
+            EventLoopRunError::Os(RootOsError::new(OsError::XError(Arc::new(X11Error::Xlib(
+                x_err,
+            )))))
         })?;
 
         exit

@@ -375,7 +375,7 @@ impl Window {
                 .unwrap()
                 .mouse
                 .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, confine))
-                .map_err(|e| WindowError::Os(os_error!(e)));
+                .map_err(|e| WindowError::Os(RootOsError::new(e)));
             let _ = tx.send(result);
         });
         rx.recv().unwrap()
@@ -413,10 +413,14 @@ impl Window {
         let mut point = POINT { x, y };
         unsafe {
             if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                return Err(WindowError::Os(os_error!(io::Error::last_os_error())));
+                return Err(WindowError::Os(
+                    RootOsError::new(io::Error::last_os_error()),
+                ));
             }
             if SetCursorPos(point.x, point.y) == false.into() {
-                return Err(WindowError::Os(os_error!(io::Error::last_os_error())));
+                return Err(WindowError::Os(
+                    RootOsError::new(io::Error::last_os_error()),
+                ));
             }
         }
         Ok(())
@@ -1191,7 +1195,7 @@ where
     }
 
     if handle == 0 {
-        return Err(os_error!(io::Error::last_os_error()));
+        return Err(RootOsError::new(io::Error::last_os_error()));
     }
 
     // If the handle is non-null, then window creation must have succeeded, which means

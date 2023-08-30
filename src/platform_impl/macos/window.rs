@@ -451,7 +451,7 @@ impl WinitWindow {
 
             Some(this)
         })
-        .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
+        .ok_or_else(|| RootOsError::new(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
         match attrs.parent_window {
             Some(RawWindowHandle::AppKit(handle)) => {
@@ -464,14 +464,14 @@ impl WinitWindow {
                             match unsafe { Id::retain(handle.ns_view.cast()) } {
                                 Some(view) => view,
                                 None => {
-                                    return Err(os_error!(OsError::CreationError(
-                                        "raw window handle should be non-empty"
+                                    return Err(RootOsError::new(OsError::CreationError(
+                                        "raw window handle should be non-empty",
                                     )))
                                 }
                             };
                         parent_view.window().ok_or_else(|| {
-                            os_error!(OsError::CreationError(
-                                "parent view should be installed in a window"
+                            RootOsError::new(OsError::CreationError(
+                                "parent view should be installed in a window",
                             ))
                         })?
                     }
@@ -845,7 +845,7 @@ impl WinitWindow {
 
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
-            .map_err(|status| WindowError::Os(os_error!(OsError::CGError(status))))
+            .map_err(|status| WindowError::Os(RootOsError::new(OsError::CGError(status))))
     }
 
     #[inline]
@@ -873,9 +873,9 @@ impl WinitWindow {
             y: logical_cursor_position.y + window_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| WindowError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| WindowError::Os(RootOsError::new(OsError::CGError(e))))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| WindowError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| WindowError::Os(RootOsError::new(OsError::CGError(e))))?;
 
         Ok(())
     }

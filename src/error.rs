@@ -1,3 +1,4 @@
+use std::panic::Location;
 use std::{error, fmt};
 
 use crate::platform_impl;
@@ -5,31 +6,30 @@ use crate::platform_impl;
 /// The error type for when the OS cannot perform the requested operation.
 #[derive(Debug)]
 pub struct OsError {
-    line: u32,
-    file: &'static str,
+    location: &'static Location<'static>,
     error: platform_impl::OsError,
 }
 
 impl OsError {
     #[allow(dead_code)]
-    pub(crate) fn new(line: u32, file: &'static str, error: platform_impl::OsError) -> OsError {
-        OsError { line, file, error }
+    #[track_caller] // Allows `Location::caller` to work properly
+    pub(crate) fn new(error: platform_impl::OsError) -> OsError {
+        OsError {
+            location: Location::caller(),
+            error,
+        }
     }
-}
-
-#[allow(unused_macros)]
-macro_rules! os_error {
-    ($error:expr) => {{
-        crate::error::OsError::new(line!(), file!(), $error)
-    }};
 }
 
 impl fmt::Display for OsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.pad(&format!(
+        write!(
+            f,
             "os error at {}:{}: {}",
-            self.file, self.line, self.error
-        ))
+            self.location.file(),
+            self.location.line(),
+            self.error
+        )
     }
 }
 

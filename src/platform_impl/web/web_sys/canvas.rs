@@ -10,7 +10,7 @@ use web_sys::{
 };
 
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
+use crate::error::OsError as RootOsError;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
@@ -63,12 +63,14 @@ impl Canvas {
         document: Document,
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, RootOE> {
+    ) -> Result<Self, RootOsError> {
         let canvas = match platform_attr.canvas {
             Some(canvas) => canvas,
             None => document
                 .create_element("canvas")
-                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .map_err(|_| {
+                    RootOsError::new(OsError("Failed to create canvas element".to_owned()))
+                })?
                 .unchecked_into(),
         };
 
@@ -88,7 +90,7 @@ impl Canvas {
         if platform_attr.focusable {
             canvas
                 .set_attribute("tabindex", "0")
-                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+                .map_err(|_| RootOsError::new(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
         #[allow(clippy::disallowed_methods)]
@@ -156,7 +158,7 @@ impl Canvas {
         })
     }
 
-    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
+    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOsError> {
         if lock {
             self.raw().request_pointer_lock();
         } else {

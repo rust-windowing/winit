@@ -130,7 +130,11 @@ macro_rules! leap {
     ($e:expr) => {
         match $e {
             Ok(x) => x,
-            Err(err) => return Err(os_error!(OsError::XError(X11Error::from(err).into()))),
+            Err(err) => {
+                return Err(RootOsError::new(OsError::XError(
+                    X11Error::from(err).into(),
+                )))
+            }
         }
     };
 }
@@ -235,7 +239,9 @@ impl UnownedWindow {
                 // Find this specific visual.
                 let (visualtype, depth) = all_visuals
                     .find(|(visual, _)| visual.visual_id == vi)
-                    .ok_or_else(|| os_error!(OsError::XError(X11Error::NoSuchVisual(vi).into())))?;
+                    .ok_or_else(|| {
+                        RootOsError::new(OsError::XError(X11Error::NoSuchVisual(vi).into()))
+                    })?;
 
                 (Some(visualtype), depth, true)
             }
@@ -507,8 +513,8 @@ impl UnownedWindow {
                     &mut supported_ptr,
                 );
                 if supported_ptr == ffi::False {
-                    return Err(os_error!(OsError::Misc(
-                        "`XkbSetDetectableAutoRepeat` failed"
+                    return Err(RootOsError::new(OsError::Misc(
+                        "`XkbSetDetectableAutoRepeat` failed",
                     )));
                 }
             }
@@ -1485,7 +1491,9 @@ impl UnownedWindow {
 
         let result = match mode {
             CursorGrabMode::None => self.xconn.flush_requests().map_err(|err| {
-                WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
+                WindowError::Os(RootOsError::new(OsError::XError(
+                    X11Error::Xlib(err).into(),
+                )))
             }),
             CursorGrabMode::Confined => {
                 let result = {
@@ -1533,7 +1541,7 @@ impl UnownedWindow {
                     }
                     _ => unreachable!(),
                 }
-                .map_err(|err| WindowError::Os(os_error!(OsError::Misc(err))))
+                .map_err(|err| WindowError::Os(RootOsError::new(OsError::Misc(err))))
             }
             CursorGrabMode::Locked => {
                 return Err(WindowError::NotSupported(NotSupportedError::new()));
@@ -1575,11 +1583,11 @@ impl UnownedWindow {
                 .xcb_connection()
                 .warp_pointer(x11rb::NONE, self.xwindow, 0, 0, 0, 0, x as _, y as _)
                 .map_err(|e| {
-                    WindowError::Os(os_error!(OsError::XError(X11Error::from(e).into())))
+                    WindowError::Os(RootOsError::new(OsError::XError(X11Error::from(e).into())))
                 })?;
-            self.xconn
-                .flush_requests()
-                .map_err(|e| WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(e).into()))))
+            self.xconn.flush_requests().map_err(|e| {
+                WindowError::Os(RootOsError::new(OsError::XError(X11Error::Xlib(e).into())))
+            })
         }
     }
 
@@ -1618,7 +1626,7 @@ impl UnownedWindow {
         let pointer = self
             .xconn
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
-            .map_err(|err| WindowError::Os(os_error!(OsError::XError(err.into()))))?;
+            .map_err(|err| WindowError::Os(RootOsError::new(OsError::XError(err.into()))))?;
 
         let window = self.inner_position().map_err(WindowError::NotSupported)?;
 
@@ -1631,10 +1639,16 @@ impl UnownedWindow {
         self.xconn
             .xcb_connection()
             .ungrab_pointer(x11rb::CURRENT_TIME)
-            .map_err(|err| WindowError::Os(os_error!(OsError::XError(X11Error::from(err).into()))))?
+            .map_err(|err| {
+                WindowError::Os(RootOsError::new(OsError::XError(
+                    X11Error::from(err).into(),
+                )))
+            })?
             .ignore_error();
         self.xconn.flush_requests().map_err(|err| {
-            WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into())))
+            WindowError::Os(RootOsError::new(OsError::XError(
+                X11Error::Xlib(err).into(),
+            )))
         })?;
         *grabbed_lock = CursorGrabMode::None;
 
@@ -1656,11 +1670,13 @@ impl UnownedWindow {
                     1,
                 ],
             )
-            .map_err(|err| WindowError::Os(os_error!(OsError::XError(err.into()))))?;
+            .map_err(|err| WindowError::Os(RootOsError::new(OsError::XError(err.into()))))?;
 
-        self.xconn
-            .flush_requests()
-            .map_err(|err| WindowError::Os(os_error!(OsError::XError(X11Error::Xlib(err).into()))))
+        self.xconn.flush_requests().map_err(|err| {
+            WindowError::Os(RootOsError::new(OsError::XError(
+                X11Error::Xlib(err).into(),
+            )))
+        })
     }
 
     #[inline]

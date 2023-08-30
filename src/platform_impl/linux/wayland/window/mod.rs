@@ -207,16 +207,16 @@ impl Window {
 
         // Do a roundtrip.
         event_queue.roundtrip(&mut state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
-                error
+            RootOsError::new(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                error,
             ))))
         })?;
 
         // XXX Wait for the initial configure to arrive.
         while !window_state.lock().unwrap().is_configured() {
             event_queue.blocking_dispatch(&mut state).map_err(|error| {
-                os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
-                    error
+                RootOsError::new(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                    error,
                 ))))
             })?;
         }
@@ -575,7 +575,9 @@ impl Window {
             Ok(())
         } else {
             let region = Region::new(&*self.compositor).map_err(|_| {
-                WindowError::Os(os_error!(OsError::Misc("failed to set input region.")))
+                WindowError::Os(RootOsError::new(OsError::Misc(
+                    "failed to set input region.",
+                )))
             })?;
             region.add(0, 0, 0, 0);
             surface.set_input_region(Some(region.wl_region()));

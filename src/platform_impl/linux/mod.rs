@@ -767,8 +767,8 @@ impl<T: 'static> EventLoop<T> {
             return Ok(EventLoop::new_x11_any_thread().unwrap());
         }
 
-        Err(EventLoopCreationError::Os(os_error!(OsError::Misc(
-            "neither WAYLAND_DISPLAY nor DISPLAY is set."
+        Err(EventLoopCreationError::Os(RootOsError::new(OsError::Misc(
+            "neither WAYLAND_DISPLAY nor DISPLAY is set.",
         ))))
     }
 

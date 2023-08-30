@@ -12,6 +12,7 @@ use orbclient::{
 use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
+    error::OsError as RootOsError,
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow, EventLoopCreationError, EventLoopRunError},
     keyboard::{
@@ -277,13 +278,13 @@ impl<T: 'static> EventLoop<T> {
         let event_socket = Arc::new(
             RedoxSocket::event()
                 .map_err(OsError::new)
-                .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?,
+                .map_err(|error| EventLoopCreationError::Os(RootOsError::new(error)))?,
         );
 
         let wake_socket = Arc::new(
             TimeSocket::open()
                 .map_err(OsError::new)
-                .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?,
+                .map_err(|error| EventLoopCreationError::Os(RootOsError::new(error)))?,
         );
 
         event_socket
@@ -293,7 +294,7 @@ impl<T: 'static> EventLoop<T> {
                 data: wake_socket.0.fd,
             })
             .map_err(OsError::new)
-            .map_err(|error| EventLoopCreationError::Os(os_error!(error)))?;
+            .map_err(|error| EventLoopCreationError::Os(RootOsError::new(error)))?;
 
         Ok(Self {
             windows: Vec::new(),

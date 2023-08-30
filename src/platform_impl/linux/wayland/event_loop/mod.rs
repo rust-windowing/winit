@@ -79,7 +79,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, EventLoopCreationError> {
         macro_rules! map_err {
             ($e:expr, $err:expr) => {
-                $e.map_err(|error| EventLoopCreationError::Os(os_error!($err(error).into())))
+                $e.map_err(|error| EventLoopCreationError::Os(RootOsError::new($err(error).into())))
             };
         }
 
@@ -97,7 +97,7 @@ impl<T: 'static> EventLoop<T> {
         )?;
 
         let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
-            .map_err(|error| os_error!(error))
+            .map_err(RootOsError::new)
             .map_err(EventLoopCreationError::Os)?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
@@ -657,8 +657,8 @@ impl<T: 'static> EventLoop<T> {
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
         event_queue.roundtrip(state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
-                error
+            RootOsError::new(OsError::WaylandError(Arc::new(WaylandError::Dispatch(
+                error,
             ))))
         })
     }

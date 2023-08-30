@@ -25,6 +25,7 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::error::OsError as RootOsError;
 use crate::platform_impl::WindowId;
 use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, NotSupportedError, ResizeDirection, Theme, WindowError,
@@ -712,10 +713,10 @@ impl WindowState {
 
         // Positon can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
-            return Err(WindowError::Os(os_error!(
+            return Err(WindowError::Os(RootOsError::new(
                 crate::platform_impl::OsError::Misc(
-                    "cursor position can be set only for locked cursor."
-                )
+                    "cursor position can be set only for locked cursor.",
+                ),
             )));
         }
 
