@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Reworked errors. Errors now live in the module in which they are used, and are named according to their use.
 - Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
 - Added `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
