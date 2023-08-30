@@ -5,7 +5,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
-    window::{Theme, WindowBuilder},
+    window::{Theme, Window},
 };
 
 #[path = "util/fill.rs"]
@@ -15,7 +15,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .with_theme(Some(Theme::Dark))
         .build(&event_loop)

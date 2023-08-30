@@ -4,13 +4,13 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::KeyCode,
-    window::{Fullscreen, WindowBuilder},
+    window::{Fullscreen, Window},
 };
 
 pub fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new().unwrap();
 
-    let builder = WindowBuilder::new().with_title("A fantastic window!");
+    let builder = Window::builder().with_title("A fantastic window!");
     #[cfg(wasm_platform)]
     let builder = {
         use winit::platform::web::WindowBuilderExtWebSys;

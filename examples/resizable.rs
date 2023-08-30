@@ -6,7 +6,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::KeyCode,
-    window::WindowBuilder,
+    window::Window,
 };
 
 #[path = "util/fill.rs"]
@@ -18,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut resizable = false;
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("Hit space to toggle resizability.")
         .with_inner_size(LogicalSize::new(600.0, 300.0))
         .with_min_inner_size(LogicalSize::new(400.0, 200.0))

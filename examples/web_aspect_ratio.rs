@@ -14,7 +14,7 @@ mod wasm {
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         platform::web::WindowBuilderExtWebSys,
-        window::{Window, WindowBuilder},
+        window::Window,
     };
 
     const EXPLANATION: &str = "
@@ -33,7 +33,7 @@ This example demonstrates the desired future functionality which will possibly b
         console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
         let event_loop = EventLoop::new().unwrap();
 
-        let window = WindowBuilder::new()
+        let window = Window::builder()
             .with_title("A fantastic window!")
             // When running in a non-wasm environment this would set the window size to 100x100.
             // However in this example it just sets a default initial size of 100x100 that is immediately overwritten due to the layout + styling of the page.

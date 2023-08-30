@@ -13,7 +13,7 @@
 //! Once this is done there are two ways to create a [`Window`]:
 //!
 //!  - Calling [`Window::new(&event_loop)`][window_new].
-//!  - Calling [`let builder = WindowBuilder::new()`][window_builder_new] then [`builder.build(&event_loop)`][window_builder_build].
+//!  - Calling [`let builder = Window::builder()`][window_builder_new] then [`builder.build(&event_loop)`][window_builder_build].
 //!
 //! The first method is the simplest, and will give you default values for everything. The second
 //! method allows you to customize the way your [`Window`] will look and behave by modifying the
@@ -45,11 +45,11 @@
 //! use winit::{
 //!     event::{Event, WindowEvent},
 //!     event_loop::EventLoop,
-//!     window::WindowBuilder,
+//!     window::Window,
 //! };
 //!
 //! let event_loop = EventLoop::new().unwrap();
-//! let window = WindowBuilder::new().build(&event_loop).unwrap();
+//! let window = Window::builder().build(&event_loop).unwrap();
 //!
 //! event_loop.run(move |event, _, control_flow| {
 //!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
@@ -122,7 +122,7 @@
 //! [`WindowId`]: window::WindowId
 //! [`WindowBuilder`]: window::WindowBuilder
 //! [window_new]: window::Window::new
-//! [window_builder_new]: window::WindowBuilder::new
+//! [window_builder_new]: window::Window::builder
 //! [window_builder_build]: window::WindowBuilder::build
 //! [window_id_fn]: window::Window::id
 //! [`Event`]: event::Event

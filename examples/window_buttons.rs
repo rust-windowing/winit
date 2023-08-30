@@ -8,7 +8,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{DeviceEvents, EventLoop},
     keyboard::Key,
-    window::{WindowBuilder, WindowButtons},
+    window::{Window, WindowButtons},
 };
 
 #[path = "util/fill.rs"]
@@ -18,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .with_inner_size(LogicalSize::new(300.0, 300.0))
         .build(&event_loop)

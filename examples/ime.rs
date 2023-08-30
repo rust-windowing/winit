@@ -7,7 +7,7 @@ use winit::{
     event::{ElementState, Event, Ime, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, KeyCode},
-    window::{ImePurpose, WindowBuilder},
+    window::{ImePurpose, Window},
 };
 
 #[path = "util/fill.rs"]
@@ -26,7 +26,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_inner_size(winit::dpi::LogicalSize::new(256f64, 128f64))
         .build(&event_loop)
         .unwrap();

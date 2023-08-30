@@ -5,7 +5,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
-    window::{CursorIcon, ResizeDirection, WindowBuilder},
+    window::{CursorIcon, ResizeDirection, Window},
 };
 
 const BORDER: f64 = 8.0;
@@ -17,7 +17,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_inner_size(winit::dpi::LogicalSize::new(600.0, 400.0))
         .with_min_inner_size(winit::dpi::LogicalSize::new(400.0, 200.0))
         .with_decorations(false)

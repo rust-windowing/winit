@@ -12,7 +12,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event::{Event, WindowEvent},
         event_loop::EventLoop,
         platform::run_ondemand::EventLoopExtRunOnDemand,
-        window::{Window, WindowBuilder, WindowId},
+        window::{Window, WindowId},
     };
 
     #[path = "util/fill.rs"]
@@ -65,7 +65,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     _ => (),
                 }
             } else if let Event::Resumed = event {
-                let window = WindowBuilder::new()
+                let window = Window::builder()
                         .with_title("Fantastic window number one!")
                         .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
                         .build(event_loop)

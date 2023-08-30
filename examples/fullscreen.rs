@@ -5,7 +5,7 @@ use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::keyboard::Key;
-use winit::window::{Fullscreen, WindowBuilder};
+use winit::window::{Fullscreen, Window};
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowExtMacOS;
@@ -22,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut with_min_size = false;
     let mut with_max_size = false;
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("Hello world!")
         .build(&event_loop)
         .unwrap();

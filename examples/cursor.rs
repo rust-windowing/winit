@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    window::{CursorIcon, WindowBuilder},
+    window::{CursorIcon, Window},
 };
 
 #[path = "util/fill.rs"]
@@ -14,7 +14,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = Window::builder().build(&event_loop).unwrap();
     window.set_title("A fantastic window!");
 
     let mut cursor_idx = 0;

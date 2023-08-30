@@ -11,7 +11,7 @@ use winit::{
     event_loop::EventLoop,
     keyboard::Key,
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
-    window::{Window, WindowBuilder},
+    window::Window,
 };
 
 #[cfg(target_os = "macos")]
@@ -62,7 +62,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 } => match logical_key.as_ref() {
                     Key::Character("t") => {
                         let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
-                        let window = WindowBuilder::new()
+                        let window = Window::builder()
                             .with_tabbing_identifier(&tabbing_id)
                             .build(event_loop)
                             .unwrap();

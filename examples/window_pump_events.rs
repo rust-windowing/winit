@@ -16,7 +16,7 @@ fn main() -> std::process::ExitCode {
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
-        window::WindowBuilder,
+        window::Window,
     };
 
     #[path = "util/fill.rs"]
@@ -25,7 +25,7 @@ fn main() -> std::process::ExitCode {
     let mut event_loop = EventLoop::new().unwrap();
 
     SimpleLogger::new().init().unwrap();
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();

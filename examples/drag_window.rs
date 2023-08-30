@@ -5,7 +5,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::EventLoop,
     keyboard::Key,
-    window::{Window, WindowBuilder, WindowId},
+    window::{Window, WindowId},
 };
 
 #[path = "util/fill.rs"]
@@ -15,8 +15,8 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window_1 = WindowBuilder::new().build(&event_loop).unwrap();
-    let window_2 = WindowBuilder::new().build(&event_loop).unwrap();
+    let window_1 = Window::builder().build(&event_loop).unwrap();
+    let window_2 = Window::builder().build(&event_loop).unwrap();
 
     let mut switched = false;
     let mut entered_id = window_2.id();

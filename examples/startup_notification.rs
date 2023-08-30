@@ -15,7 +15,7 @@ mod example {
     use winit::platform::startup_notify::{
         EventLoopExtStartupNotify, WindowBuilderExtStartupNotify, WindowExtStartupNotify,
     };
-    use winit::window::{Window, WindowBuilder, WindowId};
+    use winit::window::{Window, WindowId};
 
     pub(super) fn main() -> Result<(), impl std::error::Error> {
         // Create the event loop and get the activation token.
@@ -85,8 +85,7 @@ mod example {
             if current_token.is_some() || create_first_window {
                 // Create the initial window.
                 let window = {
-                    let mut builder =
-                        WindowBuilder::new().with_title(format!("Window {}", counter));
+                    let mut builder = Window::builder().with_title(format!("Window {}", counter));
 
                     if let Some(token) = current_token.take() {
                         println!("Creating a window with token {token:?}");

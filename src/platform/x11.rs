@@ -112,13 +112,13 @@ pub trait WindowBuilderExtX11 {
     ///
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::WindowBuilder;
+    /// # use winit::window::Window;
     /// # use winit::platform::x11::WindowBuilderExtX11;
     /// // Specify the size in logical dimensions like this:
-    /// WindowBuilder::new().with_base_size(LogicalSize::new(400.0, 200.0));
+    /// Window::builder().with_base_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// WindowBuilder::new().with_base_size(PhysicalSize::new(400, 200));
+    /// Window::builder().with_base_size(PhysicalSize::new(400, 200));
     /// ```
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
@@ -127,12 +127,12 @@ pub trait WindowBuilderExtX11 {
     /// # Example
     ///
     /// ```no_run
-    /// use winit::window::WindowBuilder;
+    /// use winit::window::Window;
     /// use winit::platform::x11::{XWindow, WindowBuilderExtX11};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let event_loop = winit::event_loop::EventLoop::new().unwrap();
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
-    /// let window = WindowBuilder::new()
+    /// let window = Window::builder()
     ///     .with_embed_parent_window(parent_window_id)
     ///     .build(&event_loop)?;
     /// # Ok(()) }

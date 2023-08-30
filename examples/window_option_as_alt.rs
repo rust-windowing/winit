@@ -8,7 +8,7 @@ use winit::{
     event::ElementState,
     event::{Event, MouseButton, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    window::Window,
 };
 
 #[cfg(target_os = "macos")]
@@ -21,7 +21,7 @@ mod fill;
 fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
         .build(&event_loop)

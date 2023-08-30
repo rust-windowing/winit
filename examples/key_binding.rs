@@ -8,7 +8,7 @@ use winit::{
     keyboard::{Key, ModifiersState},
     // WARNING: This is not available on all platforms (for example on the web).
     platform::modifier_supplement::KeyEventExtModifierSupplement,
-    window::WindowBuilder,
+    window::Window,
 };
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -24,7 +24,7 @@ fn main() -> Result<(), impl std::error::Error> {
     simple_logger::SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_inner_size(LogicalSize::new(400.0, 200.0))
         .build(&event_loop)
         .unwrap();
