@@ -182,10 +182,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: u32,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
-    // TODO
-    // eventually should be removed after all the backends refactored,
-    // but for now should this be invariant or contra-variant to T?
-    _marker: PhantomData<*mut T>,
+    _marker: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoop<T> {

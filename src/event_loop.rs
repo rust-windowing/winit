@@ -50,7 +50,7 @@ pub struct EventLoop<T: 'static> {
 /// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
-    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
+    pub(crate) _marker: PhantomData<*mut T>, // Not Send nor Sync + invariant over T
 }
 
 /// Object that allows building the event loop.
