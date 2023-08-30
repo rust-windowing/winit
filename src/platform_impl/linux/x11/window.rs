@@ -778,7 +778,9 @@ impl UnownedWindow {
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
                         (None, monitor)
                     }
-                    Fullscreen::Borderless(None) => (None, self.current_monitor()),
+                    Fullscreen::Borderless(None) => {
+                        (None, self.shared_state_lock().last_monitor.clone())
+                    }
                     #[cfg(wayland_platform)]
                     _ => unreachable!(),
                 };
@@ -874,9 +876,8 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn current_monitor(&self) -> X11MonitorHandle {
-        self.shared_state_lock().last_monitor.clone()
+    pub fn current_monitor(&self) -> Option<X11MonitorHandle> {
+        Some(self.shared_state_lock().last_monitor.clone())
     }
 
     pub fn available_monitors(&self) -> Vec<X11MonitorHandle> {
@@ -1565,7 +1566,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.current_monitor().scale_factor
+        self.shared_state_lock().last_monitor.scale_factor
     }
 
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {

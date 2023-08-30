@@ -706,6 +706,14 @@ impl<T> EventLoopWindowTarget<T> {
         &self.xconn
     }
 
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.xconn.available_monitors().into_iter().flatten()
+    }
+
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.xconn.primary_monitor().ok()
+    }
+
     pub fn set_listen_device_events(&self, allowed: DeviceEvents) {
         self.device_events.set(allowed);
     }

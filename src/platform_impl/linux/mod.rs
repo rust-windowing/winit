@@ -283,7 +283,7 @@ impl VideoMode {
 
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoMode(m) => m.monitor())
+        x11_or_wayland!(match self; VideoMode(m) => m.monitor(); as MonitorHandle)
     }
 }
 
@@ -564,18 +564,7 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref window) => {
-                let current_monitor = MonitorHandle::X(window.current_monitor());
-                Some(current_monitor)
-            }
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref window) => {
-                let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
-                Some(current_monitor)
-            }
-        }
+        Some(x11_or_wayland!(match self; Window(w) => w.current_monitor()?; as MonitorHandle))
     }
 
     #[inline]
@@ -843,31 +832,20 @@ impl<T> EventLoopWindowTarget<T> {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref evlp) => evlp
                 .available_monitors()
-                .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .flatten()
-                .map(MonitorHandle::X)
-                .collect(),
+            EventLoopWindowTarget::X(ref evlp) => {
+                evlp.available_monitors().map(MonitorHandle::X).collect()
+            }
         }
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        match *self {
-            #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
-            #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => {
-                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor().ok()?);
-                Some(primary_monitor)
-            }
-        }
+        Some(
+            x11_or_wayland!(match self; EventLoopWindowTarget(evlp) => evlp.primary_monitor()?; as MonitorHandle),
+        )
     }
 
     #[inline]
