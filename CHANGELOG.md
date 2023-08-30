@@ -111,6 +111,11 @@ Unreleased` header.
 - **Breaking:** Add `Event::MemoryWarning`; implemented on iOS/Android.
 - **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- Added `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
+- Fix window size sometimes being invalid when resizing on macOS.
+- On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
+- On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
 - **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
 - **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.

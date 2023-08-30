@@ -11,7 +11,8 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, NamedKey},
-    window::WindowBuilder,
+    keyboard::Key,
+    window::Window,
 };
 
 #[path = "util/fill.rs"]
@@ -37,7 +38,7 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
         .build(&event_loop)
         .unwrap();

@@ -123,7 +123,9 @@ impl From<u64> for WindowId {
     }
 }
 
-/// Object that allows building windows.
+/// Configure windows before creation.
+///
+/// You can access this from [`Window::builder`].
 #[derive(Clone, Default)]
 #[must_use]
 pub struct WindowBuilder {
@@ -139,7 +141,7 @@ impl fmt::Debug for WindowBuilder {
     }
 }
 
-/// Attributes to use when creating a window.
+/// Attributes used when creating a window.
 #[derive(Debug, Clone)]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
@@ -226,6 +228,7 @@ impl WindowAttributes {
 impl WindowBuilder {
     /// Initializes a new builder with default values.
     #[inline]
+    #[deprecated = "use `Window::builder` instead"]
     pub fn new() -> Self {
         Default::default()
     }
@@ -551,7 +554,7 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to [`WindowBuilder::new().build(event_loop)`].
+    /// This function is equivalent to [`Window::builder().build(event_loop)`].
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
@@ -561,11 +564,16 @@ impl Window {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
-    /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
+    /// [`Window::builder().build(event_loop)`]: WindowBuilder::build
     #[inline]
-    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
-        let builder = WindowBuilder::new();
-        builder.build(event_loop)
+    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+        Window::builder().build(event_loop)
+    }
+
+    /// Create a new [`WindowBuilder`] which allows modifying the window's attributes before creation.
+    #[inline]
+    pub fn builder() -> WindowBuilder {
+        WindowBuilder::default()
     }
 
     /// Returns an identifier unique to the window.

@@ -6,7 +6,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         event::{Event, WindowEvent},
         event_loop::EventLoopBuilder,
-        window::WindowBuilder,
+        window::Window,
     };
 
     #[path = "util/fill.rs"]
@@ -22,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
         .build()
         .unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
