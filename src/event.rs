@@ -672,7 +672,7 @@ pub struct KeyEvent {
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
     #[cfg_attr(
-        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
         allow(rustdoc::broken_intra_doc_links)
     )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
