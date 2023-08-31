@@ -121,7 +121,7 @@ impl TouchHandler for WinitState {
                 device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                     DeviceId,
                 )),
-                phase: TouchPhase::Cancelled,
+                phase: TouchPhase::Moved,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
                 id: id as u64,
