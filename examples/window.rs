@@ -1,4 +1,5 @@
 #![allow(clippy::single_match)]
+#![feature(impl_trait_in_assoc_type)]
 
 use simple_logger::SimpleLogger;
 use winit::{
@@ -21,25 +22,20 @@ struct App {
     _graphics_context: GraphicsContext,
 }
 
-struct SuspendedApp {
-    window: Window,
-}
-
 impl ApplicationHandler for App {
-    type Suspended = SuspendedApp;
+    type Waker = impl FnOnce(&EventLoopWindowTarget) -> Self;
 
-    fn resume(suspended: Self::Suspended, _elwt: &EventLoopWindowTarget) -> Self {
-        println!("---resumed---");
-        Self {
-            window: suspended.window,
-            _graphics_context: GraphicsContext,
-        }
-    }
-
-    fn suspend(self) -> Self::Suspended {
+    // Note: We do _not_ pass the elwt here, since we don't want users to
+    // create windows when the app is about to suspend.
+    fn suspend(self) -> Self::Waker {
         println!("---suspended---");
-        SuspendedApp {
-            window: self.window,
+        let Self { window, .. } = self;
+        |_elwt| {
+            println!("---resumed---");
+            Self {
+                window,
+                _graphics_context: GraphicsContext,
+            }
         }
     }
 
@@ -73,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    event_loop.run_with::<App>(|elwt| {
+    event_loop.run_with(|elwt| {
         elwt.set_wait();
 
         let window = WindowBuilder::new()
@@ -82,7 +78,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(elwt)
             .unwrap();
 
-        SuspendedApp { window }
+        App {
+            window,
+            _graphics_context: GraphicsContext,
+        }
     })?;
 
     Ok(())

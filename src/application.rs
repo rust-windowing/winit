@@ -19,13 +19,11 @@ use crate::{
 /// TODO
 #[allow(missing_docs)]
 pub trait ApplicationHandler<T = ()> {
-    type Suspended;
-
-    fn resume(suspended: Self::Suspended, elwt: &EventLoopWindowTarget<T>) -> Self;
+    type Waker: FnOnce(&EventLoopWindowTarget<T>) -> Self;
 
     // Note: We do _not_ pass the elwt here, since we don't want users to
     // create windows when the app is about to suspend.
-    fn suspend(self) -> Self::Suspended;
+    fn suspend(self) -> Self::Waker;
 
     fn window_event(
         &mut self,
@@ -89,7 +87,7 @@ enum State<T, A: ApplicationHandler<T>, I> {
     /// Stores an initialization closure.
     Uninitialized(I),
     /// Stores the suspended state.
-    Suspended(A::Suspended),
+    Suspended(A::Waker),
     /// Stores the application.
     Running(A),
     /// Stores nothing, the application has been dropped at this point.
@@ -99,13 +97,13 @@ enum State<T, A: ApplicationHandler<T>, I> {
 impl<T, A, I> State<T, A, I>
 where
     A: ApplicationHandler<T>,
-    I: FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
+    I: FnOnce(&EventLoopWindowTarget<T>) -> A,
 {
     // Handle the event, and possibly transition to another state
     fn next(self, event: Event<T>, elwt: &EventLoopWindowTarget<T>) -> Self {
         match event {
             Event::NewEvents(StartCause::Init) => match self {
-                State::Uninitialized(init) => State::Suspended(init(elwt)),
+                State::Uninitialized(init) => State::Running(init(elwt)),
                 state => unreachable!("invalid initialization: state was {state:?}"),
             },
             Event::LoopExiting => match self {
@@ -118,9 +116,9 @@ where
                 state => unreachable!("invalid suspend: state was {state:?}"),
             },
             Event::Resumed => match self {
-                State::Suspended(suspended_state) => {
-                    State::Running(A::resume(suspended_state, elwt))
-                }
+                State::Suspended(waker) => State::Running(waker(elwt)),
+                // Ignore first Resumed event
+                State::Running(app) => State::Running(app),
                 state => unreachable!("invalid resume: state was {state:?}"),
             },
             Event::WindowEvent { window_id, event } => match self {
@@ -196,7 +194,7 @@ impl<T, A: ApplicationHandler<T>, I> fmt::Debug for State<T, A, I> {
 impl<T> EventLoop<T> {
     pub fn run_with<A: ApplicationHandler<T>>(
         self,
-        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
+        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A,
     ) -> Result<(), EventLoopError> {
         let mut state_storage: Option<State<T, A, _>> = Some(State::Uninitialized(init));
 
@@ -227,7 +225,7 @@ struct ShouldExit(pub bool);
 impl<T> EventLoop<T> {
     fn pump_events_with<A: ApplicationHandler<T>>(
         self,
-        status: &mut PumpEventStatus<A, impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended>,
+        status: &mut PumpEventStatus<A, impl FnOnce(&EventLoopWindowTarget<T>) -> A>,
     ) -> Result<ShouldExit, EventLoopError> {
         *status = PumpEventStatus::Running(todo!());
         Ok(ShouldExit(false))
@@ -236,7 +234,7 @@ impl<T> EventLoop<T> {
     // Same signature and semantics as `run_with`, except for taking `&mut self`.
     fn run_ondemand_with<A: ApplicationHandler<T>>(
         &mut self,
-        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
+        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A,
     ) -> Result<(), EventLoopError> {
         todo!()
     }
