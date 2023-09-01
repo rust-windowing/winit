@@ -27,7 +27,9 @@ use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{
+        ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget,
+    },
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
     platform_impl::platform::{
         app::WinitApplication,
@@ -83,6 +85,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         let monitor = monitor::primary_monitor();
         Some(monitor)
     }
+
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

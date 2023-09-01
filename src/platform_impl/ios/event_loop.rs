@@ -22,7 +22,8 @@ use crate::{
     error::EventLoopError,
     event::Event,
     event_loop::{
-        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
+        ControlFlow, DeviceEvents, EventLoopClosed,
+        EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
 };
@@ -44,6 +45,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(UIScreen::main(self.mtm)))
     }
+
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())

@@ -1,7 +1,7 @@
 use super::{util, X11Error, XConnection};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
+    platform_impl::VideoMode as PlatformVideoMode,
 };
 use x11rb::{
     connection::RequestConnection,
@@ -47,8 +47,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> PlatformMonitorHandle {
-        PlatformMonitorHandle::X(self.monitor.clone().unwrap())
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone().unwrap()
     }
 }
 

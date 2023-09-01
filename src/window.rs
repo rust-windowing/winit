@@ -1273,10 +1273,9 @@ impl Window {
     /// - **iOS / Android / x11 / Wayland / Web / Orbital:** Unsupported.
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
-    pub fn set_content_protected(&self, _protected: bool) {
-        #[cfg(any(macos_platform, windows_platform))]
+    pub fn set_content_protected(&self, protected: bool) {
         self.window
-            .maybe_queue_on_main(move |w| w.set_content_protected(_protected))
+            .maybe_queue_on_main(move |w| w.set_content_protected(protected))
     }
 
     /// Gets the current title of the window.
