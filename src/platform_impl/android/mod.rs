@@ -23,7 +23,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, InnerSizeWriter, StartCause},
-    event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
+    event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
@@ -743,6 +743,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         v
     }
 
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Android(AndroidDisplayHandle::empty())
     }
@@ -994,6 +997,8 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         None
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     pub fn has_focus(&self) -> bool {
         *HAS_FOCUS.read().unwrap()

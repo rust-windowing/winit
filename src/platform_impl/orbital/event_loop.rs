@@ -15,7 +15,7 @@ use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 use crate::{
     error::EventLoopError,
     event::{self, Ime, Modifiers, StartCause},
-    event_loop::{self, ControlFlow},
+    event_loop::{self, ControlFlow, DeviceEvents},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
     },
@@ -764,6 +764,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         v.push_back(MonitorHandle);
         v
     }
+
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
