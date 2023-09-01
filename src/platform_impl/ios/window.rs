@@ -342,6 +342,8 @@ impl Inner {
         None
     }
 
+    pub fn set_content_protected(&self, _protected: bool) {}
+
     pub fn has_focus(&self) -> bool {
         self.window.isKeyWindow()
     }

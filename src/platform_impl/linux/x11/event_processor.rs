@@ -1317,7 +1317,8 @@ impl<T: 'static> EventProcessor<T> {
                                 for (window_id, window) in wt.windows.borrow().iter() {
                                     if let Some(window) = window.upgrade() {
                                         // Check if the window is on this monitor
-                                        let monitor = window.current_monitor();
+                                        let monitor =
+                                            window.shared_state_lock().last_monitor.clone();
                                         if monitor.name == new_monitor.name {
                                             let (width, height) = window.inner_size_physical();
                                             let (new_width, new_height) = window.adjust_for_dpi(
