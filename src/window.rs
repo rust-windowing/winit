@@ -1524,8 +1524,8 @@ pub enum WindowError {
 impl fmt::Display for WindowError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            Self::NotSupported(e) => write!(f, "{e}"),
-            Self::Os(e) => write!(f, "{e}"),
+            Self::NotSupported(e) => write!(f, "window operation failed: {e}"),
+            Self::Os(e) => write!(f, "window operation failed: {e}"),
         }
     }
 }

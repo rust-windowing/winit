@@ -441,7 +441,7 @@ impl fmt::Display for EventLoopCreationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::RecreationAttempt => write!(f, "tried to recreate EventLoop"),
-            Self::Os(e) => write!(f, "{e}"),
+            Self::Os(e) => write!(f, "error while creating EventLoop: {e}"),
         }
     }
 }
@@ -471,7 +471,7 @@ impl fmt::Display for EventLoopRunError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::AlreadyRunning => write!(f, "EventLoop is already running"),
-            Self::Os(e) => write!(f, "{e}"),
+            Self::Os(e) => write!(f, "error while running EventLoop: {e}"),
             Self::ExitFailure(status) => write!(f, "exit failure: {status}"),
         }
     }
