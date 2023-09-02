@@ -18,29 +18,18 @@ struct GraphicsContext;
 struct App {
     window: Window,
     // TODO: Put the context & surface from `fill` in here
-    _graphics_context: GraphicsContext,
-}
-
-struct SuspendedApp {
-    window: Window,
+    _graphics_context: Option<GraphicsContext>,
 }
 
 impl ApplicationHandler for App {
-    type Suspended = SuspendedApp;
-
-    fn resume(suspended: Self::Suspended, _elwt: &EventLoopWindowTarget) -> Self {
+    fn resume(&mut self, _elwt: &EventLoopWindowTarget) {
         println!("---resumed---");
-        Self {
-            window: suspended.window,
-            _graphics_context: GraphicsContext,
-        }
+        self._graphics_context = Some(GraphicsContext);
     }
 
-    fn suspend(self) -> Self::Suspended {
+    fn suspend(&mut self, _elwt: &EventLoopWindowTarget) {
         println!("---suspended---");
-        SuspendedApp {
-            window: self.window,
-        }
+        self._graphics_context = None;
     }
 
     fn window_event(
@@ -73,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    event_loop.run_with::<App>(|elwt| {
+    event_loop.run_with(|elwt| {
         elwt.set_wait();
 
         let window = WindowBuilder::new()
@@ -82,7 +71,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(elwt)
             .unwrap();
 
-        SuspendedApp { window }
+        App {
+            window,
+            _graphics_context: None,
+        }
     })?;
 
     Ok(())

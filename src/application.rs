@@ -17,15 +17,17 @@ use crate::{
 };
 
 /// TODO
+///
+/// Unknown: Should the user event be an associated type instead?
 #[allow(missing_docs)]
 pub trait ApplicationHandler<T = ()> {
-    type Suspended;
+    fn resume(&mut self, elwt: &EventLoopWindowTarget<T>) {
+        let _ = elwt;
+    }
 
-    fn resume(suspended: Self::Suspended, elwt: &EventLoopWindowTarget<T>) -> Self;
-
-    // Note: We do _not_ pass the elwt here, since we don't want users to
-    // create windows when the app is about to suspend.
-    fn suspend(self) -> Self::Suspended;
+    fn suspend(&mut self, elwt: &EventLoopWindowTarget<T>) {
+        let _ = elwt;
+    }
 
     fn window_event(
         &mut self,
@@ -85,41 +87,43 @@ pub trait ApplicationHandler<T = ()> {
     }
 }
 
-enum State<T, A: ApplicationHandler<T>, I> {
+enum State<A, I> {
     /// Stores an initialization closure.
     Uninitialized(I),
-    /// Stores the suspended state.
-    Suspended(A::Suspended),
-    /// Stores the application.
+    /// Stores the application while the event loop is running.
     Running(A),
     /// Stores nothing, the application has been dropped at this point.
     Exited,
 }
 
-impl<T, A, I> State<T, A, I>
-where
-    A: ApplicationHandler<T>,
-    I: FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
-{
+impl<A, I> State<A, I> {
     // Handle the event, and possibly transition to another state
-    fn next(self, event: Event<T>, elwt: &EventLoopWindowTarget<T>) -> Self {
+    fn next<T>(self, event: Event<T>, elwt: &EventLoopWindowTarget<T>) -> Self
+    where
+        A: ApplicationHandler<T>,
+        I: FnOnce(&EventLoopWindowTarget<T>) -> A,
+    {
         match event {
             Event::NewEvents(StartCause::Init) => match self {
-                State::Uninitialized(init) => State::Suspended(init(elwt)),
+                State::Uninitialized(init) => State::Running(init(elwt)),
                 state => unreachable!("invalid initialization: state was {state:?}"),
             },
             Event::LoopExiting => match self {
                 // Don't forward the event; users should just overwrite `Drop` for their type if they want to do something on exit.
-                State::Suspended(_) | State::Running(_) => State::Exited,
+                State::Running(_app_to_drop) => State::Exited,
                 state => unreachable!("invalid exit: state was {state:?}"),
             },
             Event::Suspended => match self {
-                State::Running(app) => State::Suspended(app.suspend()),
+                State::Running(mut app) => {
+                    app.suspend(elwt);
+                    State::Running(app)
+                }
                 state => unreachable!("invalid suspend: state was {state:?}"),
             },
             Event::Resumed => match self {
-                State::Suspended(suspended_state) => {
-                    State::Running(A::resume(suspended_state, elwt))
+                State::Running(mut app) => {
+                    app.resume(elwt);
+                    State::Running(app)
                 }
                 state => unreachable!("invalid resume: state was {state:?}"),
             },
@@ -182,11 +186,10 @@ where
     }
 }
 
-impl<T, A: ApplicationHandler<T>, I> fmt::Debug for State<T, A, I> {
+impl<A, I> fmt::Debug for State<A, I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Uninitialized(_) => f.write_str("Uninitialized"),
-            Self::Suspended(_) => f.write_str("Suspended"),
             Self::Running(_) => f.write_str("Running"),
             Self::Exited => f.write_str("Exited"),
         }
@@ -196,9 +199,9 @@ impl<T, A: ApplicationHandler<T>, I> fmt::Debug for State<T, A, I> {
 impl<T> EventLoop<T> {
     pub fn run_with<A: ApplicationHandler<T>>(
         self,
-        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
+        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A,
     ) -> Result<(), EventLoopError> {
-        let mut state_storage: Option<State<T, A, _>> = Some(State::Uninitialized(init));
+        let mut state_storage: Option<State<A, _>> = Some(State::Uninitialized(init));
 
         self.run(move |event, elwt| {
             let state = state_storage
@@ -227,7 +230,7 @@ struct ShouldExit(pub bool);
 impl<T> EventLoop<T> {
     fn pump_events_with<A: ApplicationHandler<T>>(
         self,
-        status: &mut PumpEventStatus<A, impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended>,
+        status: &mut PumpEventStatus<A, impl FnOnce(&EventLoopWindowTarget<T>) -> A>,
     ) -> Result<ShouldExit, EventLoopError> {
         *status = PumpEventStatus::Running(todo!());
         Ok(ShouldExit(false))
@@ -236,7 +239,7 @@ impl<T> EventLoop<T> {
     // Same signature and semantics as `run_with`, except for taking `&mut self`.
     fn run_ondemand_with<A: ApplicationHandler<T>>(
         &mut self,
-        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A::Suspended,
+        init: impl FnOnce(&EventLoopWindowTarget<T>) -> A,
     ) -> Result<(), EventLoopError> {
         todo!()
     }

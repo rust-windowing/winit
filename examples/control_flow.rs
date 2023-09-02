@@ -38,19 +38,6 @@ struct App {
 }
 
 impl ApplicationHandler for App {
-    type Suspended = Self;
-
-    fn resume(
-        suspended: Self::Suspended,
-        _elwt: &winit::event_loop::EventLoopWindowTarget,
-    ) -> Self {
-        suspended
-    }
-
-    fn suspend(self) -> Self::Suspended {
-        self
-    }
-
     fn window_event(
         &mut self,
         _elwt: &winit::event_loop::EventLoopWindowTarget,
@@ -157,7 +144,7 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.run_with::<App>(|elwt| {
+    event_loop.run_with(|elwt| {
         let window = WindowBuilder::new()
             .with_title(
                 "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",

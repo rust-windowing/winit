@@ -20,19 +20,6 @@ struct App {
 }
 
 impl ApplicationHandler for App {
-    type Suspended = Self;
-
-    fn resume(
-        suspended: Self::Suspended,
-        _elwt: &winit::event_loop::EventLoopWindowTarget,
-    ) -> Self {
-        suspended
-    }
-
-    fn suspend(self) -> Self::Suspended {
-        self
-    }
-
     fn window_event(
         &mut self,
         elwt: &winit::event_loop::EventLoopWindowTarget,
@@ -84,7 +71,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run_with::<App>(|elwt| {
+    event_loop.run_with(|elwt| {
         elwt.set_wait();
 
         let mut windows = HashMap::new();
