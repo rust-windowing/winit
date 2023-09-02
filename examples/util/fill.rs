@@ -9,6 +9,21 @@
 
 use winit::window::Window;
 
+#[cfg(not(feature = "rwh-0-5"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub(super) fn fill_window(_window: &Window) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static HAS_WARNED: AtomicBool = AtomicBool::new(false);
+    if !HAS_WARNED.load(Ordering::Relaxed) {
+        // Don't worry about emitting the error twice in multithreaded situations
+        HAS_WARNED.store(true, Ordering::Relaxed);
+        log::warn!(
+            "not drawing to window in example. Please enable the `rwh-0-5` feature to do this!"
+        );
+    }
+}
+
+#[cfg(feature = "rwh-0-5")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub(super) fn fill_window(window: &Window) {
     use softbuffer::{Context, Surface};

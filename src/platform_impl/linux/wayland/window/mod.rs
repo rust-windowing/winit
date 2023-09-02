@@ -3,12 +3,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
-};
-
 use sctk::reexports::calloop;
-use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Proxy;
 use sctk::reexports::client::QueueHandle;
@@ -57,7 +52,8 @@ pub struct Window {
     compositor: Arc<CompositorState>,
 
     /// The wayland display used solely for raw window handle.
-    display: WlDisplay,
+    #[cfg(feature = "rwh-0-5")]
+    display: sctk::reexports::client::protocol::wl_display::WlDisplay,
 
     /// Xdg activation to request user attention.
     xdg_activation: Option<XdgActivationV1>,
@@ -98,7 +94,6 @@ impl Window {
             .xdg_activation
             .as_ref()
             .map(|activation_state| activation_state.global().clone());
-        let display = event_loop_window_target.connection.display();
 
         // XXX The initial scale factor must be 1, but it might cause sizing issues on HiDPI.
         let size: LogicalSize<u32> = attributes
@@ -226,7 +221,8 @@ impl Window {
 
         Ok(Self {
             window,
-            display,
+            #[cfg(feature = "rwh-0-5")]
+            display: event_loop_window_target.connection.display(),
             monitors,
             window_id,
             compositor,
@@ -644,17 +640,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = WaylandWindowHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut window_handle = rwh_0_5::WaylandWindowHandle::empty();
         window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
-        RawWindowHandle::Wayland(window_handle)
+        rwh_0_5::RawWindowHandle::Wayland(window_handle)
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        let mut display_handle = rwh_0_5::WaylandDisplayHandle::empty();
         display_handle.display = self.display.id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_0_5::RawDisplayHandle::Wayland(display_handle)
     }
 
     #[inline]

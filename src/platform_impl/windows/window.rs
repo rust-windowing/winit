@@ -1,8 +1,5 @@
 #![cfg(windows_platform)]
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
-};
 use std::{
     cell::Cell,
     ffi::c_void,
@@ -45,9 +42,9 @@ use windows_sys::Win32::{
             IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
             SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
             SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
-            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM,
-            HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
-            NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
+            FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, HTBOTTOM, HTBOTTOMLEFT,
+            HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, NID_READY,
+            PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
             SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
         },
     },
@@ -332,17 +329,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = Win32WindowHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut window_handle = rwh_0_5::Win32WindowHandle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
-        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        let hinstance = unsafe {
+            super::get_window_long(
+                self.hwnd(),
+                windows_sys::Win32::UI::WindowsAndMessaging::GWLP_HINSTANCE,
+            )
+        };
         window_handle.hinstance = hinstance as *mut _;
-        RawWindowHandle::Win32(window_handle)
+        rwh_0_5::RawWindowHandle::Win32(window_handle)
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Windows(rwh_0_5::WindowsDisplayHandle::empty())
     }
 
     #[inline]
@@ -1141,14 +1145,15 @@ where
     window_flags.set(WindowFlags::CLOSABLE, true);
 
     let parent = match attributes.parent_window {
-        Some(RawWindowHandle::Win32(handle)) => {
+        #[cfg(feature = "rwh-0-5")]
+        Some(crate::window::ParentWindow::V0_5(rwh_0_5::RawWindowHandle::Win32(handle))) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(handle.hwnd as HWND)
         }
-        Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
+        Some(raw) => unreachable!("invalid raw window handle {raw:?} on Windows"),
         None => match pl_attribs.owner {
             Some(parent) => {
                 window_flags.set(WindowFlags::POPUP, true);

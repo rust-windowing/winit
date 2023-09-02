@@ -12,7 +12,6 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
-use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 #[cfg(not(wasm_platform))]
 use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
@@ -324,10 +323,11 @@ impl<T> EventLoop<T> {
     }
 }
 
-unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.event_loop.window_target().p.raw_display_handle()
+#[cfg(feature = "rwh-0-5")]
+unsafe impl<T> rwh_0_5::HasRawDisplayHandle for EventLoop<T> {
+    /// Returns a [`rwh_0_5::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> rwh_0_5::RawDisplayHandle {
+        self.event_loop.window_target().p.rwh_0_5_display()
     }
 }
 
@@ -379,10 +379,11 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
-unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.p.raw_display_handle()
+#[cfg(feature = "rwh-0-5")]
+unsafe impl<T> rwh_0_5::HasRawDisplayHandle for EventLoopWindowTarget<T> {
+    /// Returns a [`rwh_0_5::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> rwh_0_5::RawDisplayHandle {
+        self.p.rwh_0_5_display()
     }
 }
 

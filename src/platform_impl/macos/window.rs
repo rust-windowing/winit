@@ -7,10 +7,6 @@ use std::os::raw::c_void;
 use std::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
-use raw_window_handle::{
-    AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -21,7 +17,6 @@ use crate::{
     platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
-        appkit::NSWindowOrderingMode,
         event_loop::EventLoopWindowTarget,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
@@ -47,7 +42,7 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 
@@ -453,13 +448,14 @@ impl WinitWindow {
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
         match attrs.parent_window {
-            Some(RawWindowHandle::AppKit(handle)) => {
+            #[cfg(feature = "rwh-0-5")]
+            Some(crate::window::ParentWindow::V0_5(rwh_0_5::RawWindowHandle::AppKit(handle))) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
                 let parent: Id<NSWindow> = match unsafe { Id::retain(handle.ns_window.cast()) } {
                     Some(window) => window,
                     None => {
                         // SAFETY: Caller ensures the pointer is valid or NULL
-                        let parent_view: Id<NSView> =
+                        let parent_view: Id<super::appkit::NSView> =
                             match unsafe { Id::retain(handle.ns_view.cast()) } {
                                 Some(view) => view,
                                 None => {
@@ -477,9 +473,11 @@ impl WinitWindow {
                 };
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
-                unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
+                unsafe {
+                    parent.addChildWindow(&this, super::appkit::NSWindowOrderingMode::NSWindowAbove)
+                };
             }
-            Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
+            Some(raw) => panic!("invalid raw window handle {raw:?} on macOS"),
             None => (),
         }
 
@@ -1348,16 +1346,18 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = AppKitWindowHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut window_handle = rwh_0_5::AppKitWindowHandle::empty();
         window_handle.ns_window = self as *const Self as *mut _;
         window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
-        RawWindowHandle::AppKit(window_handle)
+        rwh_0_5::RawWindowHandle::AppKit(window_handle)
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::AppKit(rwh_0_5::AppKitDisplayHandle::empty())
     }
 
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {

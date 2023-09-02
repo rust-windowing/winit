@@ -18,7 +18,6 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -540,8 +539,9 @@ impl<T> EventLoopWindowTarget<T> {
         Some(monitor)
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Windows(rwh_0_5::WindowsDisplayHandle::empty())
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {

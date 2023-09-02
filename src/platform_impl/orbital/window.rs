@@ -3,10 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use raw_window_handle::{
-    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
@@ -395,15 +391,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = OrbitalWindowHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut handle = rwh_0_5::OrbitalWindowHandle::empty();
         handle.window = self.window_socket.fd as *mut _;
-        RawWindowHandle::Orbital(handle)
+        rwh_0_5::RawWindowHandle::Orbital(handle)
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Orbital(rwh_0_5::OrbitalDisplayHandle::empty())
     }
 
     #[inline]

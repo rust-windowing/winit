@@ -10,7 +10,7 @@ fn main() -> Result<(), impl std::error::Error> {
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-        window::raw_window_handle::HasRawWindowHandle,
+        raw_window_handle_0_5::HasRawWindowHandle,
         window::{Window, WindowBuilder, WindowId},
     };
 
@@ -26,7 +26,7 @@ fn main() -> Result<(), impl std::error::Error> {
             .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
             .with_visible(true);
         // `with_parent_window` is unsafe. Parent window must be a valid window.
-        builder = unsafe { builder.with_parent_window(Some(parent)) };
+        builder = unsafe { builder.with_parent_rwh_0_5(Some(parent)) };
         let child_window = builder.build(event_loop).unwrap();
 
         let id = child_window.id();

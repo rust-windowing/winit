@@ -151,6 +151,12 @@ extern crate serde;
 #[macro_use]
 extern crate bitflags;
 
+#[cfg(feature = "rwh-0-4")]
+compile_error!("support for `raw-window-handle` v0.4 has been removed in this version of `winit`.\nIf you need it, don't hesitate to open an issue about it!");
+
+#[cfg(feature = "rwh-0-5")]
+pub extern crate rwh_0_5 as raw_window_handle_0_5;
+
 pub mod dpi;
 #[macro_use]
 pub mod error;

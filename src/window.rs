@@ -1,10 +1,6 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
-use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
@@ -17,9 +13,6 @@ pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
-
-#[doc(inline)]
-pub use raw_window_handle;
 
 /// Represents a window.
 ///
@@ -138,8 +131,15 @@ impl fmt::Debug for WindowBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum ParentWindow {
+    #[cfg(feature = "rwh-0-5")]
+    V0_5(rwh_0_5::RawWindowHandle),
+}
+
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
@@ -158,7 +158,8 @@ pub struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
-    pub parent_window: Option<RawWindowHandle>,
+    #[cfg_attr(not(feature = "rwh-0-5"), allow(dead_code))]
+    pub(crate) parent_window: Option<ParentWindow>,
     pub active: bool,
 }
 
@@ -464,8 +465,12 @@ impl WindowBuilder {
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[inline]
-    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
-        self.window.parent_window = parent_window;
+    #[cfg(feature = "rwh-0-5")]
+    pub unsafe fn with_parent_rwh_0_5(
+        mut self,
+        parent_window: Option<rwh_0_5::RawWindowHandle>,
+    ) -> Self {
+        self.window.parent_window = parent_window.map(ParentWindow::V0_5);
         self
     }
 
@@ -1463,8 +1468,9 @@ impl Window {
     }
 }
 
-unsafe impl HasRawWindowHandle for Window {
-    /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
+#[cfg(feature = "rwh-0-5")]
+unsafe impl rwh_0_5::HasRawWindowHandle for Window {
+    /// Returns a [`rwh_0_5::RawWindowHandle`] for the Window
     ///
     /// ## Platform-specific
     ///
@@ -1479,25 +1485,26 @@ unsafe impl HasRawWindowHandle for Window {
     ///
     /// [`Event::Resumed`]: crate::event::Event::Resumed
     /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        struct Wrapper(RawWindowHandle);
+    fn raw_window_handle(&self) -> rwh_0_5::RawWindowHandle {
+        struct Wrapper(rwh_0_5::RawWindowHandle);
         unsafe impl Send for Wrapper {}
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle()))
+            .maybe_wait_on_main(|w| Wrapper(w.rwh_0_5_window()))
             .0
     }
 }
 
-unsafe impl HasRawDisplayHandle for Window {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
+#[cfg(feature = "rwh-0-5")]
+unsafe impl rwh_0_5::HasRawDisplayHandle for Window {
+    /// Returns a [`rwh_0_5::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        struct Wrapper(RawDisplayHandle);
+    fn raw_display_handle(&self) -> rwh_0_5::RawDisplayHandle {
+        struct Wrapper(rwh_0_5::RawDisplayHandle);
         unsafe impl Send for Wrapper {}
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_display_handle()))
+            .maybe_wait_on_main(|w| Wrapper(w.rwh_0_5_display()))
             .0
     }
 }

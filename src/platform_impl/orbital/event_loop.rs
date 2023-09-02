@@ -10,7 +10,6 @@ use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
     ResizeEvent, ScrollEvent, TextInputEvent,
 };
-use raw_window_handle::{OrbitalDisplayHandle, RawDisplayHandle};
 
 use crate::{
     error::EventLoopError,
@@ -768,7 +767,8 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Orbital(rwh_0_5::OrbitalDisplayHandle::empty())
     }
 }

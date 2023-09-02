@@ -10,6 +10,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::enum_variant_names)]
 #![allow(non_upper_case_globals)]
+#![allow(unused_imports)]
 
 mod appearance;
 mod application;

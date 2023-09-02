@@ -5,8 +5,6 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 
-use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
-
 use super::runner::EventWrapper;
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
@@ -672,8 +670,9 @@ impl<T> EventLoopWindowTarget<T> {
         None
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Web(rwh_0_5::WebDisplayHandle::empty())
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {

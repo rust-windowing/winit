@@ -6,7 +6,6 @@ use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, Main
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
@@ -325,16 +324,18 @@ impl Inner {
         self.window.id()
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = UiKitWindowHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut window_handle = rwh_0_5::UiKitWindowHandle::empty();
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = Id::as_ptr(&self.view) as _;
         window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
-        RawWindowHandle::UiKit(window_handle)
+        rwh_0_5::RawWindowHandle::UiKit(window_handle)
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::UiKit(rwh_0_5::UiKitDisplayHandle::empty())
     }
 
     pub fn theme(&self) -> Option<Theme> {

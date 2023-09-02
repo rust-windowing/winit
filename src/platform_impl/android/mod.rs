@@ -15,9 +15,6 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use once_cell::sync::Lazy;
-use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -746,8 +743,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Android(rwh_0_5::AndroidDisplayHandle::empty())
     }
 }
 
@@ -972,16 +970,20 @@ impl Window {
         ))
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
         if let Some(native_window) = self.app.native_window().as_ref() {
+            // Note: When we have to do upgrade to `raw-window-handle` v0.6,
+            // we'll need to manually create the handle from this.
             native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         }
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::Android(rwh_0_5::AndroidDisplayHandle::empty())
     }
 
     pub fn config(&self) -> ConfigurationRef {

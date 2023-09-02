@@ -21,7 +21,6 @@ use icrate::Foundation::MainThreadMarker;
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::NSObjectProtocol;
 use objc2::{msg_send_id, ClassType};
-use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent, NSWindow};
 use crate::{
@@ -90,8 +89,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::AppKit(rwh_0_5::AppKitDisplayHandle::empty())
     }
 }
 

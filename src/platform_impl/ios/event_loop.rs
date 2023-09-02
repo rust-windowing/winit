@@ -16,7 +16,6 @@ use core_foundation::runloop::{
 };
 use icrate::Foundation::{MainThreadMarker, NSString};
 use objc2::ClassType;
-use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use crate::{
     error::EventLoopError,
@@ -49,8 +48,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        rwh_0_5::RawDisplayHandle::UiKit(rwh_0_5::UiKitDisplayHandle::empty())
     }
 }
 

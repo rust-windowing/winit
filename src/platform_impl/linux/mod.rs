@@ -11,7 +11,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
@@ -571,13 +570,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        x11_or_wayland!(match self; Window(window) => window.rwh_0_5_window())
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        x11_or_wayland!(match self; Window(window) => window.rwh_0_5_display())
     }
 
     #[inline]
@@ -829,8 +830,9 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.rwh_0_5_display())
     }
 }
 

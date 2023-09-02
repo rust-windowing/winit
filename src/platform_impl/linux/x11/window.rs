@@ -7,7 +7,6 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
     properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
@@ -109,6 +108,7 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
+#[cfg_attr(not(feature = "rwh-0-5"), allow(dead_code))]
 pub(crate) struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
@@ -144,8 +144,14 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         let root = match window_attrs.parent_window {
-            Some(RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
-            Some(RawWindowHandle::Xcb(handle)) => handle.window,
+            #[cfg(feature = "rwh-0-5")]
+            Some(crate::window::ParentWindow::V0_5(rwh_0_5::RawWindowHandle::Xlib(handle))) => {
+                handle.window as xproto::Window
+            }
+            #[cfg(feature = "rwh-0-5")]
+            Some(crate::window::ParentWindow::V0_5(rwh_0_5::RawWindowHandle::Xcb(handle))) => {
+                handle.window
+            }
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
             None => event_loop.root,
         };
@@ -1453,16 +1459,6 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn xlib_display(&self) -> *mut c_void {
-        self.xconn.display as _
-    }
-
-    #[inline]
-    pub fn xlib_window(&self) -> c_ulong {
-        self.xwindow as ffi::Window
-    }
-
-    #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let old_cursor = replace(&mut *self.cursor.lock().unwrap(), cursor);
         #[allow(clippy::mutex_atomic)]
@@ -1789,19 +1785,21 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = XlibWindowHandle::empty();
-        window_handle.window = self.xlib_window();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_window(&self) -> rwh_0_5::RawWindowHandle {
+        let mut window_handle = rwh_0_5::XlibWindowHandle::empty();
+        window_handle.window = self.xwindow as _;
         window_handle.visual_id = self.visual as c_ulong;
-        RawWindowHandle::Xlib(window_handle)
+        rwh_0_5::RawWindowHandle::Xlib(window_handle)
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
-        display_handle.display = self.xlib_display();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn rwh_0_5_display(&self) -> rwh_0_5::RawDisplayHandle {
+        let mut display_handle = rwh_0_5::XlibDisplayHandle::empty();
+        display_handle.display = self.xconn.display as _;
         display_handle.screen = self.screen_id;
-        RawDisplayHandle::Xlib(display_handle)
+        rwh_0_5::RawDisplayHandle::Xlib(display_handle)
     }
 
     #[inline]

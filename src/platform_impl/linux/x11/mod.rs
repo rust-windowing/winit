@@ -45,7 +45,6 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use atoms::*;
-use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::{
@@ -737,11 +736,12 @@ impl<T> EventLoopWindowTarget<T> {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
+    #[cfg(feature = "rwh-0-5")]
+    pub fn raw_display_handle(&self) -> rwh_0_5::RawDisplayHandle {
+        let mut display_handle = rwh_0_5::XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen = self.xconn.default_screen_index() as c_int;
-        RawDisplayHandle::Xlib(display_handle)
+        rwh_0_5::RawDisplayHandle::Xlib(display_handle)
     }
 }
 
