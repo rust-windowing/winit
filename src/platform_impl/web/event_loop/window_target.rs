@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
+use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 
@@ -12,7 +13,6 @@ use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
     device::DeviceId,
-    proxy::EventLoopProxy,
     runner,
     window::WindowId,
 };
@@ -43,8 +43,9 @@ impl Clone for ModifiersShared {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) runner: runner::Shared<T>,
+    pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
+    _marker: PhantomData<T>,
 }
 
 impl<T> Clone for EventLoopWindowTarget<T> {
@@ -52,6 +53,7 @@ impl<T> Clone for EventLoopWindowTarget<T> {
         Self {
             runner: self.runner.clone(),
             modifiers: self.modifiers.clone(),
+            _marker: PhantomData,
         }
     }
 }
@@ -61,14 +63,11 @@ impl<T> EventLoopWindowTarget<T> {
         Self {
             runner: runner::Shared::new(),
             modifiers: ModifiersShared::default(),
+            _marker: PhantomData,
         }
     }
 
-    pub fn proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.runner.clone())
-    }
-
-    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>, event_loop_recreation: bool) {
+    pub fn run(&self, event_handler: Box<runner::EventHandler>, event_loop_recreation: bool) {
         self.runner.event_loop_recreation(event_loop_recreation);
         self.runner.set_listener(event_handler);
     }

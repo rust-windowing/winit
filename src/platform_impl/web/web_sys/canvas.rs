@@ -463,10 +463,10 @@ impl Canvas {
         self.animation_frame_handler.request();
     }
 
-    pub(crate) fn handle_scale_change<T: 'static>(
+    pub(crate) fn handle_scale_change(
         &self,
-        runner: &super::super::event_loop::runner::Shared<T>,
-        event_handler: impl FnOnce(crate::event::Event<T>),
+        runner: &super::super::event_loop::runner::Shared,
+        event_handler: impl FnOnce(crate::event::Event<()>),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {
