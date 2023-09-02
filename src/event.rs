@@ -1072,7 +1072,6 @@ pub enum MouseScrollDelta {
 ///
 /// See [`InnerSizeWriter::request_inner_size`] for details.
 #[derive(Debug)] // Explicitly not other traits, in case we want to extend it in the future
-#[non_exhaustive]
 pub struct RequestIgnored {
     _priv: (),
 }
