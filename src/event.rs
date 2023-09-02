@@ -1104,9 +1104,8 @@ impl InnerSizeWriter {
     ///
     /// # Errors
     ///
-    /// This method returns an error when the request to change the inner size
-    /// of the window was ignored - likely because you tried to change the
-    /// inner size outside the event loop callback.
+    /// This method returns an error when the request was ignored because it
+    /// was done asynchronously, outside the event loop callback.
     pub fn request_inner_size(
         &mut self,
         new_inner_size: PhysicalSize<u32>,
