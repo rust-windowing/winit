@@ -5,6 +5,10 @@ use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
+// NOTE: This channel doesn't wake up when all senders or receivers are
+// dropped. This is acceptable as long as it's only used in `Dispatcher`, which
+// has it's own `Drop` behavior.
+
 pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let (sender, receiver) = mpsc::channel();
     let sender = Arc::new(Mutex::new(sender));
@@ -38,6 +42,11 @@ impl<T> AsyncSender<T> {
 
         Ok(())
     }
+
+    pub fn close(&self) {
+        self.inner.closed.store(true, Ordering::Relaxed);
+        self.inner.waker.wake()
+    }
 }
 
 impl<T> Clone for AsyncSender<T> {
@@ -45,17 +54,6 @@ impl<T> Clone for AsyncSender<T> {
         Self {
             sender: Arc::clone(&self.sender),
             inner: Arc::clone(&self.inner),
-        }
-    }
-}
-
-impl<T> Drop for AsyncSender<T> {
-    fn drop(&mut self) {
-        // If it's the last + the one held by the receiver make sure to wake it
-        // up and tell it that all receiver have dropped.
-        if Arc::strong_count(&self.inner) == 2 {
-            self.inner.closed.store(true, Ordering::Relaxed);
-            self.inner.waker.wake()
         }
     }
 }

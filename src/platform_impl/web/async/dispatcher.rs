@@ -75,3 +75,9 @@ impl<T> Dispatcher<T> {
         }
     }
 }
+
+impl<T> Drop for Dispatcher<T> {
+    fn drop(&mut self) {
+        self.0.with_sender_data(|sender| sender.close())
+    }
+}
