@@ -30,6 +30,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Android, fix `DeviceId` to contain device id's.
 - Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
 - On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
+- On iOS, add ability to change the status bar style.
 
 # 0.29.1-beta
 
