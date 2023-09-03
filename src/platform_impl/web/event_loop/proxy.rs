@@ -1,8 +1,6 @@
-use std::iter;
 use std::sync::mpsc::Sender;
 
 use super::runner;
-use crate::event::Event;
 use crate::event_loop::EventLoopClosed;
 use crate::platform_impl::platform::r#async::Waker;
 
@@ -12,14 +10,8 @@ pub struct EventLoopProxy<T: 'static> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn new(runner: runner::Shared, sender: Sender<T>) -> Self {
-        Self {
-            runner: Waker::new(runner, |runner, count| {
-                runner.send_events(iter::repeat(Event::UserEvent(())).take(count))
-            })
-            .unwrap(),
-            sender,
-        }
+    pub fn new(runner: Waker<runner::Shared>, sender: Sender<T>) -> Self {
+        Self { runner, sender }
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {

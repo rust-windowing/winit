@@ -94,6 +94,10 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
             }
         })
     }
+
+    pub fn with_sender_data<T>(&self, f: impl FnOnce(&S) -> T) -> T {
+        f(&self.sender_data)
+    }
 }
 
 impl<const SYNC: bool, V, S: Clone + Send, E> Clone for Wrapper<SYNC, V, S, E> {

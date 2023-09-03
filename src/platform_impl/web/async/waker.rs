@@ -5,10 +5,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
 
-pub struct Waker<T: 'static> {
-    wrapper: Wrapper<false, Handler<T>, Sender, usize>,
-    inner: Arc<Inner>,
-}
+pub struct WakerSpawner<T: 'static>(Wrapper<false, Handler<T>, Sender, usize>);
+
+pub struct Waker<T: 'static>(Wrapper<false, Handler<T>, Sender, usize>);
 
 struct Handler<T> {
     value: T,
@@ -18,16 +17,7 @@ struct Handler<T> {
 #[derive(Clone)]
 struct Sender(Arc<Inner>);
 
-impl Drop for Sender {
-    fn drop(&mut self) {
-        if Arc::strong_count(&self.0) == 1 {
-            self.0.closed.store(true, Ordering::Relaxed);
-            self.0.waker.wake();
-        }
-    }
-}
-
-impl<T> Waker<T> {
+impl<T> WakerSpawner<T> {
     #[track_caller]
     pub fn new(value: T, handler: fn(&T, usize)) -> Option<Self> {
         let inner = Arc::new(Inner {
@@ -91,20 +81,32 @@ impl<T> Waker<T> {
             },
         )?;
 
-        Some(Self { wrapper, inner })
+        Some(Self(wrapper))
     }
 
+    pub fn waker(&self) -> Waker<T> {
+        Waker(self.0.clone())
+    }
+}
+
+impl<T> Drop for WakerSpawner<T> {
+    fn drop(&mut self) {
+        self.0.with_sender_data(|inner| {
+            inner.0.closed.store(true, Ordering::Relaxed);
+            inner.0.waker.wake();
+        });
+    }
+}
+
+impl<T> Waker<T> {
     pub fn wake(&self) {
-        self.wrapper.send(1)
+        self.0.send(1)
     }
 }
 
 impl<T> Clone for Waker<T> {
     fn clone(&self) -> Self {
-        Self {
-            wrapper: self.wrapper.clone(),
-            inner: Arc::clone(&self.inner),
-        }
+        Self(self.0.clone())
     }
 }
 
