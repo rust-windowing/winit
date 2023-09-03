@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{SendError, Sender};
 
 use super::runner;
 use crate::event_loop::EventLoopClosed;
@@ -15,7 +15,9 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).unwrap();
+        self.sender
+            .send(event)
+            .map_err(|SendError(event)| EventLoopClosed(event))?;
         self.runner.wake();
         Ok(())
     }
