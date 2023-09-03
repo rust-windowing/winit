@@ -22,11 +22,11 @@ use wasm_bindgen::prelude::Closure;
 use web_sys::{Document, KeyboardEvent, PageTransitionEvent, PointerEvent, WheelEvent};
 use web_time::{Duration, Instant};
 
-pub struct Shared<T: 'static>(Rc<Execution<T>>);
+pub struct Shared(Rc<Execution>);
 
-pub(super) type EventHandler<T> = dyn FnMut(Event<T>, &mut ControlFlow);
+pub(super) type EventHandler = dyn FnMut(Event<()>, &mut ControlFlow);
 
-impl<T> Clone for Shared<T> {
+impl Clone for Shared {
     fn clone(&self) -> Self {
         Shared(self.0.clone())
     }
@@ -34,11 +34,11 @@ impl<T> Clone for Shared<T> {
 
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
-pub struct Execution<T: 'static> {
-    runner: RefCell<RunnerEnum<T>>,
+pub struct Execution {
+    runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
-    events: RefCell<VecDeque<EventWrapper<T>>>,
+    events: RefCell<VecDeque<EventWrapper>>,
     id: RefCell<u32>,
     window: web_sys::Window,
     document: Document,
@@ -57,19 +57,19 @@ pub struct Execution<T: 'static> {
     on_touch_end: OnEventHandle<web_sys::Event>,
 }
 
-enum RunnerEnum<T: 'static> {
+enum RunnerEnum {
     /// The `EventLoop` is created but not being run.
     Pending,
     /// The `EventLoop` is being run.
-    Running(Runner<T>),
+    Running(Runner),
     /// The `EventLoop` is exited after being started with `EventLoop::run`. Since
     /// `EventLoop::run` takes ownership of the `EventLoop`, we can be certain
     /// that this event loop will never be run again.
     Destroyed,
 }
 
-impl<T: 'static> RunnerEnum<T> {
-    fn maybe_runner(&self) -> Option<&Runner<T>> {
+impl RunnerEnum {
+    fn maybe_runner(&self) -> Option<&Runner> {
         match self {
             RunnerEnum::Running(runner) => Some(runner),
             _ => None,
@@ -77,13 +77,13 @@ impl<T: 'static> RunnerEnum<T> {
     }
 }
 
-struct Runner<T: 'static> {
+struct Runner {
     state: State,
-    event_handler: Box<EventHandler<T>>,
+    event_handler: Box<EventHandler>,
 }
 
-impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<EventHandler<T>>) -> Self {
+impl Runner {
+    pub fn new(event_handler: Box<EventHandler>) -> Self {
         Runner {
             state: State::Init,
             event_handler,
@@ -110,8 +110,8 @@ impl<T: 'static> Runner<T> {
 
     fn handle_single_event(
         &mut self,
-        runner: &Shared<T>,
-        event: impl Into<EventWrapper<T>>,
+        runner: &Shared,
+        event: impl Into<EventWrapper>,
         control: &mut ControlFlow,
     ) {
         let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
@@ -141,7 +141,7 @@ impl<T: 'static> Runner<T> {
     }
 }
 
-impl<T: 'static> Shared<T> {
+impl Shared {
     pub fn new() -> Self {
         #[allow(clippy::disallowed_methods)]
         let window = web_sys::window().expect("only callable from inside the `Window`");
@@ -194,7 +194,7 @@ impl<T: 'static> Shared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
-    pub fn set_listener(&self, event_handler: Box<EventHandler<T>>) {
+    pub fn set_listener(&self, event_handler: Box<EventHandler>) {
         {
             let mut runner = self.0.runner.borrow_mut();
             assert!(matches!(*runner, RunnerEnum::Pending));
@@ -457,7 +457,7 @@ impl<T: 'static> Shared<T> {
 
     pub fn request_redraw(&self, id: WindowId) {
         self.0.redraw_pending.borrow_mut().insert(id);
-        self.send_events::<EventWrapper<T>>(iter::empty());
+        self.send_events::<EventWrapper>(iter::empty());
     }
 
     pub fn init(&self) {
@@ -485,17 +485,14 @@ impl<T: 'static> Shared<T> {
     // Add an event to the event loop runner, from the user or an event handler
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub(crate) fn send_event<E: Into<EventWrapper<T>>>(&self, event: E) {
+    pub(crate) fn send_event<E: Into<EventWrapper>>(&self, event: E) {
         self.send_events(iter::once(event));
     }
 
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub(crate) fn send_events<E: Into<EventWrapper<T>>>(
-        &self,
-        events: impl IntoIterator<Item = E>,
-    ) {
+    pub(crate) fn send_events<E: Into<EventWrapper>>(&self, events: impl IntoIterator<Item = E>) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -573,7 +570,7 @@ impl<T: 'static> Shared<T> {
     // cleared
     //
     // This will also process any events that have been queued or that are queued during processing
-    fn run_until_cleared<E: Into<EventWrapper<T>>>(&self, events: impl Iterator<Item = E>) {
+    fn run_until_cleared<E: Into<EventWrapper>>(&self, events: impl Iterator<Item = E>) {
         let mut control = self.current_control_flow();
         for event in events {
             self.handle_event(event.into(), &mut control);
@@ -613,7 +610,7 @@ impl<T: 'static> Shared<T> {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from `run_until_cleared`.
-    fn handle_event(&self, event: impl Into<EventWrapper<T>>, control: &mut ControlFlow) {
+    fn handle_event(&self, event: impl Into<EventWrapper>, control: &mut ControlFlow) {
         if self.is_closed() {
             *control = ControlFlow::Exit;
         }
@@ -721,7 +718,7 @@ impl<T: 'static> Shared<T> {
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
         if self.0.event_loop_recreation.get() {
-            crate::event_loop::EventLoopBuilder::<T>::allow_event_loop_recreation();
+            crate::event_loop::EventLoopBuilder::<()>::allow_event_loop_recreation();
         }
     }
 
@@ -779,8 +776,8 @@ impl<T: 'static> Shared<T> {
     }
 }
 
-pub(crate) enum EventWrapper<T: 'static> {
-    Event(Event<T>),
+pub(crate) enum EventWrapper {
+    Event(Event<()>),
     ScaleChange {
         canvas: Weak<RefCell<backend::Canvas>>,
         size: PhysicalSize<u32>,
@@ -788,8 +785,8 @@ pub(crate) enum EventWrapper<T: 'static> {
     },
 }
 
-impl<T> From<Event<T>> for EventWrapper<T> {
-    fn from(value: Event<T>) -> Self {
+impl From<Event<()>> for EventWrapper {
+    fn from(value: Event<()>) -> Self {
         Self::Event(value)
     }
 }
