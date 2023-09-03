@@ -6,6 +6,7 @@ use objc2::rc::Id;
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
+    platform_impl::UIStatusBarStyle,
     window::{Window, WindowBuilder},
 };
 
@@ -74,6 +75,16 @@ pub trait WindowExtIOS {
     /// and then calls
     /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
     fn set_prefers_status_bar_hidden(&self, hidden: bool);
+
+    /// Sets whether the [`Window`] prefers the status bar hidden.
+    ///
+    /// The default is system-defined.
+    ///
+    /// This changes the value returned by
+    /// [`-[UIViewController preferredStatusBarStyle]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc),
+    /// and then calls
+    /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
+    fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle);
 }
 
 impl WindowExtIOS for Window {
@@ -106,6 +117,12 @@ impl WindowExtIOS for Window {
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         self.window
             .maybe_queue_on_main(move |w| w.set_prefers_status_bar_hidden(hidden))
+    }
+
+    #[inline]
+    fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle) {
+        self.window
+            .maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
 }
 
@@ -157,6 +174,14 @@ pub trait WindowBuilderExtIOS {
     /// This sets the initial value returned by
     /// [`-[UIViewController prefersStatusBarHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc).
     fn with_prefers_status_bar_hidden(self, hidden: bool) -> WindowBuilder;
+
+    /// Sets the style of the [`Window`]'s status bar.
+    ///
+    /// The default is system-defined.
+    ///
+    /// This sets the initial value returned by
+    /// [`-[UIViewController preferredStatusBarStyle]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc),
+    fn with_preferred_status_bar_style(self, status_bar_style: UIStatusBarStyle) -> WindowBuilder;
 }
 
 impl WindowBuilderExtIOS for WindowBuilder {
@@ -191,6 +216,15 @@ impl WindowBuilderExtIOS for WindowBuilder {
     #[inline]
     fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> WindowBuilder {
         self.platform_specific.prefers_status_bar_hidden = hidden;
+        self
+    }
+
+    #[inline]
+    fn with_preferred_status_bar_style(
+        mut self,
+        status_bar_style: UIStatusBarStyle,
+    ) -> WindowBuilder {
+        self.platform_specific.preferred_status_bar_style = status_bar_style;
         self
     }
 }

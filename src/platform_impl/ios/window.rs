@@ -9,7 +9,7 @@ use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::app_state::EventWrapper;
-use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
+use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation, UIStatusBarStyle};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
@@ -518,6 +518,11 @@ impl Inner {
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         self.view_controller.set_prefers_status_bar_hidden(hidden);
     }
+
+    pub fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle) {
+        self.view_controller
+            .set_preferred_status_bar_style(status_bar_style);
+    }
 }
 
 impl Inner {
@@ -626,5 +631,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
+    pub preferred_status_bar_style: UIStatusBarStyle,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }

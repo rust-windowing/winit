@@ -11,8 +11,8 @@ use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, Cl
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
-    UIResponder, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView, UIViewController,
-    UIWindow,
+    UIResponder, UIStatusBarStyle, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView,
+    UIViewController, UIWindow,
 };
 use super::window::WindowId;
 use crate::{
@@ -267,6 +267,7 @@ impl WinitView {
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
+    preferred_status_bar_style: Cell<UIStatusBarStyle>,
     prefers_home_indicator_auto_hidden: Cell<bool>,
     supported_orientations: Cell<UIInterfaceOrientationMask>,
     preferred_screen_edges_deferring_system_gestures: Cell<UIRectEdge>,
@@ -297,6 +298,7 @@ declare_class!(
                     &mut this.state,
                     Box::new(ViewControllerState {
                         prefers_status_bar_hidden: Cell::new(false),
+                        preferred_status_bar_style: Cell::new(UIStatusBarStyle::Default),
                         prefers_home_indicator_auto_hidden: Cell::new(false),
                         supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
                         preferred_screen_edges_deferring_system_gestures: Cell::new(
@@ -318,6 +320,11 @@ declare_class!(
         #[method(prefersStatusBarHidden)]
         fn prefers_status_bar_hidden(&self) -> bool {
             self.state.prefers_status_bar_hidden.get()
+        }
+
+        #[method(preferredStatusBarStyle)]
+        fn preferred_status_bar_style(&self) -> UIStatusBarStyle {
+            self.state.preferred_status_bar_style.get()
         }
 
         #[method(prefersHomeIndicatorAutoHidden)]
@@ -342,6 +349,11 @@ declare_class!(
 impl WinitViewController {
     pub(crate) fn set_prefers_status_bar_hidden(&self, val: bool) {
         self.state.prefers_status_bar_hidden.set(val);
+        self.setNeedsStatusBarAppearanceUpdate();
+    }
+
+    pub(crate) fn set_preferred_status_bar_style(&self, val: UIStatusBarStyle) {
+        self.state.preferred_status_bar_style.set(val);
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
@@ -402,6 +414,8 @@ impl WinitViewController {
         let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), init] };
 
         this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
+
+        this.set_preferred_status_bar_style(platform_attributes.preferred_status_bar_style);
 
         this.set_supported_interface_orientations(mtm, platform_attributes.valid_orientations);
 
