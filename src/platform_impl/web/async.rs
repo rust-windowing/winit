@@ -1,5 +1,5 @@
 use atomic_waker::AtomicWaker;
-use std::future;
+use std::future::{self, Future};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,18 +11,19 @@ use wasm_bindgen::{JsCast, JsValue};
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
-pub struct MainThreadSafe<const SYNC: bool, T: 'static, E: 'static> {
+pub struct MainThreadSafe<const SYNC: bool, T: 'static, S: Clone + Send, E> {
     // We wrap this in an `Arc` to allow it to be safely cloned without accessing the value.
     // The `RwLock` lets us safely drop in any thread.
     // The `Option` lets us safely drop `T` only in the main thread, while letting other threads drop `None`.
     value: Arc<RwLock<Option<T>>>,
     handler: fn(&RwLock<Option<T>>, E),
-    sender: AsyncSender<E>,
+    sender_data: S,
+    sender_handler: fn(&S, E),
     // Prevent's `Send` or `Sync` to be automatically implemented.
     local: PhantomData<*const ()>,
 }
 
-impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
+impl<const SYNC: bool, T, S: Clone + Send, E> MainThreadSafe<SYNC, T, S, E> {
     thread_local! {
         static MAIN_THREAD: bool = {
             #[wasm_bindgen]
@@ -40,7 +41,13 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
     }
 
     #[track_caller]
-    fn new(value: T, handler: fn(&RwLock<Option<T>>, E)) -> Option<Self> {
+    pub fn new<R: Future<Output = ()>>(
+        value: T,
+        handler: fn(&RwLock<Option<T>>, E),
+        receiver: impl 'static + FnOnce(Arc<RwLock<Option<T>>>) -> R,
+        sender_data: S,
+        sender_handler: fn(&S, E),
+    ) -> Option<Self> {
         Self::MAIN_THREAD.with(|safe| {
             if !safe {
                 panic!("only callable from inside the `Window`")
@@ -49,14 +56,10 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
 
         let value = Arc::new(RwLock::new(Some(value)));
 
-        let (sender, receiver) = channel::<E>();
-
         wasm_bindgen_futures::spawn_local({
             let value = Arc::clone(&value);
             async move {
-                while let Ok(event) = receiver.next().await {
-                    handler(&value, event)
-                }
+                receiver(Arc::clone(&value)).await;
 
                 // An error was returned because the channel was closed, which
                 // happens when all senders are dropped.
@@ -67,7 +70,8 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
         Some(Self {
             value,
             handler,
-            sender,
+            sender_data,
+            sender_handler,
             local: PhantomData,
         })
     }
@@ -77,7 +81,7 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
             if *is_main_thread {
                 (self.handler)(&self.value, event)
             } else {
-                self.sender.send(event).unwrap()
+                (self.sender_handler)(&self.sender_data, event)
             }
         })
     }
@@ -97,19 +101,20 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
     }
 }
 
-impl<const SYNC: bool, T, E> Clone for MainThreadSafe<SYNC, T, E> {
+impl<const SYNC: bool, T, S: Clone + Send, E> Clone for MainThreadSafe<SYNC, T, S, E> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
             handler: self.handler,
-            sender: self.sender.clone(),
+            sender_data: self.sender_data.clone(),
+            sender_handler: self.sender_handler,
             local: PhantomData,
         }
     }
 }
 
-unsafe impl<const SYNC: bool, T, E> Send for MainThreadSafe<SYNC, T, E> {}
-unsafe impl<T, E> Sync for MainThreadSafe<true, T, E> {}
+unsafe impl<const SYNC: bool, T, S: Clone + Send, E> Send for MainThreadSafe<SYNC, T, S, E> {}
+unsafe impl<T, S: Clone + Send + Sync, E> Sync for MainThreadSafe<true, T, S, E> {}
 
 fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let (sender, receiver) = mpsc::channel();
@@ -131,7 +136,7 @@ fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     (sender, receiver)
 }
 
-struct AsyncSender<T> {
+pub struct AsyncSender<T> {
     // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
     // be accessed on the main thread, as it could block. Additionally we need
     // to wrap it in an `Arc` to make it clonable on the main thread without
@@ -206,18 +211,36 @@ impl<T> AsyncReceiver<T> {
     }
 }
 
-pub struct Dispatcher<T: 'static>(MainThreadSafe<true, T, Closure<T>>);
+pub struct Dispatcher<T: 'static>(MainThreadSafe<true, T, AsyncSender<Closure<T>>, Closure<T>>);
 
 pub struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
     pub fn new(value: T) -> Option<Self> {
-        MainThreadSafe::new(value, |value, Closure(closure)| {
-            // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-            // funny with it here. See `Self::queue()`.
-            closure(value.read().unwrap().as_ref().unwrap())
-        })
+        let (sender, receiver) = channel::<Closure<T>>();
+
+        MainThreadSafe::new(
+            value,
+            |value, Closure(closure)| {
+                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+                // funny with it here. See `Self::queue()`.
+                closure(value.read().unwrap().as_ref().unwrap())
+            },
+            move |value| async move {
+                while let Ok(Closure(closure)) = receiver.next().await {
+                    // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+                    // funny with it here. See `Self::queue()`.
+                    closure(value.read().unwrap().as_ref().unwrap())
+                }
+            },
+            sender,
+            |sender, closure| {
+                // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+                // funny with it here. See `Self::queue()`.
+                sender.send(closure).unwrap()
+            },
+        )
         .map(Self)
     }
 
@@ -260,35 +283,49 @@ impl<T> Dispatcher<T> {
 }
 
 impl<T> Deref for Dispatcher<T> {
-    type Target = MainThreadSafe<true, T, Closure<T>>;
+    type Target = MainThreadSafe<true, T, AsyncSender<Closure<T>>, Closure<T>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-type ChannelValue<T, E> = MainThreadSafe<false, (T, fn(&T, E)), E>;
+type ChannelValue<T, E> = MainThreadSafe<false, (T, fn(&T, E)), AsyncSender<E>, E>;
 
-pub struct Channel<T: 'static, E: 'static>(ChannelValue<T, E>);
+pub struct Channel<T: 'static, E: 'static + Send>(ChannelValue<T, E>);
 
-impl<T, E> Channel<T, E> {
+impl<T, E: Send> Channel<T, E> {
     pub fn new(value: T, handler: fn(&T, E)) -> Option<Self> {
-        MainThreadSafe::new((value, handler), |runner, event| {
-            let lock = runner.read().unwrap();
-            let (value, handler) = lock.as_ref().unwrap();
-            handler(value, event);
-        })
+        let (sender, receiver) = channel::<E>();
+
+        MainThreadSafe::new(
+            (value, handler),
+            |lock, event| {
+                let lock = lock.read().unwrap();
+                let (value, handler) = lock.as_ref().unwrap();
+                handler(value, event)
+            },
+            move |lock| async move {
+                while let Ok(event) = receiver.next().await {
+                    let lock = lock.read().unwrap();
+                    let (value, handler) = lock.as_ref().unwrap();
+                    handler(value, event)
+                }
+            },
+            sender,
+            |sender, event| sender.send(event).unwrap(),
+        )
         .map(Self)
     }
 }
 
-impl<T, E> Clone for Channel<T, E> {
+impl<T, E: Send> Clone for Channel<T, E> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T, E> Deref for Channel<T, E> {
+impl<T, E: Send> Deref for Channel<T, E> {
     type Target = ChannelValue<T, E>;
 
     fn deref(&self) -> &Self::Target {
