@@ -8,19 +8,16 @@ use std::task::Poll;
 pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let (sender, receiver) = mpsc::channel();
     let sender = Arc::new(Mutex::new(sender));
-    let waker = Arc::new(AtomicWaker::new());
-    let closed = Arc::new(AtomicBool::new(false));
+    let inner = Arc::new(Inner {
+        closed: AtomicBool::new(false),
+        waker: AtomicWaker::new(),
+    });
 
     let sender = AsyncSender {
         sender,
-        closed: closed.clone(),
-        waker: Arc::clone(&waker),
+        inner: Arc::clone(&inner),
     };
-    let receiver = AsyncReceiver {
-        receiver,
-        closed,
-        waker,
-    };
+    let receiver = AsyncReceiver { receiver, inner };
 
     (sender, receiver)
 }
@@ -31,14 +28,13 @@ pub struct AsyncSender<T> {
     // to wrap it in an `Arc` to make it clonable on the main thread without
     // having to block.
     sender: Arc<Mutex<Sender<T>>>,
-    closed: Arc<AtomicBool>,
-    waker: Arc<AtomicWaker>,
+    inner: Arc<Inner>,
 }
 
 impl<T> AsyncSender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
         self.sender.lock().unwrap().send(event)?;
-        self.waker.wake();
+        self.inner.waker.wake();
 
         Ok(())
     }
@@ -47,9 +43,8 @@ impl<T> AsyncSender<T> {
 impl<T> Clone for AsyncSender<T> {
     fn clone(&self) -> Self {
         Self {
-            sender: self.sender.clone(),
-            waker: self.waker.clone(),
-            closed: self.closed.clone(),
+            sender: Arc::clone(&self.sender),
+            inner: Arc::clone(&self.inner),
         }
     }
 }
@@ -58,17 +53,16 @@ impl<T> Drop for AsyncSender<T> {
     fn drop(&mut self) {
         // If it's the last + the one held by the receiver make sure to wake it
         // up and tell it that all receiver have dropped.
-        if Arc::strong_count(&self.closed) == 2 {
-            self.closed.store(true, Ordering::Relaxed);
-            self.waker.wake()
+        if Arc::strong_count(&self.inner) == 2 {
+            self.inner.closed.store(true, Ordering::Relaxed);
+            self.inner.waker.wake()
         }
     }
 }
 
 pub struct AsyncReceiver<T> {
     receiver: Receiver<T>,
-    closed: Arc<AtomicBool>,
-    waker: Arc<AtomicWaker>,
+    inner: Arc<Inner>,
 }
 
 impl<T> AsyncReceiver<T> {
@@ -76,16 +70,16 @@ impl<T> AsyncReceiver<T> {
         future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
             Err(TryRecvError::Empty) => {
-                if self.closed.load(Ordering::Relaxed) {
+                if self.inner.closed.load(Ordering::Relaxed) {
                     return Poll::Ready(Err(RecvError));
                 }
 
-                self.waker.register(cx.waker());
+                self.inner.waker.register(cx.waker());
 
                 match self.receiver.try_recv() {
                     Ok(event) => Poll::Ready(Ok(event)),
                     Err(TryRecvError::Empty) => {
-                        if self.closed.load(Ordering::Relaxed) {
+                        if self.inner.closed.load(Ordering::Relaxed) {
                             Poll::Ready(Err(RecvError))
                         } else {
                             Poll::Pending
@@ -98,4 +92,9 @@ impl<T> AsyncReceiver<T> {
         })
         .await
     }
+}
+
+struct Inner {
+    closed: AtomicBool,
+    waker: AtomicWaker,
 }
