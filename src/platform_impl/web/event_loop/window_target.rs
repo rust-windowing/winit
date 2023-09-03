@@ -4,7 +4,6 @@ use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::atomic::Ordering;
 
 use super::runner::EventWrapper;
 use super::{
@@ -92,7 +91,7 @@ impl<T> EventLoopWindowTarget<T> {
         let has_focus = canvas.has_focus.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_blur(move || {
-            has_focus.store(false, Ordering::Relaxed);
+            has_focus.set(false);
 
             let clear_modifiers = (!modifiers.get().is_empty()).then(|| {
                 modifiers.set(ModifiersState::empty());
@@ -115,7 +114,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus = canvas.has_focus.clone();
         canvas.on_focus(move || {
-            if !has_focus.swap(true, Ordering::Relaxed) {
+            if !has_focus.replace(true) {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Focused(true),
@@ -204,15 +203,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -233,15 +230,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -263,7 +258,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -278,9 +273,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -307,9 +301,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -341,9 +334,8 @@ impl<T> EventLoopWindowTarget<T> {
                       position: crate::dpi::PhysicalPosition<f64>,
                       buttons,
                       button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -473,7 +465,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -488,9 +480,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, position, button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -528,9 +519,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, location, force| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -558,8 +548,7 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_mouse_wheel(
             move |pointer_id, delta, active_modifiers| {
-                let modifiers_changed = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
+                let modifiers_changed = (has_focus.get() && modifiers.get() != active_modifiers)
                     .then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {

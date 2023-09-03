@@ -10,7 +10,6 @@ use crate::platform::web::PollStrategy;
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
 
-use std::sync::atomic::Ordering;
 use std::{
     cell::{Cell, RefCell},
     clone::Clone,
@@ -736,7 +735,7 @@ impl Shared {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => self.0.all_canvases.borrow().iter().any(|(_, canvas)| {
                 if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().has_focus.load(Ordering::Relaxed)
+                    canvas.borrow().has_focus.get()
                 } else {
                     false
                 }

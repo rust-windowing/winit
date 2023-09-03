@@ -14,8 +14,6 @@ use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -27,7 +25,6 @@ pub struct Inner {
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
-    has_focus: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -51,14 +48,12 @@ impl Window {
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
-        let has_focus = canvas.borrow().has_focus.clone();
         let inner = Inner {
             id,
             window: window.clone(),
             canvas,
             previous_pointer: RefCell::new("auto"),
             destroy_fn: Some(destroy_fn),
-            has_focus,
         };
 
         inner.set_title(&attr.title);
@@ -414,7 +409,7 @@ impl Inner {
 
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.has_focus.load(Ordering::Relaxed)
+        self.canvas.borrow().has_focus.get()
     }
 
     pub fn title(&self) -> String {
