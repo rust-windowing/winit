@@ -6,19 +6,19 @@ use wasm_bindgen::{JsCast, JsValue};
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
-pub struct Wrapper<const SYNC: bool, T: 'static, S: Clone + Send, E> {
+pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
     // We wrap this in an `Arc` to allow it to be safely cloned without accessing the value.
     // The `RwLock` lets us safely drop in any thread.
     // The `Option` lets us safely drop `T` only in the main thread, while letting other threads drop `None`.
-    value: Arc<RwLock<Option<T>>>,
-    handler: fn(&RwLock<Option<T>>, E),
+    value: Arc<RwLock<Option<V>>>,
+    handler: fn(&RwLock<Option<V>>, E),
     sender_data: S,
     sender_handler: fn(&S, E),
     // Prevent's `Send` or `Sync` to be automatically implemented.
     local: PhantomData<*const ()>,
 }
 
-impl<const SYNC: bool, T, S: Clone + Send, E> Wrapper<SYNC, T, S, E> {
+impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     thread_local! {
         static MAIN_THREAD: bool = {
             #[wasm_bindgen]
@@ -37,9 +37,9 @@ impl<const SYNC: bool, T, S: Clone + Send, E> Wrapper<SYNC, T, S, E> {
 
     #[track_caller]
     pub fn new<R: Future<Output = ()>>(
-        value: T,
-        handler: fn(&RwLock<Option<T>>, E),
-        receiver: impl 'static + FnOnce(Arc<RwLock<Option<T>>>) -> R,
+        value: V,
+        handler: fn(&RwLock<Option<V>>, E),
+        receiver: impl 'static + FnOnce(Arc<RwLock<Option<V>>>) -> R,
         sender_data: S,
         sender_handler: fn(&S, E),
     ) -> Option<Self> {
@@ -81,11 +81,11 @@ impl<const SYNC: bool, T, S: Clone + Send, E> Wrapper<SYNC, T, S, E> {
         })
     }
 
-    pub(super) fn is_main_thread(&self) -> bool {
+    pub fn is_main_thread(&self) -> bool {
         Self::MAIN_THREAD.with(|is_main_thread| *is_main_thread)
     }
 
-    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
+    pub fn with<T>(&self, f: impl FnOnce(&V) -> T) -> Option<T> {
         Self::MAIN_THREAD.with(|is_main_thread| {
             if *is_main_thread {
                 Some(f(self.value.read().unwrap().as_ref().unwrap()))
@@ -96,7 +96,7 @@ impl<const SYNC: bool, T, S: Clone + Send, E> Wrapper<SYNC, T, S, E> {
     }
 }
 
-impl<const SYNC: bool, T, S: Clone + Send, E> Clone for Wrapper<SYNC, T, S, E> {
+impl<const SYNC: bool, V, S: Clone + Send, E> Clone for Wrapper<SYNC, V, S, E> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
@@ -108,5 +108,5 @@ impl<const SYNC: bool, T, S: Clone + Send, E> Clone for Wrapper<SYNC, T, S, E> {
     }
 }
 
-unsafe impl<const SYNC: bool, T, S: Clone + Send, E> Send for Wrapper<SYNC, T, S, E> {}
-unsafe impl<T, S: Clone + Send + Sync, E> Sync for Wrapper<true, T, S, E> {}
+unsafe impl<const SYNC: bool, V, S: Clone + Send, E> Send for Wrapper<SYNC, V, S, E> {}
+unsafe impl<V, S: Clone + Send + Sync, E> Sync for Wrapper<true, V, S, E> {}

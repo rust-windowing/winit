@@ -1,12 +1,9 @@
 use super::{channel, AsyncSender, Wrapper};
-use std::{
-    ops::Deref,
-    sync::{Arc, Condvar, Mutex},
-};
+use std::sync::{Arc, Condvar, Mutex};
 
 pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
 
-pub struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
+struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
@@ -37,8 +34,12 @@ impl<T> Dispatcher<T> {
         .map(Self)
     }
 
+    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
+        self.0.with(f)
+    }
+
     pub fn dispatch(&self, f: impl 'static + FnOnce(&T) + Send) {
-        if self.is_main_thread() {
+        if self.0.is_main_thread() {
             self.0.with(f).unwrap()
         } else {
             self.0.send(Closure(Box::new(f)))
@@ -46,7 +47,7 @@ impl<T> Dispatcher<T> {
     }
 
     pub fn queue<R: Send>(&self, f: impl FnOnce(&T) -> R + Send) -> R {
-        if self.is_main_thread() {
+        if self.0.is_main_thread() {
             self.0.with(f).unwrap()
         } else {
             let pair = Arc::new((Mutex::new(None), Condvar::new()));
@@ -72,13 +73,5 @@ impl<T> Dispatcher<T> {
 
             started.take().unwrap()
         }
-    }
-}
-
-impl<T> Deref for Dispatcher<T> {
-    type Target = Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }

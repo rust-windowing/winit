@@ -1,6 +1,5 @@
 use super::AsyncSender;
 use super::{channel, Wrapper};
-use std::ops::Deref;
 
 type WakerValue<T, E> = Wrapper<false, (T, fn(&T, E)), AsyncSender<E>, E>;
 
@@ -29,18 +28,14 @@ impl<T, E: Send> Waker<T, E> {
         )
         .map(Self)
     }
+
+    pub fn send(&self, event: E) {
+        self.0.send(event)
+    }
 }
 
 impl<T, E: Send> Clone for Waker<T, E> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
-    }
-}
-
-impl<T, E: Send> Deref for Waker<T, E> {
-    type Target = WakerValue<T, E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
