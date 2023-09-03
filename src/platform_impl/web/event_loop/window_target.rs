@@ -21,6 +21,7 @@ use crate::event::{
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
+use crate::platform::web::PollType;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 #[derive(Default)]
@@ -693,5 +694,13 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn exiting(&self) -> bool {
         self.runner.exiting()
+    }
+
+    pub(crate) fn set_poll_type(&self, poll_type: PollType) {
+        self.runner.set_poll_type(poll_type)
+    }
+
+    pub(crate) fn poll_type(&self) -> PollType {
+        self.runner.poll_type()
     }
 }

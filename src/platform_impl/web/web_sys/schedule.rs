@@ -6,41 +6,61 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AbortController, AbortSignal, MessageChannel, MessagePort};
 
+use crate::platform::web::PollType;
+
 #[derive(Debug)]
-pub struct Schedule(Inner);
+pub struct Schedule {
+    _closure: Closure<dyn FnMut()>,
+    inner: Inner,
+}
 
 #[derive(Debug)]
 enum Inner {
     Scheduler {
         controller: AbortController,
-        _closure: Closure<dyn FnMut()>,
+    },
+    IdleCallback {
+        window: web_sys::Window,
+        handle: u32,
     },
     Timeout {
         window: web_sys::Window,
         handle: i32,
         port: MessagePort,
-        _message_closure: Closure<dyn FnMut()>,
         _timeout_closure: Closure<dyn FnMut()>,
     },
 }
 
 impl Schedule {
-    pub fn new<F>(window: web_sys::Window, f: F, duration: Option<Duration>) -> Schedule
+    pub fn new<F>(poll_type: PollType, window: &web_sys::Window, f: F) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        if has_scheduler_support(&window) {
-            Self::new_scheduler(window, f, duration)
+        if poll_type == PollType::Scheduler && has_scheduler_support(window) {
+            Self::new_scheduler(window, f, None)
+        } else if poll_type == PollType::IdleCallback && has_idle_callback_support(window) {
+            Self::new_idle_callback(window.clone(), f)
         } else {
-            Self::new_timeout(window, f, duration)
+            Self::new_timeout(window.clone(), f, None)
         }
     }
 
-    fn new_scheduler<F>(window: web_sys::Window, f: F, duration: Option<Duration>) -> Schedule
+    pub fn new_with_duration<F>(window: &web_sys::Window, f: F, duration: Duration) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        let window: WindowSupportExt = window.unchecked_into();
+        if has_scheduler_support(window) {
+            Self::new_scheduler(window, f, Some(duration))
+        } else {
+            Self::new_timeout(window.clone(), f, Some(duration))
+        }
+    }
+
+    fn new_scheduler<F>(window: &web_sys::Window, f: F, duration: Option<Duration>) -> Schedule
+    where
+        F: 'static + FnMut(),
+    {
+        let window: &WindowSupportExt = window.unchecked_ref();
         let scheduler = window.scheduler();
 
         let closure = Closure::new(f);
@@ -61,10 +81,25 @@ impl Schedule {
                 .catch(handler);
         });
 
-        Schedule(Inner::Scheduler {
-            controller,
+        Schedule {
             _closure: closure,
-        })
+            inner: Inner::Scheduler { controller },
+        }
+    }
+
+    fn new_idle_callback<F>(window: web_sys::Window, f: F) -> Schedule
+    where
+        F: 'static + FnMut(),
+    {
+        let closure = Closure::new(f);
+        let handle = window
+            .request_idle_callback(closure.as_ref().unchecked_ref())
+            .expect("Failed to request idle callback");
+
+        Schedule {
+            _closure: closure,
+            inner: Inner::IdleCallback { window, handle },
+        }
     }
 
     fn new_timeout<F>(window: web_sys::Window, f: F, duration: Option<Duration>) -> Schedule
@@ -72,10 +107,10 @@ impl Schedule {
         F: 'static + FnMut(),
     {
         let channel = MessageChannel::new().unwrap();
-        let message_closure = Closure::new(f);
+        let closure = Closure::new(f);
         let port_1 = channel.port1();
         port_1
-            .add_event_listener_with_callback("message", message_closure.as_ref().unchecked_ref())
+            .add_event_listener_with_callback("message", closure.as_ref().unchecked_ref())
             .expect("Failed to set message handler");
         port_1.start();
 
@@ -95,20 +130,23 @@ impl Schedule {
         }
         .expect("Failed to set timeout");
 
-        Schedule(Inner::Timeout {
-            window,
-            handle,
-            port: port_1,
-            _message_closure: message_closure,
-            _timeout_closure: timeout_closure,
-        })
+        Schedule {
+            _closure: closure,
+            inner: Inner::Timeout {
+                window,
+                handle,
+                port: port_1,
+                _timeout_closure: timeout_closure,
+            },
+        }
     }
 }
 
 impl Drop for Schedule {
     fn drop(&mut self) {
-        match &self.0 {
+        match &self.inner {
             Inner::Scheduler { controller, .. } => controller.abort(),
+            Inner::IdleCallback { window, handle, .. } => window.cancel_idle_callback(*handle),
             Inner::Timeout {
                 window,
                 handle,
@@ -140,6 +178,27 @@ fn has_scheduler_support(window: &web_sys::Window) -> bool {
             let support: &SchedulerSupport = window.unchecked_ref();
 
             !support.has_scheduler().is_undefined()
+        })
+    })
+}
+
+fn has_idle_callback_support(window: &web_sys::Window) -> bool {
+    thread_local! {
+        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = OnceCell::new();
+    }
+
+    IDLE_CALLBACK_SUPPORT.with(|support| {
+        *support.get_or_init(|| {
+            #[wasm_bindgen]
+            extern "C" {
+                type IdleCallbackSupport;
+
+                #[wasm_bindgen(method, getter, js_name = requestIdleCallback)]
+                fn has_request_idle_callback(this: &IdleCallbackSupport) -> JsValue;
+            }
+
+            let support: &IdleCallbackSupport = window.unchecked_ref();
+            !support.has_request_idle_callback().is_undefined()
         })
     })
 }
