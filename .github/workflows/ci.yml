@@ -35,7 +35,7 @@ jobs:
           - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
           - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
-          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--features=android-native-activity' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
@@ -87,23 +87,11 @@ jobs:
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
 
-    - name: Cache cargo-apk
-      if: contains(matrix.platform.target, 'android')
-      id: cargo-apk-cache
-      uses: actions/cache@v3
+    - name: Install xbuild
+      uses: taiki-e/install-action
+      if: contains(matrix.platform.target, 'android') || contains(matrix.platform.target, 'ios')
       with:
-        path: ~/.cargo/bin/cargo-apk
-        # Change this key if we update the required cargo-apk version
-        key: cargo-apk-v0-9-7
-
-    - uses: dtolnay/rust-toolchain@master
-      if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
-      with:
-        toolchain: stable
-
-    - name: Install cargo-apk
-      if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
-      run: cargo install cargo-apk --version=^0.9.7 --locked
+        tool: xbuild@0.2.0
 
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -114,8 +102,16 @@ jobs:
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
 
-    - name: Build crate
-      run: cargo $CMD build $OPTIONS
+    - name: Build crate 
+      run: cargo build $OPTIONS
+
+    - name: Package crate for Android
+      if: contains(matrix.platform.target, 'android')
+      run: x build -p xbuild-target --platform android --arch arm64
+
+    - name: Package crate for iOS
+      if: contains(matrix.platform.target, 'ios')
+      run: x buikd -p xbuild-target --plaform ios --arch arm64
 
     - name: Build tests
       if: >
