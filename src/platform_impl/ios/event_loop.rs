@@ -70,7 +70,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         warn!("`ControlFlow::Exit` ignored on iOS");
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         false
     }
 }

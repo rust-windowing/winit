@@ -106,8 +106,8 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         AppState::exit()
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
-        AppState::is_exit()
+    pub(crate) fn exiting(&self) -> bool {
+        AppState::exiting()
     }
 }
 
@@ -418,7 +418,7 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                if AppState::is_exit() {
+                if AppState::exiting() {
                     AppState::internal_exit();
                     PumpStatus::Exit(0)
                 } else {

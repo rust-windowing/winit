@@ -37,7 +37,7 @@ impl<T> EventLoopWindowTarget<T> {
         self.exit.set(Some(0))
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         self.exit.get().is_some()
     }
 

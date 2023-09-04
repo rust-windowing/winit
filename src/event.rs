@@ -9,7 +9,7 @@
 //! ```rust,ignore
 //! let mut start_cause = StartCause::Init;
 //!
-//! while !elwt.is_exit() {
+//! while !elwt.exiting() {
 //!     event_handler(NewEvents(start_cause), elwt);
 //!
 //!     for e in (window events, user events, device events) {

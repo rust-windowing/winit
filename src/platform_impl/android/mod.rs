@@ -534,10 +534,10 @@ impl<T: 'static> EventLoop<T> {
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
-        if !self.is_exit() {
+        if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut callback);
         }
-        if self.is_exit() {
+        if self.exiting() {
             self.loop_running = false;
 
             callback(event::Event::LoopExiting, self.window_target());
@@ -645,8 +645,8 @@ impl<T: 'static> EventLoop<T> {
         self.window_target.p.control_flow()
     }
 
-    fn is_exit(&self) -> bool {
-        self.window_target.p.is_exit()
+    fn exiting(&self) -> bool {
+        self.window_target.p.exiting()
     }
 }
 
@@ -712,7 +712,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         self.exit.set(true)
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         self.exit.get()
     }
 }

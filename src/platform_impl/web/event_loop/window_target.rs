@@ -691,7 +691,7 @@ impl<T> EventLoopWindowTarget<T> {
         self.runner.exit()
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
-        self.runner.is_exit()
+    pub(crate) fn exiting(&self) -> bool {
+        self.runner.exiting()
     }
 }

@@ -175,7 +175,7 @@ pub enum ControlFlow {
 }
 
 impl ControlFlow {
-    /// Sets this to wait until a timeout has expired.
+    /// Creates a [`ControlFlow`] that waits until a timeout has expired.
     ///
     /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
     /// instead set to [`Wait`].
@@ -320,9 +320,9 @@ impl<T> EventLoopWindowTarget<T> {
         self.p.control_flow()
     }
 
-    /// Send a [`LoopExiting`] event and stop the event loop.
+    /// This exits the event loop.
     ///
-    /// [`LoopExiting`]: Event::LoopExiting
+    /// See [`LoopExiting`](Event::LoopExiting).
     pub fn exit(&self) {
         self.p.exit()
     }
@@ -330,8 +330,8 @@ impl<T> EventLoopWindowTarget<T> {
     /// Returns if the [`EventLoop`] is about to stop.
     ///
     /// See [`exit()`](Self::exit).
-    pub fn is_exit(&self) -> bool {
-        self.p.is_exit()
+    pub fn exiting(&self) -> bool {
+        self.p.exiting()
     }
 }
 

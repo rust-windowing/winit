@@ -598,7 +598,7 @@ impl<T: 'static> EventLoop<T> {
 
             event_handler(event::Event::AboutToWait, &self.window_target);
 
-            if self.window_target.p.is_exit() {
+            if self.window_target.p.exiting() {
                 break;
             }
 
@@ -752,7 +752,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         self.exit.set(true);
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         self.exit.get()
     }
 }

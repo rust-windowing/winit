@@ -238,7 +238,7 @@ impl<T: 'static> EventLoop<T> {
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
-        if !self.is_exit() {
+        if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut callback);
         }
         if let Some(code) = self.exit_code() {
@@ -619,8 +619,8 @@ impl<T: 'static> EventLoop<T> {
         self.window_target.p.control_flow()
     }
 
-    fn is_exit(&self) -> bool {
-        self.window_target.p.is_exit()
+    fn exiting(&self) -> bool {
+        self.window_target.p.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {

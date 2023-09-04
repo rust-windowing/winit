@@ -20,7 +20,7 @@ pub enum State {
 }
 
 impl State {
-    pub fn is_exit(&self) -> bool {
+    pub fn exiting(&self) -> bool {
         matches!(self, State::Exit)
     }
 }

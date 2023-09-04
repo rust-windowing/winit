@@ -210,7 +210,7 @@ impl Handler {
         self.exit.store(true, Ordering::Relaxed)
     }
 
-    pub fn is_exit(&self) -> bool {
+    pub fn exiting(&self) -> bool {
         self.exit.load(Ordering::Relaxed)
     }
 
@@ -429,8 +429,8 @@ impl AppState {
         HANDLER.exit()
     }
 
-    pub fn is_exit() -> bool {
-        HANDLER.is_exit()
+    pub fn exiting() -> bool {
+        HANDLER.exiting()
     }
 
     pub fn dispatch_init_events() {
@@ -640,7 +640,7 @@ impl AppState {
         HANDLER.handle_nonuser_event(Event::AboutToWait);
         HANDLER.set_in_callback(false);
 
-        if HANDLER.is_exit() {
+        if HANDLER.exiting() {
             Self::stop();
         }
 

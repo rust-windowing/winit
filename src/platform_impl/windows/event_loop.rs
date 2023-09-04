@@ -554,7 +554,7 @@ impl<T> EventLoopWindowTarget<T> {
         self.runner_shared.set_exit_code(0)
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         self.runner_shared.exit_code().is_some()
     }
 

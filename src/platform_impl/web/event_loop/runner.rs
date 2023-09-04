@@ -610,7 +610,7 @@ impl Shared {
             RunnerEnum::Destroyed => return,
         }
 
-        let is_closed = self.is_exit();
+        let is_closed = self.exiting();
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
@@ -627,7 +627,7 @@ impl Shared {
     // Apply the new ControlFlow that has been selected by the user
     // Start any necessary timeouts etc
     fn apply_control_flow(&self) {
-        let new_state = if self.is_exit() {
+        let new_state = if self.exiting() {
             State::Exit
         } else {
             match self.control_flow() {
@@ -713,7 +713,7 @@ impl Shared {
     // Check if the event loop is currently closed
     fn is_closed(&self) -> bool {
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
-            Ok(RunnerEnum::Running(runner)) => runner.state.is_exit(),
+            Ok(RunnerEnum::Running(runner)) => runner.state.exiting(),
             // The event loop is not closed since it is not initialized.
             Ok(RunnerEnum::Pending) => false,
             // The event loop is closed since it has been destroyed.
@@ -766,7 +766,7 @@ impl Shared {
         self.0.exit.set(true)
     }
 
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn exiting(&self) -> bool {
         self.0.exit.get()
     }
 }
