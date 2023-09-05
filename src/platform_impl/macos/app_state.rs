@@ -6,29 +6,24 @@ use std::{
     rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        mpsc, Arc, Mutex, MutexGuard,
     },
     time::Instant,
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
 use icrate::Foundation::{is_main_thread, NSSize};
-use objc2::rc::autoreleasepool;
+use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
 use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent};
+use super::{
+    event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never, window::WinitWindow,
+};
 use crate::{
-    dpi::LogicalSize,
+    dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform_impl::platform::{
-        event::{EventProxy, EventWrapper},
-        event_loop::PanicInfo,
-        menu,
-        observer::EventLoopWaker,
-        util::Never,
-        window::WinitWindow,
-    },
     window::WindowId,
 };
 
@@ -54,6 +49,7 @@ pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
     window_target: Rc<RootWindowTarget<T>>,
+    receiver: Rc<mpsc::Receiver<T>>,
 }
 
 impl<T> EventLoopHandler<T> {
@@ -103,7 +99,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
-            for event in this.window_target.p.receiver.try_iter() {
+            for event in this.receiver.try_iter() {
                 if let ControlFlow::ExitWithCode(code) = *control_flow {
                     // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
                     let dummy = &mut ControlFlow::ExitWithCode(code);
@@ -114,6 +110,16 @@ impl<T> EventHandler for EventLoopHandler<T> {
             }
         });
     }
+}
+
+#[derive(Debug)]
+enum EventWrapper {
+    StaticEvent(Event<Never>),
+    ScaleFactorChanged {
+        window: Id<WinitWindow>,
+        suggested_size: PhysicalSize<u32>,
+        scale_factor: f64,
+    },
 }
 
 #[derive(Default)]
@@ -313,14 +319,9 @@ impl Handler {
         self.callback.lock().unwrap().is_some()
     }
 
-    fn handle_nonuser_event(&self, wrapper: EventWrapper) {
+    fn handle_nonuser_event(&self, event: Event<Never>) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            match wrapper {
-                EventWrapper::StaticEvent(event) => {
-                    callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
-                }
-                EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
-            }
+            callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
         }
     }
 
@@ -332,41 +333,27 @@ impl Handler {
 
     fn handle_scale_factor_changed_event(
         &self,
-        callback: &mut Box<dyn EventHandler + 'static>,
         window: &WinitWindow,
-        suggested_size: LogicalSize<f64>,
+        suggested_size: PhysicalSize<u32>,
         scale_factor: f64,
     ) {
-        let new_inner_size = Arc::new(Mutex::new(suggested_size.to_physical(scale_factor)));
-        let event = Event::WindowEvent {
-            window_id: WindowId(window.id()),
-            event: WindowEvent::ScaleFactorChanged {
-                scale_factor,
-                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
-            },
-        };
+        if let Some(ref mut callback) = *self.callback.lock().unwrap() {
+            let new_inner_size = Arc::new(Mutex::new(suggested_size));
+            let event = Event::WindowEvent {
+                window_id: WindowId(window.id()),
+                event: WindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                },
+            };
 
-        callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
+            callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
 
-        let physical_size = *new_inner_size.lock().unwrap();
-        drop(new_inner_size);
-        let logical_size = physical_size.to_logical(scale_factor);
-        let size = NSSize::new(logical_size.width, logical_size.height);
-        window.setContentSize(size);
-    }
-
-    fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
-        match proxy {
-            EventProxy::DpiChangedProxy {
-                window,
-                suggested_size,
-                scale_factor,
-            } => self.handle_scale_factor_changed_event(
-                callback,
-                &window,
-                suggested_size,
-                scale_factor,
-            ),
+            let physical_size = *new_inner_size.lock().unwrap();
+            drop(new_inner_size);
+            let logical_size = physical_size.to_logical(scale_factor);
+            let size = NSSize::new(logical_size.width, logical_size.height);
+            window.setContentSize(size);
         }
     }
 }
@@ -387,10 +374,12 @@ impl AppState {
     pub unsafe fn set_callback<T>(
         callback: Weak<Callback<T>>,
         window_target: Rc<RootWindowTarget<T>>,
+        receiver: Rc<mpsc::Receiver<T>>,
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
             window_target,
+            receiver,
         }));
     }
 
@@ -435,7 +424,7 @@ impl AppState {
 
     pub fn exit() -> i32 {
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopExiting));
+        HANDLER.handle_nonuser_event(Event::LoopExiting);
         HANDLER.set_in_callback(false);
         HANDLER.exit();
         Self::clear_callback();
@@ -448,12 +437,10 @@ impl AppState {
 
     pub fn dispatch_init_events() {
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
-            StartCause::Init,
-        )));
+        HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));
         // NB: For consistency all platforms must emit a 'resumed' event even though macOS
         // applications don't themselves have a formal suspend/resume lifecycle.
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed));
+        HANDLER.handle_nonuser_event(Event::Resumed);
         HANDLER.set_in_callback(false);
     }
 
@@ -544,7 +531,7 @@ impl AppState {
             ControlFlow::ExitWithCode(_) => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(cause)));
+        HANDLER.handle_nonuser_event(Event::NewEvents(cause));
         HANDLER.set_in_callback(false);
     }
 
@@ -564,8 +551,10 @@ impl AppState {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
         if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
-            HANDLER
-                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.handle_nonuser_event(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            });
             HANDLER.set_in_callback(false);
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
@@ -576,11 +565,25 @@ impl AppState {
         }
     }
 
-    pub fn queue_event(wrapper: EventWrapper) {
+    pub fn queue_event(event: Event<Never>) {
         if !is_main_thread() {
-            panic!("Event queued from different thread: {wrapper:#?}");
+            panic!("Event queued from different thread: {event:#?}");
         }
-        HANDLER.events().push_back(wrapper);
+        HANDLER.events().push_back(EventWrapper::StaticEvent(event));
+    }
+
+    pub fn queue_static_scale_factor_changed_event(
+        window: Id<WinitWindow>,
+        suggested_size: PhysicalSize<u32>,
+        scale_factor: f64,
+    ) {
+        HANDLER
+            .events()
+            .push_back(EventWrapper::ScaleFactorChanged {
+                window,
+                suggested_size,
+                scale_factor,
+            });
     }
 
     pub fn stop() {
@@ -612,15 +615,32 @@ impl AppState {
         HANDLER.set_in_callback(true);
         HANDLER.handle_user_events();
         for event in HANDLER.take_events() {
-            HANDLER.handle_nonuser_event(event);
+            match event {
+                EventWrapper::StaticEvent(event) => {
+                    HANDLER.handle_nonuser_event(event);
+                }
+                EventWrapper::ScaleFactorChanged {
+                    window,
+                    suggested_size,
+                    scale_factor,
+                } => {
+                    HANDLER.handle_scale_factor_changed_event(
+                        &window,
+                        suggested_size,
+                        scale_factor,
+                    );
+                }
+            }
         }
 
         for window_id in HANDLER.should_redraw() {
-            HANDLER
-                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+            HANDLER.handle_nonuser_event(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            });
         }
 
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::AboutToWait));
+        HANDLER.handle_nonuser_event(Event::AboutToWait);
         HANDLER.set_in_callback(false);
 
         if HANDLER.should_exit() {

@@ -8,6 +8,18 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
+- Fix window size sometimes being invalid when resizing on macOS.
+- On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
+- On Web, never return a `MonitorHandle`.
+- **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
+- On macOS, fix crash in `window.set_minimized(false)`.
+- On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
+- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
+- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
+- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
+- Mark `startup_notify` unsafe functions as safe.
+- Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
 - **Breaking**: ButtonIds in Button DeviceEvent now matches MouseButton enum on Windows and X11
 - Add horizontal MouseWheel DeviceEvent on Windows
 

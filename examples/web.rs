@@ -65,7 +65,10 @@ mod wasm {
 
     use softbuffer::{Surface, SurfaceExtWeb};
     use wasm_bindgen::prelude::*;
-    use winit::{event::Event, window::Window};
+    use winit::{
+        event::{Event, WindowEvent},
+        window::Window,
+    };
 
     #[wasm_bindgen(start)]
     pub fn run() {
@@ -116,6 +119,10 @@ mod wasm {
         // So we implement this basic logging system into the page to give developers an easy alternative.
         // As a bonus its also kind of handy on desktop.
         let event = match event {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => None,
             Event::WindowEvent { event, .. } => Some(format!("{event:?}")),
             Event::Resumed | Event::Suspended => Some(format!("{event:?}")),
             _ => None,

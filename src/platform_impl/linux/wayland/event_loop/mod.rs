@@ -19,7 +19,9 @@ use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, DeviceEvents, EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::platform::sticky_exit_callback;
@@ -580,7 +582,10 @@ impl<T: 'static> EventLoop<T> {
 
             if request_redraw {
                 sticky_exit_callback(
-                    Event::RedrawRequested(crate::window::WindowId(window_id)),
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::RedrawRequested,
+                    },
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,
@@ -678,6 +683,9 @@ pub struct EventLoopWindowTarget<T> {
 }
 
 impl<T> EventLoopWindowTarget<T> {
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         let mut display_handle = WaylandDisplayHandle::empty();
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;

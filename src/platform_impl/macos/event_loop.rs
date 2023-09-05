@@ -19,6 +19,7 @@ use core_foundation::runloop::{
 };
 use icrate::Foundation::MainThreadMarker;
 use objc2::rc::{autoreleasepool, Id};
+use objc2::runtime::NSObjectProtocol;
 use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
@@ -26,7 +27,9 @@ use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{
+        ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget,
+    },
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
     platform_impl::platform::{
         app::WinitApplication,
@@ -65,9 +68,10 @@ impl PanicInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub receiver: mpsc::Receiver<T>,
     mtm: MainThreadMarker,
+    p: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
@@ -81,6 +85,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         let monitor = monitor::primary_monitor();
         Some(monitor)
     }
+
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     #[inline]
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
@@ -107,14 +114,21 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    /// Store a reference to the application for convenience.
+    ///
+    /// We intentially don't store `WinitApplication` since we want to have
+    /// the possiblity of swapping that out at some point.
+    app: Id<NSApplication>,
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
     _delegate: Id<ApplicationDelegate>,
 
+    // Event sender and receiver, used for EventLoopProxy.
     sender: mpsc::Sender<T>,
+    receiver: Rc<mpsc::Receiver<T>>,
+
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
-    mtm: MainThreadMarker,
 
     /// We make sure that the callback closure is dropped during a panic
     /// by making the event loop own it.
@@ -147,14 +161,14 @@ impl<T> EventLoop<T> {
         attributes: &PlatformSpecificEventLoopAttributes,
     ) -> Result<Self, EventLoopError> {
         let mtm = MainThreadMarker::new()
-            .expect("On macOS, `EventLoop` must be created on the main thread!");
+            .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        // This must be done before `NSApp()` (equivalent to sending
-        // `sharedApplication`) is called anywhere else, or we'll end up
-        // with the wrong `NSApplication` class and the wrong thread could
-        // be marked as main.
-        let app: Id<WinitApplication> =
+        let app: Id<NSApplication> =
             unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
+
+        if !app.is_kind_of::<WinitApplication>() {
+            panic!("`winit` requires control over the principal class. You must create the event loop before other parts of your application initialize NSApplication");
+        }
 
         use NSApplicationActivationPolicy::*;
         let activation_policy = match attributes.activation_policy {
@@ -177,13 +191,17 @@ impl<T> EventLoop<T> {
 
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
+            app,
             _delegate: delegate,
             sender,
+            receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget { receiver, mtm },
+                p: EventLoopWindowTarget {
+                    mtm,
+                    p: PhantomData,
+                },
                 _marker: PhantomData,
             }),
-            mtm,
             panic_info,
             _callback: None,
         })
@@ -231,8 +249,6 @@ impl<T> EventLoop<T> {
         self._callback = Some(Rc::clone(&callback));
 
         let exit_code = autoreleasepool(|_| {
-            let app = NSApplication::shared(self.mtm);
-
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
@@ -241,7 +257,11 @@ impl<T> EventLoop<T> {
             // # Safety
             // We make sure to call `AppState::clear_callback` before returning
             unsafe {
-                AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
+                AppState::set_callback(
+                    weak_cb,
+                    Rc::clone(&self.window_target),
+                    Rc::clone(&self.receiver),
+                );
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
@@ -257,7 +277,7 @@ impl<T> EventLoop<T> {
                     debug_assert!(!AppState::is_running());
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 }
-                unsafe { app.run() };
+                unsafe { self.app.run() };
 
                 // While the app is running it's possible that we catch a panic
                 // to avoid unwinding across an objective-c ffi boundary, which
@@ -326,7 +346,11 @@ impl<T> EventLoop<T> {
             // to ensure that we don't hold on to the callback beyond its (erased)
             // lifetime
             unsafe {
-                AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
+                AppState::set_callback(
+                    weak_cb,
+                    Rc::clone(&self.window_target),
+                    Rc::clone(&self.receiver),
+                );
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback

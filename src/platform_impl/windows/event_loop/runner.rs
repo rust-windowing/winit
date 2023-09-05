@@ -198,7 +198,11 @@ impl<T> EventLoopRunner<T> {
     }
 
     pub(crate) fn send_event(&self, event: Event<T>) {
-        if let Event::RedrawRequested(_) = event {
+        if let Event::WindowEvent {
+            event: WindowEvent::RedrawRequested,
+            ..
+        } = event
+        {
             self.call_event_handler(event);
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to

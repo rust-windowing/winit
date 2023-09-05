@@ -23,7 +23,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, InnerSizeWriter, StartCause},
-    event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
+    event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
@@ -407,7 +407,10 @@ impl<T: 'static> EventLoop<T> {
             pending_redraw |= self.redraw_flag.get_and_reset();
             if pending_redraw {
                 pending_redraw = false;
-                let event = event::Event::RedrawRequested(window::WindowId(WindowId));
+                let event = event::Event::WindowEvent {
+                    window_id: window::WindowId(WindowId),
+                    event: event::WindowEvent::RedrawRequested,
+                };
                 sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
             }
         }
@@ -740,6 +743,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         v
     }
 
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Android(AndroidDisplayHandle::empty())
     }
@@ -991,6 +997,8 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         None
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     pub fn has_focus(&self) -> bool {
         *HAS_FOCUS.read().unwrap()

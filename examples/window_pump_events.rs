@@ -48,7 +48,10 @@ fn main() -> std::process::ExitCode {
                 Event::AboutToWait => {
                     window.request_redraw();
                 }
-                Event::RedrawRequested(_) => {
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
                     fill::fill_window(&window);
                 }
                 _ => (),

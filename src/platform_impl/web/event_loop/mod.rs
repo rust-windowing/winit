@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
@@ -16,6 +17,8 @@ pub use window_target::EventLoopWindowTarget;
 
 pub struct EventLoop<T: 'static> {
     elw: RootEventLoopWindowTarget<T>,
+    user_event_sender: Sender<T>,
+    user_event_receiver: Receiver<T>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -23,11 +26,14 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        let (user_event_sender, user_event_receiver) = mpsc::channel();
         Ok(EventLoop {
             elw: RootEventLoopWindowTarget {
                 p: EventLoopWindowTarget::new(),
                 _marker: PhantomData,
             },
+            user_event_sender,
+            user_event_receiver,
         })
     }
 
@@ -41,8 +47,18 @@ impl<T> EventLoop<T> {
         };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(_, _)> =
-            Box::new(|event, flow| event_handler(event, &target, flow));
+        let handler: Box<dyn FnMut(Event<()>, _)> = Box::new(|event, flow| {
+            let event = match event.map_nonuser_event() {
+                Ok(event) => event,
+                Err(Event::UserEvent(())) => Event::UserEvent(
+                    self.user_event_receiver
+                        .try_recv()
+                        .expect("handler woken up without user event"),
+                ),
+                Err(_) => unreachable!(),
+            };
+            event_handler(event, &target, flow)
+        });
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
@@ -68,13 +84,24 @@ impl<T> EventLoop<T> {
         };
 
         self.elw.p.run(
-            Box::new(move |event, flow| event_handler(event, &target, flow)),
+            Box::new(move |event, flow| {
+                let event = match event.map_nonuser_event() {
+                    Ok(event) => event,
+                    Err(Event::UserEvent(())) => Event::UserEvent(
+                        self.user_event_receiver
+                            .try_recv()
+                            .expect("handler woken up without user event"),
+                    ),
+                    Err(_) => unreachable!(),
+                };
+                event_handler(event, &target, flow)
+            }),
             true,
         );
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        self.elw.p.proxy()
+        EventLoopProxy::new(self.elw.p.runner.clone(), self.user_event_sender.clone())
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {

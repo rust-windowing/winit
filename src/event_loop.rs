@@ -355,7 +355,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland:** Always returns `None`.
+    /// **Wayland / Web:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p
@@ -374,9 +374,8 @@ impl<T> EventLoopWindowTarget<T> {
     /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
-        #[cfg(any(x11_platform, wasm_platform, wayland_platform, windows))]
-        self.p.listen_device_events(_allowed);
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.p.listen_device_events(allowed);
     }
 }
 

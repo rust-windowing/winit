@@ -48,8 +48,8 @@ impl WindowExtWebSys for Window {
 }
 
 pub trait WindowBuilderExtWebSys {
-    /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`](crate::window::Window). If
-    /// [`None`], [`WindowBuilder::build()`] will create one.
+    /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`]. If [`None`],
+    /// [`WindowBuilder::build()`] will create one.
     ///
     /// In any case, the canvas won't be automatically inserted into the web page.
     ///

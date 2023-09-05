@@ -10,12 +10,11 @@ use std::{
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
-    properties::WmHintsState,
-    protocol::xproto::{self, ConnectionExt as _},
-};
-use x11rb::{
-    properties::{WmHints, WmSizeHints, WmSizeHintsSpecification},
-    protocol::xinput,
+    properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
+    protocol::{
+        randr, xinput,
+        xproto::{self, ConnectionExt as _},
+    },
 };
 
 use crate::{
@@ -24,11 +23,11 @@ use crate::{
     event_loop::AsyncRequestSerial,
     platform_impl::{
         x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
         WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -55,7 +54,7 @@ pub struct SharedState {
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
-    pub desktop_video_mode: Option<(ffi::RRCrtc, ffi::RRMode)>,
+    pub desktop_video_mode: Option<(randr::Crtc, randr::Mode)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -151,7 +150,7 @@ impl UnownedWindow {
             None => event_loop.root,
         };
 
-        let mut monitors = xconn.available_monitors();
+        let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
             X11MonitorHandle::dummy()
         } else {
@@ -470,7 +469,7 @@ impl UnownedWindow {
 
             // Set window icons
             if let Some(icon) = window_attrs.window_icon {
-                leap!(window.set_icon_inner(icon)).ignore_error();
+                leap!(window.set_icon_inner(icon.inner)).ignore_error();
             }
 
             // Opt into handling window close
@@ -524,7 +523,7 @@ impl UnownedWindow {
                 | xinput::XIEventMask::TOUCH_BEGIN
                 | xinput::XIEventMask::TOUCH_UPDATE
                 | xinput::XIEventMask::TOUCH_END;
-            leap!(xconn.select_xinput_events(window.xwindow, ffi::XIAllMasterDevices as u16, mask))
+            leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
                 .ignore_error();
 
             {
@@ -740,8 +739,12 @@ impl UnownedWindow {
                 &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
-                shared_state_lock.desktop_video_mode =
-                    Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
+                shared_state_lock.desktop_video_mode = Some((
+                    monitor.id,
+                    self.xconn
+                        .get_crtc_mode(monitor.id)
+                        .expect("Failed to get desktop video mode"),
+                ));
             }
             // Restore desktop video mode upon exiting exclusive fullscreen
             (&Some(Fullscreen::Exclusive(_)), &None)
@@ -775,7 +778,9 @@ impl UnownedWindow {
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
                         (None, monitor)
                     }
-                    Fullscreen::Borderless(None) => (None, self.current_monitor()),
+                    Fullscreen::Borderless(None) => {
+                        (None, self.shared_state_lock().last_monitor.clone())
+                    }
                     #[cfg(wayland_platform)]
                     _ => unreachable!(),
                 };
@@ -871,17 +876,22 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn current_monitor(&self) -> X11MonitorHandle {
-        self.shared_state_lock().last_monitor.clone()
+    pub fn current_monitor(&self) -> Option<X11MonitorHandle> {
+        Some(self.shared_state_lock().last_monitor.clone())
     }
 
     pub fn available_monitors(&self) -> Vec<X11MonitorHandle> {
-        self.xconn.available_monitors()
+        self.xconn
+            .available_monitors()
+            .expect("Failed to get available monitors")
     }
 
-    pub fn primary_monitor(&self) -> X11MonitorHandle {
-        self.xconn.primary_monitor()
+    pub fn primary_monitor(&self) -> Option<X11MonitorHandle> {
+        Some(
+            self.xconn
+                .primary_monitor()
+                .expect("Failed to get primary monitor"),
+        )
     }
 
     #[inline]
@@ -1070,7 +1080,7 @@ impl UnownedWindow {
             .expect("Failed to set window-level state");
     }
 
-    fn set_icon_inner(&self, icon: Icon) -> Result<VoidCookie<'_>, X11Error> {
+    fn set_icon_inner(&self, icon: PlatformIcon) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
         let icon_atom = atoms[_NET_WM_ICON];
         let data = icon.to_cardinals();
@@ -1097,7 +1107,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, icon: Option<Icon>) {
+    pub(crate) fn set_window_icon(&self, icon: Option<PlatformIcon>) {
         match icon {
             Some(icon) => self.set_icon_inner(icon),
             None => self.unset_icon_inner(),
@@ -1558,7 +1568,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.current_monitor().scale_factor
+        self.shared_state_lock().last_monitor.scale_factor
     }
 
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
@@ -1798,6 +1808,8 @@ impl UnownedWindow {
     pub fn theme(&self) -> Option<Theme> {
         None
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     #[inline]
     pub fn has_focus(&self) -> bool {

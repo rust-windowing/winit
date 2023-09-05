@@ -5,36 +5,17 @@ use core_foundation::{
     data::{CFDataGetBytePtr, CFDataRef},
 };
 use icrate::Foundation::MainThreadMarker;
-use objc2::rc::Id;
 use smol_str::SmolStr;
 
 use super::appkit::{NSEvent, NSEventModifierFlags};
-use super::util::Never;
-use super::window::WinitWindow;
 use crate::{
-    dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, Modifiers},
+    event::{ElementState, KeyEvent, Modifiers},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
     },
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     platform_impl::platform::ffi,
 };
-
-#[derive(Debug)]
-pub(crate) enum EventWrapper {
-    StaticEvent(Event<Never>),
-    EventProxy(EventProxy),
-}
-
-#[derive(Debug)]
-pub(crate) enum EventProxy {
-    DpiChangedProxy {
-        window: Id<WinitWindow>,
-        suggested_size: LogicalSize<f64>,
-        scale_factor: f64,
-    },
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {

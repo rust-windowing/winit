@@ -7,7 +7,7 @@ use web_time::Instant;
 pub enum State {
     Init,
     WaitUntil {
-        timeout: backend::Timeout,
+        timeout: backend::Schedule,
         start: Instant,
         end: Instant,
     },
@@ -15,7 +15,7 @@ pub enum State {
         start: Instant,
     },
     Poll {
-        request: backend::IdleCallback,
+        request: backend::Schedule,
     },
     Exit,
 }

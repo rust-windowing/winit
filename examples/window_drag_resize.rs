@@ -68,11 +68,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 border = !border;
                 window.set_decorations(border);
             }
+            WindowEvent::RedrawRequested => {
+                fill::fill_window(&window);
+            }
             _ => (),
         },
-        Event::RedrawRequested(_) => {
-            fill::fill_window(&window);
-        }
+
         _ => (),
     })
 }

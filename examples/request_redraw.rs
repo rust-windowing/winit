@@ -24,8 +24,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
         control_flow.set_wait();
 
-        match event {
-            Event::WindowEvent { event, .. } => match event {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
                 WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::MouseInput {
                     state: ElementState::Released,
@@ -33,13 +33,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 } => {
                     window.request_redraw();
                 }
+                WindowEvent::RedrawRequested => {
+                    println!("\nredrawing!\n");
+                    fill::fill_window(&window);
+                }
                 _ => (),
-            },
-            Event::RedrawRequested(_) => {
-                println!("\nredrawing!\n");
-                fill::fill_window(&window);
             }
-            _ => (),
         }
     })
 }

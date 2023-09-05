@@ -283,7 +283,7 @@ impl VideoMode {
 
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoMode(m) => m.monitor())
+        x11_or_wayland!(match self; VideoMode(m) => m.monitor(); as MonitorHandle)
     }
 }
 
@@ -316,12 +316,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        match self {
-            #[cfg(wayland_platform)]
-            Self::Wayland(window) => window.id(),
-            #[cfg(x11_platform)]
-            Self::X(window) => window.id(),
-        }
+        x11_or_wayland!(match self; Window(w) => w.id())
     }
 
     #[inline]
@@ -500,23 +495,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_level(&self, _level: WindowLevel) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.set_window_level(_level),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+    pub fn set_window_level(&self, level: WindowLevel) {
+        x11_or_wayland!(match self; Window(w) => w.set_window_level(level))
     }
 
     #[inline]
-    pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.set_window_icon(_window_icon),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+        x11_or_wayland!(match self; Window(w) => w.set_window_icon(window_icon.map(|icon| icon.inner)))
     }
 
     #[inline]
@@ -541,12 +526,7 @@ impl Window {
 
     #[inline]
     pub fn focus_window(&self) {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref w) => w.focus_window(),
-            #[cfg(wayland_platform)]
-            Window::Wayland(_) => (),
-        }
+        x11_or_wayland!(match self; Window(w) => w.focus_window())
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         x11_or_wayland!(match self; Window(w) => w.request_user_attention(request_type))
@@ -564,18 +544,7 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref window) => {
-                let current_monitor = MonitorHandle::X(window.current_monitor());
-                Some(current_monitor)
-            }
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref window) => {
-                let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
-                Some(current_monitor)
-            }
-        }
+        Some(x11_or_wayland!(match self; Window(w) => w.current_monitor()?; as MonitorHandle))
     }
 
     #[inline]
@@ -598,15 +567,7 @@ impl Window {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        match self {
-            #[cfg(x11_platform)]
-            Window::X(ref window) => {
-                let primary_monitor = MonitorHandle::X(window.primary_monitor());
-                Some(primary_monitor)
-            }
-            #[cfg(wayland_platform)]
-            Window::Wayland(ref window) => window.primary_monitor(),
-        }
+        Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
     }
 
     #[inline]
@@ -627,6 +588,10 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         x11_or_wayland!(match self; Window(window) => window.theme())
+    }
+
+    pub fn set_content_protected(&self, protected: bool) {
+        x11_or_wayland!(match self; Window(window) => window.set_content_protected(protected))
     }
 
     #[inline]
@@ -751,21 +716,34 @@ impl<T: 'static> EventLoop<T> {
         }
 
         // NOTE: Wayland first because of X11 could be present under wayland as well.
-        #[cfg(wayland_platform)]
-        if attributes.forced_backend == Some(Backend::Wayland)
-            || env::var("WAYLAND_DISPLAY").is_ok()
-        {
-            return EventLoop::new_wayland_any_thread().map_err(Into::into);
-        }
+        let backend = match (
+            attributes.forced_backend,
+            env::var("WAYLAND_DISPLAY").is_ok(),
+            env::var("DISPLAY").is_ok(),
+        ) {
+            // User is forcing a backend.
+            (Some(backend), _, _) => backend,
+            // Wayland is present.
+            #[cfg(wayland_platform)]
+            (None, true, _) => Backend::Wayland,
+            // X11 is present.
+            #[cfg(x11_platform)]
+            (None, _, true) => Backend::X,
+            // No backend is present.
+            _ => {
+                return Err(EventLoopError::Os(os_error!(OsError::Misc(
+                    "neither WAYLAND_DISPLAY nor DISPLAY is set."
+                ))));
+            }
+        };
 
-        #[cfg(x11_platform)]
-        if attributes.forced_backend == Some(Backend::X) || env::var("DISPLAY").is_ok() {
-            return Ok(EventLoop::new_x11_any_thread().unwrap());
+        // Create the display based on the backend.
+        match backend {
+            #[cfg(wayland_platform)]
+            Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
+            #[cfg(x11_platform)]
+            Backend::X => Ok(EventLoop::new_x11_any_thread().unwrap()),
         }
-
-        Err(EventLoopError::Os(os_error!(OsError::Misc(
-            "neither WAYLAND_DISPLAY nor DISPLAY is set."
-        ))))
     }
 
     #[cfg(wayland_platform)]
@@ -843,40 +821,25 @@ impl<T> EventLoopWindowTarget<T> {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref evlp) => evlp
                 .available_monitors()
-                .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
-        }
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        match *self {
-            #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
-            #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref evlp) => {
-                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
-                Some(primary_monitor)
+                evlp.available_monitors().map(MonitorHandle::X).collect()
             }
         }
     }
 
     #[inline]
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
-        match *self {
-            #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(_) => (),
-            #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => evlp.set_listen_device_events(_allowed),
-        }
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(
+            x11_or_wayland!(match self; EventLoopWindowTarget(evlp) => evlp.primary_monitor()?; as MonitorHandle),
+        )
+    }
+
+    #[inline]
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
     pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {

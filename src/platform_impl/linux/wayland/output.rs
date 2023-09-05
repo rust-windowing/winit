@@ -4,25 +4,22 @@ use sctk::reexports::client::Proxy;
 use sctk::output::OutputData;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::platform_impl::platform::{
-    MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
-};
+use crate::platform_impl::platform::VideoMode as PlatformVideoMode;
 
 use super::event_loop::EventLoopWindowTarget;
 
 impl<T> EventLoopWindowTarget<T> {
     #[inline]
-    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.state
             .borrow()
             .output_state
             .outputs()
             .map(MonitorHandle::new)
-            .collect()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // There's no primary monitor on Wayland.
         None
     }
@@ -157,7 +154,7 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> PlatformMonitorHandle {
-        PlatformMonitorHandle::Wayland(self.monitor.clone())
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
