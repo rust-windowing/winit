@@ -88,7 +88,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install gcc-multilib
 
     - name: Install xbuild
-      uses: taiki-e/install-action
+      uses: taiki-e/install-action@v2
       if: contains(matrix.platform.target, 'android') || contains(matrix.platform.target, 'ios')
       with:
         tool: xbuild@0.2.0
