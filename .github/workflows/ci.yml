@@ -111,7 +111,7 @@ jobs:
 
     - name: Package crate for iOS
       if: contains(matrix.platform.target, 'ios')
-      run: x buikd -p xbuild-target --plaform ios --arch arm64
+      run: x build -p xbuild-target --plaform ios --arch arm64
 
     - name: Build tests
       if: >
