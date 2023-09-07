@@ -93,6 +93,22 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        AppState::set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        AppState::control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        AppState::exit()
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        AppState::exiting()
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -213,7 +229,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         self.run_ondemand(callback)
     }
@@ -224,7 +240,7 @@ impl<T> EventLoop<T> {
     // redundant wake ups.
     pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         if AppState::is_running() {
             return Err(EventLoopError::AlreadyRunning);
@@ -241,14 +257,14 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|_| {
+        autoreleasepool(|_| {
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
@@ -288,7 +304,7 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                AppState::exit()
+                AppState::internal_exit()
             }));
 
             // # Safety
@@ -298,22 +314,17 @@ impl<T> EventLoop<T> {
             drop(self._callback.take());
             AppState::clear_callback();
 
-            match catch_result {
-                Ok(exit_code) => exit_code,
-                Err(payload) => resume_unwind(payload),
+            if let Err(payload) = catch_result {
+                resume_unwind(payload)
             }
         });
 
-        if exit_code == 0 {
-            Ok(())
-        } else {
-            Err(EventLoopError::ExitFailure(exit_code))
-        }
+        Ok(())
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
@@ -326,8 +337,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -407,9 +418,9 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                if let ControlFlow::ExitWithCode(code) = AppState::control_flow() {
-                    AppState::exit();
-                    PumpStatus::Exit(code)
+                if AppState::exiting() {
+                    AppState::internal_exit();
+                    PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
                 }

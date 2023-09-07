@@ -10,7 +10,7 @@ mod example {
     use std::rc::Rc;
 
     use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
-    use winit::event_loop::EventLoop;
+    use winit::event_loop::{ControlFlow, EventLoop};
     use winit::keyboard::Key;
     use winit::platform::startup_notify::{
         EventLoopExtStartupNotify, WindowBuilderExtStartupNotify, WindowExtStartupNotify,
@@ -32,7 +32,7 @@ mod example {
         let mut counter = 0;
         let mut create_first_window = false;
 
-        event_loop.run(move |event, elwt, flow| {
+        event_loop.run(move |event, elwt| {
             match event {
                 Event::Resumed => create_first_window = true,
 
@@ -61,7 +61,7 @@ mod example {
                         // Remove the window from the map.
                         windows.remove(&window_id);
                         if windows.is_empty() {
-                            flow.set_exit();
+                            elwt.exit();
                             return;
                         }
                     }
@@ -103,7 +103,7 @@ mod example {
                 create_first_window = false;
             }
 
-            flow.set_wait();
+            elwt.set_control_flow(ControlFlow::Wait);
         })
     }
 }

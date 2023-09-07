@@ -10,7 +10,7 @@ mod imple {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::EventLoop,
+        event_loop::{ControlFlow, EventLoop},
         platform::x11::WindowBuilderExtX11,
         window::WindowBuilder,
     };
@@ -32,14 +32,14 @@ mod imple {
             .build(&event_loop)
             .unwrap();
 
-        event_loop.run(move |event, _, control_flow| {
-            control_flow.set_wait();
+        event_loop.run(move |event, elwt| {
+            elwt.set_control_flow(ControlFlow::Wait);
 
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => control_flow.set_exit(),
+                } if window_id == window.id() => elwt.exit(),
                 Event::AboutToWait => {
                     window.request_redraw();
                 }

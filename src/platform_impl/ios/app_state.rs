@@ -121,7 +121,7 @@ enum AppStateImpl {
     Terminated,
 }
 
-struct AppState {
+pub(crate) struct AppState {
     // This should never be `None`, except for briefly during a state transition.
     app_state: Option<AppStateImpl>,
     control_flow: ControlFlow,
@@ -129,7 +129,7 @@ struct AppState {
 }
 
 impl AppState {
-    fn get_mut(_mtm: MainThreadMarker) -> RefMut<'static, AppState> {
+    pub(crate) fn get_mut(_mtm: MainThreadMarker) -> RefMut<'static, AppState> {
         // basically everything in UIKit requires the main thread, so it's pointless to use the
         // std::sync APIs.
         // must be mut because plain `static` requires `Sync`
@@ -290,7 +290,6 @@ impl AppState {
                 };
                 (waiting_event_handler, event)
             }
-            (ControlFlow::ExitWithCode(_), _) => bug!("unexpected `ControlFlow` `Exit`"),
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
 
@@ -443,12 +442,6 @@ impl AppState {
                 });
                 self.waker.start()
             }
-            (_, ControlFlow::ExitWithCode(_)) => {
-                // https://developer.apple.com/library/archive/qa/qa1561/_index.html
-                // it is not possible to quit an iOS app gracefully and programatically
-                warn!("`ControlFlow::Exit` ignored on iOS");
-                self.control_flow = old
-            }
         }
     }
 
@@ -457,6 +450,14 @@ impl AppState {
             AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
             s => bug!("`LoopExiting` happened while not processing events {:?}", s),
         }
+    }
+
+    pub(crate) fn set_control_flow(&mut self, control_flow: ControlFlow) {
+        self.control_flow = control_flow;
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow
     }
 }
 
@@ -602,7 +603,6 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                 processing_redraws,
             } => (event_handler, active_control_flow, processing_redraws),
         };
-    let mut control_flow = this.control_flow;
     drop(this);
 
     for wrapper in events {
@@ -616,10 +616,10 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                         event
                     );
                 }
-                event_handler.handle_nonuser_event(event, &mut control_flow)
+                event_handler.handle_nonuser_event(event)
             }
             EventWrapper::ScaleFactorChanged(event) => {
-                handle_hidpi_proxy(&mut event_handler, control_flow, event)
+                handle_hidpi_proxy(&mut event_handler, event)
             }
         }
     }
@@ -657,7 +657,6 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                     active_control_flow,
                 }
             });
-            this.control_flow = control_flow;
             break;
         }
         drop(this);
@@ -673,10 +672,10 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                             event
                         );
                     }
-                    event_handler.handle_nonuser_event(event, &mut control_flow)
+                    event_handler.handle_nonuser_event(event)
                 }
                 EventWrapper::ScaleFactorChanged(event) => {
-                    handle_hidpi_proxy(&mut event_handler, control_flow, event)
+                    handle_hidpi_proxy(&mut event_handler, event)
                 }
             }
         }
@@ -685,7 +684,6 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 
 fn handle_user_events(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
-    let mut control_flow = this.control_flow;
     let (mut event_handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
             UserCallbackTransitionResult::ReentrancyPrevented { .. } => {
@@ -702,7 +700,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
     }
     drop(this);
 
-    event_handler.handle_user_events(&mut control_flow);
+    event_handler.handle_user_events();
 
     loop {
         let mut this = AppState::get_mut(mtm);
@@ -726,22 +724,19 @@ fn handle_user_events(mtm: MainThreadMarker) {
                 queued_gpu_redraws,
                 active_control_flow,
             });
-            this.control_flow = control_flow;
             break;
         }
         drop(this);
 
         for wrapper in queued_events {
             match wrapper {
-                EventWrapper::StaticEvent(event) => {
-                    event_handler.handle_nonuser_event(event, &mut control_flow)
-                }
+                EventWrapper::StaticEvent(event) => event_handler.handle_nonuser_event(event),
                 EventWrapper::ScaleFactorChanged(event) => {
-                    handle_hidpi_proxy(&mut event_handler, control_flow, event)
+                    handle_hidpi_proxy(&mut event_handler, event)
                 }
             }
         }
-        event_handler.handle_user_events(&mut control_flow);
+        event_handler.handle_user_events();
     }
 }
 
@@ -782,17 +777,12 @@ pub fn handle_events_cleared(mtm: MainThreadMarker) {
 pub fn terminated(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
     let mut event_handler = this.terminated_transition();
-    let mut control_flow = this.control_flow;
     drop(this);
 
-    event_handler.handle_nonuser_event(Event::LoopExiting, &mut control_flow)
+    event_handler.handle_nonuser_event(Event::LoopExiting)
 }
 
-fn handle_hidpi_proxy(
-    event_handler: &mut Box<dyn EventHandler>,
-    mut control_flow: ControlFlow,
-    event: ScaleFactorChanged,
-) {
+fn handle_hidpi_proxy(event_handler: &mut Box<dyn EventHandler>, event: ScaleFactorChanged) {
     let ScaleFactorChanged {
         suggested_size,
         scale_factor,
@@ -806,7 +796,7 @@ fn handle_hidpi_proxy(
             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
         },
     };
-    event_handler.handle_nonuser_event(event, &mut control_flow);
+    event_handler.handle_nonuser_event(event);
     let (view, screen_frame) = get_view_and_screen_frame(&window);
     let physical_size = *new_inner_size.lock().unwrap();
     drop(new_inner_size);

@@ -46,14 +46,14 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("parent window: {parent_window:?})");
 
-    event_loop.run(move |event: Event<()>, event_loop, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    event_loop.run(move |event: Event<()>, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {
                     windows.clear();
-                    *control_flow = ControlFlow::Exit;
+                    elwt.exit();
                 }
                 WindowEvent::CursorEntered { device_id: _ } => {
                     // On x11, println when the cursor entered in a window even if the child window is created
@@ -70,7 +70,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => {
-                    spawn_child_window(&parent_window, event_loop, &mut windows);
+                    spawn_child_window(&parent_window, elwt, &mut windows);
                 }
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = windows.get(&window_id) {
