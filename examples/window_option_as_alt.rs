@@ -7,7 +7,7 @@ use winit::platform::macos::{OptionAsAlt, WindowExtMacOS};
 use winit::{
     event::ElementState,
     event::{Event, MouseButton, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
@@ -31,14 +31,14 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut option_as_alt = window.option_as_alt();
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
+            } if window_id == window.id() => elwt.exit(),
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::MouseInput {
                     state: ElementState::Pressed,

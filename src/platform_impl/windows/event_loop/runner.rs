@@ -13,7 +13,6 @@ use windows_sys::Win32::Foundation::HWND;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{WindowData, GWL_USERDATA},
         get_window_long,
@@ -21,9 +20,11 @@ use crate::{
     window::WindowId,
 };
 
+use super::ControlFlow;
+
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
 
-type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>>;
+type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<T>)>>>;
 
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
@@ -35,6 +36,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     pub(super) interrupt_msg_dispatch: Cell<bool>,
 
     control_flow: Cell<ControlFlow>,
+    exit: Cell<Option<i32>>,
     runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
     event_handler: EventHandler<T>,
@@ -70,7 +72,8 @@ impl<T> EventLoopRunner<T> {
             thread_msg_target,
             interrupt_msg_dispatch: Cell::new(false),
             runner_state: Cell::new(RunnerState::Uninitialized),
-            control_flow: Cell::new(ControlFlow::Poll),
+            control_flow: Cell::new(ControlFlow::default()),
+            exit: Cell::new(None),
             panic_error: Cell::new(None),
             last_events_cleared: Cell::new(Instant::now()),
             event_handler: Cell::new(None),
@@ -91,11 +94,11 @@ impl<T> EventLoopRunner<T> {
     /// undefined behaviour.
     pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
     where
-        F: FnMut(Event<T>, &mut ControlFlow),
+        F: FnMut(Event<T>),
     {
         let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
-            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>)>>,
+            Option<Box<dyn FnMut(Event<T>)>>,
         >(Some(Box::new(f))));
         assert!(old_event_handler.is_none());
     }
@@ -111,6 +114,7 @@ impl<T> EventLoopRunner<T> {
             runner_state,
             panic_error,
             control_flow,
+            exit,
             last_events_cleared: _,
             event_handler,
             event_buffer: _,
@@ -118,7 +122,8 @@ impl<T> EventLoopRunner<T> {
         interrupt_msg_dispatch.set(false);
         runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
-        control_flow.set(ControlFlow::Poll);
+        control_flow.set(ControlFlow::default());
+        exit.set(None);
         event_handler.set(None);
     }
 }
@@ -141,12 +146,20 @@ impl<T> EventLoopRunner<T> {
         self.runner_state.get()
     }
 
-    pub fn set_exit_control_flow(&self, code: i32) {
-        self.control_flow.set(ControlFlow::ExitWithCode(code))
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
     }
 
     pub fn control_flow(&self) -> ControlFlow {
         self.control_flow.get()
+    }
+
+    pub fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
     }
 
     pub fn should_buffer(&self) -> bool {
@@ -226,18 +239,12 @@ impl<T> EventLoopRunner<T> {
 
     fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
-            let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
                 .expect("either event handler is re-entrant (likely), or no event handler is registered (very unlikely)");
 
-            if let ControlFlow::ExitWithCode(code) = control_flow  {
-                event_handler(event, &mut ControlFlow::ExitWithCode(code));
-            } else {
-                event_handler(event, &mut control_flow);
-            }
+            event_handler(event);
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
-            self.control_flow.set(control_flow);
         });
     }
 
@@ -332,16 +339,14 @@ impl<T> EventLoopRunner<T> {
     }
 
     fn call_new_events(&self, init: bool) {
-        let start_cause = match (init, self.control_flow()) {
-            (true, _) => StartCause::Init,
-            (false, ControlFlow::Poll) => StartCause::Poll,
-            (false, ControlFlow::ExitWithCode(_)) | (false, ControlFlow::Wait) => {
-                StartCause::WaitCancelled {
-                    requested_resume: None,
-                    start: self.last_events_cleared.get(),
-                }
-            }
-            (false, ControlFlow::WaitUntil(requested_resume)) => {
+        let start_cause = match (init, self.control_flow(), self.exit.get()) {
+            (true, _, _) => StartCause::Init,
+            (false, ControlFlow::Poll, None) => StartCause::Poll,
+            (false, _, Some(_)) | (false, ControlFlow::Wait, None) => StartCause::WaitCancelled {
+                requested_resume: None,
+                start: self.last_events_cleared.get(),
+            },
+            (false, ControlFlow::WaitUntil(requested_resume), None) => {
                 if Instant::now() < requested_resume {
                     StartCause::WaitCancelled {
                         requested_resume: Some(requested_resume),

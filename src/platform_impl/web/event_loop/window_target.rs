@@ -19,7 +19,7 @@ use super::{
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::DeviceEvents;
+use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
 use crate::window::{Theme, WindowId as RootWindowId};
 
@@ -677,5 +677,21 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.runner.listen_device_events(allowed)
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner.set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.runner.control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner.exit()
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.runner.exiting()
     }
 }

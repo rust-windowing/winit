@@ -40,11 +40,11 @@ impl<Never> Event<Never> {
 
 pub trait EventHandler: Debug {
     // Not sure probably it should accept Event<'static, Never>
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>);
+    fn handle_user_events(&mut self);
 }
 
-pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>;
+pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
@@ -55,10 +55,7 @@ struct EventLoopHandler<T: 'static> {
 impl<T> EventLoopHandler<T> {
     fn with_callback<F>(&mut self, f: F)
     where
-        F: FnOnce(
-            &mut EventLoopHandler<T>,
-            RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-        ),
+        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget<T>)>),
     {
         // The `NSApp` and our `HANDLER` are global state and so it's possible that
         // we could get a delegate callback after the application has exit an
@@ -85,28 +82,16 @@ impl<T> Debug for EventLoopHandler<T> {
 }
 
 impl<T> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<Never>) {
         self.with_callback(|this, mut callback| {
-            if let ControlFlow::ExitWithCode(code) = *control_flow {
-                // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
-                let dummy = &mut ControlFlow::ExitWithCode(code);
-                (callback)(event.userify(), &this.window_target, dummy);
-            } else {
-                (callback)(event.userify(), &this.window_target, control_flow);
-            }
+            (callback)(event.userify(), &this.window_target);
         });
     }
 
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
+    fn handle_user_events(&mut self) {
         self.with_callback(|this, mut callback| {
             for event in this.receiver.try_iter() {
-                if let ControlFlow::ExitWithCode(code) = *control_flow {
-                    // XXX: why isn't event dispatching simply skipped after control_flow = ExitWithCode?
-                    let dummy = &mut ControlFlow::ExitWithCode(code);
-                    (callback)(Event::UserEvent(event), &this.window_target, dummy);
-                } else {
-                    (callback)(Event::UserEvent(event), &this.window_target, control_flow);
-                }
+                (callback)(Event::UserEvent(event), &this.window_target);
             }
         });
     }
@@ -132,6 +117,7 @@ struct Handler {
     running: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
+    exit: AtomicBool,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
@@ -189,13 +175,6 @@ impl Handler {
         self.running.store(true, Ordering::Relaxed);
     }
 
-    fn should_exit(&self) -> bool {
-        matches!(
-            *self.control_flow.lock().unwrap(),
-            ControlFlow::ExitWithCode(_)
-        )
-    }
-
     /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits
     ///
     /// Since an `EventLoop` may be run more than once we need make sure to reset the
@@ -206,7 +185,7 @@ impl Handler {
     ///
     /// # Caveat
     /// This is only intended to be called from the main thread
-    fn exit(&self) {
+    fn internal_exit(&self) {
         // Relaxed ordering because we don't actually have multiple threads involved, we just want
         // interiour mutability
         //
@@ -225,6 +204,14 @@ impl Handler {
         self.set_stop_app_before_wait(false);
         self.set_stop_app_after_wait(false);
         self.set_wait_timeout(None);
+    }
+
+    pub fn exit(&self) {
+        self.exit.store(true, Ordering::Relaxed)
+    }
+
+    pub fn exiting(&self) -> bool {
+        self.exit.load(Ordering::Relaxed)
     }
 
     pub fn request_stop_app_on_launch(&self) {
@@ -287,6 +274,10 @@ impl Handler {
         self.stop_app_on_redraw.load(Ordering::Relaxed)
     }
 
+    fn set_control_flow(&self, new_control_flow: ControlFlow) {
+        *self.control_flow.lock().unwrap() = new_control_flow
+    }
+
     fn control_flow(&self) -> ControlFlow {
         *self.control_flow.lock().unwrap()
     }
@@ -321,13 +312,13 @@ impl Handler {
 
     fn handle_nonuser_event(&self, event: Event<Never>) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
+            callback.handle_nonuser_event(event)
         }
     }
 
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events(&mut self.control_flow.lock().unwrap());
+            callback.handle_user_events();
         }
     }
 
@@ -347,7 +338,7 @@ impl Handler {
                 },
             };
 
-            callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap());
+            callback.handle_nonuser_event(event);
 
             let physical_size = *new_inner_size.lock().unwrap();
             drop(new_inner_size);
@@ -418,21 +409,28 @@ impl AppState {
         HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
     }
 
+    pub fn set_control_flow(control_flow: ControlFlow) {
+        HANDLER.set_control_flow(control_flow)
+    }
+
     pub fn control_flow() -> ControlFlow {
         HANDLER.control_flow()
     }
 
-    pub fn exit() -> i32 {
+    pub fn internal_exit() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::LoopExiting);
         HANDLER.set_in_callback(false);
-        HANDLER.exit();
+        HANDLER.internal_exit();
         Self::clear_callback();
-        if let ControlFlow::ExitWithCode(code) = HANDLER.control_flow() {
-            code
-        } else {
-            0
-        }
+    }
+
+    pub fn exit() {
+        HANDLER.exit()
+    }
+
+    pub fn exiting() -> bool {
+        HANDLER.exiting()
     }
 
     pub fn dispatch_init_events() {
@@ -528,7 +526,6 @@ impl AppState {
                     }
                 }
             }
-            ControlFlow::ExitWithCode(_) => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::NewEvents(cause));
@@ -643,7 +640,7 @@ impl AppState {
         HANDLER.handle_nonuser_event(Event::AboutToWait);
         HANDLER.set_in_callback(false);
 
-        if HANDLER.should_exit() {
+        if HANDLER.exiting() {
             Self::stop();
         }
 
@@ -654,7 +651,7 @@ impl AppState {
         let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events
         let app_timeout = match HANDLER.control_flow() {
             ControlFlow::Wait => None,
-            ControlFlow::Poll | ControlFlow::ExitWithCode(_) => Some(Instant::now()),
+            ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
         HANDLER

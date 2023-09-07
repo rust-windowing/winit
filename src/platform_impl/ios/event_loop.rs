@@ -28,8 +28,11 @@ use crate::{
     platform::ios::Idiom,
 };
 
-use super::uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen};
 use super::{app_state, monitor, view, MonitorHandle};
+use super::{
+    app_state::AppState,
+    uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen},
+};
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -51,6 +54,24 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        AppState::get_mut(self.mtm).set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        AppState::get_mut(self.mtm).control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        // https://developer.apple.com/library/archive/qa/qa1561/_index.html
+        // it is not possible to quit an iOS app gracefully and programatically
+        warn!("`ControlFlow::Exit` ignored on iOS");
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        false
     }
 }
 
@@ -102,7 +123,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         unsafe {
             let application = UIApplication::shared(self.mtm);
@@ -114,7 +135,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             let event_handler = std::mem::transmute::<
-                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>)>,
                 Box<EventHandlerCallback<T>>,
             >(Box::new(event_handler));
 
@@ -314,12 +335,11 @@ fn setup_control_flow_observers() {
 #[derive(Debug)]
 pub enum Never {}
 
-type EventHandlerCallback<T> =
-    dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static;
+type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>) + 'static;
 
 pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>);
+    fn handle_user_events(&mut self);
 }
 
 struct EventLoopHandler<T: 'static> {
@@ -337,17 +357,13 @@ impl<T: 'static> Debug for EventLoopHandler<T> {
 }
 
 impl<T: 'static> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
-        (self.f)(
-            event.map_nonuser_event().unwrap(),
-            &self.event_loop,
-            control_flow,
-        );
+    fn handle_nonuser_event(&mut self, event: Event<Never>) {
+        (self.f)(event.map_nonuser_event().unwrap(), &self.event_loop);
     }
 
-    fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
+    fn handle_user_events(&mut self) {
         for event in self.receiver.try_iter() {
-            (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
+            (self.f)(Event::UserEvent(event), &self.event_loop);
         }
     }
 }

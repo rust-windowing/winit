@@ -5,7 +5,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::EventLoopBuilder,
+        event_loop::{ControlFlow, EventLoopBuilder},
         window::WindowBuilder,
     };
 
@@ -40,15 +40,15 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         match event {
             Event::UserEvent(event) => println!("user event: {event:?}"),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => control_flow.set_exit(),
+            } => elwt.exit(),
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..

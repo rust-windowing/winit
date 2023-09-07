@@ -27,12 +27,12 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("  (L) Light theme");
     println!("  (D) Dark theme");
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { window_id, event } = event {
             match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::ThemeChanged(theme) if window_id == window.id() => {
                     println!("Theme is changed: {theme:?}")
                 }
