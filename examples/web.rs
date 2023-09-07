@@ -2,7 +2,7 @@
 
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
     window::{Fullscreen, WindowBuilder},
 };
@@ -21,8 +21,8 @@ pub fn main() -> Result<(), impl std::error::Error> {
     #[cfg(wasm_platform)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         #[cfg(wasm_platform)]
         wasm::log_event(&log_list, &event);
@@ -31,7 +31,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
+            } if window_id == window.id() => elwt.exit(),
             Event::AboutToWait => {
                 window.request_redraw();
             }

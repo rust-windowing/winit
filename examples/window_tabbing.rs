@@ -8,7 +8,7 @@ use simple_logger::SimpleLogger;
 #[cfg(target_os = "macos")]
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
@@ -30,8 +30,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, window_id } = event {
             match event {
@@ -42,7 +42,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     windows.remove(&window_id);
 
                     if windows.is_empty() {
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                 }
                 WindowEvent::Resized(_) => {
@@ -64,7 +64,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
                         let window = WindowBuilder::new()
                             .with_tabbing_identifier(&tabbing_id)
-                            .build(event_loop)
+                            .build(elwt)
                             .unwrap();
                         println!("Added a new tab: {:?}", window.id());
                         windows.insert(window.id(), window);

@@ -56,7 +56,7 @@ declare_class!(
         fn will_terminate(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
-            AppState::exit();
+            AppState::internal_exit();
         }
     }
 );

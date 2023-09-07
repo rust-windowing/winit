@@ -24,7 +24,7 @@ use web_time::{Duration, Instant};
 
 pub struct Shared(Rc<Execution>);
 
-pub(super) type EventHandler = dyn FnMut(Event<()>, &mut ControlFlow);
+pub(super) type EventHandler = dyn FnMut(Event<()>);
 
 impl Clone for Shared {
     fn clone(&self) -> Self {
@@ -35,6 +35,8 @@ impl Clone for Shared {
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution {
+    control_flow: Cell<ControlFlow>,
+    exit: Cell<bool>,
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
     event_loop_recreation: Cell<bool>,
@@ -108,16 +110,9 @@ impl Runner {
         })
     }
 
-    fn handle_single_event(
-        &mut self,
-        runner: &Shared,
-        event: impl Into<EventWrapper>,
-        control: &mut ControlFlow,
-    ) {
-        let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
-
+    fn handle_single_event(&mut self, runner: &Shared, event: impl Into<EventWrapper>) {
         match event.into() {
-            EventWrapper::Event(event) => (self.event_handler)(event, control),
+            EventWrapper::Event(event) => (self.event_handler)(event),
             EventWrapper::ScaleChange {
                 canvas,
                 size,
@@ -126,17 +121,12 @@ impl Runner {
                 if let Some(canvas) = canvas.upgrade() {
                     canvas.borrow().handle_scale_change(
                         runner,
-                        |event| (self.event_handler)(event, control),
+                        |event| (self.event_handler)(event),
                         size,
                         scale,
                     )
                 }
             }
-        }
-
-        // Maintain closed state, even if the callback changes it
-        if is_closed {
-            *control = ControlFlow::Exit;
         }
     }
 }
@@ -149,6 +139,8 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::new(Execution {
+            control_flow: Cell::new(ControlFlow::default()),
+            exit: Cell::new(false),
             runner: RefCell::new(RunnerEnum::Pending),
             suspended: Cell::new(false),
             event_loop_recreation: Cell::new(false),
@@ -549,19 +541,16 @@ impl Shared {
 
     // Process the destroy-pending windows. This should only be called from
     // `run_until_cleared`, somewhere between emitting `NewEvents` and `AboutToWait`.
-    fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
+    fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0
                 .all_canvases
                 .borrow_mut()
                 .retain(|&(item_id, _)| item_id != id);
-            self.handle_event(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::Destroyed,
-                },
-                control,
-            );
+            self.handle_event(Event::WindowEvent {
+                window_id: id,
+                event: crate::event::WindowEvent::Destroyed,
+            });
             self.0.redraw_pending.borrow_mut().remove(&id);
         }
     }
@@ -571,52 +560,48 @@ impl Shared {
     //
     // This will also process any events that have been queued or that are queued during processing
     fn run_until_cleared<E: Into<EventWrapper>>(&self, events: impl Iterator<Item = E>) {
-        let mut control = self.current_control_flow();
         for event in events {
-            self.handle_event(event.into(), &mut control);
+            self.handle_event(event.into());
         }
-        self.process_destroy_pending_windows(&mut control);
+        self.process_destroy_pending_windows();
 
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(
-                Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::RedrawRequested,
-                },
-                &mut control,
-            );
+            self.handle_event(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::RedrawRequested,
+            });
         }
 
-        self.handle_event(Event::AboutToWait, &mut control);
+        self.handle_event(Event::AboutToWait);
 
-        self.apply_control_flow(control);
+        self.apply_control_flow();
         // If the event loop is closed, it has been closed this iteration and now the closing
         // event should be emitted
         if self.is_closed() {
-            self.handle_loop_destroyed(&mut control);
+            self.handle_loop_destroyed();
         }
     }
 
     fn handle_unload(&self) {
-        self.apply_control_flow(ControlFlow::Exit);
-        let mut control = self.current_control_flow();
+        self.exit();
+        self.apply_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
-        self.handle_event(Event::LoopExiting, &mut control);
+        self.handle_event(Event::LoopExiting);
     }
 
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from `run_until_cleared`.
-    fn handle_event(&self, event: impl Into<EventWrapper>, control: &mut ControlFlow) {
+    fn handle_event(&self, event: impl Into<EventWrapper>) {
         if self.is_closed() {
-            *control = ControlFlow::Exit;
+            self.exit();
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
-                runner.handle_single_event(self, event, control);
+                runner.handle_single_event(self, event);
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
@@ -625,7 +610,7 @@ impl Shared {
             RunnerEnum::Destroyed => return,
         }
 
-        let is_closed = matches!(*control, ControlFlow::ExitWithCode(_));
+        let is_closed = self.exiting();
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
@@ -634,50 +619,53 @@ impl Shared {
             // Make sure not to let the borrow_mut live during the next handle_event
             let event = { self.0.events.borrow_mut().pop_front() };
             if let Some(event) = event {
-                self.handle_event(event, control);
+                self.handle_event(event);
             }
         }
     }
 
     // Apply the new ControlFlow that has been selected by the user
     // Start any necessary timeouts etc
-    fn apply_control_flow(&self, control_flow: ControlFlow) {
-        let new_state = match control_flow {
-            ControlFlow::Poll => {
-                let cloned = self.clone();
-                State::Poll {
-                    request: backend::Schedule::new(
-                        self.window().clone(),
-                        move || cloned.poll(),
-                        None,
-                    ),
+    fn apply_control_flow(&self) {
+        let new_state = if self.exiting() {
+            State::Exit
+        } else {
+            match self.control_flow() {
+                ControlFlow::Poll => {
+                    let cloned = self.clone();
+                    State::Poll {
+                        request: backend::Schedule::new(
+                            self.window().clone(),
+                            move || cloned.poll(),
+                            None,
+                        ),
+                    }
+                }
+                ControlFlow::Wait => State::Wait {
+                    start: Instant::now(),
+                },
+                ControlFlow::WaitUntil(end) => {
+                    let start = Instant::now();
+
+                    let delay = if end <= start {
+                        Duration::from_millis(0)
+                    } else {
+                        end - start
+                    };
+
+                    let cloned = self.clone();
+
+                    State::WaitUntil {
+                        start,
+                        end,
+                        timeout: backend::Schedule::new(
+                            self.window().clone(),
+                            move || cloned.resume_time_reached(start, end),
+                            Some(delay),
+                        ),
+                    }
                 }
             }
-            ControlFlow::Wait => State::Wait {
-                start: Instant::now(),
-            },
-            ControlFlow::WaitUntil(end) => {
-                let start = Instant::now();
-
-                let delay = if end <= start {
-                    Duration::from_millis(0)
-                } else {
-                    end - start
-                };
-
-                let cloned = self.clone();
-
-                State::WaitUntil {
-                    start,
-                    end,
-                    timeout: backend::Schedule::new(
-                        self.window().clone(),
-                        move || cloned.resume_time_reached(start, end),
-                        Some(delay),
-                    ),
-                }
-            }
-            ControlFlow::ExitWithCode(_) => State::Exit,
         };
 
         if let RunnerEnum::Running(ref mut runner) = *self.0.runner.borrow_mut() {
@@ -685,8 +673,8 @@ impl Shared {
         }
     }
 
-    fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
-        self.handle_event(Event::LoopExiting, control);
+    fn handle_loop_destroyed(&self) {
+        self.handle_event(Event::LoopExiting);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.page_transition_event_handle.borrow_mut() = None;
         *self.0.on_mouse_move.borrow_mut() = None;
@@ -725,7 +713,7 @@ impl Shared {
     // Check if the event loop is currently closed
     fn is_closed(&self) -> bool {
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
-            Ok(RunnerEnum::Running(runner)) => runner.state.is_exit(),
+            Ok(RunnerEnum::Running(runner)) => runner.state.exiting(),
             // The event loop is not closed since it is not initialized.
             Ok(RunnerEnum::Pending) => false,
             // The event loop is closed since it has been destroyed.
@@ -733,15 +721,6 @@ impl Shared {
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy.
             Err(_) => false,
-        }
-    }
-
-    // Get the current control flow state
-    fn current_control_flow(&self) -> ControlFlow {
-        match *self.0.runner.borrow() {
-            RunnerEnum::Running(ref runner) => runner.state.control_flow(),
-            RunnerEnum::Pending => ControlFlow::Poll,
-            RunnerEnum::Destroyed => ControlFlow::Exit,
         }
     }
 
@@ -773,6 +752,22 @@ impl Shared {
 
     pub fn event_loop_recreation(&self, allow: bool) {
         self.0.event_loop_recreation.set(allow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.0.control_flow.get()
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.0.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn exit(&self) {
+        self.0.exit.set(true)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.0.exit.get()
     }
 }
 

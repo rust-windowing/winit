@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{DeviceEvents, EventLoop},
+    event_loop::{ControlFlow, DeviceEvents, EventLoop},
     keyboard::Key,
     window::{WindowBuilder, WindowButtons},
 };
@@ -31,8 +31,8 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { window_id, event } = event {
             match event {
@@ -59,7 +59,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
-                WindowEvent::CloseRequested if window_id == window.id() => control_flow.set_exit(),
+                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }

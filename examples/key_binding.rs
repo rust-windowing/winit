@@ -31,12 +31,12 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut modifiers = ModifiersState::default();
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(ControlFlow::Wait);
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::ModifiersChanged(new) => {
                     modifiers = new.state();
                 }
