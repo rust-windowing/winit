@@ -134,3 +134,57 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
         self.event_loop.spawn(event_handler)
     }
 }
+
+pub trait EventLoopWindowTargetExtWebSys {
+    /// Sets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollType`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn set_poll_type(&self, poll_type: PollType);
+
+    /// Gets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollType`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn poll_type(&self) -> PollType;
+}
+
+impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+    #[inline]
+    fn set_poll_type(&self, poll_type: PollType) {
+        self.p.set_poll_type(poll_type);
+    }
+
+    #[inline]
+    fn poll_type(&self) -> PollType {
+        self.p.poll_type()
+    }
+}
+
+/// Strategy used for [`ControlFlow::Poll`](crate::event_loop::ControlFlow::Poll).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PollType {
+    /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
+    /// this will fallback to [`setTimeout()`].
+    ///
+    /// This strategy will wait for the browser to enter an idle period before running and might
+    /// be affected by browser throttling.
+    ///
+    /// [`Window.requestIdleCallback()`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+    /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+    IdleCallback,
+    /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
+    /// this will fallback to [`setTimeout()`].
+    ///
+    /// This strategy will run as fast as possible without disturbing users from interacting with
+    /// the page and is not affected by browser throttling.
+    ///
+    /// This is the default strategy.
+    ///
+    /// [Prioritized Task Scheduling API]: https://developer.mozilla.org/en-US/docs/Web/API/Prioritized_Task_Scheduling_API
+    /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+    #[default]
+    Scheduler,
+}
