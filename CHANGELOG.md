@@ -11,7 +11,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
 - Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
 - Fix window size sometimes being invalid when resizing on macOS.
-- On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
+- On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
 - On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
 - On macOS, fix crash in `window.set_minimized(false)`.
@@ -23,6 +23,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
 - **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
 - **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
+- On Web, add `EventLoopWindowTargetExtWebSys` and `PollType`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
 
 # 0.29.1-beta
 

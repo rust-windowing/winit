@@ -6,6 +6,7 @@ use crate::event::{
     WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
+use crate::platform::web::PollType;
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
 
@@ -36,6 +37,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution {
     control_flow: Cell<ControlFlow>,
+    poll_type: Cell<PollType>,
     exit: Cell<bool>,
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
@@ -140,6 +142,7 @@ impl Shared {
 
         Shared(Rc::new(Execution {
             control_flow: Cell::new(ControlFlow::default()),
+            poll_type: Cell::new(PollType::default()),
             exit: Cell::new(false),
             runner: RefCell::new(RunnerEnum::Pending),
             suspended: Cell::new(false),
@@ -635,9 +638,9 @@ impl Shared {
                     let cloned = self.clone();
                     State::Poll {
                         request: backend::Schedule::new(
-                            self.window().clone(),
+                            self.poll_type(),
+                            self.window(),
                             move || cloned.poll(),
-                            None,
                         ),
                     }
                 }
@@ -658,10 +661,10 @@ impl Shared {
                     State::WaitUntil {
                         start,
                         end,
-                        timeout: backend::Schedule::new(
-                            self.window().clone(),
+                        timeout: backend::Schedule::new_with_duration(
+                            self.window(),
                             move || cloned.resume_time_reached(start, end),
-                            Some(delay),
+                            delay,
                         ),
                     }
                 }
@@ -768,6 +771,14 @@ impl Shared {
 
     pub(crate) fn exiting(&self) -> bool {
         self.0.exit.get()
+    }
+
+    pub(crate) fn set_poll_type(&self, poll_type: PollType) {
+        self.0.poll_type.set(poll_type)
+    }
+
+    pub(crate) fn poll_type(&self) -> PollType {
+        self.0.poll_type.get()
     }
 }
 
