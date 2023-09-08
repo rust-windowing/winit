@@ -138,34 +138,34 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 pub trait EventLoopWindowTargetExtWebSys {
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
-    /// See [`PollType`].
+    /// See [`PollStrategy`].
     ///
     /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
-    fn set_poll_type(&self, poll_type: PollType);
+    fn set_poll_strategy(&self, strategy: PollStrategy);
 
     /// Gets the strategy for [`ControlFlow::Poll`].
     ///
-    /// See [`PollType`].
+    /// See [`PollStrategy`].
     ///
     /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
-    fn poll_type(&self) -> PollType;
+    fn poll_strategy(&self) -> PollStrategy;
 }
 
 impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
     #[inline]
-    fn set_poll_type(&self, poll_type: PollType) {
-        self.p.set_poll_type(poll_type);
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.p.set_poll_strategy(strategy);
     }
 
     #[inline]
-    fn poll_type(&self) -> PollType {
-        self.p.poll_type()
+    fn poll_strategy(&self) -> PollStrategy {
+        self.p.poll_strategy()
     }
 }
 
 /// Strategy used for [`ControlFlow::Poll`](crate::event_loop::ControlFlow::Poll).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PollType {
+pub enum PollStrategy {
     /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
     /// this will fallback to [`setTimeout()`].
     ///
