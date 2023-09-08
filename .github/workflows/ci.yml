@@ -41,6 +41,13 @@ jobs:
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
+        exclude:
+          # Android is tested on stable-3
+          - toolchain: '1.65.0'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+        include:
+          - toolchain: '1.69.0'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
 
     env:
       # Set more verbose terminal output
