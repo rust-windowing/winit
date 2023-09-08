@@ -505,18 +505,6 @@ impl<T: 'static> EventLoop<T> {
             return;
         }
 
-        // False positive / spurious wake ups could lead to us spamming
-        // redundant iterations of the event loop with no new events to
-        // dispatch.
-        //
-        // If there's no readable event source then we just double check if we
-        // have any pending `_receiver` events and if not we return without
-        // running a loop iteration.
-        // If we don't have any pending `_receiver`
-        if !self.has_pending() && !self.state.x11_readiness.readable {
-            return;
-        }
-
         // NB: `StartCause::Init` is handled as a special case and doesn't need
         // to be considered here
         let cause = match self.control_flow() {
@@ -539,6 +527,21 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         };
+
+        // False positive / spurious wake ups could lead to us spamming
+        // redundant iterations of the event loop with no new events to
+        // dispatch.
+        //
+        // If there's no readable event source then we just double check if we
+        // have any pending `_receiver` events and if not we return without
+        // running a loop iteration.
+        // If we don't have any pending `_receiver`
+        if !self.has_pending()
+            && !self.state.x11_readiness.readable
+            && !matches!(&cause, StartCause::ResumeTimeReached { .. })
+        {
+            return;
+        }
 
         self.single_iteration(&mut callback, cause);
     }
