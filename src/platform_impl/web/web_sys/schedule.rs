@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AbortController, AbortSignal, MessageChannel, MessagePort};
 
-use crate::platform::web::PollType;
+use crate::platform::web::PollStrategy;
 
 #[derive(Debug)]
 pub struct Schedule {
@@ -32,13 +32,13 @@ enum Inner {
 }
 
 impl Schedule {
-    pub fn new<F>(poll_type: PollType, window: &web_sys::Window, f: F) -> Schedule
+    pub fn new<F>(strategy: PollStrategy, window: &web_sys::Window, f: F) -> Schedule
     where
         F: 'static + FnMut(),
     {
-        if poll_type == PollType::Scheduler && has_scheduler_support(window) {
+        if strategy == PollStrategy::Scheduler && has_scheduler_support(window) {
             Self::new_scheduler(window, f, None)
-        } else if poll_type == PollType::IdleCallback && has_idle_callback_support(window) {
+        } else if strategy == PollStrategy::IdleCallback && has_idle_callback_support(window) {
             Self::new_idle_callback(window.clone(), f)
         } else {
             Self::new_timeout(window.clone(), f, None)
