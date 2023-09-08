@@ -6,7 +6,7 @@ use crate::event::{
     WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
-use crate::platform::web::PollType;
+use crate::platform::web::PollStrategy;
 use crate::platform_impl::platform::backend::EventListenerHandle;
 use crate::window::WindowId;
 
@@ -37,7 +37,7 @@ type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution {
     control_flow: Cell<ControlFlow>,
-    poll_type: Cell<PollType>,
+    poll_strategy: Cell<PollStrategy>,
     exit: Cell<bool>,
     runner: RefCell<RunnerEnum>,
     suspended: Cell<bool>,
@@ -142,7 +142,7 @@ impl Shared {
 
         Shared(Rc::new(Execution {
             control_flow: Cell::new(ControlFlow::default()),
-            poll_type: Cell::new(PollType::default()),
+            poll_strategy: Cell::new(PollStrategy::default()),
             exit: Cell::new(false),
             runner: RefCell::new(RunnerEnum::Pending),
             suspended: Cell::new(false),
@@ -638,7 +638,7 @@ impl Shared {
                     let cloned = self.clone();
                     State::Poll {
                         request: backend::Schedule::new(
-                            self.poll_type(),
+                            self.poll_strategy(),
                             self.window(),
                             move || cloned.poll(),
                         ),
@@ -773,12 +773,12 @@ impl Shared {
         self.0.exit.get()
     }
 
-    pub(crate) fn set_poll_type(&self, poll_type: PollType) {
-        self.0.poll_type.set(poll_type)
+    pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.0.poll_strategy.set(strategy)
     }
 
-    pub(crate) fn poll_type(&self) -> PollType {
-        self.0.poll_type.get()
+    pub(crate) fn poll_strategy(&self) -> PollStrategy {
+        self.0.poll_strategy.get()
     }
 }
 
