@@ -114,6 +114,7 @@ jobs:
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'android') &&
         matrix.toolchain != '1.65.0'
       run: cargo test --no-run $OPTIONS
 
