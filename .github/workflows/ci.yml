@@ -35,19 +35,20 @@ jobs:
           - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
           - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
-          - { name: 'Android',            target: aarch64-linux-android,    os: ubuntu-latest, options: '--features=android-native-activity' }
           - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
           - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
-        exclude:
-          # Android is tested on stable-3
-          - toolchain: '1.65.0'
-            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
         include:
+          # Android is tested on stable-3
           - toolchain: '1.69.0'
-            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity' }
+          - toolchain: 'stable'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity' }
+          - toolchain: 'nightly'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity' }
+
 
     env:
       # Set more verbose terminal output
@@ -93,6 +94,12 @@ jobs:
       with:
         tool: xbuild@0.2.0
 
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
+        targets: ${{ matrix.platform.target }}
+        components: clippy
+
     - name: Install LLVM tools for Android
       if: contains(matrix.platform.target, 'android')
       run: sudo apt-get install lld llvm
@@ -134,6 +141,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
+        !contains(matrix.platform.target, 'android') &&
         matrix.toolchain != '1.65.0'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
