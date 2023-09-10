@@ -95,7 +95,7 @@ jobs:
 
     - name: Install LLVM tools for Android
       if: contains(matrix.platform.target, 'android')
-      run: sudo apt-get install llvm lld lldb clang clang++
+      run: sudo apt-get install lld llvm
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
