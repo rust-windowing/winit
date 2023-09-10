@@ -93,11 +93,9 @@ jobs:
       with:
         tool: xbuild@0.2.0
 
-    - uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
-        targets: ${{ matrix.platform.target }}
-        components: clippy
+    - name: Install LLVM tools for Android
+      if: contains(matrix.platform.target, 'android')
+      run: sudo apt-get install llvm lld lldb clang clang++
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
@@ -111,7 +109,7 @@ jobs:
 
     - name: Package crate for iOS
       if: contains(matrix.platform.target, 'ios')
-      run: x build -p xbuild-target --plaform ios --arch arm64
+      run: x build -p xbuild-target --platform ios --arch arm64
 
     - name: Build tests
       if: >
