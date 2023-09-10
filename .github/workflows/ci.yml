@@ -115,7 +115,7 @@ jobs:
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.65.0'
-      run: cargo $CMD test --no-run $OPTIONS
+      run: cargo test --no-run $OPTIONS
 
     - name: Run tests
       if: >
