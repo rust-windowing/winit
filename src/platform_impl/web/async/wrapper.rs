@@ -55,9 +55,6 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
             let value = Arc::clone(&value);
             async move {
                 receiver(Arc::clone(&value)).await;
-
-                // An error was returned because the channel was closed, which
-                // happens when all senders are dropped.
                 value.write().unwrap().take().unwrap();
             }
         });

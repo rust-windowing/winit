@@ -47,10 +47,6 @@ impl<T> WakerSpawner<T> {
                         if count > 0 {
                             Poll::Ready(Some(count))
                         } else {
-                            if inner.closed.load(Ordering::Relaxed) {
-                                return Poll::Ready(None);
-                            }
-
                             inner.waker.register(cx.waker());
 
                             let count = inner.counter.swap(0, Ordering::Relaxed);

@@ -68,10 +68,6 @@ impl<T> AsyncReceiver<T> {
         future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
             Err(TryRecvError::Empty) => {
-                if self.inner.closed.load(Ordering::Relaxed) {
-                    return Poll::Ready(Err(RecvError));
-                }
-
                 self.inner.waker.register(cx.waker());
 
                 match self.receiver.try_recv() {
