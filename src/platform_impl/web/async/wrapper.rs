@@ -7,16 +7,30 @@ use wasm_bindgen::{JsCast, JsValue};
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
 pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
-    // We wrap this in an `Arc` to allow it to be safely cloned without accessing the value.
-    // The `RwLock` lets us safely drop in any thread.
-    // The `Option` lets us safely drop `T` only in the main thread, while letting other threads drop `None`.
-    value: Arc<RwLock<Option<V>>>,
+    value: Value<SYNC, V>,
     handler: fn(&RwLock<Option<V>>, E),
     sender_data: S,
     sender_handler: fn(&S, E),
+}
+
+struct Value<const SYNC: bool, V> {
+    // SAFETY:
+    // This value must not be accessed if not on the main thread.
+    //
+    // - We wrap this in an `Arc` to allow it to be safely cloned without
+    //   accessing the value.
+    // - The `RwLock` lets us safely drop in any thread.
+    // - The `Option` lets us safely drop `T` only in the main thread, while
+    //   letting other threads drop `None`.
+    value: Arc<RwLock<Option<V>>>,
     // Prevent's `Send` or `Sync` to be automatically implemented.
     local: PhantomData<*const ()>,
 }
+
+// SAFETY: See `Self::value`.
+unsafe impl<const SYNC: bool, V> Send for Value<SYNC, V> {}
+// SAFETY: See `Self::value`.
+unsafe impl<V> Sync for Value<true, V> {}
 
 impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     thread_local! {
@@ -60,18 +74,20 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
         });
 
         Some(Self {
-            value,
+            value: Value {
+                value,
+                local: PhantomData,
+            },
             handler,
             sender_data,
             sender_handler,
-            local: PhantomData,
         })
     }
 
     pub fn send(&self, event: E) {
         Self::MAIN_THREAD.with(|is_main_thread| {
             if *is_main_thread {
-                (self.handler)(&self.value, event)
+                (self.handler)(&self.value.value, event)
             } else {
                 (self.sender_handler)(&self.sender_data, event)
             }
@@ -85,7 +101,7 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     pub fn with<T>(&self, f: impl FnOnce(&V) -> T) -> Option<T> {
         Self::MAIN_THREAD.with(|is_main_thread| {
             if *is_main_thread {
-                Some(f(self.value.read().unwrap().as_ref().unwrap()))
+                Some(f(self.value.value.read().unwrap().as_ref().unwrap()))
             } else {
                 None
             }
@@ -100,14 +116,13 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
 impl<const SYNC: bool, V, S: Clone + Send, E> Clone for Wrapper<SYNC, V, S, E> {
     fn clone(&self) -> Self {
         Self {
-            value: self.value.clone(),
+            value: Value {
+                value: self.value.value.clone(),
+                local: PhantomData,
+            },
             handler: self.handler,
             sender_data: self.sender_data.clone(),
             sender_handler: self.sender_handler,
-            local: PhantomData,
         }
     }
 }
-
-unsafe impl<const SYNC: bool, V, S: Clone + Send, E> Send for Wrapper<SYNC, V, S, E> {}
-unsafe impl<V, S: Clone + Send + Sync, E> Sync for Wrapper<true, V, S, E> {}
