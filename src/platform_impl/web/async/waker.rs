@@ -83,6 +83,16 @@ impl<T> WakerSpawner<T> {
     pub fn waker(&self) -> Waker<T> {
         Waker(self.0.clone())
     }
+
+    pub fn fetch(&self) -> usize {
+        debug_assert!(
+            self.0.is_main_thread(),
+            "this should only be called from the main thread"
+        );
+
+        self.0
+            .with_sender_data(|inner| inner.0.counter.swap(0, Ordering::Relaxed))
+    }
 }
 
 impl<T> Drop for WakerSpawner<T> {

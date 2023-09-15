@@ -631,7 +631,18 @@ impl Shared {
         if !is_closed && self.0.runner.borrow().maybe_runner().is_some() {
             // Take an event out of the queue and handle it
             // Make sure not to let the borrow_mut live during the next handle_event
-            let event = { self.0.events.borrow_mut().pop_front() };
+            let event = {
+                let mut events = self.0.events.borrow_mut();
+
+                // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
+                events.extend(
+                    iter::repeat(Event::UserEvent(()))
+                        .take(self.0.proxy_spawner.fetch())
+                        .map(EventWrapper::from),
+                );
+
+                events.pop_front()
+            };
             if let Some(event) = event {
                 self.handle_event(event);
             }
