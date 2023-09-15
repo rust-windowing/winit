@@ -8,6 +8,7 @@ use crate::event::{
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::PollStrategy;
 use crate::platform_impl::platform::backend::EventListenerHandle;
+use crate::platform_impl::platform::r#async::{Waker, WakerSpawner};
 use crate::window::WindowId;
 
 use std::{
@@ -35,6 +36,7 @@ impl Clone for Shared {
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution {
+    proxy_spawner: WakerSpawner<Weak<Self>>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
     exit: Cell<bool>,
@@ -139,30 +141,40 @@ impl Shared {
         #[allow(clippy::disallowed_methods)]
         let document = window.document().expect("Failed to obtain document");
 
-        Shared(Rc::new(Execution {
-            control_flow: Cell::new(ControlFlow::default()),
-            poll_strategy: Cell::new(PollStrategy::default()),
-            exit: Cell::new(false),
-            runner: RefCell::new(RunnerEnum::Pending),
-            suspended: Cell::new(false),
-            event_loop_recreation: Cell::new(false),
-            events: RefCell::new(VecDeque::new()),
-            window,
-            document,
-            id: RefCell::new(0),
-            all_canvases: RefCell::new(Vec::new()),
-            redraw_pending: RefCell::new(HashSet::new()),
-            destroy_pending: RefCell::new(VecDeque::new()),
-            page_transition_event_handle: RefCell::new(None),
-            device_events: Cell::default(),
-            on_mouse_move: RefCell::new(None),
-            on_wheel: RefCell::new(None),
-            on_mouse_press: RefCell::new(None),
-            on_mouse_release: RefCell::new(None),
-            on_key_press: RefCell::new(None),
-            on_key_release: RefCell::new(None),
-            on_visibility_change: RefCell::new(None),
-            on_touch_end: RefCell::new(None),
+        Shared(Rc::<Execution>::new_cyclic(|weak| {
+            let proxy_spawner = WakerSpawner::new(weak.clone(), |runner, count| {
+                if let Some(runner) = runner.upgrade() {
+                    Shared(runner).send_events(iter::repeat(Event::UserEvent(())).take(count))
+                }
+            })
+            .expect("`EventLoop` has to be created in the main thread");
+
+            Execution {
+                proxy_spawner,
+                control_flow: Cell::new(ControlFlow::default()),
+                poll_strategy: Cell::new(PollStrategy::default()),
+                exit: Cell::new(false),
+                runner: RefCell::new(RunnerEnum::Pending),
+                suspended: Cell::new(false),
+                event_loop_recreation: Cell::new(false),
+                events: RefCell::new(VecDeque::new()),
+                window,
+                document,
+                id: RefCell::new(0),
+                all_canvases: RefCell::new(Vec::new()),
+                redraw_pending: RefCell::new(HashSet::new()),
+                destroy_pending: RefCell::new(VecDeque::new()),
+                page_transition_event_handle: RefCell::new(None),
+                device_events: Cell::default(),
+                on_mouse_move: RefCell::new(None),
+                on_wheel: RefCell::new(None),
+                on_mouse_press: RefCell::new(None),
+                on_mouse_release: RefCell::new(None),
+                on_key_press: RefCell::new(None),
+                on_key_release: RefCell::new(None),
+                on_visibility_change: RefCell::new(None),
+                on_touch_end: RefCell::new(None),
+            }
         }))
     }
 
@@ -778,6 +790,10 @@ impl Shared {
 
     pub(crate) fn poll_strategy(&self) -> PollStrategy {
         self.0.poll_strategy.get()
+    }
+
+    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+        self.0.proxy_spawner.waker()
     }
 }
 

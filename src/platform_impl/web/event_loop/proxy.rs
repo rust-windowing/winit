@@ -1,16 +1,17 @@
+use std::rc::Weak;
 use std::sync::mpsc::{SendError, Sender};
 
-use super::runner;
+use super::runner::Execution;
 use crate::event_loop::EventLoopClosed;
 use crate::platform_impl::platform::r#async::Waker;
 
 pub struct EventLoopProxy<T: 'static> {
-    runner: Waker<runner::Shared>,
+    runner: Waker<Weak<Execution>>,
     sender: Sender<T>,
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn new(runner: Waker<runner::Shared>, sender: Sender<T>) -> Self {
+    pub fn new(runner: Waker<Weak<Execution>>, sender: Sender<T>) -> Self {
         Self { runner, sender }
     }
 

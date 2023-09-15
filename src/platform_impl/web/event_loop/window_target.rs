@@ -3,9 +3,9 @@ use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
 use std::marker::PhantomData;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
-use super::runner::EventWrapper;
+use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
@@ -19,6 +19,7 @@ use crate::event::{
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
 use crate::platform::web::PollStrategy;
+use crate::platform_impl::platform::r#async::Waker;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 #[derive(Default)]
@@ -701,5 +702,9 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn poll_strategy(&self) -> PollStrategy {
         self.runner.poll_strategy()
+    }
+
+    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+        self.runner.waker()
     }
 }

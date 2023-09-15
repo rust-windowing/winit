@@ -1,4 +1,3 @@
-use std::iter;
 use std::marker::PhantomData;
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -6,7 +5,6 @@ use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
 
-use super::r#async::WakerSpawner;
 use super::{backend, device, window};
 
 mod proxy;
@@ -19,7 +17,6 @@ pub use window_target::EventLoopWindowTarget;
 
 pub struct EventLoop<T: 'static> {
     elw: RootEventLoopWindowTarget<T>,
-    proxy_spawner: WakerSpawner<runner::Shared>,
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
 }
@@ -34,13 +31,8 @@ impl<T> EventLoop<T> {
             p: EventLoopWindowTarget::new(),
             _marker: PhantomData,
         };
-        let proxy_spawner = WakerSpawner::new(elw.p.runner.clone(), |runner, count| {
-            runner.send_events(iter::repeat(Event::UserEvent(())).take(count))
-        })
-        .expect("`EventLoop` has to be created in the main thread");
         Ok(EventLoop {
             elw,
-            proxy_spawner,
             user_event_sender,
             user_event_receiver,
         })
@@ -110,7 +102,7 @@ impl<T> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.proxy_spawner.waker(), self.user_event_sender.clone())
+        EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
