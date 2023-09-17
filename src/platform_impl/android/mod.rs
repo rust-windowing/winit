@@ -272,12 +272,7 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 MainEvent::LowMemory => {
-                    sticky_exit_callback(
-                        event::Event::MemoryWarning,
-                        self.window_target(),
-                        &mut control_flow,
-                        callback,
-                    );
+                    callback(event::Event::MemoryWarning, self.window_target());
                 }
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
