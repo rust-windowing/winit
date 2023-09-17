@@ -1029,7 +1029,7 @@ impl ElementState {
 ///
 /// **macOS:** `Back` and `Forward` might not work with all hardware.
 /// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
