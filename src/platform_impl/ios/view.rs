@@ -525,13 +525,45 @@ declare_class!(
         }
 
         #[method(applicationWillEnterForeground:)]
-        fn will_enter_foreground(&self, _application: &UIApplication) {
-            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Foreground)) }
+        fn will_enter_foreground(&self, application: &UIApplication) {
+            let mut events = Vec::new();
+            for window in application.windows().iter() {
+                if window.is_kind_of::<WinitUIWindow>() {
+                    // SAFETY: We just checked that the window is a `winit` window
+                    let window = unsafe {
+                        let ptr: *const UIWindow = window;
+                        let ptr: *const WinitUIWindow = ptr.cast();
+                        &*ptr
+                    };
+                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::Occluded(false),
+                    }));
+                }
+            }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_events(mtm, events);
         }
 
         #[method(applicationDidEnterBackground:)]
-        fn did_enter_background(&self, _application: &UIApplication) {
-            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Background)) }
+        fn did_enter_background(&self, application: &UIApplication) {
+            let mut events = Vec::new();
+            for window in application.windows().iter() {
+                if window.is_kind_of::<WinitUIWindow>() {
+                    // SAFETY: We just checked that the window is a `winit` window
+                    let window = unsafe {
+                        let ptr: *const UIWindow = window;
+                        let ptr: *const WinitUIWindow = ptr.cast();
+                        &*ptr
+                    };
+                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::Occluded(true),
+                    }));
+                }
+            }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_events(mtm, events);
         }
 
         #[method(applicationWillTerminate:)]
@@ -558,9 +590,8 @@ declare_class!(
 
         #[method(applicationDidReceiveMemoryWarning:)]
         fn did_receive_memory_warning(&self, _application: &UIApplication) {
-            unsafe {
-                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning))
-            }
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::MemoryWarning))
         }
     }
 );

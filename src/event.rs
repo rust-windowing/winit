@@ -208,30 +208,6 @@ pub enum Event<T: 'static> {
     /// [`Suspended`]: Self::Suspended
     Resumed,
 
-    /// Emitted when the application will enter the foreground.
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Foreground` event is emitted in response to an [`applicationWillEnterForeground`]
-    /// callback which means the application should start preparing its data (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    Foreground,
-
-    /// Emitted when the application has entered the background.
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Background` event is emitted in response to an [`applicationDidEnterBackground`]
-    /// callback which means the application should free resources (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    Background,
-
     /// Emitted when the event loop is about to block and wait for new events.
     ///
     /// Most applications shouldn't need to hook into this event since there is no real relationship
@@ -284,8 +260,6 @@ impl<T> Event<T> {
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
-            Foreground => Ok(Foreground),
-            Background => Ok(Background),
             MemoryWarning => Ok(MemoryWarning),
         }
     }
@@ -580,8 +554,19 @@ pub enum WindowEvent {
     ///
     /// Platform-specific behavior:
     ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
+    /// callback which means the application should start preparing its data. The `Occluded(true)` event is
+    /// emitted in response to an [`applicationDidEnterBackground`] callback which means the application
+    /// should free resources (according to the [iOS application lifecycle]).
+    ///
+    /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
+    /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
     /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    /// - **Android / Wayland / Windows / Orbital:** Unsupported.
     ///
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
