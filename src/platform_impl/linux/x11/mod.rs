@@ -537,8 +537,10 @@ impl<T: 'static> EventLoop<T> {
         // running a loop iteration.
         // If we don't have any pending `_receiver`
         if !self.has_pending()
-            && !self.state.x11_readiness.readable
-            && !matches!(&cause, StartCause::ResumeTimeReached { .. })
+            && !matches!(
+                &cause,
+                StartCause::ResumeTimeReached { .. } | StartCause::Poll
+            )
         {
             return;
         }
