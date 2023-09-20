@@ -45,11 +45,10 @@ pub use raw_window_handle;
 /// };
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
+/// event_loop.set_control_flow(ControlFlow::Wait);
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, elwt| {
-///     elwt.set_control_flow(ControlFlow::Wait);
-///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,

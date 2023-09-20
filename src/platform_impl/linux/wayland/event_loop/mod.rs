@@ -227,11 +227,6 @@ impl<T: 'static> EventLoop<T> {
         if !self.loop_running {
             self.loop_running = true;
 
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once.
-            self.set_control_flow(ControlFlow::Poll);
-
             // Run the initial loop iteration.
             self.single_iteration(&mut callback, StartCause::Init);
         }
@@ -609,10 +604,6 @@ impl<T: 'static> EventLoop<T> {
                 error
             ))))
         })
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
     }
 
     fn control_flow(&self) -> ControlFlow {

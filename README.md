@@ -41,11 +41,10 @@ use winit::{
 
 fn main() {
     let event_loop = EventLoop::new();
+    event_loop.set_control_flow(ControlFlow::Wait);
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

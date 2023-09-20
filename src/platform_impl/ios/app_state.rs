@@ -234,7 +234,7 @@ impl AppState {
         };
         self.set_state(AppStateImpl::ProcessingEvents {
             event_handler,
-            active_control_flow: ControlFlow::Poll,
+            active_control_flow: self.control_flow,
             queued_gpu_redraws,
         });
         (windows, events)
@@ -523,11 +523,6 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
         s => bug!("unexpected state {:?}", s),
     };
 
-    // start waking up the event loop now!
-    bug_assert!(
-        this.control_flow == ControlFlow::Poll,
-        "unexpectedly not setup to `Poll` on launch!"
-    );
     this.waker.start();
 
     // have to drop RefMut because the window setup code below can trigger new events

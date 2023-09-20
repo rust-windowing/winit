@@ -199,7 +199,6 @@ impl Handler {
         // looks like there have been recuring re-entrancy issues with callback handling that might
         // make that awkward)
         self.running.store(false, Ordering::Relaxed);
-        *self.control_flow.lock().unwrap() = ControlFlow::default();
         self.set_stop_app_on_redraw_requested(false);
         self.set_stop_app_before_wait(false);
         self.set_stop_app_after_wait(false);
