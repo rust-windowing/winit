@@ -10,7 +10,7 @@ mod imple {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::x11::WindowBuilderExtX11,
         window::WindowBuilder,
     };
@@ -33,8 +33,6 @@ mod imple {
             .unwrap();
 
         event_loop.run(move |event, elwt| {
-            elwt.set_control_flow(ControlFlow::Wait);
-
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,

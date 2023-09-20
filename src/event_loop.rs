@@ -151,9 +151,9 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
-/// Defaults to [`Poll`].
+/// Defaults to [`Wait`].
 ///
-/// [`Poll`]: Self::Poll
+/// [`Wait`]: Self::Wait
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -193,7 +193,7 @@ impl ControlFlow {
 impl Default for ControlFlow {
     #[inline(always)]
     fn default() -> Self {
-        Self::Poll
+        Self::Wait
     }
 }
 
