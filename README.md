@@ -35,25 +35,23 @@ another library.
 ```rust
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
 fn main() {
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
+    event_loop.run(move |event, _elwt, cf| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => elwt.exit(),
-            _ => (),
-        }
-    });
+            } if window_id == window.id() => cf.set_exit(),
+                _ => (),
+            }
+    }).unwrap();
 }
 ```
 
