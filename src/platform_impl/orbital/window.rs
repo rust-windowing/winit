@@ -388,6 +388,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn show_system_menu(&self) {}
+
+    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
