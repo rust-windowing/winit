@@ -43,15 +43,15 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    event_loop.run(move |event, _elwt, cf| {
-        match event {
+    event_loop
+        .run(move |event, _elwt, cf| match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => cf.set_exit(),
-                _ => (),
-            }
-    }).unwrap();
+            _ => (),
+        })
+        .unwrap();
 }
 ```
 
