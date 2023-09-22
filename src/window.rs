@@ -1402,7 +1402,7 @@ impl Window {
     ///
     /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
     pub fn show_system_menu(&self) {
-        self.window.maybe_wait_on_main(|w| w.show_system_menu())
+        self.window.maybe_queue_on_main(|w| w.show_system_menu())
     }
 
     /// Modifies whether the window catches cursor events.
