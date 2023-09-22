@@ -151,16 +151,17 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
-/// Defaults to [`Poll`].
+/// Defaults to [`Wait`].
 ///
-/// [`Poll`]: Self::Poll
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// [`Wait`]: Self::Wait
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
     Poll,
 
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
+    #[default]
     Wait,
 
     /// When the current loop iteration finishes, suspend the thread until either another event
@@ -187,13 +188,6 @@ impl ControlFlow {
             Some(instant) => Self::WaitUntil(instant),
             None => Self::Wait,
         }
-    }
-}
-
-impl Default for ControlFlow {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::Poll
     }
 }
 

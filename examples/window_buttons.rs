@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, DeviceEvents, EventLoop},
+    event_loop::{DeviceEvents, EventLoop},
     keyboard::Key,
     window::{WindowBuilder, WindowButtons},
 };
@@ -32,8 +32,6 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.listen_device_events(DeviceEvents::Always);
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { window_id, event } = event {
             match event {
                 WindowEvent::KeyboardInput {

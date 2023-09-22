@@ -5,7 +5,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::{Key, KeyCode},
     window::{ImePurpose, WindowBuilder},
 };
@@ -40,7 +40,6 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut ime_pos = PhysicalPosition::new(0.0, 0.0);
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => elwt.exit(),
