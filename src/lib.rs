@@ -159,3 +159,7 @@ mod platform_impl;
 pub mod window;
 
 pub mod platform;
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+extern "C" {}
