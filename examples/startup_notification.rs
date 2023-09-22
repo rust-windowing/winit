@@ -10,7 +10,7 @@ mod example {
     use std::rc::Rc;
 
     use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
-    use winit::event_loop::{ControlFlow, EventLoop};
+    use winit::event_loop::EventLoop;
     use winit::keyboard::Key;
     use winit::platform::startup_notify::{
         EventLoopExtStartupNotify, WindowBuilderExtStartupNotify, WindowExtStartupNotify,
@@ -102,8 +102,6 @@ mod example {
                 counter += 1;
                 create_first_window = false;
             }
-
-            elwt.set_control_flow(ControlFlow::Wait);
         })
     }
 }

@@ -8,7 +8,7 @@ use simple_logger::SimpleLogger;
 #[cfg(target_os = "macos")]
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
@@ -31,8 +31,6 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press N to open a new window.");
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {

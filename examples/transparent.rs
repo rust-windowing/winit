@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -23,7 +23,6 @@ fn main() -> Result<(), impl std::error::Error> {
     window.set_title("A fantastic window!");
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
         println!("{event:?}");
 
         if let Event::WindowEvent { event, .. } = event {
