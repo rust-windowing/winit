@@ -39,19 +39,23 @@ use winit::{
     window::WindowBuilder,
 };
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new().build(&event_loop)?;
 
     event_loop
         .run(move |event, _elwt, cf| match event {
+            Event::RedrawRequested(_) => {
+                println!("Redraw requested");
+            }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => cf.set_exit(),
             _ => (),
-        })
-        .unwrap();
+        })?;
+        
+    Ok(())
 }
 ```
 
