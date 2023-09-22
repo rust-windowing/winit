@@ -1398,9 +1398,6 @@ impl Window {
 
     /// Show system menu at current mouse position.
     ///
-    /// There's no guarantee that calling this method shows the system menu.
-    /// user can cancel opening of it before it even open.
-    ///
     /// ## Platform-specific
     ///
     /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
