@@ -73,7 +73,7 @@ the MSRV will be accompanied by a minor version bump.
 As a **tentative** policy, the upper bound of the MSRV is given by the following
 formula:
 
-```
+```ignore
 min(sid, stable - 3)
 ```
 
