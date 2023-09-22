@@ -223,8 +223,6 @@ impl<T> EventLoop<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Wayland:** The program terminates with exit code 1 if the display server
-    ///   disconnects.
     /// - **iOS:** Will never return to the caller and so values not passed to this function will
     ///   *not* be dropped before the process exits.
     /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript exception
