@@ -1401,8 +1401,10 @@ impl Window {
     /// There's no guarantee that calling this method show the window menu.
     /// 
     /// ## Platform-specific
-    /// - **Windows:** Window need to have `WS_SYSMENU` window style.
+    /// - **Windows:** Window need to have `WS_SYSMENU` window style to be able to show the [`window menu`].
     /// - **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    /// 
+    /// [`window menu`]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     pub fn show_window_menu(&self) {
         self.window.maybe_queue_on_main(|w| w.show_window_menu())
     }
