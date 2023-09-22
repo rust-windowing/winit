@@ -1396,13 +1396,15 @@ impl Window {
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
-    /// Show system menu at current mouse position.
+    /// Show window menu at current mouse position.
     ///
+    /// There's no guarantee that calling this method show the window menu.
+    /// 
     /// ## Platform-specific
-    ///
-    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
-    pub fn show_system_menu(&self) {
-        self.window.maybe_queue_on_main(|w| w.show_system_menu())
+    /// - **Windows:** Window need to have `WS_SYSMENU` window style.
+    /// - **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    pub fn show_window_menu(&self) {
+        self.window.maybe_queue_on_main(|w| w.show_window_menu())
     }
 
     /// Modifies whether the window catches cursor events.

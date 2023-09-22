@@ -892,7 +892,7 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn show_system_menu(&self) {}
+    pub fn show_window_menu(&self) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {

@@ -195,7 +195,7 @@ impl Inner {
     }
 
     #[inline]
-    pub fn show_system_menu(&self) {}
+    pub fn show_window_menu(&self) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))

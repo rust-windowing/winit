@@ -25,7 +25,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
 - Implement `PartialOrd` and `Ord` for `MouseButton`.
 - On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
-- Add `Window::show_system_menu()` which shows the system menu at the mouse position. Currently only implemented on Windows.
+- Add `Window::show_window_menu()` which shows the system menu at the mouse position. Currently only implemented on Windows.
 
 # 0.29.1-beta
 

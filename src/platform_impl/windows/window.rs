@@ -475,7 +475,7 @@ impl Window {
         Ok(())
     }
 
-    unsafe fn handle_showing_system_menu(&self) {
+    unsafe fn handle_showing_window_menu(&self) {
         let points = {
             let mut pos = mem::zeroed();
             GetCursorPos(&mut pos);
@@ -537,9 +537,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_system_menu(&self) {
+    pub fn show_window_menu(&self) {
         unsafe {
-            self.handle_showing_system_menu();
+            self.handle_showing_window_menu();
         }
     }
 
