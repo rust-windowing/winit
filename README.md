@@ -32,7 +32,7 @@ Winit is designed to be a low-level brick in a hierarchy of libraries. Consequen
 show something on the window you need to use the platform-specific getters provided by winit, or
 another library.
 
-```rust, ignore
+```rust, no_run
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -189,7 +189,7 @@ android_logger = "0.11.0"
 ```
 
 And, for example, define an entry point for your library like this:
-```rust
+```rust, no_run
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
 
