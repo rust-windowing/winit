@@ -30,8 +30,7 @@
 //!
 //! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which
-//! point [`Event`]`::`[`LoopExiting`] is emitted and the entire program terminates.
+//! will run until [`exit()`] is used, at which point [`Event`]`::`[`LoopExiting`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
