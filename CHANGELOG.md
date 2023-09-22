@@ -89,6 +89,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
 - On iOS, add force data to touch events when using the Apple Pencil.
+- On Android, add force data to touch events.
 
 # 0.29.0-beta.0
 
