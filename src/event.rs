@@ -618,10 +618,6 @@ pub enum DeviceEvent {
     },
 
     Key(RawKeyEvent),
-
-    Text {
-        codepoint: char,
-    },
 }
 
 /// Describes a keyboard input as a raw device event.
@@ -1221,7 +1217,6 @@ mod tests {
                     button: 0,
                     state: event::ElementState::Pressed,
                 });
-                with_device_event(Text { codepoint: 'a' });
             }
         }};
     }
