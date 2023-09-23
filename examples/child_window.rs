@@ -9,7 +9,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyEvent, WindowEvent},
-        event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+        event_loop::{EventLoop, EventLoopWindowTarget},
         window::raw_window_handle::HasRawWindowHandle,
         window::{Window, WindowBuilder, WindowId},
     };
@@ -47,8 +47,6 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("parent window: {parent_window:?})");
 
     event_loop.run(move |event: Event<()>, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {

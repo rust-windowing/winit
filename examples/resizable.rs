@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::KeyCode,
     window::WindowBuilder,
 };
@@ -28,8 +28,6 @@ fn main() -> Result<(), impl std::error::Error> {
         .unwrap();
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => elwt.exit(),
