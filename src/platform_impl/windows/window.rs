@@ -553,7 +553,7 @@ impl Window {
     #[inline]
     pub fn show_window_menu(&self, position: Option<Position>) {
         unsafe {
-            self.handle_showing_window_menu(position.map(Into::into));
+            self.handle_showing_window_menu(position);
         }
     }
 
