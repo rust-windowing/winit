@@ -487,13 +487,13 @@ impl Window {
                     warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
                     return;
                 }
-            },
+            }
             None => {
                 if GetCursorPos(&mut point) == false.into() {
                     warn!("Can't get cursor position when showing window menu.");
                     return;
                 }
-            },
+            }
         }
 
         // get the current system menu

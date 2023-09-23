@@ -27,11 +27,7 @@ fn main() -> Result<(), impl std::error::Error> {
         }
         Event::WindowEvent { event, window_id } => match event {
             WindowEvent::CloseRequested => elwt.exit(),
-            WindowEvent::MouseInput {
-                state,
-                button,
-                ..
-            } => {
+            WindowEvent::MouseInput { state, button, .. } => {
                 let window = if (window_id == window_1.id() && switched)
                     || (window_id == window_2.id() && !switched)
                 {
@@ -43,7 +39,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 match (button, state) {
                     (MouseButton::Left, ElementState::Pressed) => window.drag_window().unwrap(),
                     (MouseButton::Right, ElementState::Released) => window.show_window_menu(None),
-                    _ => ()
+                    _ => (),
                 }
             }
             WindowEvent::CursorEntered { .. } => {
@@ -58,27 +54,25 @@ fn main() -> Result<(), impl std::error::Error> {
                         ..
                     },
                 ..
-            } => {
-                match c.as_str() {
-                    "x" => {
-                        switched = !switched;
-                        name_windows(entered_id, switched, &window_1, &window_2);
-                        println!("Switched!")
-                    },
-                    "d" => {
-                        let window = if (window_id == window_1.id() && switched)
-                            || (window_id == window_2.id() && !switched)
-                        {
-                            &window_2
-                        } else {
-                            &window_1
-                        };
-
-                        window.set_decorations(!window.is_decorated());
-                    }
-                    _ => ()
+            } => match c.as_str() {
+                "x" => {
+                    switched = !switched;
+                    name_windows(entered_id, switched, &window_1, &window_2);
+                    println!("Switched!")
                 }
-            }
+                "d" => {
+                    let window = if (window_id == window_1.id() && switched)
+                        || (window_id == window_2.id() && !switched)
+                    {
+                        &window_2
+                    } else {
+                        &window_1
+                    };
+
+                    window.set_decorations(!window.is_decorated());
+                }
+                _ => (),
+            },
             WindowEvent::RedrawRequested => {
                 if window_id == window_1.id() {
                     fill::fill_window(&window_1);
