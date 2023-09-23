@@ -1398,11 +1398,10 @@ impl Window {
 
     /// Show window menu at current mouse position.
     ///
-    /// There's no guarantee that calling this method show the window menu.
-    /// 
+    /// This is the context menu that is normally shown when interacting with
+    /// the title bar. This is useful when implementing custom decorations.
     /// ## Platform-specific
-    /// - **Windows:** Window need to have `WS_SYSMENU` window style to be able to show the [`window menu`].
-    /// - **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
     /// 
     /// [`window menu`]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     pub fn show_window_menu(&self) {
