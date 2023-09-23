@@ -1396,7 +1396,7 @@ impl Window {
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
-    /// Show window menu at a specified position or the current mouse position.
+    /// Show window menu at a specified position or the current cursor position.
     ///
     /// This is the context menu that is normally shown when interacting with
     /// the title bar. This is useful when implementing custom decorations.
