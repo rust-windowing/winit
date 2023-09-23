@@ -1396,20 +1396,17 @@ impl Window {
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
-    /// Show window menu at a specified position or the current cursor position.
+    /// Show [window menu] at a specified position or the current cursor position.
     ///
     /// This is the context menu that is normally shown when interacting with
     /// the title bar. This is useful when implementing custom decorations.
     ///
-    /// if `position` is `None` the current cursor position will be used.
-    ///
-    /// ### what is a window menu?
-    /// - windows: [`window menu`]
+    /// If `position` is `None` the current cursor position will be used.
     ///
     /// ## Platform-specific
     /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
     ///
-    /// [`window menu`]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
+    /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
     pub fn show_window_menu(&self, position: Option<Position>) {
         self.window
             .maybe_queue_on_main(move |w| w.show_window_menu(position))
