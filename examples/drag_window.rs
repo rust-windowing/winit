@@ -42,7 +42,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
                 match (button, state) {
                     (MouseButton::Left, ElementState::Pressed) => window.drag_window().unwrap(),
-                    (MouseButton::Right, ElementState::Released) => window.show_window_menu(),
+                    (MouseButton::Right, ElementState::Released) => window.show_window_menu(None),
                     _ => ()
                 }
             }

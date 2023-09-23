@@ -475,12 +475,26 @@ impl Window {
         Ok(())
     }
 
-    unsafe fn handle_showing_window_menu(&self) {
-        let points = {
-            let mut pos = mem::zeroed();
-            GetCursorPos(&mut pos);
-            pos
-        };
+    unsafe fn handle_showing_window_menu(&self, position: Option<Position>) {
+        let mut point = POINT { x: 0, y: 0 };
+        match position {
+            Some(pos) => {
+                let scale_factor = self.scale_factor();
+                let (x, y) = pos.to_physical::<i32>(scale_factor).into();
+                point.x = x;
+                point.y = y;
+                if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                    warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
+                    return;
+                }
+            },
+            None => {
+                if GetCursorPos(&mut point) == false.into() {
+                    warn!("Can't get cursor position when showing window menu.");
+                    return;
+                }
+            },
+        }
 
         // get the current system menu
         let h_menu = GetSystemMenu(self.hwnd(), 0);
@@ -518,8 +532,8 @@ impl Window {
         let result = TrackPopupMenu(
             h_menu,
             TPM_RETURNCMD | TPM_LEFTALIGN, // for now im using LTR, but we have to use user layout direction
-            points.x,
-            points.y,
+            point.x,
+            point.y,
             0,
             self.hwnd(),
             std::ptr::null_mut(),
@@ -537,9 +551,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_window_menu(&self) {
+    pub fn show_window_menu(&self, position: Option<Position>) {
         unsafe {
-            self.handle_showing_window_menu();
+            self.handle_showing_window_menu(position.map(Into::into));
         }
     }
 
