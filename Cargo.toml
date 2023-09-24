@@ -199,8 +199,8 @@ features = [
 [target.'cfg(target_family = "wasm")'.dependencies]
 atomic-waker = "1"
 base64 = "0.9.3"
-image = { version = "0.24.0", default-features = false, features = ["png"] }
 js-sys = "0.3.64"
+png = "0.17.10"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-time = "0.2"

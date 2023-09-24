@@ -1,6 +1,8 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use std::path::Path;
+use winit::window::CustomCursorIcon;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
@@ -18,6 +20,10 @@ fn main() -> Result<(), impl std::error::Error> {
     window.set_title("A fantastic window!");
 
     let mut cursor_idx = 0;
+    let custom_cursor_icon = load_icon(Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/icon.png"
+    )));
 
     event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, .. } = event {
@@ -30,11 +36,13 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => {
-                    println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-                    window.set_cursor_icon(CURSORS[cursor_idx]);
-                    if cursor_idx < CURSORS.len() - 1 {
+                    if cursor_idx < CURSORS.len() {
+                        println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
+                        window.set_cursor_icon(CURSORS[cursor_idx]);
                         cursor_idx += 1;
                     } else {
+                        println!("Setting cursor to custom");
+                        window.set_cursor_icon(custom_cursor_icon.clone());
                         cursor_idx = 0;
                     }
                 }
@@ -86,3 +94,15 @@ const CURSORS: &[NamedCursorIcon] = &[
     NamedCursorIcon::ColResize,
     NamedCursorIcon::RowResize,
 ];
+
+fn load_icon(path: &Path) -> CustomCursorIcon {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    CustomCursorIcon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+}

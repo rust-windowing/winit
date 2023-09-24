@@ -13,7 +13,7 @@ use crate::{
     platform_impl,
 };
 
-pub use crate::icon::{BadIcon, Icon};
+pub use crate::icon::{BadIcon, CustomCursorIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon as NamedCursorIcon, ParseError as NamedCursorIconParseError};
@@ -1537,7 +1537,7 @@ pub enum CursorGrabMode {
 #[derive(Clone)]
 pub enum CursorIcon {
     Named(NamedCursorIcon),
-    Custom(Icon),
+    Custom(CustomCursorIcon),
 }
 
 impl Default for CursorIcon {
@@ -1552,8 +1552,8 @@ impl From<NamedCursorIcon> for CursorIcon {
     }
 }
 
-impl From<Icon> for CursorIcon {
-    fn from(value: Icon) -> Self {
+impl From<CustomCursorIcon> for CursorIcon {
+    fn from(value: CustomCursorIcon) -> Self {
         Self::Custom(value)
     }
 }

@@ -12,7 +12,6 @@ use web_sys::HtmlCanvasElement;
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
-use image::{ColorType, ImageFormat};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -198,20 +197,18 @@ impl Inner {
         let cursor = match cursor {
             CursorIcon::Named(named_icon) => named_icon.name().to_owned(),
             CursorIcon::Custom(icon) => {
-                let mut data = std::io::Cursor::new(vec![]);
-                image::write_buffer_with_format(
-                    &mut data,
-                    &icon.inner.rgba,
-                    icon.inner.width,
-                    icon.inner.height,
-                    ColorType::Rgba8,
-                    ImageFormat::Png,
-                )
-                .unwrap();
-
+                let mut data = vec![];
+                {
+                    let mut encoder =
+                        png::Encoder::new(&mut data, icon.inner.width, icon.inner.height);
+                    encoder.set_color(png::ColorType::Rgba);
+                    encoder.set_depth(png::BitDepth::Eight);
+                    let mut writer = encoder.write_header().unwrap();
+                    writer.write_image_data(&icon.inner.rgba).unwrap();
+                }
                 format!(
                     "url(data:image/png;base64,{}) {} {}, auto",
-                    base64::encode(&data.into_inner()),
+                    base64::encode(&data),
                     icon.inner.hotspot_x,
                     icon.inner.hotspot_y
                 )

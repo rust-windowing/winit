@@ -4,7 +4,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::KeyCode,
-    window::{Fullscreen, WindowBuilder},
+    window::{CustomCursorIcon, Fullscreen, WindowBuilder},
 };
 
 pub fn main() -> Result<(), impl std::error::Error> {
@@ -17,6 +17,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
         builder.with_append(true)
     };
     let window = builder.build(&event_loop).unwrap();
+    window.set_cursor_icon(load_icon(include_bytes!("icon.png")));
 
     #[cfg(wasm_platform)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
@@ -144,4 +145,16 @@ mod wasm {
                 .unwrap();
         }
     }
+}
+
+fn load_icon(data: &[u8]) -> CustomCursorIcon {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(data)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    CustomCursorIcon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
 }

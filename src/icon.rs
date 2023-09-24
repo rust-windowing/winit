@@ -1,4 +1,4 @@
-use crate::platform_impl::PlatformIcon;
+use crate::platform_impl::{PlatformCustomCursorIcon, PlatformIcon};
 use std::{error::Error, fmt, io, mem};
 
 #[repr(C)]
@@ -138,6 +138,25 @@ impl Icon {
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+        Ok(Icon {
+            inner: PlatformIcon::from_rgba(rgba, width, height, 0, 0)?,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct CustomCursorIcon {
+    pub(crate) inner: PlatformCustomCursorIcon,
+}
+
+impl fmt::Debug for CustomCursorIcon {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        fmt::Debug::fmt(&self.inner, formatter)
+    }
+}
+
+impl CustomCursorIcon {
+    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
         Self::from_rgba_with_hotspot(rgba, width, height, width / 2, height / 2)
     }
 
@@ -148,8 +167,8 @@ impl Icon {
         hotspot_x: u32,
         hotspot_y: u32,
     ) -> Result<Self, BadIcon> {
-        Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?,
+        Ok(CustomCursorIcon {
+            inner: PlatformCustomCursorIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?,
         })
     }
 }
