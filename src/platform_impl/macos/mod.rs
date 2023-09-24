@@ -31,6 +31,7 @@ use crate::event::DeviceId as RootDeviceId;
 
 pub(crate) use self::window::Window;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(crate) use crate::icon::NoIcon as PlatformCustomCursorIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

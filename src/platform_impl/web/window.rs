@@ -195,25 +195,9 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let cursor: Cow<_> = match cursor {
+        let cursor: Cow<'static, _> = match cursor {
             CursorIcon::Named(named_icon) => named_icon.name().into(),
-            CursorIcon::Custom(icon) => {
-                let mut data = vec![];
-                {
-                    let mut encoder =
-                        png::Encoder::new(&mut data, icon.inner.width, icon.inner.height);
-                    encoder.set_color(png::ColorType::Rgba);
-                    encoder.set_depth(png::BitDepth::Eight);
-                    let mut writer = encoder.write_header().unwrap();
-                    writer.write_image_data(&icon.inner.rgba).unwrap();
-                }
-                format!(
-                    "url(data:image/png;base64,{}) {} {}, auto",
-                    base64::encode(&data),
-                    icon.inner.hotspot_x,
-                    icon.inner.hotspot_y
-                ).into()
-            }
+            CursorIcon::Custom(icon) => icon.inner.inner,
         };
 
         backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", &cursor);

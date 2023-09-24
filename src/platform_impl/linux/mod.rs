@@ -40,6 +40,7 @@ pub use x11::XNotSupported;
 #[cfg(x11_platform)]
 use x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 
+pub(crate) use crate::icon::NoIcon as PlatformCustomCursorIcon;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

@@ -194,6 +194,7 @@ impl Display for OsError {
 }
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(crate) use crate::icon::NoIcon as PlatformCustomCursorIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MonitorHandle;

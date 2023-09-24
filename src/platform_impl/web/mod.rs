@@ -21,6 +21,7 @@ mod r#async;
 mod device;
 mod error;
 mod event_loop;
+mod icon;
 mod keyboard;
 mod monitor;
 mod window;
@@ -36,7 +37,7 @@ pub(crate) use self::event_loop::{
 pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
+pub(crate) use self::icon::WebIcon as PlatformCustomCursorIcon;
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-pub(crate) use crate::icon::RgbaIcon as PlatformCustomCursorIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
