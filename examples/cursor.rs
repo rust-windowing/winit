@@ -2,11 +2,10 @@
 
 use simple_logger::SimpleLogger;
 use std::path::Path;
-use winit::window::CustomCursorIcon;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    window::{NamedCursorIcon, WindowBuilder},
+    window::{CustomCursorIcon, NamedCursorIcon, WindowBuilder},
 };
 
 #[path = "util/fill.rs"]

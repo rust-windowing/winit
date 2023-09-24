@@ -12,6 +12,7 @@ use web_sys::HtmlCanvasElement;
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -26,7 +27,7 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    previous_pointer: RefCell<String>,
+    previous_pointer: RefCell<Cow<'static, str>>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
     has_focus: Arc<AtomicBool>,
 }
@@ -57,7 +58,7 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            previous_pointer: RefCell::new("auto".to_owned()),
+            previous_pointer: RefCell::new("auto".into()),
             destroy_fn: Some(destroy_fn),
             has_focus,
         };
@@ -194,8 +195,8 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let cursor = match cursor {
-            CursorIcon::Named(named_icon) => named_icon.name().to_owned(),
+        let cursor: Cow<_> = match cursor {
+            CursorIcon::Named(named_icon) => named_icon.name().into(),
             CursorIcon::Custom(icon) => {
                 let mut data = vec![];
                 {
@@ -211,7 +212,7 @@ impl Inner {
                     base64::encode(&data),
                     icon.inner.hotspot_x,
                     icon.inner.hotspot_y
-                )
+                ).into()
             }
         };
 
