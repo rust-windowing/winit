@@ -27,6 +27,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
 - **Breaking:** remove `DeviceEvent::Text`.
+- On Android, fix `DeviceId` to contain device id's.
 
 # 0.29.1-beta
 
