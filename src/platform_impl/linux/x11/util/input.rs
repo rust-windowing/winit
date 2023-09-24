@@ -1,5 +1,8 @@
 use std::{slice, str};
-use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::protocol::{
+    xinput::{self, ConnectionExt as _},
+    xkb,
+};
 
 use super::*;
 
@@ -10,31 +13,6 @@ pub const VIRTUAL_CORE_KEYBOARD: u16 = 3;
 // re-allocate (and make another round-trip) in the *vast* majority of cases.
 // To test if `lookup_utf8` works correctly, set this to 1.
 const TEXT_BUFFER_SIZE: usize = 1024;
-
-// NOTE: Some of these fields are not used, but may be of use in the future.
-pub struct PointerState<'a> {
-    xconn: &'a XConnection,
-    pub root: xproto::Window,
-    pub child: xproto::Window,
-    pub root_x: c_double,
-    pub root_y: c_double,
-    pub win_x: c_double,
-    pub win_y: c_double,
-    buttons: ffi::XIButtonState,
-    pub group: ffi::XIGroupState,
-    pub relative_to_window: bool,
-}
-
-impl<'a> Drop for PointerState<'a> {
-    fn drop(&mut self) {
-        if !self.buttons.mask.is_null() {
-            unsafe {
-                // This is why you need to read the docs carefully...
-                (self.xconn.xlib.XFree)(self.buttons.mask as _);
-            }
-        }
-    }
-}
 
 impl XConnection {
     pub fn select_xinput_events(
@@ -54,7 +32,12 @@ impl XConnection {
             .map_err(Into::into)
     }
 
-    pub fn select_xkb_events(&self, device_id: c_int, mask: c_ulong) -> Result<bool, X11Error> {
+    pub fn select_xkb_events(
+        &self,
+        device_id: xkb::DeviceSpec,
+        mask: xkb::EventType,
+    ) -> Result<bool, X11Error> {
+        let mask = u16::from(mask) as _;
         let status =
             unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id as _, mask, mask) };
 

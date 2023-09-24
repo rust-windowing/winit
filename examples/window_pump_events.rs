@@ -14,7 +14,7 @@ fn main() -> std::process::ExitCode {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
         window::WindowBuilder,
     };
@@ -32,9 +32,7 @@ fn main() -> std::process::ExitCode {
 
     'main: loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_events(timeout, |event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
-
+        let status = event_loop.pump_events(timeout, |event, elwt| {
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{event:?}");
@@ -44,11 +42,14 @@ fn main() -> std::process::ExitCode {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => control_flow.set_exit(),
+                } if window_id == window.id() => elwt.exit(),
                 Event::AboutToWait => {
                     window.request_redraw();
                 }
-                Event::RedrawRequested(_) => {
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
                     fill::fill_window(&window);
                 }
                 _ => (),

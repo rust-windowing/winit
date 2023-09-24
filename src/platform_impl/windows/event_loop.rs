@@ -249,14 +249,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         self.run_ondemand(event_handler)
     }
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -269,18 +269,20 @@ impl<T: 'static> EventLoop<T> {
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
+                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
             }
         }
 
         let exit_code = loop {
-            if let ControlFlow::ExitWithCode(code) = self.wait_and_dispatch_message(None) {
+            self.wait_and_dispatch_message(None);
+
+            if let Some(code) = self.exit_code() {
                 break code;
             }
 
-            if let ControlFlow::ExitWithCode(code) = self.dispatch_peeked_messages() {
+            self.dispatch_peeked_messages();
+
+            if let Some(code) = self.exit_code() {
                 break code;
             }
         };
@@ -302,7 +304,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -316,23 +318,20 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
+                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
                 runner.wakeup();
             }
         }
 
-        if !matches!(
-            self.wait_and_dispatch_message(timeout),
-            ControlFlow::ExitWithCode(_)
-        ) {
+        self.wait_and_dispatch_message(timeout);
+
+        if self.exit_code().is_none() {
             self.dispatch_peeked_messages();
         }
 
         let runner = &self.window_target.p.runner_shared;
 
-        let status = if let ControlFlow::ExitWithCode(code) = runner.control_flow() {
+        let status = if let Some(code) = runner.exit_code() {
             runner.loop_destroyed();
 
             // Immediately reset the internal state for the loop to allow
@@ -356,7 +355,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     /// Wait for one message and dispatch it, optionally with a timeout
-    fn wait_and_dispatch_message(&mut self, timeout: Option<Duration>) -> ControlFlow {
+    fn wait_and_dispatch_message(&mut self, timeout: Option<Duration>) {
         let start = Instant::now();
 
         let runner = &self.window_target.p.runner_shared;
@@ -367,7 +366,6 @@ impl<T: 'static> EventLoop<T> {
             ControlFlow::WaitUntil(wait_deadline) => {
                 Some(wait_deadline.saturating_duration_since(start))
             }
-            ControlFlow::ExitWithCode(_code) => unreachable!(),
         };
         let timeout = min_timeout(control_flow_timeout, timeout);
 
@@ -431,8 +429,7 @@ impl<T: 'static> EventLoop<T> {
         match msg_status {
             None => {} // No MSG to dispatch
             Some(PumpStatus::Exit(code)) => {
-                runner.set_exit_control_flow(code);
-                return runner.control_flow();
+                runner.set_exit_code(code);
             }
             Some(PumpStatus::Continue) => {
                 unsafe {
@@ -453,12 +450,10 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         }
-
-        runner.control_flow()
     }
 
     /// Dispatch all queued messages via `PeekMessageW`
-    fn dispatch_peeked_messages(&mut self) -> ControlFlow {
+    fn dispatch_peeked_messages(&mut self) {
         let runner = &self.window_target.p.runner_shared;
 
         // We generally want to continue dispatching all pending messages
@@ -474,8 +469,6 @@ impl<T: 'static> EventLoop<T> {
         // API) and there's no API to construct or initialize a `MSG`. This
         // is the simplest way avoid unitialized memory in Rust
         let mut msg = unsafe { mem::zeroed() };
-
-        let mut control_flow = runner.control_flow();
 
         loop {
             unsafe {
@@ -499,8 +492,7 @@ impl<T: 'static> EventLoop<T> {
                 panic::resume_unwind(payload);
             }
 
-            control_flow = runner.control_flow();
-            if let ControlFlow::ExitWithCode(_code) = control_flow {
+            if let Some(_code) = runner.exit_code() {
                 break;
             }
 
@@ -508,8 +500,6 @@ impl<T: 'static> EventLoop<T> {
                 break;
             }
         }
-
-        control_flow
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -517,6 +507,10 @@ impl<T: 'static> EventLoop<T> {
             target_window: self.window_target.p.thread_msg_target,
             event_send: self.thread_msg_sender.clone(),
         }
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        self.window_target.p.exit_code()
     }
 }
 
@@ -545,6 +539,26 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner_shared.set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.runner_shared.control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner_shared.set_exit_code(0)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.runner_shared.exit_code().is_some()
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        self.runner_shared.exit_code()
     }
 }
 
@@ -1151,7 +1165,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // redraw the window outside the normal flow of the event loop.
                 RedrawWindow(window, ptr::null(), 0, RDW_INTERNALPAINT);
             } else {
-                userdata.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::RedrawRequested,
+                });
             }
             result = ProcResult::DefWindowProc(wparam);
         }

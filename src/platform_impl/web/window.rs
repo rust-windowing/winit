@@ -7,7 +7,7 @@ use crate::window::{
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
-use web_sys::{Document, HtmlCanvasElement};
+use web_sys::HtmlCanvasElement;
 
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -26,7 +26,6 @@ pub struct Window {
 pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
-    document: Document,
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<String>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
@@ -58,7 +57,6 @@ impl Window {
         let inner = Inner {
             id,
             window: window.clone(),
-            document: document.clone(),
             canvas,
             previous_pointer: RefCell::new("auto".to_owned()),
             destroy_fn: Some(destroy_fn),
@@ -298,7 +296,7 @@ impl Inner {
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
-            Some(Fullscreen::Borderless(Some(MonitorHandle)))
+            Some(Fullscreen::Borderless(None))
         } else {
             None
         }
@@ -306,10 +304,12 @@ impl Inner {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let canvas = &self.canvas.borrow();
+
         if fullscreen.is_some() {
-            self.canvas.borrow().request_fullscreen();
-        } else if self.canvas.borrow().is_fullscreen() {
-            backend::exit_fullscreen(&self.document);
+            canvas.request_fullscreen();
+        } else {
+            canvas.exit_fullscreen()
         }
     }
 
@@ -359,7 +359,7 @@ impl Inner {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     #[inline]
@@ -369,7 +369,7 @@ impl Inner {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
     #[inline]
@@ -402,6 +402,8 @@ impl Inner {
             }
         })
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     #[inline]
     pub fn has_focus(&self) -> bool {

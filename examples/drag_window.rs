@@ -21,12 +21,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut switched = false;
     let mut entered_id = window_2.id();
 
-    event_loop.run(move |event, _, control_flow| match event {
+    event_loop.run(move |event, elwt| match event {
         Event::NewEvents(StartCause::Init) => {
             eprintln!("Switch which window is to be dragged by pressing \"x\".")
         }
         Event::WindowEvent { event, window_id } => match event {
-            WindowEvent::CloseRequested => control_flow.set_exit(),
+            WindowEvent::CloseRequested => elwt.exit(),
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: MouseButton::Left,
@@ -59,15 +59,16 @@ fn main() -> Result<(), impl std::error::Error> {
                 name_windows(entered_id, switched, &window_1, &window_2);
                 println!("Switched!")
             }
+            WindowEvent::RedrawRequested => {
+                if window_id == window_1.id() {
+                    fill::fill_window(&window_1);
+                } else if window_id == window_2.id() {
+                    fill::fill_window(&window_2);
+                }
+            }
             _ => (),
         },
-        Event::RedrawRequested(wid) => {
-            if wid == window_1.id() {
-                fill::fill_window(&window_1);
-            } else if wid == window_2.id() {
-                fill::fill_window(&window_2);
-            }
-        }
+
         _ => (),
     })
 }

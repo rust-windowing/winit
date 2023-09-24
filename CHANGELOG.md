@@ -8,6 +8,25 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
+- Fix window size sometimes being invalid when resizing on macOS.
+- On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
+- On Web, never return a `MonitorHandle`.
+- **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
+- On macOS, fix crash in `window.set_minimized(false)`.
+- On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
+- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
+- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
+- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
+- Mark `startup_notify` unsafe functions as safe.
+- Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
+- **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
+- **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
+- On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
+- Implement `PartialOrd` and `Ord` for `MouseButton`.
+- On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
+- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- **Breaking:** remove `DeviceEvent::Text`.
 - **Breaking**: Rename `CursorIcon` to `NamedCursorIcon`
 - `Window::set_cursor_icon` now accepts `Icon`
 

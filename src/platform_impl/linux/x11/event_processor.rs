@@ -7,13 +7,18 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::Serialize;
+use x11rb::{
+    protocol::{
+        xinput,
+        xproto::{self, ConnectionExt as _},
+    },
+    x11_utils::ExtensionInformation,
+};
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, monitor, util, CookieResultExt, Device, DeviceId,
-    DeviceInfo, Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
-    WindowId, XExtension,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
+    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
 use crate::{
@@ -35,10 +40,10 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
     pub(super) ime_event_receiver: ImeEventReceiver,
-    pub(super) randr_event_offset: c_int,
+    pub(super) randr_event_offset: u8,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
-    pub(super) xi2ext: XExtension,
-    pub(super) xkbext: XExtension,
+    pub(super) xi2ext: ExtensionInformation,
+    pub(super) xkbext: ExtensionInformation,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
@@ -55,12 +60,12 @@ pub(super) struct EventProcessor<T: 'static> {
 }
 
 impl<T: 'static> EventProcessor<T> {
-    pub(super) fn init_device(&self, device: c_int) {
+    pub(super) fn init_device(&self, device: xinput::DeviceId) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
-        if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
+        if let Some(info) = DeviceInfo::get(&wt.xconn, device as _) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(info));
+                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
             }
         }
     }
@@ -420,7 +425,10 @@ impl<T: 'static> EventProcessor<T> {
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let monitor = wt
+                                .xconn
+                                .get_monitor_for_window(Some(window_rect))
+                                .expect("Failed to find monitor for window");
 
                             if monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
@@ -576,7 +584,10 @@ impl<T: 'static> EventProcessor<T> {
                     let window = xev.window as xproto::Window;
                     let window_id = mkwid(window);
 
-                    callback(Event::RedrawRequested(window_id));
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::RedrawRequested,
+                    });
                 }
             }
 
@@ -593,7 +604,7 @@ impl<T: 'static> EventProcessor<T> {
                 };
 
                 let window_id = mkwid(window);
-                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
+                let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
                 let keycode = xkev.keycode as _;
 
@@ -669,7 +680,7 @@ impl<T: 'static> EventProcessor<T> {
                     return;
                 };
                 let xev = &guard.cookie;
-                if self.xi2ext.opcode != xev.extension {
+                if self.xi2ext.major_opcode != xev.extension as u8 {
                     return;
                 }
 
@@ -688,7 +699,7 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let window_id = mkwid(xev.event as xproto::Window);
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
@@ -732,7 +743,7 @@ impl<T: 'static> EventProcessor<T> {
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
-                            4 | 5 | 6 | 7 => {
+                            4..=7 => {
                                 if xev.flags & ffi::XIPointerEmulated == 0 {
                                     callback(Event::WindowEvent {
                                         window_id,
@@ -784,7 +795,7 @@ impl<T: 'static> EventProcessor<T> {
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
@@ -817,7 +828,9 @@ impl<T: 'static> EventProcessor<T> {
                                 )
                             };
                             let mut devices = self.devices.borrow_mut();
-                            let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
+                            let physical_device = match devices
+                                .get_mut(&DeviceId(xev.sourceid as xinput::DeviceId))
+                            {
                                 Some(device) => device,
                                 None => return,
                             };
@@ -829,7 +842,7 @@ impl<T: 'static> EventProcessor<T> {
                                     if let Some(&mut (_, ref mut info)) = physical_device
                                         .scroll_axes
                                         .iter_mut()
-                                        .find(|&&mut (axis, _)| axis == i)
+                                        .find(|&&mut (axis, _)| axis == i as _)
                                     {
                                         let delta = (x - info.position) / info.increment;
                                         info.position = x;
@@ -876,9 +889,11 @@ impl<T: 'static> EventProcessor<T> {
 
                         let window = xev.event as xproto::Window;
                         let window_id = mkwid(window);
-                        let device_id = mkdid(xev.deviceid);
+                        let device_id = mkdid(xev.deviceid as xinput::DeviceId);
 
-                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, ffi::XIAllDevices) {
+                        if let Some(all_info) =
+                            DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into())
+                        {
                             let mut devices = self.devices.borrow_mut();
                             for device_info in all_info.iter() {
                                 if device_info.deviceid == xev.sourceid
@@ -888,7 +903,7 @@ impl<T: 'static> EventProcessor<T> {
                                 // the virtual device.
                                 || device_info.attachment == xev.sourceid
                                 {
-                                    let device_id = DeviceId(device_info.deviceid);
+                                    let device_id = DeviceId(device_info.deviceid as _);
                                     if let Some(device) = devices.get_mut(&device_id) {
                                         device.reset_scroll_position(device_info);
                                     }
@@ -927,7 +942,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::WindowEvent {
                                 window_id: mkwid(window),
                                 event: CursorLeft {
-                                    device_id: mkdid(xev.deviceid),
+                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                 },
                             });
                         }
@@ -975,14 +990,14 @@ impl<T: 'static> EventProcessor<T> {
                             let pointer_id = self
                                 .devices
                                 .borrow()
-                                .get(&DeviceId(xev.deviceid))
+                                .get(&DeviceId(xev.deviceid as xinput::DeviceId))
                                 .map(|device| device.attachment)
                                 .unwrap_or(2);
 
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
-                                    device_id: mkdid(pointer_id),
+                                    device_id: mkdid(pointer_id as _),
                                     position,
                                 },
                             });
@@ -1073,7 +1088,7 @@ impl<T: 'static> EventProcessor<T> {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
-                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER.into()),
+                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                                         position: location.cast(),
                                     },
                                 });
@@ -1082,7 +1097,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::Touch(Touch {
-                                    device_id: mkdid(xev.deviceid),
+                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                     phase,
                                     location,
                                     force: None, // TODO
@@ -1100,7 +1115,7 @@ impl<T: 'static> EventProcessor<T> {
 
                         if xev.flags & ffi::XIPointerEmulated == 0 {
                             callback(Event::DeviceEvent {
-                                device_id: mkdid(xev.deviceid),
+                                device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                 event: DeviceEvent::Button {
                                     button: xev.detail as u32,
                                     state: match xev.evtype {
@@ -1119,7 +1134,7 @@ impl<T: 'static> EventProcessor<T> {
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                        let did = mkdid(xev.deviceid);
+                        let did = mkdid(xev.deviceid as xinput::DeviceId);
 
                         let mask = unsafe {
                             slice::from_raw_parts(
@@ -1179,7 +1194,7 @@ impl<T: 'static> EventProcessor<T> {
                             _ => unreachable!(),
                         };
 
-                        let device_id = mkdid(xev.sourceid);
+                        let device_id = mkdid(xev.sourceid as xinput::DeviceId);
                         let keycode = xev.detail as u32;
                         if keycode < KEYCODE_OFFSET as u32 {
                             return;
@@ -1205,19 +1220,19 @@ impl<T: 'static> EventProcessor<T> {
                             unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) }
                         {
                             if 0 != info.flags & (ffi::XISlaveAdded | ffi::XIMasterAdded) {
-                                self.init_device(info.deviceid);
+                                self.init_device(info.deviceid as xinput::DeviceId);
                                 callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid),
+                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
                                     event: DeviceEvent::Added,
                                 });
                             } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved)
                             {
                                 callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid),
+                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
                                     event: DeviceEvent::Removed,
                                 });
                                 let mut devices = self.devices.borrow_mut();
-                                devices.remove(&DeviceId(info.deviceid));
+                                devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
                             }
                         }
                     }
@@ -1226,7 +1241,7 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
-                if event_type == self.xkbext.first_event_id {
+                if event_type == self.xkbext.first_event as _ {
                     let xev = unsafe { &*(xev as *const _ as *const ffi::XkbAnyEvent) };
                     match xev.xkb_type {
                         ffi::XkbNewKeyboardNotify => {
@@ -1282,11 +1297,14 @@ impl<T: 'static> EventProcessor<T> {
                         _ => {}
                     }
                 }
-                if event_type == self.randr_event_offset {
+                if event_type == self.randr_event_offset as c_int {
                     // In the future, it would be quite easy to emit monitor hotplug events.
-                    let prev_list = monitor::invalidate_cached_monitor_list();
+                    let prev_list = wt.xconn.invalidate_cached_monitor_list();
                     if let Some(prev_list) = prev_list {
-                        let new_list = wt.xconn.available_monitors();
+                        let new_list = wt
+                            .xconn
+                            .available_monitors()
+                            .expect("Failed to get monitor list");
                         for new_monitor in new_list {
                             // Previous list may be empty, in case of disconnecting and
                             // reconnecting the only one monitor. We still need to emit events in
@@ -1299,7 +1317,8 @@ impl<T: 'static> EventProcessor<T> {
                                 for (window_id, window) in wt.windows.borrow().iter() {
                                     if let Some(window) = window.upgrade() {
                                         // Check if the window is on this monitor
-                                        let monitor = window.current_monitor();
+                                        let monitor =
+                                            window.shared_state_lock().last_monitor.clone();
                                         if monitor.name == new_monitor.name {
                                             let (width, height) = window.inner_size_physical();
                                             let (new_width, new_height) = window.adjust_for_dpi(
@@ -1416,7 +1435,7 @@ impl<T: 'static> EventProcessor<T> {
     ) where
         F: FnMut(Event<T>),
     {
-        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD.into());
+        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt

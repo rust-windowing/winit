@@ -7,25 +7,24 @@
 //! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
-//! let mut control_flow = ControlFlow::Poll;
 //! let mut start_cause = StartCause::Init;
 //!
-//! while control_flow != ControlFlow::Exit {
-//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//! while !elwt.exiting() {
+//!     event_handler(NewEvents(start_cause), elwt);
 //!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, ..., &mut control_flow);
+//!         event_handler(e, elwt);
 //!     }
 //!
 //!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!         event_handler(RedrawRequested(w), elwt);
 //!     }
 //!
-//!     event_handler(AboutToWait, ..., &mut control_flow);
-//!     start_cause = wait_if_necessary(control_flow);
+//!     event_handler(AboutToWait, elwt);
+//!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, ..., &mut control_flow);
+//! event_handler(LoopExiting, elwt);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
@@ -62,7 +61,7 @@ pub enum Event<T: 'static> {
     ///
     /// This event type is useful as a place to put code that should be done before you start
     /// processing events, such as updating frame timing information for benchmarking or checking
-    /// the [`StartCause`][crate::event::StartCause] to see if a timer set by
+    /// the [`StartCause`] to see if a timer set by
     /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
     NewEvents(StartCause),
 
@@ -218,20 +217,8 @@ pub enum Event<T: 'static> {
     /// ups and also lots of corresponding `AboutToWait` events.
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`Event::RedrawRequested`](crate::event::Event::RedrawRequested)
-    /// events.
+    /// should render in response to [`WindowEvent::RedrawRequested`] events.
     AboutToWait,
-
-    /// Emitted when a window should be redrawn.
-    ///
-    /// This gets triggered in two scenarios:
-    /// - The OS has performed an operation that's invalidated the window's contents (such as
-    ///   resizing the window).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
-    ///
-    /// Winit will aggregate duplicate redraw requests into a single event, to
-    /// help avoid duplicating rendering work.
-    RedrawRequested(WindowId),
 
     /// Emitted when the event loop is being shut down.
     ///
@@ -250,7 +237,6 @@ impl<T> Event<T> {
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
             AboutToWait => Ok(AboutToWait),
-            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
@@ -554,6 +540,17 @@ pub enum WindowEvent {
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
+
+    /// Emitted when a window should be redrawn.
+    ///
+    /// This gets triggered in two scenarios:
+    /// - The OS has performed an operation that's invalidated the window's contents (such as
+    ///   resizing the window).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    ///
+    /// Winit will aggregate duplicate redraw requests into a single event, to
+    /// help avoid duplicating rendering work.
+    RedrawRequested,
 }
 
 /// Identifier of an input device.
@@ -621,10 +618,6 @@ pub enum DeviceEvent {
     },
 
     Key(RawKeyEvent),
-
-    Text {
-        codepoint: char,
-    },
 }
 
 /// Describes a keyboard input as a raw device event.
@@ -674,7 +667,7 @@ pub struct KeyEvent {
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
     #[cfg_attr(
-        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
         allow(rustdoc::broken_intra_doc_links)
     )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
@@ -942,7 +935,10 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
+    /// - Only available on **iOS** 9.0+, **Windows** 8+, **Web**, and **Android**.
+    /// - **Android**: This will never be [None]. If the device doesn't support pressure
+    /// sensitivity, force will either be 0.0 or 1.0. Also see the
+    /// [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
@@ -1032,7 +1028,7 @@ impl ElementState {
 ///
 /// **macOS:** `Back` and `Forward` might not work with all hardware.
 /// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
@@ -1123,7 +1119,6 @@ mod tests {
                 let wid = unsafe { WindowId::dummy() };
                 x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
-                x(RedrawRequested(wid));
                 x(AboutToWait);
                 x(LoopExiting);
                 x(Suspended);
@@ -1222,7 +1217,6 @@ mod tests {
                     button: 0,
                     state: event::ElementState::Pressed,
                 });
-                with_device_event(Text { codepoint: 'a' });
             }
         }};
     }

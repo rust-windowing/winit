@@ -27,12 +27,10 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -46,12 +44,11 @@ fn main() -> Result<(), impl std::error::Error> {
                     println!("Resizable: {resizable}");
                     window.set_resizable(resizable);
                 }
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
-            },
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
             }
-            _ => (),
         };
     })
 }

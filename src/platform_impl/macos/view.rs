@@ -31,7 +31,7 @@ use crate::{
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{create_key_event, event_mods, EventWrapper},
+        event::{create_key_event, event_mods},
         util,
         window::WinitWindow,
         DEVICE_ID,
@@ -212,7 +212,7 @@ declare_class!(
                 self.removeTrackingRect(tracking_rect);
             }
 
-            let rect = self.visibleRect();
+            let rect = self.frame();
             let tracking_rect = self.add_tracking_rect(rect, false);
             self.state.tracking_rect.set(Some(tracking_rect));
         }
@@ -224,7 +224,7 @@ declare_class!(
                 self.removeTrackingRect(tracking_rect);
             }
 
-            let rect = self.visibleRect();
+            let rect = self.frame();
             let tracking_rect = self.add_tracking_rect(rect, false);
             self.state.tracking_rect.set(Some(tracking_rect));
 
@@ -826,7 +826,7 @@ impl WinitView {
             window_id: self.window_id(),
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
@@ -834,7 +834,7 @@ impl WinitView {
             device_id: DEVICE_ID,
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     fn scale_factor(&self) -> f64 {

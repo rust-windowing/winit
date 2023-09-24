@@ -35,7 +35,7 @@ another library.
 ```rust
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -43,14 +43,12 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-
+    event_loop.run(move |event, elwt| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => elwt.exit(),
             _ => (),
         }
     });
@@ -66,6 +64,35 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `x11` (enabled by default): On Unix platform, compiles with the X11 backend
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
 * `mint`: Enables mint (math interoperability standard types) conversions.
+
+## MSRV Policy
+
+The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to 
+the MSRV will be accompanied by a minor version bump. 
+
+As a **tentative** policy, the upper bound of the MSRV is given by the following
+formula:
+
+```
+min(sid, stable - 3)
+```
+
+Where `sid` is the current version of `rustc` provided by [Debian Sid], and
+`stable` is the latest stable version of Rust. This bound may be broken in the
+event of a major ecosystem shift or a security vulnerability.
+
+[Debian Sid]: https://packages.debian.org/sid/rustc
+
+The exception to this is for the Android platform, where a higher Rust version 
+must be used for certain Android features. In this case, the MSRV will be 
+capped at the latest stable version of Rust minus three. This inconsistency is 
+not reflected in Cargo metadata, as it is not powerful enough to expose this 
+restriction.
+
+All crates in the [`rust-windowing`] organizations have the 
+same MSRV policy.
+
+[`rust-windowing`]: https://github.com/rust-windowing
 
 ### Platform-specific usage
 

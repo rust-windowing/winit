@@ -11,16 +11,15 @@ use objc2::{class, declare_class, msg_send, msg_send_id, mutability, sel, ClassT
 use super::appkit::{
     NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,
 };
+use super::{
+    app_state::AppState,
+    util,
+    window::{get_ns_theme, WinitWindow},
+    Fullscreen,
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{EventProxy, EventWrapper},
-        util,
-        window::{get_ns_theme, WinitWindow},
-        Fullscreen,
-    },
     window::WindowId,
 };
 
@@ -447,7 +446,7 @@ impl WinitWindowDelegate {
             window_id: WindowId(self.window.id()),
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     fn queue_static_scale_factor_changed_event(&self) {
@@ -457,12 +456,12 @@ impl WinitWindowDelegate {
         };
 
         self.state.previous_scale_factor.set(scale_factor);
-        let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-            window: self.window.clone(),
-            suggested_size: self.view_size(),
+        let suggested_size = self.view_size();
+        AppState::queue_static_scale_factor_changed_event(
+            self.window.clone(),
+            suggested_size.to_physical(scale_factor),
             scale_factor,
-        });
-        AppState::queue_event(wrapper);
+        );
     }
 
     fn emit_move_event(&self) {

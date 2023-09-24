@@ -7,26 +7,22 @@ mod intersection_handle;
 mod media_query_handle;
 mod pointer;
 mod resize_scaling;
-mod timeout;
+mod schedule;
 
 pub use self::canvas::Canvas;
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
-pub use self::timeout::{IdleCallback, Timeout};
+pub use self::schedule::Schedule;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use wasm_bindgen::closure::Closure;
 use web_sys::{
-    CssStyleDeclaration, Document, Element, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
+    CssStyleDeclaration, Document, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
 };
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
-}
-
-pub fn exit_fullscreen(document: &Document) {
-    fullscreen::exit_fullscreen(document);
 }
 
 pub struct PageTransitionEventHandle {
@@ -35,14 +31,15 @@ pub struct PageTransitionEventHandle {
 }
 
 pub fn on_page_transition(
-    window: &web_sys::Window,
+    window: web_sys::Window,
     show_handler: impl FnMut(PageTransitionEvent) + 'static,
     hide_handler: impl FnMut(PageTransitionEvent) + 'static,
 ) -> PageTransitionEventHandle {
     let show_closure = Closure::new(show_handler);
     let hide_closure = Closure::new(hide_handler);
 
-    let show_listener = event_handle::EventListenerHandle::new(window, "pageshow", show_closure);
+    let show_listener =
+        event_handle::EventListenerHandle::new(window.clone(), "pageshow", show_closure);
     let hide_listener = event_handle::EventListenerHandle::new(window, "pagehide", hide_closure);
     PageTransitionEventHandle {
         _show_listener: show_listener,
@@ -172,16 +169,6 @@ pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value:
     style
         .set_property(property, value)
         .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
-}
-
-pub fn is_fullscreen(document: &Document, canvas: &HtmlCanvasElement) -> bool {
-    match fullscreen::fullscreen_element(document) {
-        Some(elem) => {
-            let canvas: &Element = canvas;
-            canvas == &elem
-        }
-        None => false,
-    }
 }
 
 pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {

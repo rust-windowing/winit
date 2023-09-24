@@ -36,7 +36,7 @@ use std::{
     },
     ptr,
     rc::Rc,
-    slice,
+    slice, str,
     sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
@@ -47,11 +47,15 @@ use libc::{self, setlocale, LC_CTYPE};
 use atoms::*;
 use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
-use x11rb::protocol::{
-    xinput,
-    xproto::{self, ConnectionExt},
-};
 use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::{
+    connection::RequestConnection,
+    protocol::{
+        xinput::{self, ConnectionExt as _},
+        xkb,
+        xproto::{self, ConnectionExt as _},
+    },
+};
 use x11rb::{
     errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
     xcb_ffi::ReplyOrIdError,
@@ -62,18 +66,22 @@ use self::{
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
 };
-use super::{common::xkb_state::KbdState, OsError};
+use super::{common::xkb_state::KbdState, ControlFlow, OsError};
 use crate::{
     error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause},
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event::{Event, StartCause, WindowEvent},
+    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     platform_impl::{
-        platform::{min_timeout, sticky_exit_callback, WindowId},
+        platform::{min_timeout, WindowId},
         PlatformSpecificWindowBuilderAttributes,
     },
     window::WindowAttributes,
 };
+
+// Xinput constants not defined in x11rb
+const ALL_DEVICES: u16 = 0;
+const ALL_MASTER_DEVICES: u16 = 1;
 
 type X11Source = Generic<RawFd>;
 
@@ -140,6 +148,8 @@ pub struct EventLoopWindowTarget<T> {
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
     ime_sender: ImeSender,
+    control_flow: Cell<ControlFlow>,
+    exit: Cell<Option<i32>>,
     root: xproto::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
@@ -151,7 +161,6 @@ pub struct EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     loop_running: bool,
-    control_flow: ControlFlow,
     event_loop: Loop<'static, EventLoopState>,
     waker: calloop::ping::Ping,
     event_processor: EventProcessor<T>,
@@ -229,71 +238,27 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let randr_event_offset = xconn
-            .select_xrandr_input(root as ffi::Window)
+            .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
-        let xi2ext = unsafe {
-            let mut ext = XExtension::default();
+        let xi2ext = xconn
+            .xcb_connection()
+            .extension_information(xinput::X11_EXTENSION_NAME)
+            .expect("Failed to query XInput extension")
+            .expect("X server missing XInput extension");
+        let xkbext = xconn
+            .xcb_connection()
+            .extension_information(xkb::X11_EXTENSION_NAME)
+            .expect("Failed to query XKB extension")
+            .expect("X server missing XKB extension");
 
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
-                b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut ext.opcode,
-                &mut ext.first_event_id,
-                &mut ext.first_error_id,
-            );
-
-            if res == ffi::False {
-                panic!("X server missing XInput extension");
-            }
-
-            ext
-        };
-
-        let xkbext = {
-            let mut ext = XExtension::default();
-
-            let res = unsafe {
-                (xconn.xlib.XkbQueryExtension)(
-                    xconn.display,
-                    &mut ext.opcode,
-                    &mut ext.first_event_id,
-                    &mut ext.first_error_id,
-                    &mut 1,
-                    &mut 0,
-                )
-            };
-
-            if res == ffi::False {
-                panic!("X server missing XKB extension");
-            }
-
-            // Enable detectable auto repeat.
-            let mut supported = 0;
-            unsafe {
-                (xconn.xlib.XkbSetDetectableAutoRepeat)(xconn.display, 1, &mut supported);
-            }
-            if supported == 0 {
-                warn!("Detectable auto repeart is not supported");
-            }
-
-            ext
-        };
-
-        unsafe {
-            let mut xinput_major_ver = ffi::XI_2_Major;
-            let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
-                &mut xinput_major_ver,
-                &mut xinput_minor_ver,
-            ) != ffi::Success as std::os::raw::c_int
-            {
-                panic!(
-                    "X server has XInput extension {xinput_major_ver}.{xinput_minor_ver} but does not support XInput2",
-                );
-            }
-        }
+        // Check for XInput2 support.
+        xconn
+            .xcb_connection()
+            .xinput_xi_query_version(2, 3)
+            .expect("Failed to send XInput2 query version request")
+            .reply()
+            .expect("Error while checking for XInput2 query version reply");
 
         xconn.update_cached_wm_info(root);
 
@@ -339,6 +304,8 @@ impl<T: 'static> EventLoop<T> {
         let window_target = EventLoopWindowTarget {
             ime,
             root,
+            control_flow: Cell::new(ControlFlow::default()),
+            exit: Cell::new(None),
             windows: Default::default(),
             _marker: ::std::marker::PhantomData,
             ime_sender,
@@ -387,7 +354,7 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xinput_events(
                 root,
-                ffi::XIAllDevices as _,
+                ALL_DEVICES,
                 x11rb::protocol::xinput::XIEventMask::HIERARCHY,
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
@@ -396,15 +363,14 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                ffi::XkbNewKeyboardNotifyMask | ffi::XkbStateNotifyMask,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
-        event_processor.init_device(ffi::XIAllDevices);
+        event_processor.init_device(ALL_DEVICES);
 
         EventLoop {
             loop_running: false,
-            control_flow: ControlFlow::default(),
             event_loop,
             waker,
             event_processor,
@@ -434,7 +400,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -468,7 +434,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -476,7 +442,7 @@ impl<T: 'static> EventLoop<T> {
             // Reset the internal state for the loop as we start running to
             // ensure consistent behaviour in case the loop runs and exits more
             // than once.
-            self.control_flow = ControlFlow::Poll;
+            self.set_control_flow(ControlFlow::Poll);
 
             // run the initial loop iteration
             self.single_iteration(&mut callback, StartCause::Init);
@@ -484,19 +450,13 @@ impl<T: 'static> EventLoop<T> {
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
-        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+        if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut callback);
         }
-        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+        if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            let mut dummy = self.control_flow;
-            sticky_exit_callback(
-                Event::LoopExiting,
-                self.window_target(),
-                &mut dummy,
-                &mut callback,
-            );
+            callback(Event::LoopExiting, self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -512,7 +472,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         let start = Instant::now();
 
@@ -522,17 +482,12 @@ impl<T: 'static> EventLoop<T> {
             // If we already have work to do then we don't want to block on the next poll.
             Some(Duration::ZERO)
         } else {
-            let control_flow_timeout = match self.control_flow {
+            let control_flow_timeout = match self.control_flow() {
                 ControlFlow::Wait => None,
                 ControlFlow::Poll => Some(Duration::ZERO),
                 ControlFlow::WaitUntil(wait_deadline) => {
                     Some(wait_deadline.saturating_duration_since(start))
                 }
-                // This function shouldn't have to handle any requests to exit
-                // the application (there should be no need to poll for events
-                // if the application has requested to exit) so we consider
-                // it a bug in the backend if we ever see `ExitWithCode` here.
-                ControlFlow::ExitWithCode(_code) => unreachable!(),
             };
 
             min_timeout(control_flow_timeout, timeout)
@@ -546,25 +501,13 @@ impl<T: 'static> EventLoop<T> {
         {
             log::error!("Failed to poll for events: {error:?}");
             let exit_code = error.raw_os_error().unwrap_or(1);
-            self.control_flow = ControlFlow::ExitWithCode(exit_code);
-            return;
-        }
-
-        // False positive / spurious wake ups could lead to us spamming
-        // redundant iterations of the event loop with no new events to
-        // dispatch.
-        //
-        // If there's no readable event source then we just double check if we
-        // have any pending `_receiver` events and if not we return without
-        // running a loop iteration.
-        // If we don't have any pending `_receiver`
-        if !self.has_pending() && !self.state.x11_readiness.readable {
+            self.set_exit_code(exit_code);
             return;
         }
 
         // NB: `StartCause::Init` is handled as a special case and doesn't need
         // to be considered here
-        let cause = match self.control_flow {
+        let cause = match self.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
             ControlFlow::Wait => StartCause::WaitCancelled {
                 start,
@@ -583,42 +526,42 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
             }
-            // This function shouldn't have to handle any requests to exit
-            // the application (there should be no need to poll for events
-            // if the application has requested to exit) so we consider
-            // it a bug in the backend if we ever see `ExitWithCode` here.
-            ControlFlow::ExitWithCode(_code) => unreachable!(),
         };
+
+        // False positive / spurious wake ups could lead to us spamming
+        // redundant iterations of the event loop with no new events to
+        // dispatch.
+        //
+        // If there's no readable event source then we just double check if we
+        // have any pending `_receiver` events and if not we return without
+        // running a loop iteration.
+        // If we don't have any pending `_receiver`
+        if !self.has_pending()
+            && !matches!(
+                &cause,
+                StartCause::ResumeTimeReached { .. } | StartCause::Poll
+            )
+        {
+            return;
+        }
 
         self.single_iteration(&mut callback, cause);
     }
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
-        let mut control_flow = self.control_flow;
-
-        sticky_exit_callback(
-            crate::event::Event::NewEvents(cause),
-            &self.target,
-            &mut control_flow,
-            callback,
-        );
+        callback(crate::event::Event::NewEvents(cause), &self.target);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though X11
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            sticky_exit_callback(
-                crate::event::Event::Resumed,
-                &self.target,
-                &mut control_flow,
-                callback,
-            );
+            callback(crate::event::Event::Resumed, &self.target);
         }
 
         // Process all pending events
-        self.drain_events(callback, &mut control_flow);
+        self.drain_events(callback);
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
@@ -629,7 +572,7 @@ impl<T: 'static> EventLoop<T> {
                 });
 
             match token {
-                Some(Ok(token)) => sticky_exit_callback(
+                Some(Ok(token)) => callback(
                     crate::event::Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
                         event: crate::event::WindowEvent::ActivationTokenDone {
@@ -638,8 +581,6 @@ impl<T: 'static> EventLoop<T> {
                         },
                     },
                     &self.target,
-                    &mut control_flow,
-                    callback,
                 ),
                 Some(Err(e)) => {
                     log::error!("Failed to get activation token: {}", e);
@@ -651,12 +592,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_receiver.try_recv() {
-                sticky_exit_callback(
-                    crate::event::Event::UserEvent(event),
-                    &self.target,
-                    &mut control_flow,
-                    callback,
-                );
+                callback(crate::event::Event::UserEvent(event), &self.target);
             }
         }
 
@@ -670,31 +606,25 @@ impl<T: 'static> EventLoop<T> {
 
             for window_id in windows {
                 let window_id = crate::window::WindowId(window_id);
-                sticky_exit_callback(
-                    Event::RedrawRequested(window_id),
+                callback(
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::RedrawRequested,
+                    },
                     &self.target,
-                    &mut control_flow,
-                    callback,
                 );
             }
         }
 
         // This is always the last event we dispatch before poll again
         {
-            sticky_exit_callback(
-                crate::event::Event::AboutToWait,
-                &self.target,
-                &mut control_flow,
-                callback,
-            );
+            callback(crate::event::Event::AboutToWait, &self.target);
         }
-
-        self.control_flow = control_flow;
     }
 
-    fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
+    fn drain_events<F>(&mut self, callback: &mut F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>),
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
@@ -703,20 +633,37 @@ impl<T: 'static> EventLoop<T> {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |event| {
-                sticky_exit_callback(
-                    event,
-                    target,
-                    control_flow,
-                    &mut |event, window_target, control_flow| {
-                        if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
-                            wt.redraw_sender.send(wid).unwrap();
-                        } else {
-                            callback(event, window_target, control_flow);
-                        }
-                    },
-                );
+                if let Event::WindowEvent {
+                    window_id: crate::window::WindowId(wid),
+                    event: WindowEvent::RedrawRequested,
+                } = event
+                {
+                    wt.redraw_sender.send(wid).unwrap();
+                } else {
+                    callback(event, target);
+                }
             });
         }
+    }
+
+    fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.target.p.set_control_flow(control_flow)
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.target.p.control_flow()
+    }
+
+    fn exiting(&self) -> bool {
+        self.target.p.exiting()
+    }
+
+    fn set_exit_code(&self, code: i32) {
+        self.target.p.set_exit_code(code)
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        self.target.p.exit_code()
     }
 }
 
@@ -735,7 +682,15 @@ impl<T> EventLoopWindowTarget<T> {
         &self.xconn
     }
 
-    pub fn set_listen_device_events(&self, allowed: DeviceEvents) {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.xconn.available_monitors().into_iter().flatten()
+    }
+
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.xconn.primary_monitor().ok()
+    }
+
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.device_events.set(allowed);
     }
 
@@ -754,7 +709,7 @@ impl<T> EventLoopWindowTarget<T> {
         }
 
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllMasterDevices as _, mask)
+            .select_xinput_events(self.root, ALL_MASTER_DEVICES, mask)
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
@@ -763,6 +718,30 @@ impl<T> EventLoopWindowTarget<T> {
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen = self.xconn.default_screen_index() as c_int;
         RawDisplayHandle::Xlib(display_handle)
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    pub(crate) fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub(crate) fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
     }
 }
 
@@ -815,7 +794,7 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(xinput::DeviceId);
 
 impl DeviceId {
     #[allow(unused)]
@@ -887,6 +866,9 @@ pub enum X11Error {
     /// Got an invalid activation token.
     InvalidActivationToken(Vec<u8>),
 
+    /// An extension that we rely on is not available.
+    MissingExtension(&'static str),
+
     /// Could not find a matching X11 visual for this visualid
     NoSuchVisual(xproto::Visualid),
 }
@@ -905,6 +887,7 @@ impl fmt::Display for X11Error {
                 "Invalid activation token: {}",
                 std::str::from_utf8(s).unwrap_or("<invalid utf8>")
             ),
+            X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {}", s),
             X11Error::NoSuchVisual(visualid) => {
                 write!(
                     f,
@@ -1026,17 +1009,10 @@ impl<'a> Drop for GenericEventCookie<'a> {
     }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
-struct XExtension {
-    opcode: c_int,
-    first_event_id: c_int,
-    first_error_id: c_int,
-}
-
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
-fn mkdid(w: c_int) -> crate::event::DeviceId {
+fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
 }
 

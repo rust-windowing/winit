@@ -9,7 +9,7 @@ use web_time as time;
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     keyboard::Key,
     window::WindowBuilder,
 };
@@ -47,7 +47,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut wait_cancelled = false;
     let mut close_requested = false;
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, elwt| {
         use winit::event::StartCause;
         println!("{event:?}");
         match event {
@@ -93,6 +93,9 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
             },
             Event::AboutToWait => {
@@ -101,24 +104,23 @@ fn main() -> Result<(), impl std::error::Error> {
                 }
 
                 match mode {
-                    Mode::Wait => control_flow.set_wait(),
+                    Mode::Wait => elwt.set_control_flow(ControlFlow::Wait),
                     Mode::WaitUntil => {
                         if !wait_cancelled {
-                            control_flow.set_wait_until(time::Instant::now() + WAIT_TIME);
+                            elwt.set_control_flow(ControlFlow::WaitUntil(
+                                time::Instant::now() + WAIT_TIME,
+                            ));
                         }
                     }
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
-                        control_flow.set_poll();
+                        elwt.set_control_flow(ControlFlow::Poll);
                     }
                 };
 
                 if close_requested {
-                    control_flow.set_exit();
+                    elwt.exit();
                 }
-            }
-            Event::RedrawRequested(_window_id) => {
-                fill::fill_window(&window);
             }
             _ => (),
         }

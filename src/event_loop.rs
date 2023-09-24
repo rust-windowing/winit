@@ -147,28 +147,21 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
     }
 }
 
-/// Set by the user callback given to the [`EventLoop::run`] method.
+/// Set through [`EventLoopWindowTarget::set_control_flow()`].
 ///
 /// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
-/// Defaults to [`Poll`].
+/// Defaults to [`Wait`].
 ///
-/// ## Persistency
-///
-/// Almost every change is persistent between multiple calls to the event loop closure within a
-/// given run loop. The only exception to this is [`ExitWithCode`] which, once set, cannot be unset.
-/// Changes are **not** persistent between multiple calls to `run_ondemand` - issuing a new call will
-/// reset the control flow to [`Poll`].
-///
-/// [`ExitWithCode`]: Self::ExitWithCode
-/// [`Poll`]: Self::Poll
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// [`Wait`]: Self::Wait
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
     Poll,
 
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
+    #[default]
     Wait,
 
     /// When the current loop iteration finishes, suspend the thread until either another event
@@ -180,87 +173,21 @@ pub enum ControlFlow {
     ///
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
-
-    /// Send a [`LoopExiting`] event and stop the event loop. This variant is *sticky* - once set,
-    /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
-    /// result in the `control_flow` parameter being reset to `ExitWithCode`.
-    ///
-    /// The contained number will be used as exit code. The [`Exit`] constant is a shortcut for this
-    /// with exit code 0.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Android / iOS / Web:** The supplied exit code is unused.
-    /// - **Unix:** On most Unix-like platforms, only the 8 least significant bits will be used,
-    ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
-    ///   [`std::process::exit`].
-    ///
-    /// [`LoopExiting`]: Event::LoopExiting
-    /// [`Exit`]: ControlFlow::Exit
-    ExitWithCode(i32),
 }
 
 impl ControlFlow {
-    /// Alias for [`ExitWithCode`]`(0)`.
-    ///
-    /// [`ExitWithCode`]: Self::ExitWithCode
-    #[allow(non_upper_case_globals)]
-    pub const Exit: Self = Self::ExitWithCode(0);
-
-    /// Sets this to [`Poll`].
-    ///
-    /// [`Poll`]: Self::Poll
-    pub fn set_poll(&mut self) {
-        *self = Self::Poll;
-    }
-
-    /// Sets this to [`Wait`].
-    ///
-    /// [`Wait`]: Self::Wait
-    pub fn set_wait(&mut self) {
-        *self = Self::Wait;
-    }
-
-    /// Sets this to [`WaitUntil`]`(instant)`.
-    ///
-    /// [`WaitUntil`]: Self::WaitUntil
-    pub fn set_wait_until(&mut self, instant: Instant) {
-        *self = Self::WaitUntil(instant);
-    }
-
-    /// Sets this to wait until a timeout has expired.
+    /// Creates a [`ControlFlow`] that waits until a timeout has expired.
     ///
     /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
     /// instead set to [`Wait`].
     ///
     /// [`WaitUntil`]: Self::WaitUntil
     /// [`Wait`]: Self::Wait
-    pub fn set_wait_timeout(&mut self, timeout: Duration) {
+    pub fn wait_duration(timeout: Duration) -> Self {
         match Instant::now().checked_add(timeout) {
-            Some(instant) => self.set_wait_until(instant),
-            None => self.set_wait(),
+            Some(instant) => Self::WaitUntil(instant),
+            None => Self::Wait,
         }
-    }
-
-    /// Sets this to [`ExitWithCode`]`(code)`.
-    ///
-    /// [`ExitWithCode`]: Self::ExitWithCode
-    pub fn set_exit_with_code(&mut self, code: i32) {
-        *self = Self::ExitWithCode(code);
-    }
-
-    /// Sets this to [`Exit`].
-    ///
-    /// [`Exit`]: Self::Exit
-    pub fn set_exit(&mut self) {
-        *self = Self::Exit;
-    }
-}
-
-impl Default for ControlFlow {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::Poll
     }
 }
 
@@ -286,13 +213,10 @@ impl<T> EventLoop<T> {
     /// Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
-    /// See the [`ControlFlow`] docs for information on how changes to `&mut ControlFlow` impact the
-    /// event loop's behavior.
+    /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Wayland:** The program terminates with exit code 1 if the display server
-    ///   disconnects.
     /// - **iOS:** Will never return to the caller and so values not passed to this function will
     ///   *not* be dropped before the process exits.
     /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript exception
@@ -306,12 +230,12 @@ impl<T> EventLoop<T> {
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
-    /// [`ControlFlow`]: crate::event_loop::ControlFlow
+    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &EventLoopWindowTarget<T>),
     {
         self.event_loop.run(event_handler)
     }
@@ -355,7 +279,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// **Wayland:** Always returns `None`.
+    /// **Wayland / Web:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p
@@ -374,9 +298,32 @@ impl<T> EventLoopWindowTarget<T> {
     /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn listen_device_events(&self, _allowed: DeviceEvents) {
-        #[cfg(any(x11_platform, wasm_platform, wayland_platform, windows))]
-        self.p.listen_device_events(_allowed);
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.p.listen_device_events(allowed);
+    }
+
+    /// Sets the [`ControlFlow`].
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.p.set_control_flow(control_flow)
+    }
+
+    /// Gets the current [`ControlFlow`].
+    pub fn control_flow(&self) -> ControlFlow {
+        self.p.control_flow()
+    }
+
+    /// This exits the event loop.
+    ///
+    /// See [`LoopExiting`](Event::LoopExiting).
+    pub fn exit(&self) {
+        self.p.exit()
+    }
+
+    /// Returns if the [`EventLoop`] is about to stop.
+    ///
+    /// See [`exit()`](Self::exit).
+    pub fn exiting(&self) -> bool {
+        self.p.exiting()
     }
 }
 

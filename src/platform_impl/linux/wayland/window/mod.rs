@@ -24,12 +24,12 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
-    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -420,6 +420,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_window_level(&self, _level: WindowLevel) {}
+
+    #[inline]
+    pub(crate) fn set_window_icon(&self, _window_icon: Option<PlatformIcon>) {}
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {
@@ -613,6 +619,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {}
+
+    #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
     }
@@ -629,7 +638,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // XXX there's no such concept on Wayland.
         None
     }
@@ -657,6 +666,8 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         self.window_state.lock().unwrap().theme()
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     #[inline]
     pub fn title(&self) -> String {

@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     window::{NamedCursorIcon, ResizeDirection, WindowBuilder},
 };
@@ -27,12 +27,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut border = false;
     let mut cursor_location = None;
 
-    event_loop.run(move |event, _, control_flow| match event {
+    event_loop.run(move |event, elwt| match event {
         Event::NewEvents(StartCause::Init) => {
             eprintln!("Press 'B' to toggle borderless")
         }
         Event::WindowEvent { event, .. } => match event {
-            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+            WindowEvent::CloseRequested => elwt.exit(),
             WindowEvent::CursorMoved { position, .. } => {
                 if !window.is_decorated() {
                     let new_location =
@@ -68,11 +68,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 border = !border;
                 window.set_decorations(border);
             }
+            WindowEvent::RedrawRequested => {
+                fill::fill_window(&window);
+            }
             _ => (),
         },
-        Event::RedrawRequested(_) => {
-            fill::fill_window(&window);
-        }
+
         _ => (),
     })
 }
