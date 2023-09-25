@@ -875,7 +875,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **Windows / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window
