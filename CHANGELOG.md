@@ -24,6 +24,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
 - On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
 - Implement `PartialOrd` and `Ord` for `MouseButton`.
+- On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
+- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- **Breaking:** remove `DeviceEvent::Text`.
 
 # 0.29.1-beta
 
@@ -87,6 +90,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
 - On iOS, add force data to touch events when using the Apple Pencil.
+- On Android, add force data to touch events.
 - On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
 - on iOS, add event `Event::MemoryWarning`.
 - On Android, add event `Event::MemoryWarning`.

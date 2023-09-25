@@ -23,7 +23,7 @@ use raw_window_handle::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
-    event::{self, InnerSizeWriter, StartCause},
+    event::{self, Force, InnerSizeWriter, StartCause},
     event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     window::{
@@ -423,7 +423,7 @@ impl<T: 'static> EventLoop<T> {
                                 phase,
                                 location,
                                 id: pointer.pointer_id() as u64,
-                                force: None,
+                                force: Some(Force::Normalized(pointer.pressure() as f64)),
                             }),
                         };
                         callback(event, self.window_target());
