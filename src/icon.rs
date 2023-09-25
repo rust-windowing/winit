@@ -157,7 +157,7 @@ impl fmt::Debug for CustomCursorIcon {
 
 impl CustomCursorIcon {
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        Self::from_rgba_with_hotspot(rgba, width, height, width / 2, height / 2)
+        Self::from_rgba_with_hotspot(rgba, width, height, 0, 0)
     }
 
     pub fn from_rgba_with_hotspot(

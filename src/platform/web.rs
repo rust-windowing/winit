@@ -30,6 +30,8 @@
 use crate::event::Event;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
+use crate::icon::CustomCursorIcon;
+use crate::platform_impl::PlatformCustomCursorIcon;
 use crate::window::{Window, WindowBuilder};
 
 use web_sys::HtmlCanvasElement;
@@ -187,4 +189,18 @@ pub enum PollStrategy {
     /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
     #[default]
     Scheduler,
+}
+
+/// Additional methods on `CustomCursorIcon` that are specific to Web.
+pub trait CustomCursorIconExtWeb: Sized {
+    /// Create an icon from a url.
+    fn from_url(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self;
+}
+
+impl CustomCursorIconExtWeb for CustomCursorIcon {
+    fn from_url(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self {
+        Self {
+            inner: PlatformCustomCursorIcon::from_url(url, hotspot_x, hotspot_y),
+        }
+    }
 }

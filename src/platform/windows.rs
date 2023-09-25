@@ -4,6 +4,7 @@ use crate::{
     dpi::PhysicalSize,
     event::{DeviceId, KeyEvent},
     event_loop::EventLoopBuilder,
+    icon::CustomCursorIcon,
     keyboard::Key,
     monitor::MonitorHandle,
     platform::modifier_supplement::KeyEventExtModifierSupplement,
@@ -300,7 +301,7 @@ impl DeviceIdExtWindows for DeviceId {
     }
 }
 
-/// Additional methods on `Icon` that are specific to Windows.
+/// Additional methods on `Icon` and `CustomCursorIcon` that are specific to Windows.
 pub trait IconExtWindows: Sized {
     /// Create an icon from a file path.
     ///
@@ -334,6 +335,21 @@ impl IconExtWindows for Icon {
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
+    }
+}
+
+impl IconExtWindows for CustomCursorIcon {
+    fn from_path<P: AsRef<Path>>(
+        path: P,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
+        let win_icon = WinIcon::from_path(path, size)?;
+        Ok(CustomCursorIcon { inner: win_icon })
+    }
+
+    fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        Ok(CustomCursorIcon { inner: win_icon })
     }
 }
 
