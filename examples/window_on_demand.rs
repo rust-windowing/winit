@@ -11,7 +11,7 @@ fn main() -> Result<(), impl std::error::Error> {
         error::EventLoopError,
         event::{Event, WindowEvent},
         event_loop::EventLoop,
-        platform::run_ondemand::EventLoopExtRunOnDemand,
+        platform::run_on_demand::EventLoopExtRunOnDemand,
         window::{Window, WindowBuilder, WindowId},
     };
 
@@ -30,7 +30,7 @@ fn main() -> Result<(), impl std::error::Error> {
     fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopError> {
         let mut app = App::default();
 
-        event_loop.run_ondemand(move |event, elwt| {
+        event_loop.run_on_demand(move |event, elwt| {
             println!("Run {idx}: {:?}", event);
 
             if let Some(window) = &app.window {

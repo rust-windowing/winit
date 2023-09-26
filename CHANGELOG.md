@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Renamed `EventLoopExtRunOnDemand` / `run_ondemand` to `EventLoopExtRunOnDemand` / `run_on_demand`.
 - Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
 - Fix window size sometimes being invalid when resizing on macOS.
 - On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
