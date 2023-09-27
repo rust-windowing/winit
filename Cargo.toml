@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.28.6"
+version = "0.28.7"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
