@@ -10,7 +10,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
 - Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
-- Fix window size sometimes being invalid when resizing on macOS.
 - On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
 - On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
@@ -174,6 +173,10 @@ And please only add new entries to the top of this list, right below the `# Unre
   `DeviceEvent::Key` support.
 - **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
   on Wayland, X11, Windows, macOS and Web.
+
+# 0.28.7
+
+- Fix window size sometimes being invalid when resizing on macOS 14 Sonoma.
 
 # 0.28.6
 
