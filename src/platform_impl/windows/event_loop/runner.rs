@@ -96,10 +96,12 @@ impl<T> EventLoopRunner<T> {
     where
         F: FnMut(Event<T>),
     {
-        let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<T>)>>,
-            Option<Box<dyn FnMut(Event<T>)>>,
-        >(Some(Box::new(f))));
+        // Erase closure lifetime.
+        // SAFETY: Caller upholds that the lifetime of the closure is upheld.
+        let f = unsafe {
+            mem::transmute::<Box<dyn FnMut(Event<T>)>, Box<dyn FnMut(Event<T>)>>(Box::new(f))
+        };
+        let old_event_handler = self.event_handler.replace(Some(f));
         assert!(old_event_handler.is_none());
     }
 
