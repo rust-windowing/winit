@@ -93,7 +93,16 @@ impl MonitorHandle {
     pub fn position(&self) -> PhysicalPosition<i32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| {
-            LogicalPosition::<i32>::from(info.location).to_physical(info.scale_factor as f64)
+            info.logical_position.map_or_else(
+                || {
+                    LogicalPosition::<i32>::from(info.location)
+                        .to_physical(info.scale_factor as f64)
+                },
+                |logical_position| {
+                    LogicalPosition::<i32>::from(logical_position)
+                        .to_physical(info.scale_factor as f64)
+                },
+            )
         })
     }
 
