@@ -1,5 +1,4 @@
 #![cfg(free_unix)]
-#![deny(unsafe_op_in_unsafe_fn)]
 
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");

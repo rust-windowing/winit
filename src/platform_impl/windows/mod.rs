@@ -1,5 +1,4 @@
 #![cfg(windows_platform)]
-#![deny(unsafe_op_in_unsafe_fn)]
 
 use smol_str::SmolStr;
 use windows_sys::Win32::{
