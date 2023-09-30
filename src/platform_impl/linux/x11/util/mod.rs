@@ -17,7 +17,6 @@ pub use self::{cursor::*, geometry::*, hint::*, input::*, window_property::*, wm
 
 use std::{
     mem::{self, MaybeUninit},
-    ops::BitAnd,
     os::raw::*,
 };
 
@@ -32,13 +31,6 @@ pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     } else {
         false
     }
-}
-
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where
-    T: Copy + PartialEq + BitAnd<T, Output = T>,
-{
-    bitset & flag == flag
 }
 
 impl XConnection {

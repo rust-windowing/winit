@@ -9,8 +9,10 @@ use x11rb::protocol::Event;
 use xim::x11rb::{HasConnection, X11rbClient};
 use xim::{AttributeName, Client as _, ClientError, ClientHandler, InputStyle, Point};
 
+use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::rc::Rc;
 use std::sync::Arc;
 
 impl HasConnection for XConnection {
@@ -78,6 +80,9 @@ pub(super) struct ImeData {
 
 /// Inner IME handler.
 struct ImeHandler {
+    /// Handle to the event queue.
+    event_queue: Rc<RefCell<VecDeque<Event>>>,
+
     /// Whether IME is currently disconnected.
     disconnected: bool,
 
@@ -139,7 +144,11 @@ enum Style {
 
 impl ImeData {
     /// Creates the IME data for the display.
-    pub(super) fn new(conn: &Arc<XConnection>, screen: usize) -> Result<Self, X11Error> {
+    pub(super) fn new(
+        conn: &Arc<XConnection>,
+        screen: usize,
+        event_queue: &Rc<RefCell<VecDeque<Event>>>,
+    ) -> Result<Self, X11Error> {
         // IM servers to try, in order:
         //  - None, which defaults to the environment variable `XMODIFIERS` in xim's impl.
         //  - "local", which is the default for most IMEs.
@@ -154,6 +163,7 @@ impl ImeData {
                     return Ok(Self {
                         client,
                         handler: ImeHandler {
+                            event_queue: event_queue.clone(),
                             disconnected: true,
                             ime_events: VecDeque::new(),
                             pending_windows: VecDeque::new(),
@@ -429,8 +439,44 @@ impl ImeData {
         let mut last_event = self.conn().poll_for_event()?;
 
         loop {
-            if let Some(last_event) = last_event {
-                if self.filter_event(&last_event)? {
+            if let Some(last_event) = last_event.as_ref() {
+                if self.filter_event(last_event)? {
+                    return Ok(());
+                }
+            }
+
+            {
+                // Check the event queue for events.
+                let event_queue = self.handler.event_queue.clone();
+                let mut event_queue = event_queue.borrow_mut();
+
+                // Check the event queue for events we can use.
+                let mut found_event = false;
+                let mut last_err = None;
+                event_queue.retain(|event| match self.filter_event(event) {
+                    Ok(false) => {
+                        found_event = true;
+                        true
+                    }
+                    Ok(true) => false,
+                    Err(err) => {
+                        last_err = Some(err);
+                        true
+                    }
+                });
+
+                // Push our own event to the queue.
+                if let Some(last_event) = last_event.take() {
+                    event_queue.push_back(last_event);
+                }
+
+                // Check for errors.
+                if let Some(err) = last_err {
+                    return Err(err);
+                }
+
+                // If we found an event, then we're done.
+                if found_event {
                     return Ok(());
                 }
             }

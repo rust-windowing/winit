@@ -27,8 +27,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     ffi::CStr,
-    fmt,
-    mem::MaybeUninit,
+    fmt, mem,
     ops::Deref,
     os::{
         raw::*,
@@ -43,15 +42,12 @@ use std::{
 
 use atoms::*;
 
-use x11rb::x11_utils::X11Error as LogicalError;
-use x11rb::{
-    connection::RequestConnection,
-    protocol::{
-        xinput::{self, ConnectionExt as _},
-        xkb,
-        xproto::{self, ConnectionExt as _},
-    },
+use x11rb::protocol::{
+    xinput::{self, ConnectionExt as _},
+    xkb,
+    xproto::{self, ConnectionExt as _},
 };
+use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::{
     errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
     xcb_ffi::ReplyOrIdError,
@@ -200,12 +196,15 @@ impl<T: 'static> EventLoop<T> {
         let wm_delete_window = atoms[WM_DELETE_WINDOW];
         let net_wm_ping = atoms[_NET_WM_PING];
 
+        // Create an event queue.
+        let event_queue = Rc::new(RefCell::new(std::collections::VecDeque::with_capacity(4)));
+
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
 
-        let ime = match ime::ImeData::new(&xconn, xconn.default_screen_index()) {
+        let ime = match ime::ImeData::new(&xconn, xconn.default_screen_index(), &event_queue) {
             Ok(ime) => Some(ime),
             Err(e) => {
                 log::error!("Failed to open IME: {e}");
@@ -213,20 +212,9 @@ impl<T: 'static> EventLoop<T> {
             }
         };
 
-        let randr_event_offset = xconn
+        xconn
             .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
-
-        let xi2ext = xconn
-            .xcb_connection()
-            .extension_information(xinput::X11_EXTENSION_NAME)
-            .expect("Failed to query XInput extension")
-            .expect("X server missing XInput extension");
-        let xkbext = xconn
-            .xcb_connection()
-            .extension_information(xkb::X11_EXTENSION_NAME)
-            .expect("Failed to query XKB extension")
-            .expect("X server missing XKB extension");
 
         // Check for XInput2 support.
         xconn
@@ -309,13 +297,11 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let event_processor = EventProcessor {
+            event_queue,
             target: target.clone(),
             dnd,
             devices: Default::default(),
-            randr_event_offset,
             ime_requests: ime_receiver,
-            xi2ext,
-            xkbext,
             kb_state,
             num_touch: 0,
             held_key_press: None,
@@ -598,12 +584,10 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<T>, &RootELW<T>),
     {
         let target = &self.target;
-        let mut xev = MaybeUninit::uninit();
         let wt = get_xtarget(&self.target);
 
-        while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
-            let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |event| {
+        while let Some(event) = self.event_processor.poll_one_event() {
+            self.event_processor.process_event(event, |event| {
                 if let Event::WindowEvent {
                     window_id: crate::window::WindowId(wid),
                     event: WindowEvent::RedrawRequested,
@@ -983,34 +967,6 @@ impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
     }
 }
 
-/// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure. This is a wrapper to
-/// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
-struct GenericEventCookie<'a> {
-    xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie,
-}
-
-impl<'a> GenericEventCookie<'a> {
-    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
-        unsafe {
-            let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
-                Some(GenericEventCookie { xconn, cookie })
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl<'a> Drop for GenericEventCookie<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
-        }
-    }
-}
-
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
 }
@@ -1112,8 +1068,15 @@ impl Device {
     }
 }
 
-/// Convert the raw X11 representation for a 32-bit floating point to a double.
+/// Convert the raw X11 representation for a 32-bit fixed point to a double.
 #[inline]
 fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
     (fp as f64) / ((1 << 16) as f64)
+}
+
+/// Conver the raw X11 representation for a 64-bit fixed point number to a double.
+#[inline]
+fn xinput_fp3232_to_float(fp: xinput::Fp3232) -> f64 {
+    let xinput::Fp3232 { integral, frac } = fp;
+    integral as f64 + (frac as f64 / (1u64 << 32) as f64)
 }
