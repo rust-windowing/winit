@@ -7,18 +7,6 @@ pub(crate) struct XSmartPointer<'a, T> {
     pub ptr: *mut T,
 }
 
-impl<'a, T> XSmartPointer<'a, T> {
-    // You're responsible for only passing things to this that should be XFree'd.
-    // Returns None if ptr is null.
-    pub fn new(xconn: &'a XConnection, ptr: *mut T) -> Option<Self> {
-        if !ptr.is_null() {
-            Some(XSmartPointer { xconn, ptr })
-        } else {
-            None
-        }
-    }
-}
-
 impl<'a, T> Deref for XSmartPointer<'a, T> {
     type Target = T;
 

@@ -34,15 +34,12 @@ use std::{
         raw::*,
         unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd},
     },
-    ptr,
     rc::Rc,
     slice, str,
     sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
-
-use libc::{self, setlocale, LC_CTYPE};
 
 use atoms::*;
 
@@ -63,7 +60,6 @@ use x11rb::{
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
 };
 use super::{common::xkb_state::KbdState, ControlFlow, OsError};
 use crate::{
@@ -147,15 +143,18 @@ pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
-    ime_sender: ImeSender,
+    ime_sender: mpsc::Sender<ime::ImeRequest>,
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
     root: xproto::Window,
-    ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
     device_events: Cell<DeviceEvents>,
+
+    /// State of IME.
+    ime: Option<RefCell<ime::ImeData>>,
+
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -205,37 +204,14 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
-        let (ime_event_sender, ime_event_receiver) = mpsc::channel();
-        // Input methods will open successfully without setting the locale, but it won't be
-        // possible to actually commit pre-edit sequences.
-        unsafe {
-            // Remember default locale to restore it if target locale is unsupported
-            // by Xlib
-            let default_locale = setlocale(LC_CTYPE, ptr::null());
-            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
 
-            // Check if set locale is supported by Xlib.
-            // If not, calls to some Xlib functions like `XSetLocaleModifiers`
-            // will fail.
-            let locale_supported = (xconn.xlib.XSupportsLocale)() == 1;
-            if !locale_supported {
-                let unsupported_locale = setlocale(LC_CTYPE, ptr::null());
-                warn!(
-                    "Unsupported locale \"{}\". Restoring default locale \"{}\".",
-                    CStr::from_ptr(unsupported_locale).to_string_lossy(),
-                    CStr::from_ptr(default_locale).to_string_lossy()
-                );
-                // Restore default locale
-                setlocale(LC_CTYPE, default_locale);
+        let ime = match ime::ImeData::new(&xconn, xconn.default_screen_index()) {
+            Ok(ime) => Some(ime),
+            Err(e) => {
+                log::error!("Failed to open IME: {e}");
+                None
             }
-        }
-        let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {state:#?}");
-            }
-            result.expect("Failed to set input method destruction callback")
-        });
+        };
 
         let randr_event_offset = xconn
             .select_xrandr_input(root)
@@ -303,12 +279,12 @@ impl<T: 'static> EventLoop<T> {
             KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
         let window_target = EventLoopWindowTarget {
-            ime,
             root,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             windows: Default::default(),
             _marker: ::std::marker::PhantomData,
+            ime: ime.map(RefCell::new),
             ime_sender,
             xconn,
             wm_delete_window,
@@ -337,8 +313,7 @@ impl<T: 'static> EventLoop<T> {
             dnd,
             devices: Default::default(),
             randr_event_offset,
-            ime_receiver,
-            ime_event_receiver,
+            ime_requests: ime_receiver,
             xi2ext,
             xkbext,
             kb_state,
@@ -880,8 +855,11 @@ pub enum X11Error {
     /// The XID range has been exhausted.
     XidsExhausted(IdsExhausted),
 
-    /// Got `null` from an Xlib function without a reason.
-    UnexpectedNull(&'static str),
+    /// An IME client error occurred.
+    Ime(xim::ClientError),
+
+    /// The IME client has entered an invalid state.
+    InvalidImeState(ime::InvalidImeState),
 
     /// Got an invalid activation token.
     InvalidActivationToken(Vec<u8>),
@@ -900,8 +878,9 @@ impl fmt::Display for X11Error {
             X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
             X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
             X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
+            X11Error::Ime(e) => write!(f, "An IME error occurred: {}", e),
+            X11Error::InvalidImeState(e) => write!(f, "Invalid IME state: {}", e),
             X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
-            X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
             X11Error::InvalidActivationToken(s) => write!(
                 f,
                 "Invalid activation token: {}",
@@ -964,21 +943,24 @@ impl From<ReplyError> for X11Error {
     }
 }
 
-impl From<ime::ImeContextCreationError> for X11Error {
-    fn from(value: ime::ImeContextCreationError) -> Self {
-        match value {
-            ime::ImeContextCreationError::XError(e) => e.into(),
-            ime::ImeContextCreationError::Null => Self::UnexpectedNull("XOpenIM"),
-        }
-    }
-}
-
 impl From<ReplyOrIdError> for X11Error {
     fn from(value: ReplyOrIdError) -> Self {
         match value {
             ReplyOrIdError::ConnectionError(e) => e.into(),
             ReplyOrIdError::X11Error(e) => e.into(),
             ReplyOrIdError::IdsExhausted => Self::XidsExhausted(IdsExhausted),
+        }
+    }
+}
+
+impl From<xim::ClientError> for X11Error {
+    fn from(e: xim::ClientError) -> Self {
+        match e {
+            xim::ClientError::Other(other) => match other.downcast::<X11Error>() {
+                Ok(x11) => *x11,
+                Err(other) => X11Error::Ime(xim::ClientError::Other(other)),
+            },
+            e => X11Error::Ime(e),
         }
     }
 }

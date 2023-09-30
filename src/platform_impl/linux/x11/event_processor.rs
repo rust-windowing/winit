@@ -4,7 +4,7 @@ use std::{
     os::raw::{c_char, c_int, c_long, c_ulong},
     rc::Rc,
     slice,
-    sync::{Arc, Mutex},
+    sync::{mpsc, Arc, Mutex},
 };
 
 use x11rb::x11_utils::Serialize;
@@ -17,10 +17,11 @@ use x11rb::{
 };
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
-    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
+    atoms::*, ffi, get_xtarget, ime, mkdid, mkwid, util, CookieResultExt, Device, DeviceId,
+    DeviceInfo, Dnd, DndState, GenericEventCookie, ScrollOrientation, UnownedWindow, WindowId,
 };
 
+use crate::event::InnerSizeWriter;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
@@ -28,18 +29,14 @@ use crate::{
     keyboard::ModifiersState,
     platform_impl::platform::common::{keymap, xkb_state::KbdState},
 };
-use crate::{
-    event::InnerSizeWriter,
-    platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest},
-};
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
-    pub(super) ime_receiver: ImeReceiver,
-    pub(super) ime_event_receiver: ImeEventReceiver,
+    /// Requests from other threads for IME.
+    pub(super) ime_requests: mpsc::Receiver<ime::ImeRequest>,
     pub(super) randr_event_offset: u8,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: ExtensionInformation,
@@ -560,10 +557,11 @@ impl<T: 'static> EventProcessor<T> {
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
-                wt.ime
-                    .borrow_mut()
-                    .remove_context(window as ffi::Window)
-                    .expect("Failed to destroy input context");
+                if let Some(ime) = wt.ime.as_ref() {
+                    ime.borrow_mut()
+                        .remove_context(window)
+                        .expect("Failed to destroy input context");
+                }
 
                 callback(Event::WindowEvent {
                     window_id,
@@ -669,23 +667,6 @@ impl<T: 'static> EventProcessor<T> {
                             is_synthetic: false,
                         },
                     });
-                } else if let Some(ic) = wt.ime.borrow().get_context(window as ffi::Window) {
-                    let written = wt.xconn.lookup_utf8(ic, xkev);
-                    if !written.is_empty() {
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        };
-                        callback(event);
-
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Ime(Ime::Commit(written)),
-                        };
-
-                        self.is_composing = false;
-                        callback(event);
-                    }
                 }
             }
 
@@ -970,10 +951,11 @@ impl<T: 'static> EventProcessor<T> {
                         // Set the timestamp.
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                        wt.ime
-                            .borrow_mut()
-                            .focus(xev.event)
-                            .expect("Failed to focus input context");
+                        if let Some(ime) = wt.ime.as_ref() {
+                            ime.borrow_mut()
+                                .focus_window(window)
+                                .expect("Failed to focus input context");
+                        }
 
                         if self.active_window != Some(window) {
                             self.active_window = Some(window);
@@ -1039,10 +1021,11 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        wt.ime
-                            .borrow_mut()
-                            .unfocus(xev.event)
-                            .expect("Failed to unfocus input context");
+                        if let Some(ime) = wt.ime.as_ref() {
+                            ime.borrow_mut()
+                                .unfocus_window(window)
+                                .expect("Failed to focus input context");
+                        }
 
                         if self.active_window.take() == Some(window) {
                             let window_id = mkwid(window);
@@ -1319,60 +1302,79 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        // Handle IME requests.
-        if let Ok(request) = self.ime_receiver.try_recv() {
-            let mut ime = wt.ime.borrow_mut();
-            match request {
-                ImeRequest::Position(window_id, x, y) => {
-                    ime.send_xim_spot(window_id, x, y);
-                }
-                ImeRequest::Allow(window_id, allowed) => {
-                    ime.set_ime_allowed(window_id, allowed);
-                }
-            }
-        }
+        if let Some(ime) = wt.ime.as_ref() {
+            let mut ime = ime.borrow_mut();
 
-        let (window, event) = match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => (window as xproto::Window, event),
-            Err(_) => return,
-        };
+            // Handle IME requests.
+            if let Ok(request) = self.ime_requests.try_recv() {
+                match request {
+                    ime::ImeRequest::Position(window_id, x, y) => {
+                        ime.set_spot(window_id, x, y)
+                            .expect("Failed to set IME spot");
+                    }
+                    ime::ImeRequest::Allow(window_id, allowed) => {
+                        ime.set_ime_allowed(window_id, allowed)
+                            .expect("Failed to set IME allowed");
+                    }
+                }
+            }
 
-        match event {
-            ImeEvent::Enabled => {
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                });
-            }
-            ImeEvent::Start => {
-                self.is_composing = true;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                });
-            }
-            ImeEvent::Update(text, position) => {
-                if self.is_composing {
+            let (window, event) = match ime.next_ime_event() {
+                Some((window, event)) => (window, event),
+                None => return,
+            };
+
+            match event {
+                ime::ImeEvent::Enabled => {
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        event: WindowEvent::Ime(Ime::Enabled),
                     });
                 }
-            }
-            ImeEvent::End => {
-                self.is_composing = false;
-                // Issue empty preedit on `Done`.
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                });
-            }
-            ImeEvent::Disabled => {
-                self.is_composing = false;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Disabled),
-                });
+                ime::ImeEvent::Start => {
+                    self.is_composing = true;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                    });
+                }
+                ime::ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id: mkwid(window),
+                            event: WindowEvent::Ime(Ime::Preedit(
+                                text,
+                                position.map(|position| (position, position)),
+                            )),
+                        });
+                    }
+                }
+                ime::ImeEvent::Commit(text) => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Commit(text)),
+                    });
+                }
+                ime::ImeEvent::End => {
+                    self.is_composing = false;
+                    // Issue empty preedit on `Done`.
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+                ime::ImeEvent::Disabled => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Disabled),
+                    });
+                }
             }
         }
     }

@@ -40,7 +40,6 @@ atom_manager! {
     WM_DELETE_WINDOW,
     WM_PROTOCOLS,
     WM_STATE,
-    XIM_SERVERS,
 
     // Assorted ICCCM Atoms
     _NET_WM_ICON,

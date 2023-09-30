@@ -43,7 +43,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
-x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
+x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb", "xim"]
 wayland = ["wayland-client", "wayland-backend", "wayland-protocols", "wayland-protocols-plasma", "sctk", "ahash", "memmap2"]
 wayland-dlopen = ["wayland-backend/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
@@ -167,6 +167,7 @@ wayland-protocols = { version = "0.31.0", features = [ "staging"], optional = tr
 wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
+xim = { version = "0.3.0", features = ["x11rb-client", "client"], optional = true }
 xkbcommon-dl = "0.4.0"
 
 [target.'cfg(target_os = "redox")'.dependencies]
