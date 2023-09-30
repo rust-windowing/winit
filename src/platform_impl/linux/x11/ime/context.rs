@@ -217,15 +217,19 @@ impl ImeContext {
         }));
 
         let ic = match style as _ {
-            Style::Preedit(style) => ImeContext::create_preedit_ic(
-                xconn,
-                im,
-                style,
-                window,
-                client_data as ffi::XPointer,
-            ),
-            Style::Nothing(style) => ImeContext::create_nothing_ic(xconn, im, style, window),
-            Style::None(style) => ImeContext::create_none_ic(xconn, im, style, window),
+            Style::Preedit(style) => unsafe {
+                ImeContext::create_preedit_ic(
+                    xconn,
+                    im,
+                    style,
+                    window,
+                    client_data as ffi::XPointer,
+                )
+            },
+            Style::Nothing(style) => unsafe {
+                ImeContext::create_nothing_ic(xconn, im, style, window)
+            },
+            Style::None(style) => unsafe { ImeContext::create_none_ic(xconn, im, style, window) },
         }
         .ok_or(ImeContextCreationError::Null)?;
 
@@ -237,7 +241,7 @@ impl ImeContext {
             ic,
             ic_spot: ffi::XPoint { x: 0, y: 0 },
             style,
-            _client_data: Box::from_raw(client_data),
+            _client_data: unsafe { Box::from_raw(client_data) },
         };
 
         // Set the spot location, if it's present.
@@ -254,14 +258,16 @@ impl ImeContext {
         style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ptr::null_mut::<()>(),
+            )
+        };
 
         (!ic.is_null()).then_some(ic)
     }
@@ -274,8 +280,7 @@ impl ImeContext {
         client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
         let preedit_callbacks = PreeditCallbacks::new(client_data);
-        let preedit_attr = util::memory::XSmartPointer::new(
-            xconn,
+        let preedit_attr = util::memory::XSmartPointer::new(xconn, unsafe {
             (xconn.xlib.XVaCreateNestedList)(
                 0,
                 ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
@@ -287,20 +292,22 @@ impl ImeContext {
                 ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
                 &(preedit_callbacks.draw_callback) as *const _,
                 ptr::null_mut::<()>(),
-            ),
-        )
+            )
+        })
         .expect("XVaCreateNestedList returned NULL");
 
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-            preedit_attr.ptr,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ffi::XNPreeditAttributes_0.as_ptr() as *const _,
+                preedit_attr.ptr,
+                ptr::null_mut::<()>(),
+            )
+        };
 
         (!ic.is_null()).then_some(ic)
     }
@@ -311,14 +318,16 @@ impl ImeContext {
         style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ptr::null_mut::<()>(),
+            )
+        };
 
         (!ic.is_null()).then_some(ic)
     }

@@ -122,12 +122,14 @@ impl<T: 'static> EventProcessor<T> {
             1
         }
 
-        let result = (wt.xconn.xlib.XCheckIfEvent)(
-            wt.xconn.display,
-            event_ptr,
-            Some(predicate),
-            std::ptr::null_mut(),
-        );
+        let result = unsafe {
+            (wt.xconn.xlib.XCheckIfEvent)(
+                wt.xconn.display,
+                event_ptr,
+                Some(predicate),
+                std::ptr::null_mut(),
+            )
+        };
 
         result != 0
     }
