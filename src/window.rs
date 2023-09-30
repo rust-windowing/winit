@@ -101,7 +101,8 @@ impl WindowId {
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+        #[allow(unused_unsafe)]
+        WindowId(unsafe { platform_impl::WindowId::dummy() })
     }
 }
 
