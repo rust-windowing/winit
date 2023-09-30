@@ -91,6 +91,14 @@ impl XConnection {
             conn.map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
         };
 
+        // Make sure Xlib knows XCB is handling events.
+        unsafe {
+            (xlib_xcb.XSetEventQueueOwner)(
+                display,
+                x11_dl::xlib_xcb::XEventQueueOwner::XCBOwnsEventQueue,
+            );
+        }
+
         // Get the default screen.
         let default_screen = unsafe { (xlib.XDefaultScreen)(display) } as usize;
 
