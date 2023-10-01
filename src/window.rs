@@ -447,10 +447,6 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// The default is `None`.
     ///
-    /// ## Safety
-    ///
-    /// `parent_window` must be a valid window handle.
-    ///
     /// ## Platform-specific
     ///
     /// - **Windows** : A child window has the WS_CHILD style and is confined
@@ -460,7 +456,7 @@ impl<'a> WindowBuilder<'a> {
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub unsafe fn with_parent_window(
+    pub fn with_parent_window(
         self,
         parent_window: Option<rwh_06::WindowHandle<'_>>,
     ) -> WindowBuilder<'_> {
