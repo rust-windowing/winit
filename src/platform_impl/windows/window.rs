@@ -1,8 +1,5 @@
 #![cfg(windows_platform)]
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
-};
 use std::{
     cell::Cell,
     ffi::c_void,
@@ -94,7 +91,7 @@ pub(crate) struct Window {
 impl Window {
     pub(crate) fn new<T: 'static>(
         event_loop: &EventLoopWindowTarget<T>,
-        w_attr: WindowAttributes,
+        w_attr: WindowAttributes<'_>,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
@@ -331,18 +328,53 @@ impl Window {
         self.window.0
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = Win32WindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::Win32Handle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
         let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
         window_handle.hinstance = hinstance as *mut _;
-        RawWindowHandle::Win32(window_handle)
+        rwh_04::RawWindowHandle::Win32(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::Win32WindowHandle::empty();
+        window_handle.hwnd = self.window.0 as *mut _;
+        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        window_handle.hinstance = hinstance as *mut _;
+        rwh_05::RawWindowHandle::Win32(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::Win32WindowHandle::new(unsafe {
+            // SAFETY: Handle will never be zero.
+            let window = self.window.0;
+            std::num::NonZeroIsize::new_unchecked(window)
+        });
+        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        window_handle.hinstance = std::num::NonZeroIsize::new(hinstance);
+        Ok(rwh_06::RawWindowHandle::Win32(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Windows(
+            rwh_06::WindowsDisplayHandle::new(),
+        ))
     }
 
     #[inline]
@@ -913,17 +945,17 @@ pub struct WindowWrapper(HWND);
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
-pub(super) struct InitData<'a, T: 'static> {
+pub(super) struct InitData<'a, 'b, T: 'static> {
     // inputs
     pub event_loop: &'a EventLoopWindowTarget<T>,
-    pub attributes: WindowAttributes,
+    pub attributes: WindowAttributes<'b>,
     pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
     pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
 }
 
-impl<'a, T: 'static> InitData<'a, T> {
+impl<'a, T: 'static> InitData<'a, '_, T> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
@@ -1107,7 +1139,7 @@ impl<'a, T: 'static> InitData<'a, T> {
     }
 }
 unsafe fn init<T>(
-    attributes: WindowAttributes,
+    attributes: WindowAttributes<'_>,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError>
@@ -1145,26 +1177,32 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
-    let parent = match attributes.parent_window {
-        Some(RawWindowHandle::Win32(handle)) => {
+    let mut fallback_parent = || match pl_attribs.owner {
+        Some(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
+
+    #[cfg(feature = "rwh_06")]
+    let parent = match attributes.parent_window.map(|r| r.as_raw()) {
+        Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
-            Some(handle.hwnd as HWND)
+            Some(handle.hwnd.get() as HWND)
         }
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
-        None => match pl_attribs.owner {
-            Some(parent) => {
-                window_flags.set(WindowFlags::POPUP, true);
-                Some(parent)
-            }
-            None => {
-                window_flags.set(WindowFlags::ON_TASKBAR, true);
-                None
-            }
-        },
+        None => fallback_parent(),
     };
+
+    #[cfg(not(feature = "rwh_06"))]
+    let parent = fallback_parent();
 
     let mut initdata = InitData {
         event_loop,
