@@ -181,6 +181,7 @@ impl<'a> Default for WindowAttributes<'a> {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
             _eat_lifetime: std::marker::PhantomData,

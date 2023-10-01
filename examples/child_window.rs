@@ -32,7 +32,8 @@ fn main() -> Result<(), impl std::error::Error> {
             .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
             .with_visible(true)
             .with_parent_window(Some(parent))
-            .build(event_loop).unwrap();
+            .build(event_loop)
+            .unwrap();
 
         let id = child_window.id();
         windows.insert(id, child_window);

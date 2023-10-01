@@ -53,6 +53,7 @@ pub struct Window {
     compositor: Arc<CompositorState>,
 
     /// The wayland display used solely for raw window handle.
+    #[allow(dead_code)]
     display: WlDisplay,
 
     /// Xdg activation to request user attention.
