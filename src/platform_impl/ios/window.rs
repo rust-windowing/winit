@@ -6,7 +6,6 @@ use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, Main
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
@@ -332,16 +331,48 @@ impl Inner {
         self.window.id()
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = UiKitWindowHandle::empty();
+    #[cfg(feature = "rwh_04")]
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::UiKitHandle::empty();
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = Id::as_ptr(&self.view) as _;
         window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
-        RawWindowHandle::UiKit(window_handle)
+        rwh_04::RawWindowHandle::UiKit(window_handle)
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::UiKitWindowHandle::empty();
+        window_handle.ui_window = Id::as_ptr(&self.window) as _;
+        window_handle.ui_view = Id::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        rwh_05::RawWindowHandle::UiKit(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::UiKitWindowHandle::new(unsafe {
+            // SAFETY: ns_view will never be null
+            let ui_view = Id::as_ptr(&self.view) as _;
+            std::ptr::NonNull::new_unchecked(ui_view)
+        });
+        window_handle.ui_view_controller =
+            std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
+        Ok(rwh_06::RawWindowHandle::UiKit(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::UiKit(
+            rwh_06::UiKitDisplayHandle::new(),
+        ))
     }
 
     pub fn theme(&self) -> Option<Theme> {
@@ -377,7 +408,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        window_attributes: WindowAttributes,
+        window_attributes: WindowAttributes<'_>,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
