@@ -9,8 +9,6 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
-
 use sctk::reexports::calloop;
 use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::client::globals;
@@ -653,10 +651,25 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WaylandDisplayHandle::new(unsafe {
+            // SAFETY: The display handle will never be null.
+            let ptr = self.connection.display().id().as_ptr();
+            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+        })
+        .into())
     }
 }
 

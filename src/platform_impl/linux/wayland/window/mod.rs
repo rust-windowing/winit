@@ -3,10 +3,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
-};
-
 use sctk::reexports::calloop;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -84,7 +80,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
-        attributes: WindowAttributes,
+        attributes: WindowAttributes<'_>,
         platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
@@ -650,18 +646,53 @@ impl Window {
         None
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = WaylandWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::WaylandHandle::empty();
         window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
-        RawWindowHandle::Wayland(window_handle)
+        window_handle.display = self.display.id().as_ptr() as *mut _;
+        rwh_04::RawWindowHandle::Wayland(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::WaylandWindowHandle::empty();
+        window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
+        rwh_05::RawWindowHandle::Wayland(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.display.id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WaylandWindowHandle::new(unsafe {
+            // SAFETY: Surface pointer will never be null.
+            let ptr = self.window.wl_surface().id().as_ptr();
+            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+        })
+        .into())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WaylandDisplayHandle::new(unsafe {
+            // SAFETY: Display pointer will never be null.
+            let ptr = self.display.id().as_ptr();
+            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+        })
+        .into())
     }
 
     #[inline]
