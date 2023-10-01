@@ -161,6 +161,7 @@ impl WindowExtWindows for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
+#[allow(rustdoc::broken_intra_doc_links)]
 pub trait WindowBuilderExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// This only works when [`Self::with_parent_window`] isn't called or set to `None`.

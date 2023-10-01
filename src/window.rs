@@ -132,6 +132,7 @@ impl fmt::Debug for WindowBuilder<'_> {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct WindowAttributes<'a> {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
@@ -153,6 +154,7 @@ pub struct WindowAttributes<'a> {
     #[cfg(feature = "rwh_06")]
     pub parent_window: Option<rwh_06::WindowHandle<'a>>,
     pub active: bool,
+    _eat_lifetime: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> Default for WindowAttributes<'a> {
@@ -178,6 +180,7 @@ impl<'a> Default for WindowAttributes<'a> {
             content_protected: false,
             parent_window: None,
             active: true,
+            _eat_lifetime: std::marker::PhantomData,
         }
     }
 }
@@ -507,6 +510,7 @@ impl<'a> WindowBuilder<'a> {
                 window_level,
                 active,
                 parent_window,
+                _eat_lifetime: std::marker::PhantomData,
             },
             platform_specific,
         }
