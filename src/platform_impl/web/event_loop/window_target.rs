@@ -678,8 +678,12 @@ impl<T> EventLoopWindowTarget<T> {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(
+            rwh_06::WebDisplayHandle::new(),
+        ))
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
