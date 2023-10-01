@@ -7,7 +7,6 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
     properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
@@ -73,7 +72,10 @@ pub enum Visibility {
 }
 
 impl SharedState {
-    fn new(last_monitor: X11MonitorHandle, window_attributes: &WindowAttributes) -> Mutex<Self> {
+    fn new(
+        last_monitor: X11MonitorHandle,
+        window_attributes: &WindowAttributes<'_>,
+    ) -> Mutex<Self> {
         let visibility = if window_attributes.visible {
             Visibility::YesWait
         } else {
@@ -138,17 +140,20 @@ impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        window_attrs: WindowAttributes,
+        window_attrs: WindowAttributes<'_>,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
-        let root = match window_attrs.parent_window {
-            Some(RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
-            Some(RawWindowHandle::Xcb(handle)) => handle.window,
+        #[cfg(feature = "rwh_06")]
+        let root = match window_attrs.parent_window.map(|x| x.as_raw()) {
+            Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
+            Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
             None => event_loop.root,
         };
+        #[cfg(not(feature = "rwh_06"))]
+        let root = event_loop.root;
 
         let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
@@ -1788,20 +1793,53 @@ impl UnownedWindow {
         // TODO timer
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = XlibWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::XlibHandle::empty();
+        window_handle.display = self.xlib_display();
         window_handle.window = self.xlib_window();
         window_handle.visual_id = self.visual as c_ulong;
-        RawWindowHandle::Xlib(window_handle)
+        rwh_04::RawWindowHandle::Xlib(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::XlibWindowHandle::empty();
+        window_handle.window = self.xlib_window();
+        window_handle.visual_id = self.visual as c_ulong;
+        window_handle.into()
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::XlibWindowHandle::new(self.xlib_window());
+        window_handle.visual_id = self.visual as c_ulong;
+        Ok(window_handle.into())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::XlibDisplayHandle::new(
+            // SAFETY: The Xlib display pointer will never be null
+            Some(unsafe { std::ptr::NonNull::new_unchecked(self.xlib_display()) }),
+            self.screen_id,
+        )
+        .into())
     }
 
     #[inline]
