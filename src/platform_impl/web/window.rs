@@ -6,7 +6,6 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 use web_sys::HtmlCanvasElement;
 
 use super::r#async::Dispatcher;
@@ -34,7 +33,7 @@ pub struct Inner {
 impl Window {
     pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
-        attr: WindowAttributes,
+        attr: WindowAttributes<'_>,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
@@ -358,16 +357,39 @@ impl Inner {
         self.id
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = WebWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::WebHandle::empty();
         window_handle.id = self.id.0;
-        RawWindowHandle::Web(window_handle)
+        rwh_04::RawWindowHandle::Web(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::WebWindowHandle::empty();
+        window_handle.id = self.id.0;
+        rwh_05::RawWindowHandle::Web(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let window_handle = rwh_06::WebWindowHandle::new(self.id.0);
+        Ok(rwh_06::RawWindowHandle::Web(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
     }
 
     #[inline]
