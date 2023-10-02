@@ -119,9 +119,11 @@ unsafe impl Sync for UnownedWindow {}
 pub(crate) struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
-    visual: u32,                        // never changes
+    #[allow(dead_code)]
+    visual: u32, // never changes
     root: xproto::Window,               // never changes
-    screen_id: i32,                     // never changes
+    #[allow(dead_code)]
+    screen_id: i32, // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -1469,11 +1471,13 @@ impl UnownedWindow {
         WindowButtons::all()
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn xlib_display(&self) -> *mut c_void {
         self.xconn.display as _
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn xlib_window(&self) -> c_ulong {
         self.xwindow as ffi::Window
