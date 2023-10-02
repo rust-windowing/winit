@@ -77,8 +77,8 @@ pub(crate) use self::{
 };
 
 use self::uikit::UIScreen;
-pub(crate) use self::uikit::UIStatusBarStyle;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(crate) use crate::platform::ios::UIStatusBarStyle;
 pub(crate) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

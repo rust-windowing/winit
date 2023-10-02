@@ -11,14 +11,14 @@ use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, Cl
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
-    UIResponder, UIStatusBarStyle, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView,
-    UIViewController, UIWindow,
+    UIResponder, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView, UIViewController,
+    UIWindow,
 };
 use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
-    platform::ios::ValidOrientations,
+    platform::ios::{UIStatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,

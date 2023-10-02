@@ -9,14 +9,14 @@ use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::app_state::EventWrapper;
-use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation, UIStatusBarStyle};
+use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    platform::ios::{ScreenEdge, ValidOrientations},
+    platform::ios::{ScreenEdge, UIStatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },

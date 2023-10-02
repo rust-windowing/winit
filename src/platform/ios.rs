@@ -1,12 +1,12 @@
 use std::os::raw::c_void;
 
-use icrate::Foundation::MainThreadMarker;
+use icrate::Foundation::{MainThreadMarker, NSInteger};
+use objc2::encode::{Encode, Encoding};
 use objc2::rc::Id;
 
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
-    platform_impl::UIStatusBarStyle,
     window::{Window, WindowBuilder},
 };
 
@@ -70,20 +70,24 @@ pub trait WindowExtIOS {
     ///
     /// The default is to prefer showing the status bar.
     ///
-    /// This changes the value returned by
-    /// [`-[UIViewController prefersStatusBarHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc),
-    /// and then calls
-    /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
+    /// This sets the value of the
+    /// [`prefersStatusBarHidden`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc)
+    /// property.
+    ///
+    /// [`setNeedsStatusBarAppearanceUpdate()`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc)
+    /// is also called for you.
     fn set_prefers_status_bar_hidden(&self, hidden: bool);
 
-    /// Sets whether the [`Window`] prefers the status bar hidden.
+    /// Sets the preferred status bar style for the [`Window`].
     ///
     /// The default is system-defined.
     ///
-    /// This changes the value returned by
-    /// [`-[UIViewController preferredStatusBarStyle]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc),
-    /// and then calls
-    /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
+    /// This sets the value of the
+    /// [`preferredStatusBarStyle`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc)
+    /// property.
+    ///
+    /// [`setNeedsStatusBarAppearanceUpdate()`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc)
+    /// is also called for you.
     fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle);
 }
 
@@ -303,4 +307,18 @@ bitflags! {
         const ALL = ScreenEdge::TOP.bits() | ScreenEdge::LEFT.bits()
             | ScreenEdge::BOTTOM.bits() | ScreenEdge::RIGHT.bits();
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UIStatusBarStyle {
+    #[default]
+    Default = 0,
+    LightContent = 1,
+    DarkContent = 3,
+}
+
+unsafe impl Encode for UIStatusBarStyle {
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
