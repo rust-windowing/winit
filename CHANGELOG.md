@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
+- Renamed `EventLoopExtRunOnDemand` / `run_ondemand` to `EventLoopExtRunOnDemand` / `run_on_demand`.
 - Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
 - On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
 - On Web, never return a `MonitorHandle`.
