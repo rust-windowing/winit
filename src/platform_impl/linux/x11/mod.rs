@@ -398,7 +398,7 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>),
     {
@@ -421,7 +421,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // Applications aren't allowed to carry windows between separate
-        // `run_ondemand` calls but if they have only just dropped their
+        // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
         let wt = get_xtarget(&self.target);

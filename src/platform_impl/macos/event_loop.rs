@@ -231,14 +231,14 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>),
     {
-        self.run_ondemand(callback)
+        self.run_on_demand(callback)
     }
 
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>),
     {

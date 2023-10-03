@@ -252,10 +252,10 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootELW<T>),
     {
-        self.run_ondemand(event_handler)
+        self.run_on_demand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>),
     {

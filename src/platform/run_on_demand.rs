@@ -28,7 +28,7 @@ pub trait EventLoopExtRunOnDemand {
     /// to while maintaining the full state of your application. (If you need something like this
     /// you can look at the [`EventLoopExtPumpEvents::pump_events()`] API)
     ///
-    /// Each time `run_ondemand` is called the `event_handler` can expect to receive a
+    /// Each time `run_on_demand` is called the `event_handler` can expect to receive a
     /// `NewEvents(Init)` and `Resumed` event (even on platforms that have no suspend/resume
     /// lifecycle) - which can be used to consistently initialize application state.
     ///
@@ -59,7 +59,7 @@ pub trait EventLoopExtRunOnDemand {
     ///
     /// [`exit()`]: EventLoopWindowTarget::exit
     /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow
-    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
+    fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
 }
@@ -67,10 +67,10 @@ pub trait EventLoopExtRunOnDemand {
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_ondemand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
+    fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
-        self.event_loop.run_ondemand(event_handler)
+        self.event_loop.run_on_demand(event_handler)
     }
 }

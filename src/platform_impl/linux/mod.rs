@@ -774,14 +774,14 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        self.run_ondemand(callback)
+        self.run_on_demand(callback)
     }
 
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus

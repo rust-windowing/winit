@@ -359,7 +359,7 @@ impl AppState {
     /// and can lead to undefined behaviour if the callback is not cleared before the end of
     /// its real lifetime.
     ///
-    /// All public APIs that take an event callback (`run`, `run_ondemand`,
+    /// All public APIs that take an event callback (`run`, `run_on_demand`,
     /// `pump_events`) _must_ pair a call to `set_callback` with
     /// a call to `clear_callback` before returning to avoid undefined behaviour.
     pub unsafe fn set_callback<T>(
