@@ -356,10 +356,9 @@ impl Inner {
 
     #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let mut window_handle = rwh_06::UiKitWindowHandle::new(unsafe {
-            // SAFETY: ns_view will never be null
+        let mut window_handle = rwh_06::UiKitWindowHandle::new({
             let ui_view = Id::as_ptr(&self.view) as _;
-            std::ptr::NonNull::new_unchecked(ui_view)
+            std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
         });
         window_handle.ui_view_controller =
             std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);

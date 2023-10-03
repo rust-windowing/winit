@@ -7,8 +7,6 @@
 //! The `softbuffer` crate is used, largely because of its ease of use. `glutin` or `wgpu` could
 //! also be used to fill the window buffer, but they are more complicated to use.
 
-// TODO: Once softbuffer uses rwh_06, use that instead.
-
 use winit::window::Window;
 
 #[cfg(all(feature = "rwh_05", not(any(target_os = "android", target_os = "ios"))))]

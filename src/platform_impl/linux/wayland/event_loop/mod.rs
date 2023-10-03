@@ -668,10 +668,9 @@ impl<T> EventLoopWindowTarget<T> {
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;
 
-        Ok(rwh_06::WaylandDisplayHandle::new(unsafe {
-            // SAFETY: The display handle will never be null.
+        Ok(rwh_06::WaylandDisplayHandle::new({
             let ptr = self.connection.display().id().as_ptr();
-            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
         })
         .into())
     }

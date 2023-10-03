@@ -1868,8 +1868,7 @@ impl UnownedWindow {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::XlibDisplayHandle::new(
-            // SAFETY: The Xlib display pointer will never be null
-            Some(unsafe { std::ptr::NonNull::new_unchecked(self.xlib_display()) }),
+            Some(std::ptr::NonNull::new(self.xlib_display()).expect("display pointer should never be null")),
             self.screen_id,
         )
         .into())
