@@ -17,20 +17,20 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    println!("Only supported on macOS at the moment.");
+    println!("Only supported on macOS/iOS at the moment.");
 
     event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => elwt.exit(),
-                WindowEvent::TouchpadMagnify { delta, .. } => {
+                WindowEvent::PinchGesture { delta, .. } => {
                     if delta > 0.0 {
                         println!("Zoomed in {delta}");
                     } else {
                         println!("Zoomed out {delta}");
                     }
                 }
-                WindowEvent::SmartMagnify { .. } => {
+                WindowEvent::DoubleTapGesture { .. } => {
                     println!("Smart zoom");
                 }
                 WindowEvent::TouchpadRotate { delta, .. } => {

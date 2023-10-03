@@ -447,15 +447,15 @@ pub enum WindowEvent {
         button: MouseButton,
     },
 
-    /// Touchpad magnification event with two-finger pinch gesture.
+    /// Two-finger pinch gesture, often use for magnification.
     ///
     /// Positive delta values indicate magnification (zooming in) and
     /// negative delta values indicate shrinking (zooming out).
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
-    TouchpadMagnify {
+    /// - Only available on **macOS** and **iOS**.
+    PinchGesture {
         device_id: DeviceId,
         delta: f64,
         phase: TouchPhase,
@@ -477,8 +477,8 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS 10.8** and later.
-    SmartMagnify { device_id: DeviceId },
+    /// - Only available on **macOS 10.8** and later, and **iOS**.
+    DoubleTapGesture { device_id: DeviceId },
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
@@ -1201,12 +1201,12 @@ mod tests {
                     state: event::ElementState::Pressed,
                     button: event::MouseButton::Other(0),
                 });
-                with_window_event(TouchpadMagnify {
+                with_window_event(PinchGesture {
                     device_id: did,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(SmartMagnify { device_id: did });
+                with_window_event(DoubleTapGesture { device_id: did });
                 with_window_event(TouchpadRotate {
                     device_id: did,
                     delta: 0.0,

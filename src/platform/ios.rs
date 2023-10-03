@@ -88,6 +88,10 @@ pub trait WindowExtIOS {
     /// [`setNeedsStatusBarAppearanceUpdate()`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc)
     /// is also called for you.
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle);
+
+    fn recognize_pinch_gesture(&self, should_recognize: bool);
+
+    fn recognize_doubletap_gesture(&self, should_recognize: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -126,6 +130,18 @@ impl WindowExtIOS for Window {
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.window
             .maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
+    }
+
+    #[inline]
+    fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
+    }
+
+    #[inline]
+    fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
     }
 }
 

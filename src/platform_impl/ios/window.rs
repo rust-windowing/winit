@@ -571,6 +571,14 @@ impl Inner {
         self.view_controller
             .set_preferred_status_bar_style(status_bar_style.into());
     }
+
+    pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        self.view.recognize_pinch_gesture(should_recognize);
+    }
+
+    pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        self.view.recognize_doubletap_gesture(should_recognize);
+    }
 }
 
 impl Inner {

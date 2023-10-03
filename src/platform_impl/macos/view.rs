@@ -695,7 +695,7 @@ declare_class!(
                 _ => return,
             };
 
-            self.queue_event(WindowEvent::TouchpadMagnify {
+            self.queue_event(WindowEvent::PinchGesture {
                 device_id: DEVICE_ID,
                 delta: unsafe { event.magnification() },
                 phase,
@@ -706,7 +706,7 @@ declare_class!(
         fn smart_magnify_with_event(&self, _event: &NSEvent) {
             trace_scope!("smartMagnifyWithEvent:");
 
-            self.queue_event(WindowEvent::SmartMagnify {
+            self.queue_event(WindowEvent::DoubleTapGesture {
                 device_id: DEVICE_ID,
             });
         }
