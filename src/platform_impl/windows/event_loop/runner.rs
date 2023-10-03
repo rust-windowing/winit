@@ -88,7 +88,7 @@ impl<T> EventLoopRunner<T> {
     /// outlive the EventLoopRunner) and can lead to undefined behaviour if
     /// the handler is not cleared before the end of real lifetime.
     ///
-    /// All public APIs that take an event handler (`run`, `run_ondemand`,
+    /// All public APIs that take an event handler (`run`, `run_on_demand`,
     /// `pump_events`) _must_ pair a call to `set_event_handler` with
     /// a call to `clear_event_handler` before returning to avoid
     /// undefined behaviour.
