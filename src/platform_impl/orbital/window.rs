@@ -415,10 +415,9 @@ impl Window {
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let handle = rwh_06::OrbitalWindowHandle::new(unsafe {
-            // SAFETY: not zero.
+        let handle = rwh_06::OrbitalWindowHandle::new({
             let window = self.window_socket.fd as *mut _;
-            std::ptr::NonNull::new_unchecked(window)
+            std::ptr::NonNull::new(window).expect("orbital fd shoul never be null")
         });
         Ok(rwh_06::RawWindowHandle::Orbital(handle))
     }

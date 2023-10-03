@@ -668,10 +668,9 @@ impl Window {
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        Ok(rwh_06::WaylandWindowHandle::new(unsafe {
-            // SAFETY: Surface pointer will never be null.
+        Ok(rwh_06::WaylandWindowHandle::new({
             let ptr = self.window.wl_surface().id().as_ptr();
-            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
         })
         .into())
     }
@@ -681,10 +680,9 @@ impl Window {
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::WaylandDisplayHandle::new(unsafe {
-            // SAFETY: Display pointer will never be null.
+        Ok(rwh_06::WaylandDisplayHandle::new({
             let ptr = self.display.id().as_ptr();
-            std::ptr::NonNull::new_unchecked(ptr as *mut _)
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
         })
         .into())
     }

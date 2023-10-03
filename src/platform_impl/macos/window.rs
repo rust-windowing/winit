@@ -1369,10 +1369,9 @@ impl WinitWindow {
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let window_handle = rwh_06::AppKitWindowHandle::new(unsafe {
-            // SAFETY: ns_view is never null.
+        let window_handle = rwh_06::AppKitWindowHandle::new({
             let ptr = Id::as_ptr(&self.contentView()) as *mut _;
-            std::ptr::NonNull::new_unchecked(ptr)
+            std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
         });
         Ok(rwh_06::RawWindowHandle::AppKit(window_handle))
     }
