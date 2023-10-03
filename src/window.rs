@@ -115,15 +115,15 @@ impl From<u64> for WindowId {
 /// Object that allows building windows.
 #[derive(Clone, Default)]
 #[must_use]
-pub struct WindowBuilder<'a> {
+pub struct WindowBuilder {
     /// The attributes to use to create the window.
-    pub(crate) window: WindowAttributes<'a>,
+    pub(crate) window: WindowAttributes,
 
     // Platform-specific configuration.
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
-impl fmt::Debug for WindowBuilder<'_> {
+impl fmt::Debug for WindowBuilder {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
@@ -133,8 +133,7 @@ impl fmt::Debug for WindowBuilder<'_> {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct WindowAttributes<'a> {
+pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
@@ -154,14 +153,13 @@ pub struct WindowAttributes<'a> {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     #[cfg(feature = "rwh_06")]
-    pub parent_window: Option<rwh_06::WindowHandle<'a>>,
+    pub parent_window: Option<rwh_06::RawWindowHandle>,
     pub active: bool,
-    _eat_lifetime: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> Default for WindowAttributes<'a> {
+impl Default for WindowAttributes {
     #[inline]
-    fn default() -> WindowAttributes<'a> {
+    fn default() -> WindowAttributes {
         WindowAttributes {
             inner_size: None,
             min_inner_size: None,
@@ -184,12 +182,11 @@ impl<'a> Default for WindowAttributes<'a> {
             #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
-            _eat_lifetime: std::marker::PhantomData,
         }
     }
 }
 
-impl WindowBuilder<'static> {
+impl WindowBuilder {
     /// Initializes a new builder with default values.
     #[inline]
     pub fn new() -> Self {
@@ -197,9 +194,9 @@ impl WindowBuilder<'static> {
     }
 }
 
-impl<'a> WindowBuilder<'a> {
+impl WindowBuilder {
     /// Get the current window attributes.
-    pub fn window_attributes(&self) -> &WindowAttributes<'a> {
+    pub fn window_attributes(&self) -> &WindowAttributes {
         &self.window
     }
 
@@ -465,6 +462,10 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// The default is `None`.
     ///
+    /// ## Safety
+    ///
+    /// `parent_window` must be a valid window handle.
+    ///
     /// ## Platform-specific
     ///
     /// - **Windows** : A child window has the WS_CHILD style and is confined
@@ -474,61 +475,12 @@ impl<'a> WindowBuilder<'a> {
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn with_parent_window(
-        self,
-        parent_window: Option<rwh_06::WindowHandle<'_>>,
-    ) -> WindowBuilder<'_> {
-        let Self {
-            window:
-                WindowAttributes {
-                    inner_size,
-                    min_inner_size,
-                    max_inner_size,
-                    position,
-                    resizable,
-                    enabled_buttons,
-                    title,
-                    fullscreen,
-                    maximized,
-                    visible,
-                    transparent,
-                    decorations,
-                    window_icon,
-                    preferred_theme,
-                    resize_increments,
-                    content_protected,
-                    window_level,
-                    active,
-                    ..
-                },
-            platform_specific,
-        } = self;
-
-        WindowBuilder {
-            window: WindowAttributes {
-                inner_size,
-                min_inner_size,
-                max_inner_size,
-                position,
-                resizable,
-                enabled_buttons,
-                title,
-                fullscreen,
-                maximized,
-                visible,
-                transparent,
-                decorations,
-                window_icon,
-                preferred_theme,
-                resize_increments,
-                content_protected,
-                window_level,
-                active,
-                parent_window,
-                _eat_lifetime: std::marker::PhantomData,
-            },
-            platform_specific,
-        }
+    pub unsafe fn with_parent_window(
+        mut self,
+        parent_window: Option<rwh_06::RawWindowHandle>,
+    ) -> Self {
+        self.window.parent_window = parent_window;
+        self
     }
 
     /// Builds the window.

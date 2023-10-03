@@ -61,7 +61,7 @@ impl Canvas {
         id: WindowId,
         window: web_sys::Window,
         document: Document,
-        attr: &WindowAttributes<'_>,
+        attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let canvas = match platform_attr.canvas {

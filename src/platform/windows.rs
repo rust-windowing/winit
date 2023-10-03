@@ -164,7 +164,7 @@ impl WindowExtWindows for Window {
 #[allow(rustdoc::broken_intra_doc_links)]
 pub trait WindowBuilderExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
-    /// This only works when [`Self::with_parent_window`] isn't called or set to `None`.
+    /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
@@ -215,7 +215,7 @@ pub trait WindowBuilderExtWindows {
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
 }
 
-impl WindowBuilderExtWindows for WindowBuilder<'_> {
+impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
         self.platform_specific.owner = Some(parent);

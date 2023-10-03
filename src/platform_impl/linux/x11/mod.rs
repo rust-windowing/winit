@@ -717,7 +717,10 @@ impl<T> EventLoopWindowTarget<T> {
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         let display_handle = rwh_06::XlibDisplayHandle::new(
             // SAFETY: display will never be null
-            Some(std::ptr::NonNull::new(self.xconn.display as *mut _).expect("X11 display should never be null")),
+            Some(
+                std::ptr::NonNull::new(self.xconn.display as *mut _)
+                    .expect("X11 display should never be null"),
+            ),
             self.xconn.default_screen_index() as c_int,
         );
         Ok(display_handle.into())
@@ -819,7 +822,7 @@ impl Deref for Window {
 impl Window {
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        attribs: WindowAttributes<'_>,
+        attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(event_loop, attribs, pl_attribs)?);

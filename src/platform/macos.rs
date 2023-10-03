@@ -208,7 +208,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
 }
 
-impl WindowBuilderExtMacOS for WindowBuilder<'_> {
+impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
         self.platform_specific.movable_by_window_background = movable_by_window_background;

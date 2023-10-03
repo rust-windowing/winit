@@ -290,7 +290,7 @@ impl Window {
     #[inline]
     pub(crate) fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
-        attribs: WindowAttributes<'_>,
+        attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {

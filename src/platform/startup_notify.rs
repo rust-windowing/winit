@@ -74,7 +74,7 @@ impl WindowExtStartupNotify for Window {
     }
 }
 
-impl WindowBuilderExtStartupNotify for WindowBuilder<'_> {
+impl WindowBuilderExtStartupNotify for WindowBuilder {
     fn with_activation_token(mut self, token: ActivationToken) -> Self {
         self.platform_specific.activation_token = Some(token);
         self

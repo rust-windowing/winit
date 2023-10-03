@@ -35,7 +35,7 @@ impl<T> EventLoopWindowTargetExtAndroid for EventLoopWindowTarget<T> {}
 /// Additional methods on [`WindowBuilder`] that are specific to Android.
 pub trait WindowBuilderExtAndroid {}
 
-impl WindowBuilderExtAndroid for WindowBuilder<'_> {}
+impl WindowBuilderExtAndroid for WindowBuilder {}
 
 pub trait EventLoopBuilderExtAndroid {
     /// Associates the `AndroidApp` that was passed to `android_main()` with the event loop

@@ -79,7 +79,7 @@ pub trait WindowBuilderExtWebSys {
     fn with_append(self, append: bool) -> Self;
 }
 
-impl WindowBuilderExtWebSys for WindowBuilder<'_> {
+impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         self.platform_specific.canvas = canvas;
 

@@ -156,7 +156,7 @@ pub trait WindowBuilderExtIOS {
     fn with_prefers_status_bar_hidden(self, hidden: bool) -> Self;
 }
 
-impl WindowBuilderExtIOS for WindowBuilder<'_> {
+impl WindowBuilderExtIOS for WindowBuilder {
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> Self {
         self.platform_specific.scale_factor = Some(scale_factor);
