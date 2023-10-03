@@ -387,7 +387,7 @@ impl<T: 'static> EventLoop<T> {
         match event {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId);
+                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
@@ -459,7 +459,7 @@ impl<T: 'static> EventLoop<T> {
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId),
+                                device_id: event::DeviceId(DeviceId(key.device_id())),
                                 event: event::KeyEvent {
                                     state,
                                     physical_key: keycodes::to_physical_keycode(keycode),
@@ -739,11 +739,11 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
+pub struct DeviceId(i32);
 
 impl DeviceId {
     pub const fn dummy() -> Self {
-        DeviceId
+        DeviceId(0)
     }
 }
 
