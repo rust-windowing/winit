@@ -72,10 +72,7 @@ pub enum Visibility {
 }
 
 impl SharedState {
-    fn new(
-        last_monitor: X11MonitorHandle,
-        window_attributes: &WindowAttributes<'_>,
-    ) -> Mutex<Self> {
+    fn new(last_monitor: X11MonitorHandle, window_attributes: &WindowAttributes) -> Mutex<Self> {
         let visibility = if window_attributes.visible {
             Visibility::YesWait
         } else {
@@ -142,13 +139,13 @@ impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        window_attrs: WindowAttributes<'_>,
+        window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         #[cfg(feature = "rwh_06")]
-        let root = match window_attrs.parent_window.map(|x| x.as_raw()) {
+        let root = match window_attrs.parent_window {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
@@ -1839,7 +1836,10 @@ impl UnownedWindow {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::XlibDisplayHandle::new(
-            Some(std::ptr::NonNull::new(self.xlib_display()).expect("display pointer should never be null")),
+            Some(
+                std::ptr::NonNull::new(self.xlib_display())
+                    .expect("display pointer should never be null"),
+            ),
             self.screen_id,
         )
         .into())

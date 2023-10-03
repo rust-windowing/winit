@@ -180,7 +180,7 @@ extern_methods!(
 impl WinitView {
     pub(crate) fn new(
         _mtm: MainThreadMarker,
-        _window_attributes: &WindowAttributes<'_>,
+        _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
     ) -> Id<Self> {
@@ -395,7 +395,7 @@ impl WinitViewController {
 
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        _window_attributes: &WindowAttributes<'_>,
+        _window_attributes: &WindowAttributes,
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         view: &UIView,
     ) -> Id<Self> {
@@ -464,7 +464,7 @@ declare_class!(
 impl WinitUIWindow {
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        window_attributes: &WindowAttributes<'_>,
+        window_attributes: &WindowAttributes,
         _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
         view_controller: &UIViewController,

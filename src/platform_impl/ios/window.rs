@@ -400,7 +400,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        window_attributes: WindowAttributes<'_>,
+        window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;

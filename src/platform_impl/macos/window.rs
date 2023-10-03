@@ -63,7 +63,7 @@ impl Drop for Window {
 impl Window {
     pub(crate) fn new<T: 'static>(
         _window_target: &EventLoopWindowTarget<T>,
-        attributes: WindowAttributes<'_>,
+        attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = MainThreadMarker::new()
@@ -289,7 +289,7 @@ impl Drop for SharedStateMutexGuard<'_> {
 impl WinitWindow {
     #[allow(clippy::type_complexity)]
     fn new(
-        attrs: WindowAttributes<'_>,
+        attrs: WindowAttributes,
         pl_attrs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<(Id<Self>, Id<WinitWindowDelegate>), RootOsError> {
         trace_scope!("WinitWindow::new");
@@ -449,26 +449,17 @@ impl WinitWindow {
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
-        match attrs.parent_window.map(|parent| parent.as_raw()) {
+        match attrs.parent_window {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
-                let parent = {
-                    // SAFETY: Caller ensures the pointer is valid or NULL
-                    let parent_view: Id<NSView> =
-                        match unsafe { Id::retain(handle.ns_view.as_ptr().cast()) } {
-                            Some(view) => view,
-                            None => {
-                                return Err(os_error!(OsError::CreationError(
-                                    "raw window handle should be non-empty"
-                                )))
-                            }
-                        };
-                    parent_view.window().ok_or_else(|| {
-                        os_error!(OsError::CreationError(
-                            "parent view should be installed in a window"
-                        ))
-                    })?
-                };
+                // Unwrap is fine, since the pointer comes from `NonNull`.
+                let parent_view: Id<NSView> =
+                    unsafe { Id::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
+                let parent = parent_view.window().ok_or_else(|| {
+                    os_error!(OsError::CreationError(
+                        "parent view should be installed in a window"
+                    ))
+                })?;
 
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.

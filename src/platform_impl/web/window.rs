@@ -33,7 +33,7 @@ pub struct Inner {
 impl Window {
     pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
-        attr: WindowAttributes<'_>,
+        attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();

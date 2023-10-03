@@ -35,7 +35,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new<T: 'static>(
         el: &EventLoopWindowTarget<T>,
-        attrs: window::WindowAttributes<'_>,
+        attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         let scale = MonitorHandle.scale_factor();

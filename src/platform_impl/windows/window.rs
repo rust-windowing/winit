@@ -91,7 +91,7 @@ pub(crate) struct Window {
 impl Window {
     pub(crate) fn new<T: 'static>(
         event_loop: &EventLoopWindowTarget<T>,
-        w_attr: WindowAttributes<'_>,
+        w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
@@ -1139,7 +1139,7 @@ impl<'a, T: 'static> InitData<'a, '_, T> {
     }
 }
 unsafe fn init<T>(
-    attributes: WindowAttributes<'_>,
+    attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError>
@@ -1189,7 +1189,7 @@ where
     };
 
     #[cfg(feature = "rwh_06")]
-    let parent = match attributes.parent_window.map(|r| r.as_raw()) {
+    let parent = match attributes.parent_window {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {

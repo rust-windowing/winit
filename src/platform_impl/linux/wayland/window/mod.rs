@@ -81,7 +81,7 @@ pub struct Window {
 impl Window {
     pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
-        attributes: WindowAttributes<'_>,
+        attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();

@@ -133,7 +133,7 @@ pub enum ImeState {
 
 impl WindowState {
     pub(crate) fn new(
-        attributes: &WindowAttributes<'_>,
+        attributes: &WindowAttributes,
         scale_factor: f64,
         current_theme: Theme,
         preferred_theme: Option<Theme>,

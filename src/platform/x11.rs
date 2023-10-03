@@ -140,7 +140,7 @@ pub trait WindowBuilderExtX11 {
     fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
 }
 
-impl WindowBuilderExtX11 for WindowBuilder<'_> {
+impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
         self.platform_specific.x11.visual_id = Some(visual_id);
