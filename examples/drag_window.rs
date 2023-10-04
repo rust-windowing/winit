@@ -20,6 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut switched = false;
     let mut entered_id = window_2.id();
+    let mut cursor_location = None;
 
     event_loop.run(move |event, elwt| match event {
         Event::NewEvents(StartCause::Init) => {
@@ -27,6 +28,7 @@ fn main() -> Result<(), impl std::error::Error> {
         }
         Event::WindowEvent { event, window_id } => match event {
             WindowEvent::CloseRequested => elwt.exit(),
+            WindowEvent::CursorMoved { position, .. } => cursor_location = Some(position),
             WindowEvent::MouseInput { state, button, .. } => {
                 let window = if (window_id == window_1.id() && switched)
                     || (window_id == window_2.id() && !switched)
@@ -38,7 +40,11 @@ fn main() -> Result<(), impl std::error::Error> {
 
                 match (button, state) {
                     (MouseButton::Left, ElementState::Pressed) => window.drag_window().unwrap(),
-                    (MouseButton::Right, ElementState::Released) => window.show_window_menu(None),
+                    (MouseButton::Right, ElementState::Released) => {
+                        if let Some(position) = cursor_location {
+                            window.show_window_menu(position);
+                        }
+                    }
                     _ => (),
                 }
             }

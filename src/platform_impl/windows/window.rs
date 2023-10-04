@@ -475,26 +475,19 @@ impl Window {
         Ok(())
     }
 
-    unsafe fn handle_showing_window_menu(&self, position: Option<Position>) {
-        let mut point = POINT { x: 0, y: 0 };
-        match position {
-            Some(pos) => {
-                let scale_factor = self.scale_factor();
-                let (x, y) = pos.to_physical::<i32>(scale_factor).into();
-                point.x = x;
-                point.y = y;
-                if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                    warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
-                    return;
-                }
+    unsafe fn handle_showing_window_menu(&self, position: Position) {
+        let point = {
+            let mut point = POINT { x: 0, y: 0 };
+            let scale_factor = self.scale_factor();
+            let (x, y) = position.to_physical::<i32>(scale_factor).into();
+            point.x = x;
+            point.y = y;
+            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
+                return;
             }
-            None => {
-                if GetCursorPos(&mut point) == false.into() {
-                    warn!("Can't get cursor position when showing window menu.");
-                    return;
-                }
-            }
-        }
+            point
+        };
 
         // get the current system menu
         let h_menu = GetSystemMenu(self.hwnd(), 0);
@@ -551,7 +544,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_window_menu(&self, position: Option<Position>) {
+    pub fn show_window_menu(&self, position: Position) {
         unsafe {
             self.handle_showing_window_menu(position);
         }
