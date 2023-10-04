@@ -945,17 +945,17 @@ pub struct WindowWrapper(HWND);
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
-pub(super) struct InitData<'a, 'b, T: 'static> {
+pub(super) struct InitData<'a, T: 'static> {
     // inputs
     pub event_loop: &'a EventLoopWindowTarget<T>,
-    pub attributes: WindowAttributes<'b>,
+    pub attributes: WindowAttributes,
     pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
     pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
 }
 
-impl<'a, T: 'static> InitData<'a, '_, T> {
+impl<'a, T: 'static> InitData<'a, T> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
