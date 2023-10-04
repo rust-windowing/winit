@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
-    event_loop::{ControlFlow, DeviceEvents, EventLoop},
+    event_loop::{DeviceEvents, EventLoop},
     keyboard::{Key, KeyCode},
     window::{Fullscreen, WindowBuilder},
 };
@@ -39,8 +39,6 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.listen_device_events(DeviceEvents::Always);
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         match event {
             // This used to use the virtual key, but the new API
             // only provides the `physical_key` (`Code`).

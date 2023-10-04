@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::keyboard::Key;
 use winit::window::{Fullscreen, WindowBuilder};
 
@@ -53,8 +53,6 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("- A\tToggle mAx size limit");
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => elwt.exit(),

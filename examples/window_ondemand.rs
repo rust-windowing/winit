@@ -10,7 +10,7 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         error::EventLoopError,
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::run_ondemand::EventLoopExtRunOnDemand,
         window::{Window, WindowBuilder, WindowId},
     };
@@ -31,7 +31,6 @@ fn main() -> Result<(), impl std::error::Error> {
         let mut app = App::default();
 
         event_loop.run_ondemand(move |event, elwt| {
-            elwt.set_control_flow(ControlFlow::Wait);
             println!("Run {idx}: {:?}", event);
 
             if let Some(window) = &app.window {

@@ -25,7 +25,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
 - Implement `PartialOrd` and `Ord` for `MouseButton`.
 - On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
-- Add `Window::show_window_menu()` which shows the system menu at the mouse position. Currently only implemented on Windows.
+- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- **Breaking:** remove `DeviceEvent::Text`.
+- Add `Window::show_window_menu` which shows the system menu at a specified position or the current cursor position. Currently only implemented on Windows.
 
 # 0.29.1-beta
 
@@ -89,6 +91,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
 - On iOS, add force data to touch events when using the Apple Pencil.
+- On Android, add force data to touch events.
 
 # 0.29.0-beta.0
 

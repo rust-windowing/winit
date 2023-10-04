@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     window::{Theme, WindowBuilder},
 };
@@ -28,8 +28,6 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("  (D) Dark theme");
 
     event_loop.run(move |event, elwt| {
-        elwt.set_control_flow(ControlFlow::Wait);
-
         if let Event::WindowEvent { window_id, event } = event {
             match event {
                 WindowEvent::CloseRequested => elwt.exit(),
