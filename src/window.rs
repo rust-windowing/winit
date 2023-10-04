@@ -101,7 +101,8 @@ impl WindowId {
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+        #[allow(unused_unsafe)]
+        WindowId(unsafe { platform_impl::WindowId::dummy() })
     }
 }
 
@@ -875,7 +876,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **Windows / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window

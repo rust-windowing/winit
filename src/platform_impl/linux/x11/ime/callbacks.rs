@@ -16,7 +16,7 @@ pub(crate) unsafe fn xim_set_callback(
 ) -> Result<(), XError> {
     // It's advisable to wrap variadic FFI functions in our own functions, as we want to minimize
     // access that isn't type-checked.
-    (xconn.xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
+    unsafe { (xconn.xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>()) };
     xconn.check_errors()
 }
 
@@ -30,14 +30,16 @@ pub(crate) unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
-    (xconn.xlib.XRegisterIMInstantiateCallback)(
-        xconn.display,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        ptr::null_mut(),
-        Some(xim_instantiate_callback),
-        client_data,
-    );
+    unsafe {
+        (xconn.xlib.XRegisterIMInstantiateCallback)(
+            xconn.display,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            Some(xim_instantiate_callback),
+            client_data,
+        )
+    };
     xconn.check_errors()
 }
 
@@ -45,14 +47,16 @@ pub(crate) unsafe fn unset_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
 ) -> Result<(), XError> {
-    (xconn.xlib.XUnregisterIMInstantiateCallback)(
-        xconn.display,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        ptr::null_mut(),
-        Some(xim_instantiate_callback),
-        client_data,
-    );
+    unsafe {
+        (xconn.xlib.XUnregisterIMInstantiateCallback)(
+            xconn.display,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            Some(xim_instantiate_callback),
+            client_data,
+        )
+    };
     xconn.check_errors()
 }
 
@@ -61,12 +65,14 @@ pub(crate) unsafe fn set_destroy_callback(
     im: ffi::XIM,
     inner: &ImeInner,
 ) -> Result<(), XError> {
-    xim_set_callback(
-        xconn,
-        im,
-        ffi::XNDestroyCallback_0.as_ptr() as *const _,
-        &inner.destroy_callback as *const _ as *mut _,
-    )
+    unsafe {
+        xim_set_callback(
+            xconn,
+            im,
+            ffi::XNDestroyCallback_0.as_ptr() as *const _,
+            &inner.destroy_callback as *const _ as *mut _,
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -82,14 +88,16 @@ enum ReplaceImError {
 // includes replacing all existing input contexts and free'ing resources as necessary. This only
 // modifies existing state if all operations succeed.
 unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
-    let xconn = &(*inner).xconn;
+    let xconn = unsafe { &(*inner).xconn };
 
     let (new_im, is_fallback) = {
-        let new_im = (*inner).potential_input_methods.open_im(xconn, None);
+        let new_im = unsafe { (*inner).potential_input_methods.open_im(xconn, None) };
         let is_fallback = new_im.is_fallback();
         (
             new_im.ok().ok_or_else(|| {
-                ReplaceImError::MethodOpenFailed(Box::new((*inner).potential_input_methods.clone()))
+                ReplaceImError::MethodOpenFailed(Box::new(unsafe {
+                    (*inner).potential_input_methods.clone()
+                }))
             })?,
             is_fallback,
         )
@@ -98,16 +106,16 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     // It's important to always set a destroy callback, since there's otherwise potential for us
     // to try to use or free a resource that's already been destroyed on the server.
     {
-        let result = set_destroy_callback(xconn, new_im.im, &*inner);
+        let result = unsafe { set_destroy_callback(xconn, new_im.im, &*inner) };
         if result.is_err() {
-            let _ = close_im(xconn, new_im.im);
+            let _ = unsafe { close_im(xconn, new_im.im) };
         }
         result
     }
     .map_err(ReplaceImError::SetDestroyCallbackFailed)?;
 
     let mut new_contexts = HashMap::new();
-    for (window, old_context) in (*inner).contexts.iter() {
+    for (window, old_context) in unsafe { (*inner).contexts.iter() } {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
 
         // Check if the IME was allowed on that context.
@@ -125,16 +133,18 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
         };
 
         let new_context = {
-            let result = ImeContext::new(
-                xconn,
-                new_im.im,
-                style,
-                *window,
-                spot,
-                (*inner).event_sender.clone(),
-            );
+            let result = unsafe {
+                ImeContext::new(
+                    xconn,
+                    new_im.im,
+                    style,
+                    *window,
+                    spot,
+                    (*inner).event_sender.clone(),
+                )
+            };
             if result.is_err() {
-                let _ = close_im(xconn, new_im.im);
+                let _ = unsafe { close_im(xconn, new_im.im) };
             }
             result.map_err(ReplaceImError::ContextCreationFailed)?
         };
@@ -142,12 +152,14 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     }
 
     // If we've made it this far, everything succeeded.
-    let _ = (*inner).destroy_all_contexts_if_necessary();
-    let _ = (*inner).close_im_if_necessary();
-    (*inner).im = Some(new_im);
-    (*inner).contexts = new_contexts;
-    (*inner).is_destroyed = false;
-    (*inner).is_fallback = is_fallback;
+    unsafe {
+        let _ = (*inner).destroy_all_contexts_if_necessary();
+        let _ = (*inner).close_im_if_necessary();
+        (*inner).im = Some(new_im);
+        (*inner).contexts = new_contexts;
+        (*inner).is_destroyed = false;
+        (*inner).is_fallback = is_fallback;
+    }
     Ok(())
 }
 
@@ -159,18 +171,18 @@ pub unsafe extern "C" fn xim_instantiate_callback(
 ) {
     let inner: *mut ImeInner = client_data as _;
     if !inner.is_null() {
-        let xconn = &(*inner).xconn;
-        match replace_im(inner) {
-            Ok(()) => {
+        let xconn = unsafe { &(*inner).xconn };
+        match unsafe { replace_im(inner) } {
+            Ok(()) => unsafe {
                 let _ = unset_instantiate_callback(xconn, client_data);
                 (*inner).is_fallback = false;
-            }
-            Err(err) => {
+            },
+            Err(err) => unsafe {
                 if (*inner).is_destroyed {
                     // We have no usable input methods!
                     panic!("Failed to reopen input method: {err:?}");
                 }
-            }
+            },
         }
     }
 }
@@ -186,13 +198,13 @@ pub unsafe extern "C" fn xim_destroy_callback(
 ) {
     let inner: *mut ImeInner = client_data as _;
     if !inner.is_null() {
-        (*inner).is_destroyed = true;
-        let xconn = &(*inner).xconn;
-        if !(*inner).is_fallback {
-            let _ = set_instantiate_callback(xconn, client_data);
+        unsafe { (*inner).is_destroyed = true };
+        let xconn = unsafe { &(*inner).xconn };
+        if unsafe { !(*inner).is_fallback } {
+            let _ = unsafe { set_instantiate_callback(xconn, client_data) };
             // Attempt to open fallback input method.
-            match replace_im(inner) {
-                Ok(()) => (*inner).is_fallback = true,
+            match unsafe { replace_im(inner) } {
+                Ok(()) => unsafe { (*inner).is_fallback = true },
                 Err(err) => {
                     // We have no usable input methods!
                     panic!("Failed to open fallback input method: {err:?}");

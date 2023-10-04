@@ -428,24 +428,26 @@ impl Window {
 
     unsafe fn handle_os_dragging(&self, wparam: WPARAM) {
         let points = {
-            let mut pos = mem::zeroed();
-            GetCursorPos(&mut pos);
+            let mut pos = unsafe { mem::zeroed() };
+            unsafe { GetCursorPos(&mut pos) };
             pos
         };
         let points = POINTS {
             x: points.x as i16,
             y: points.y as i16,
         };
-        ReleaseCapture();
+        unsafe { ReleaseCapture() };
 
         self.window_state_lock().dragging = true;
 
-        PostMessageW(
-            self.hwnd(),
-            WM_NCLBUTTONDOWN,
-            wparam,
-            &points as *const _ as LPARAM,
-        );
+        unsafe {
+            PostMessageW(
+                self.hwnd(),
+                WM_NCLBUTTONDOWN,
+                wparam,
+                &points as *const _ as LPARAM,
+            )
+        };
     }
 
     #[inline]
@@ -1004,13 +1006,13 @@ impl<'a, T: 'static> InitData<'a, T> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
-            let digitizer = GetSystemMetrics(SM_DIGITIZER) as u32;
+            let digitizer = unsafe { GetSystemMetrics(SM_DIGITIZER) as u32 };
             if digitizer & NID_READY != 0 {
-                RegisterTouchWindow(window, TWF_WANTPALM);
+                unsafe { RegisterTouchWindow(window, TWF_WANTPALM) };
             }
         }
 
-        let dpi = hwnd_dpi(window);
+        let dpi = unsafe { hwnd_dpi(window) };
         let scale_factor = dpi_to_scale_factor(dpi);
 
         // If the system theme is dark, we need to set the window theme now
@@ -1034,7 +1036,7 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         enable_non_client_dpi_scaling(window);
 
-        ImeContext::set_ime_allowed(window, false);
+        unsafe { ImeContext::set_ime_allowed(window, false) };
 
         Window {
             window: WindowWrapper(window),
@@ -1045,7 +1047,7 @@ impl<'a, T: 'static> InitData<'a, T> {
 
     unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData<T> {
         let file_drop_handler = if self.pl_attribs.drag_and_drop {
-            let ole_init_result = OleInitialize(ptr::null_mut());
+            let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
             // It is ok if the initialize result is `S_FALSE` because it might happen that
             // multiple windows are created on the same thread.
             if ole_init_result == OLE_E_WRONGCOMPOBJ {
@@ -1069,9 +1071,12 @@ impl<'a, T: 'static> InitData<'a, T> {
             );
 
             let handler_interface_ptr =
-                &mut (*file_drop_handler.data).interface as *mut _ as *mut c_void;
+                unsafe { &mut (*file_drop_handler.data).interface as *mut _ as *mut c_void };
 
-            assert_eq!(RegisterDragDrop(win.window.0, handler_interface_ptr), S_OK);
+            assert_eq!(
+                unsafe { RegisterDragDrop(win.window.0, handler_interface_ptr) },
+                S_OK
+            );
             Some(file_drop_handler)
         } else {
             None
@@ -1092,8 +1097,8 @@ impl<'a, T: 'static> InitData<'a, T> {
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| {
-            let window = self.create_window(window);
-            let window_data = self.create_window_data(&window);
+            let window = unsafe { self.create_window(window) };
+            let window_data = unsafe { self.create_window_data(&window) };
             (window, window_data)
         });
 
@@ -1110,7 +1115,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         // making the window transparent
         if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
             // Empty region for the blur effect, so the window is fully transparent
-            let region = CreateRectRgn(0, 0, -1, -1);
+            let region = unsafe { CreateRectRgn(0, 0, -1, -1) };
 
             let bb = DWM_BLURBEHIND {
                 dwFlags: DWM_BB_ENABLE | DWM_BB_BLURREGION,
@@ -1118,14 +1123,14 @@ impl<'a, T: 'static> InitData<'a, T> {
                 hRgnBlur: region,
                 fTransitionOnMaximized: false.into(),
             };
-            let hr = DwmEnableBlurBehindWindow(win.hwnd(), &bb);
+            let hr = unsafe { DwmEnableBlurBehindWindow(win.hwnd(), &bb) };
             if hr < 0 {
                 warn!(
                     "Setting transparent window is failed. HRESULT Code: 0x{:X}",
                     hr
                 );
             }
-            DeleteObject(region);
+            unsafe { DeleteObject(region) };
         }
 
         win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
@@ -1146,7 +1151,7 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen.map(Into::into));
-            force_window_active(win.window.0);
+            unsafe { force_window_active(win.window.0) };
         } else {
             let size = attributes
                 .inner_size
@@ -1191,7 +1196,7 @@ where
     let title = util::encode_wide(&attributes.title);
 
     let class_name = util::encode_wide(&pl_attribs.class_name);
-    register_window_class::<T>(&class_name);
+    unsafe { register_window_class::<T>(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1249,20 +1254,22 @@ where
     };
 
     let (style, ex_style) = window_flags.to_window_styles();
-    let handle = CreateWindowExW(
-        ex_style,
-        class_name.as_ptr(),
-        title.as_ptr(),
-        style,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        parent.unwrap_or(0),
-        pl_attribs.menu.unwrap_or(0),
-        util::get_instance_handle(),
-        &mut initdata as *mut _ as *mut _,
-    );
+    let handle = unsafe {
+        CreateWindowExW(
+            ex_style,
+            class_name.as_ptr(),
+            title.as_ptr(),
+            style,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            parent.unwrap_or(0),
+            pl_attribs.menu.unwrap_or(0),
+            util::get_instance_handle(),
+            &mut initdata as *mut _ as *mut _,
+        )
+    };
 
     // If the window creation in `InitData` panicked, then should resume panicking here
     if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
@@ -1298,7 +1305,7 @@ unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
     //  an error, and because errors here are detected during CreateWindowEx anyway.
     // Also since there is no weird element in the struct, there is no reason for this
     //  call to fail.
-    RegisterClassExW(&class);
+    unsafe { RegisterClassExW(&class) };
 }
 
 struct ComInitialized(*mut ());
@@ -1339,20 +1346,22 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
         let mut task_bar_list2 = task_bar_list2_ptr.get();
 
         if task_bar_list2.is_null() {
-            let hr = CoCreateInstance(
-                &CLSID_TaskbarList,
-                ptr::null_mut(),
-                CLSCTX_ALL,
-                &IID_ITaskbarList2,
-                &mut task_bar_list2 as *mut _ as *mut _,
-            );
+            let hr = unsafe {
+                CoCreateInstance(
+                    &CLSID_TaskbarList,
+                    ptr::null_mut(),
+                    CLSCTX_ALL,
+                    &IID_ITaskbarList2,
+                    &mut task_bar_list2 as *mut _ as *mut _,
+                )
+            };
             if hr != S_OK {
                 // In visual studio retrieving the taskbar list fails
                 return;
             }
 
-            let hr_init = (*(*task_bar_list2).lpVtbl).parent.HrInit;
-            if hr_init(task_bar_list2.cast()) != S_OK {
+            let hr_init = unsafe { (*(*task_bar_list2).lpVtbl).parent.HrInit };
+            if unsafe { hr_init(task_bar_list2.cast()) } != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
@@ -1360,8 +1369,8 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
         }
 
         task_bar_list2 = task_bar_list2_ptr.get();
-        let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list2, handle, fullscreen.into());
+        let mark_fullscreen_window = unsafe { (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow };
+        unsafe { mark_fullscreen_window(task_bar_list2, handle, fullscreen.into()) };
     })
 }
 
@@ -1371,20 +1380,22 @@ pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
         let mut task_bar_list = task_bar_list_ptr.get();
 
         if task_bar_list.is_null() {
-            let hr = CoCreateInstance(
-                &CLSID_TaskbarList,
-                ptr::null_mut(),
-                CLSCTX_ALL,
-                &IID_ITaskbarList,
-                &mut task_bar_list as *mut _ as *mut _,
-            );
+            let hr = unsafe {
+                CoCreateInstance(
+                    &CLSID_TaskbarList,
+                    ptr::null_mut(),
+                    CLSCTX_ALL,
+                    &IID_ITaskbarList,
+                    &mut task_bar_list as *mut _ as *mut _,
+                )
+            };
             if hr != S_OK {
                 // In visual studio retrieving the taskbar list fails
                 return;
             }
 
-            let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
-            if hr_init(task_bar_list.cast()) != S_OK {
+            let hr_init = unsafe { (*(*task_bar_list).lpVtbl).HrInit };
+            if unsafe { hr_init(task_bar_list.cast()) } != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
@@ -1393,11 +1404,11 @@ pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
 
         task_bar_list = task_bar_list_ptr.get();
         if skip {
-            let delete_tab = (*(*task_bar_list).lpVtbl).DeleteTab;
-            delete_tab(task_bar_list, hwnd);
+            let delete_tab = unsafe { (*(*task_bar_list).lpVtbl).DeleteTab };
+            unsafe { delete_tab(task_bar_list, hwnd) };
         } else {
-            let add_tab = (*(*task_bar_list).lpVtbl).AddTab;
-            add_tab(task_bar_list, hwnd);
+            let add_tab = unsafe { (*(*task_bar_list).lpVtbl).AddTab };
+            unsafe { add_tab(task_bar_list, hwnd) };
         }
     });
 }
@@ -1407,7 +1418,7 @@ unsafe fn force_window_active(handle: HWND) {
     // This is a little hack which can "steal" the foreground window permission
     // We only call this function in the window creation, so it should be fine.
     // See : https://stackoverflow.com/questions/10740346/setforegroundwindow-only-working-while-visual-studio-is-open
-    let alt_sc = MapVirtualKeyW(VK_MENU as u32, MAPVK_VK_TO_VSC);
+    let alt_sc = unsafe { MapVirtualKeyW(VK_MENU as u32, MAPVK_VK_TO_VSC) };
 
     let inputs = [
         INPUT {
@@ -1437,11 +1448,13 @@ unsafe fn force_window_active(handle: HWND) {
     ];
 
     // Simulate a key press and release
-    SendInput(
-        inputs.len() as u32,
-        inputs.as_ptr(),
-        mem::size_of::<INPUT>() as i32,
-    );
+    unsafe {
+        SendInput(
+            inputs.len() as u32,
+            inputs.as_ptr(),
+            mem::size_of::<INPUT>() as i32,
+        )
+    };
 
-    SetForegroundWindow(handle);
+    unsafe { SetForegroundWindow(handle) };
 }
