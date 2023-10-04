@@ -476,70 +476,72 @@ impl Window {
     }
 
     unsafe fn handle_showing_window_menu(&self, position: Position) {
-        let point = {
-            let mut point = POINT { x: 0, y: 0 };
-            let scale_factor = self.scale_factor();
-            let (x, y) = position.to_physical::<i32>(scale_factor).into();
-            point.x = x;
-            point.y = y;
-            if ClientToScreen(self.hwnd(), &mut point) == false.into() {
-                warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
+        unsafe {
+            let point = {
+                let mut point = POINT { x: 0, y: 0 };
+                let scale_factor = self.scale_factor();
+                let (x, y) = position.to_physical::<i32>(scale_factor).into();
+                point.x = x;
+                point.y = y;
+                if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                    warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
+                    return;
+                }
+                point
+            };
+
+            // get the current system menu
+            let h_menu = GetSystemMenu(self.hwnd(), 0);
+            if h_menu == 0 {
+                warn!("The corresponding window doesn't have a system menu");
+                // This situation should not be treated as an error so just return without showing menu.
                 return;
             }
-            point
-        };
 
-        // get the current system menu
-        let h_menu = GetSystemMenu(self.hwnd(), 0);
-        if h_menu == 0 {
-            warn!("The corresponding window doesn't have a system menu");
-            // This situation should not be treated as an error so just return without showing menu.
-            return;
-        }
-
-        fn enable(b: bool) -> MENU_ITEM_STATE {
-            if b {
-                MFS_ENABLED
-            } else {
-                MFS_DISABLED
+            fn enable(b: bool) -> MENU_ITEM_STATE {
+                if b {
+                    MFS_ENABLED
+                } else {
+                    MFS_DISABLED
+                }
             }
-        }
 
-        // Change the menu items according to the current window status.
+            // Change the menu items according to the current window status.
 
-        let restore_btn = enable(self.is_maximized() && self.is_resizable());
-        let size_btn = enable(!self.is_maximized() && self.is_resizable());
-        let maximize_btn = enable(!self.is_maximized() && self.is_resizable());
+            let restore_btn = enable(self.is_maximized() && self.is_resizable());
+            let size_btn = enable(!self.is_maximized() && self.is_resizable());
+            let maximize_btn = enable(!self.is_maximized() && self.is_resizable());
 
-        EnableMenuItem(h_menu, SC_RESTORE, MF_BYCOMMAND | restore_btn);
-        EnableMenuItem(h_menu, SC_MOVE, MF_BYCOMMAND | enable(!self.is_maximized()));
-        EnableMenuItem(h_menu, SC_SIZE, MF_BYCOMMAND | size_btn);
-        EnableMenuItem(h_menu, SC_MINIMIZE, MF_BYCOMMAND | MFS_ENABLED);
-        EnableMenuItem(h_menu, SC_MAXIMIZE, MF_BYCOMMAND | maximize_btn);
-        EnableMenuItem(h_menu, SC_CLOSE, MF_BYCOMMAND | MFS_ENABLED);
+            EnableMenuItem(h_menu, SC_RESTORE, MF_BYCOMMAND | restore_btn);
+            EnableMenuItem(h_menu, SC_MOVE, MF_BYCOMMAND | enable(!self.is_maximized()));
+            EnableMenuItem(h_menu, SC_SIZE, MF_BYCOMMAND | size_btn);
+            EnableMenuItem(h_menu, SC_MINIMIZE, MF_BYCOMMAND | MFS_ENABLED);
+            EnableMenuItem(h_menu, SC_MAXIMIZE, MF_BYCOMMAND | maximize_btn);
+            EnableMenuItem(h_menu, SC_CLOSE, MF_BYCOMMAND | MFS_ENABLED);
 
-        // Set the default menu item.
-        SetMenuDefaultItem(h_menu, SC_CLOSE, 0);
+            // Set the default menu item.
+            SetMenuDefaultItem(h_menu, SC_CLOSE, 0);
 
-        // Popup the system menu at the position.
-        let result = TrackPopupMenu(
-            h_menu,
-            TPM_RETURNCMD | TPM_LEFTALIGN, // for now im using LTR, but we have to use user layout direction
-            point.x,
-            point.y,
-            0,
-            self.hwnd(),
-            std::ptr::null_mut(),
-        );
+            // Popup the system menu at the position.
+            let result = TrackPopupMenu(
+                h_menu,
+                TPM_RETURNCMD | TPM_LEFTALIGN, // for now im using LTR, but we have to use user layout direction
+                point.x,
+                point.y,
+                0,
+                self.hwnd(),
+                std::ptr::null_mut(),
+            );
 
-        if result == 0 {
-            // User canceled the menu, no need to continue.
-            return;
-        }
+            if result == 0 {
+                // User canceled the menu, no need to continue.
+                return;
+            }
 
-        // Send the command that the user select to the corresponding window.
-        if PostMessageW(self.hwnd(), WM_SYSCOMMAND, result as _, 0) == 0 {
-            warn!("Can't post the system menu message to the window.");
+            // Send the command that the user select to the corresponding window.
+            if PostMessageW(self.hwnd(), WM_SYSCOMMAND, result as _, 0) == 0 {
+                warn!("Can't post the system menu message to the window.");
+            }
         }
     }
 
