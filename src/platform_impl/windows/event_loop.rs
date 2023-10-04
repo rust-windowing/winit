@@ -982,8 +982,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
             let createstruct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
-            let initdata =
-                unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, '_, T>) };
+            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>) };
 
             let result = match unsafe { initdata.on_nccreate(window) } {
                 Some(userdata) => unsafe {
@@ -1001,7 +1000,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
         (_, WM_CREATE) => unsafe {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
             let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_, '_, T>);
+            let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
             initdata.on_create();
             return DefWindowProcW(window, msg, wparam, lparam);
