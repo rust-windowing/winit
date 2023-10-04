@@ -3,10 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use raw_window_handle::{
-    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
@@ -394,16 +390,46 @@ impl Window {
         ))
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = OrbitalWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut handle = rwh_04::OrbitalHandle::empty();
         handle.window = self.window_socket.fd as *mut _;
-        RawWindowHandle::Orbital(handle)
+        rwh_04::RawWindowHandle::Orbital(handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut handle = rwh_05::OrbitalWindowHandle::empty();
+        handle.window = self.window_socket.fd as *mut _;
+        rwh_05::RawWindowHandle::Orbital(handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Orbital(rwh_05::OrbitalDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let handle = rwh_06::OrbitalWindowHandle::new({
+            let window = self.window_socket.fd as *mut _;
+            std::ptr::NonNull::new(window).expect("orbital fd shoul never be null")
+        });
+        Ok(rwh_06::RawWindowHandle::Orbital(handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Orbital(
+            rwh_06::OrbitalDisplayHandle::new(),
+        ))
     }
 
     #[inline]

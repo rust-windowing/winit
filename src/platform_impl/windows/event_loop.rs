@@ -18,7 +18,6 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -534,8 +533,18 @@ impl<T> EventLoopWindowTarget<T> {
         Some(monitor)
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Windows(
+            rwh_06::WindowsDisplayHandle::new(),
+        ))
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -973,7 +982,8 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
             let createstruct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
-            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>) };
+            let initdata =
+                unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, '_, T>) };
 
             let result = match unsafe { initdata.on_nccreate(window) } {
                 Some(userdata) => unsafe {
@@ -991,7 +1001,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
         (_, WM_CREATE) => unsafe {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
             let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+            let initdata = &mut *(initdata as *mut InitData<'_, '_, T>);
 
             initdata.on_create();
             return DefWindowProcW(window, msg, wparam, lparam);
