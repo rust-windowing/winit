@@ -286,10 +286,8 @@ impl WinitView {
             let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
             self.addGestureRecognizer(pinch.as_super());
             self.state.pinch_gesture_recognizer.replace(Some(pinch));
-        } else {
-            if let Some(recognizer) = self.state.pinch_gesture_recognizer.take() {
-                self.removeGestureRecognizer(&recognizer);
-            }
+        } else if let Some(recognizer) = self.state.pinch_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
         }
     }
 
@@ -303,10 +301,8 @@ impl WinitView {
             }
             self.addGestureRecognizer(tap.as_super());
             self.state.doubletap_gesture_recognizer.replace(Some(tap));
-        } else {
-            if let Some(recognizer) = self.state.doubletap_gesture_recognizer.take() {
-                self.removeGestureRecognizer(&recognizer);
-            }
+        } else if let Some(recognizer) = self.state.doubletap_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
         }
     }
 
