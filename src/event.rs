@@ -228,7 +228,9 @@ pub enum Event<T: 'static> {
 
     /// Emitted when the application has received a memory warning.
     ///
-    /// ## Android
+    /// ## Platform-specific
+    ///
+    /// ### Android
     ///
     /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
     /// must [release memory] or risk being killed.
@@ -236,7 +238,7 @@ pub enum Event<T: 'static> {
     /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
     /// [release memory]: https://developer.android.com/topic/performance/memory#release
     ///
-    /// ## iOS
+    /// ### iOS
     ///
     /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
     /// callback. The application must free as much memory as possible or risk being terminated, see
@@ -244,6 +246,10 @@ pub enum Event<T: 'static> {
     ///
     /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
     /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
+    ///
+    /// ### Others
+    ///
+    /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
     MemoryWarning,
 }
 
@@ -552,9 +558,9 @@ pub enum WindowEvent {
     /// This is different to window visibility as it depends on whether the window is closed,
     /// minimised, set invisible, or fully occluded by another window.
     ///
-    /// Platform-specific behavior:
+    /// ## Platform-specific
     ///
-    /// ## iOS
+    /// ### iOS
     ///
     /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
     /// callback which means the application should start preparing its data. The `Occluded(true)` event is
@@ -564,6 +570,8 @@ pub enum WindowEvent {
     /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
     /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
     /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ### Others
     ///
     /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
     /// - **Android / Wayland / Windows / Orbital:** Unsupported.
