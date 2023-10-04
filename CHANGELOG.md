@@ -27,7 +27,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
 - **Breaking:** remove `DeviceEvent::Text`.
-- Add `Window::show_window_menu` which shows the system menu at a specified position or the current cursor position. Currently only implemented on Windows.
+- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Windows for now. 
 
 # 0.29.1-beta
 
