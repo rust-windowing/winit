@@ -53,7 +53,7 @@ declare_class!(
 
     unsafe impl WinitView {
         #[method(initWithFrame:)]
-        unsafe fn initWithFrame(this: *mut Self, frame: CGRect) -> Option<NonNull<Self>> {
+        unsafe fn init_with_frame(this: *mut Self, frame: CGRect) -> Option<NonNull<Self>> {
             let this: Option<&mut Self> = msg_send![super(this), initWithFrame: frame];
             this.map(|this| {
                 Ivar::write(
