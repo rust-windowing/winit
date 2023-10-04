@@ -69,17 +69,17 @@ impl FileDropHandler {
     }
 
     pub unsafe extern "system" fn AddRef(this: *mut IUnknown) -> u32 {
-        let drop_handler_data = Self::from_interface(this);
+        let drop_handler_data = unsafe { Self::from_interface(this) };
         let count = drop_handler_data.refcount.fetch_add(1, Ordering::Release) + 1;
         count as u32
     }
 
     pub unsafe extern "system" fn Release(this: *mut IUnknown) -> u32 {
-        let drop_handler = Self::from_interface(this);
+        let drop_handler = unsafe { Self::from_interface(this) };
         let count = drop_handler.refcount.fetch_sub(1, Ordering::Release) - 1;
         if count == 0 {
             // Destroy the underlying data
-            drop(Box::from_raw(drop_handler as *mut FileDropHandlerData));
+            drop(unsafe { Box::from_raw(drop_handler as *mut FileDropHandlerData) });
         }
         count as u32
     }
@@ -92,20 +92,24 @@ impl FileDropHandler {
         pdwEffect: *mut u32,
     ) -> HRESULT {
         use crate::event::WindowEvent::HoveredFile;
-        let drop_handler = Self::from_interface(this);
-        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: HoveredFile(filename),
-            });
-        });
+        let drop_handler = unsafe { Self::from_interface(this) };
+        let hdrop = unsafe {
+            Self::iterate_filenames(pDataObj, |filename| {
+                drop_handler.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(drop_handler.window)),
+                    event: HoveredFile(filename),
+                });
+            })
+        };
         drop_handler.hovered_is_valid = hdrop.is_some();
         drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
             DROPEFFECT_COPY
         } else {
             DROPEFFECT_NONE
         };
-        *pdwEffect = drop_handler.cursor_effect;
+        unsafe {
+            *pdwEffect = drop_handler.cursor_effect;
+        }
 
         S_OK
     }
@@ -116,15 +120,17 @@ impl FileDropHandler {
         _pt: *const POINTL,
         pdwEffect: *mut u32,
     ) -> HRESULT {
-        let drop_handler = Self::from_interface(this);
-        *pdwEffect = drop_handler.cursor_effect;
+        let drop_handler = unsafe { Self::from_interface(this) };
+        unsafe {
+            *pdwEffect = drop_handler.cursor_effect;
+        }
 
         S_OK
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
         use crate::event::WindowEvent::HoveredFileCancelled;
-        let drop_handler = Self::from_interface(this);
+        let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
@@ -143,22 +149,24 @@ impl FileDropHandler {
         _pdwEffect: *mut u32,
     ) -> HRESULT {
         use crate::event::WindowEvent::DroppedFile;
-        let drop_handler = Self::from_interface(this);
-        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: DroppedFile(filename),
-            });
-        });
+        let drop_handler = unsafe { Self::from_interface(this) };
+        let hdrop = unsafe {
+            Self::iterate_filenames(pDataObj, |filename| {
+                drop_handler.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(drop_handler.window)),
+                    event: DroppedFile(filename),
+                });
+            })
+        };
         if let Some(hdrop) = hdrop {
-            DragFinish(hdrop);
+            unsafe { DragFinish(hdrop) };
         }
 
         S_OK
     }
 
     unsafe fn from_interface<'a, InterfaceT>(this: *mut InterfaceT) -> &'a mut FileDropHandlerData {
-        &mut *(this as *mut _)
+        unsafe { &mut *(this as *mut _) }
     }
 
     unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> Option<HDROP>
@@ -173,26 +181,29 @@ impl FileDropHandler {
             tymed: TYMED_HGLOBAL as u32,
         };
 
-        let mut medium = std::mem::zeroed();
-        let get_data_fn = (*(*data_obj).cast::<IDataObjectVtbl>()).GetData;
-        let get_data_result = get_data_fn(data_obj as *mut _, &drop_format, &mut medium);
+        let mut medium = unsafe { std::mem::zeroed() };
+        let get_data_fn = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).GetData };
+        let get_data_result = unsafe { get_data_fn(data_obj as *mut _, &drop_format, &mut medium) };
         if get_data_result >= 0 {
-            let hdrop = medium.Anonymous.hGlobal;
+            let hdrop = unsafe { medium.Anonymous.hGlobal };
 
             // The second parameter (0xFFFFFFFF) instructs the function to return the item count
-            let item_count = DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
+            let item_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0) };
 
             for i in 0..item_count {
                 // Get the length of the path string NOT including the terminating null character.
                 // Previously, this was using a fixed size array of MAX_PATH length, but the
                 // Windows API allows longer paths under certain circumstances.
-                let character_count = DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize;
+                let character_count =
+                    unsafe { DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize };
                 let str_len = character_count + 1;
 
                 // Fill path_buf with the null-terminated file name
                 let mut path_buf = Vec::with_capacity(str_len);
-                DragQueryFileW(hdrop, i, path_buf.as_mut_ptr(), str_len as u32);
-                path_buf.set_len(str_len);
+                unsafe {
+                    DragQueryFileW(hdrop, i, path_buf.as_mut_ptr(), str_len as u32);
+                    path_buf.set_len(str_len);
+                }
 
                 callback(OsString::from_wide(&path_buf[0..character_count]).into());
             }

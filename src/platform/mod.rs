@@ -11,7 +11,7 @@
 //!
 //! And the following platform-specific modules:
 //!
-//! - `run_ondemand` (available on `windows`, `unix`, `macos`, `android`)
+//! - `run_on_demand` (available on `windows`, `unix`, `macos`, `android`)
 //! - `pump_events` (available on `windows`, `unix`, `macos`, `android`)
 //!
 //! However only the module corresponding to the platform you're compiling to will be available.
@@ -42,7 +42,7 @@ pub mod x11;
     x11_platform,
     wayland_platform
 ))]
-pub mod run_ondemand;
+pub mod run_on_demand;
 
 #[cfg(any(
     windows_platform,
