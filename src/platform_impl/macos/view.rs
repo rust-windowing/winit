@@ -850,7 +850,7 @@ impl WinitView {
             .expect("input context")
             .selectedKeyboardInputSource()
             .map(|input_source| input_source.to_string())
-            .unwrap_or_else(String::new)
+            .unwrap_or_default()
     }
 
     pub(super) fn set_cursor_icon(&self, icon: Id<NSCursor>) {
