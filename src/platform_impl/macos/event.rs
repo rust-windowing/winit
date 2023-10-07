@@ -96,7 +96,7 @@ fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     let string = ns_event
         .charactersIgnoringModifiers()
         .map(|s| s.to_string())
-        .unwrap_or_else(String::new);
+        .unwrap_or_default();
     if string.is_empty() {
         // Probably a dead key
         let first_char = modifierless_chars.chars().next();
@@ -126,7 +126,7 @@ pub(crate) fn create_key_event(
         let characters = ns_event
             .characters()
             .map(|s| s.to_string())
-            .unwrap_or_else(String::new);
+            .unwrap_or_default();
         if characters.is_empty() {
             None
         } else {
