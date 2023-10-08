@@ -1,5 +1,5 @@
 use js_sys::{Function, Object, Promise, Reflect};
-use once_cell::unsync::{Lazy, OnceCell};
+use once_cell::unsync::OnceCell;
 use std::time::Duration;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -73,7 +73,7 @@ impl Schedule {
         }
 
         thread_local! {
-            static REJECT_HANDLER: Lazy<Closure<dyn FnMut(JsValue)>> = Lazy::new(|| Closure::new(|_| ()));
+            static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
         }
         REJECT_HANDLER.with(|handler| {
             let _ = scheduler

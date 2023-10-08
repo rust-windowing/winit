@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use js_sys::Promise;
-use once_cell::unsync::{Lazy, OnceCell};
+use once_cell::unsync::OnceCell;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
@@ -65,7 +65,7 @@ impl FullscreenHandler {
 
         if has_fullscreen_api_support(&self.canvas) {
             thread_local! {
-                static REJECT_HANDLER: Lazy<Closure<dyn FnMut(JsValue)>> = Lazy::new(|| Closure::new(|_| ()));
+                static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
             }
             REJECT_HANDLER.with(|handler| {
                 let _ = canvas.request_fullscreen().catch(handler);

@@ -1,5 +1,4 @@
 use js_sys::{Array, Object};
-use once_cell::unsync::Lazy;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
@@ -292,7 +291,7 @@ impl Drop for ResizeScaleInternal {
 // See <https://bugs.webkit.org/show_bug.cgi?id=219005>.
 pub fn has_device_pixel_support() -> bool {
     thread_local! {
-        static DEVICE_PIXEL_SUPPORT: Lazy<bool> = Lazy::new(|| {
+        static DEVICE_PIXEL_SUPPORT: bool = {
             #[wasm_bindgen]
             extern "C" {
                 type ResizeObserverEntryExt;
@@ -307,8 +306,8 @@ pub fn has_device_pixel_support() -> bool {
                 &JsValue::from_str("devicePixelContentBoxSize"),
             );
             !descriptor.is_undefined()
-        });
+        };
     }
 
-    DEVICE_PIXEL_SUPPORT.with(|support| **support)
+    DEVICE_PIXEL_SUPPORT.with(|support| *support)
 }
