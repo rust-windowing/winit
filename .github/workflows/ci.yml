@@ -60,7 +60,6 @@ jobs:
       RUSTDOCFLAGS: '--deny=warnings'
 
       OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
-      CMD: ${{ matrix.platform.cmd }}
 
     steps:
     - uses: actions/checkout@v3
@@ -102,7 +101,7 @@ jobs:
 
     - name: Install LLVM tools for Android
       if: contains(matrix.platform.target, 'android')
-      run: sudo apt-get install lld llvm
+      run: sudo apt-get update && sudo apt-get install lld llvm
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
@@ -110,13 +109,13 @@ jobs:
     - name: Build crate 
       run: cargo build $OPTIONS
 
-    - name: Package crate for Android
+    - name: Build and package crate for Android
       if: contains(matrix.platform.target, 'android')
-      run: x build -p xbuild-target --platform android --arch arm64
+      run: x build -p android-xbuild-target --platform android --arch arm64
 
-    - name: Package crate for iOS
+    - name: Build and package crate for iOS
       if: contains(matrix.platform.target, 'ios')
-      run: x build -p xbuild-target --platform ios --arch arm64
+      run: x build -p ios-xbuild-target --platform ios --arch arm64
 
     - name: Build tests
       if: >
@@ -132,7 +131,7 @@ jobs:
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.65.0'
-      run: cargo $CMD test $OPTIONS
+      run: cargo test $OPTIONS
 
     - name: Lint with clippy
       if: (matrix.toolchain == 'stable') && !contains(matrix.platform.options, '--no-default-features')
@@ -143,7 +142,7 @@ jobs:
         !contains(matrix.platform.target, 'redox') &&
         !contains(matrix.platform.target, 'android') &&
         matrix.toolchain != '1.65.0'
-      run: cargo $CMD test --no-run $OPTIONS --features serde
+      run: cargo test --no-run $OPTIONS --features serde
 
     - name: Run tests with serde enabled
       if: >
@@ -152,7 +151,7 @@ jobs:
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.65.0'
-      run: cargo $CMD test $OPTIONS --features serde
+      run: cargo test $OPTIONS --features serde
 
     # See restore step above
     - name: Save cache of cargo folder
