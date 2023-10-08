@@ -1,5 +1,4 @@
 use atomic_waker::AtomicWaker;
-use once_cell::unsync::Lazy;
 use std::future;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -25,7 +24,7 @@ pub struct MainThreadSafe<const SYNC: bool, T: 'static, E: 'static> {
 
 impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
     thread_local! {
-        static MAIN_THREAD: Lazy<bool> = Lazy::new(|| {
+        static MAIN_THREAD: bool = {
             #[wasm_bindgen]
             extern "C" {
                 #[derive(Clone)]
@@ -37,13 +36,13 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
 
             let global: Global = js_sys::global().unchecked_into();
             !global.window().is_undefined()
-        });
+        };
     }
 
     #[track_caller]
     fn new(value: T, handler: fn(&RwLock<Option<T>>, E)) -> Option<Self> {
         Self::MAIN_THREAD.with(|safe| {
-            if !*safe.deref() {
+            if !safe {
                 panic!("only callable from inside the `Window`")
             }
         });
@@ -75,7 +74,7 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
 
     pub fn send(&self, event: E) {
         Self::MAIN_THREAD.with(|is_main_thread| {
-            if *is_main_thread.deref() {
+            if *is_main_thread {
                 (self.handler)(&self.value, event)
             } else {
                 self.sender.send(event).unwrap()
@@ -84,12 +83,12 @@ impl<const SYNC: bool, T, E> MainThreadSafe<SYNC, T, E> {
     }
 
     fn is_main_thread(&self) -> bool {
-        Self::MAIN_THREAD.with(|is_main_thread| *is_main_thread.deref())
+        Self::MAIN_THREAD.with(|is_main_thread| *is_main_thread)
     }
 
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
         Self::MAIN_THREAD.with(|is_main_thread| {
-            if *is_main_thread.deref() {
+            if *is_main_thread {
                 Some(f(self.value.read().unwrap().as_ref().unwrap()))
             } else {
                 None
