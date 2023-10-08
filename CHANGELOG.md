@@ -28,6 +28,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
 - **Breaking:** remove `DeviceEvent::Text`.
 - On Android, fix `DeviceId` to contain device id's.
+- Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
 
 # 0.29.1-beta
 

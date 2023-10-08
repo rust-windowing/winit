@@ -42,6 +42,10 @@ impl Inner {
         debug!("`Window::set_transparent` is ignored on iOS")
     }
 
+    pub fn set_blur(&self, _blur: bool) {
+        debug!("`Window::set_blur` is ignored on iOS")
+    }
+
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
     }
