@@ -37,7 +37,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
-wayland = ["wayland-client", "wayland-backend", "wayland-protocols", "sctk", "fnv", "memmap2"]
+wayland = ["wayland-client", "wayland-backend", "wayland-protocols", "wayland-protocols-plasma", "sctk", "fnv", "memmap2"]
 wayland-dlopen = ["wayland-backend/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
@@ -149,6 +149,7 @@ sctk-adwaita = { version = "0.6.0", default_features = false, optional = true }
 wayland-client = { version = "0.30.0", optional = true }
 wayland-backend = { version = "0.1.0", default_features = false, features = ["client_system"], optional = true }
 wayland-protocols = { version = "0.30.0", features = [ "staging"], optional = true }
+wayland-protocols-plasma = { version = "0.1.0", features = [ "client" ], optional = true }
 calloop = "0.10.5"
 rustix = { version = "0.38.4", default-features = false, features = ["std", "system", "thread", "process"] }
 x11-dl = { version = "2.18.5", optional = true }
