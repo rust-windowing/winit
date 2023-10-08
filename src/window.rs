@@ -346,9 +346,10 @@ impl WindowBuilder {
     }
 
     /// Sets whether the background of the window should be blurred by the system.
-    /// Platform specifics described for Window::set_blur apply here
     ///
     /// The default is `false`.
+    ///
+    /// See [`Window::set_blur`] for details.
     #[inline]
     pub fn with_blur(mut self, blur: bool) -> Self {
         self.window.blur = blur;
