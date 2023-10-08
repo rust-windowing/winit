@@ -1,7 +1,4 @@
-use winit::platform::android::{
-    activity::AndroidApp,
-    EventLoopBuilderExtAndroid
-};
+use winit::platform::android::{activity::AndroidApp, EventLoopBuilderExtAndroid};
 
 #[no_mangle]
 fn android_main(app: AndroidApp) {
