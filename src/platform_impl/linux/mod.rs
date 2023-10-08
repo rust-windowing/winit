@@ -330,6 +330,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_blur(blur));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }

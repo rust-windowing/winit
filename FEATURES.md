@@ -182,6 +182,7 @@ Legend:
 |Window resizing                  |✔️     |✔️     |✔️         |✔️        |**N/A**|**N/A**|✔️        |✔️      |
 |Window resize increments         |❌     |✔️     |✔️         |❌             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |✔️      |
+|Window blur                      |❌    |❌    |❌        |✔️             |**N/A**|**N/A**|N/A        |❌     |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window minimization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |

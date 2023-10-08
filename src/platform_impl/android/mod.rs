@@ -843,6 +843,8 @@ impl Window {
 
     pub fn set_transparent(&self, _transparent: bool) {}
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, _visibility: bool) {}
 
     pub fn is_visible(&self) -> Option<bool> {
