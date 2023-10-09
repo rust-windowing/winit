@@ -29,6 +29,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** remove `DeviceEvent::Text`.
 - On Android, fix `DeviceId` to contain device id's.
 - Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
+- On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
 
 # 0.29.1-beta
 

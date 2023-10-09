@@ -69,7 +69,15 @@ impl Schedule {
         options.signal(&controller.signal());
 
         if let Some(duration) = duration {
-            options.delay(duration.as_millis() as f64);
+            // `Duration::as_millis()` always rounds down (because of truncation), we want to round
+            // up instead. This makes sure that the we never wake up **before** the given time.
+            let duration = duration
+                .as_secs()
+                .checked_mul(1000)
+                .and_then(|secs| secs.checked_add(duration_millis_ceil(duration).into()))
+                .unwrap_or(u64::MAX);
+
+            options.delay(duration as f64);
         }
 
         thread_local! {
@@ -121,9 +129,24 @@ impl Schedule {
                 .expect("Failed to send message")
         });
         let handle = if let Some(duration) = duration {
+            // `Duration::as_millis()` always rounds down (because of truncation), we want to round
+            // up instead. This makes sure that the we never wake up **before** the given time.
+            let duration = duration
+                .as_secs()
+                .try_into()
+                .ok()
+                .and_then(|secs: i32| secs.checked_mul(1000))
+                .and_then(|secs: i32| {
+                    let millis: i32 = duration_millis_ceil(duration)
+                        .try_into()
+                        .expect("millis are somehow bigger then 1K");
+                    secs.checked_add(millis)
+                })
+                .unwrap_or(i32::MAX);
+
             window.set_timeout_with_callback_and_timeout_and_arguments_0(
                 timeout_closure.as_ref().unchecked_ref(),
-                duration.as_millis() as i32,
+                duration,
             )
         } else {
             window.set_timeout_with_callback(timeout_closure.as_ref().unchecked_ref())
@@ -157,6 +180,20 @@ impl Drop for Schedule {
                 port.close();
             }
         }
+    }
+}
+
+// TODO: Replace with `u32::div_ceil()` when we hit Rust v1.73.
+fn duration_millis_ceil(duration: Duration) -> u32 {
+    let micros = duration.subsec_micros();
+
+    // From <https://doc.rust-lang.org/1.73.0/src/core/num/uint_macros.rs.html#2086-2094>.
+    let d = micros / 1000;
+    let r = micros % 1000;
+    if r > 0 && 1000 > 0 {
+        d + 1
+    } else {
+        d
     }
 }
 
