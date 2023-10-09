@@ -1,7 +1,6 @@
 use std::os::raw::c_void;
 
-use icrate::Foundation::{MainThreadMarker, NSInteger};
-use objc2::encode::{Encode, Encoding};
+use icrate::Foundation::MainThreadMarker;
 use objc2::rc::Id;
 
 use crate::{
@@ -311,14 +310,9 @@ bitflags! {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(dead_code)]
-#[repr(isize)]
 pub enum StatusBarStyle {
     #[default]
-    Default = 0,
-    LightContent = 1,
-    DarkContent = 3,
-}
-
-unsafe impl Encode for StatusBarStyle {
-    const ENCODING: Encoding = NSInteger::ENCODING;
+    Default,
+    LightContent,
+    DarkContent,
 }

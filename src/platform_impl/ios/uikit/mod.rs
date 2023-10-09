@@ -12,6 +12,7 @@ mod event;
 mod responder;
 mod screen;
 mod screen_mode;
+mod status_bar_style;
 mod touch;
 mod trait_collection;
 mod view;
@@ -25,6 +26,7 @@ pub(crate) use self::event::UIEvent;
 pub(crate) use self::responder::UIResponder;
 pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};
 pub(crate) use self::screen_mode::UIScreenMode;
+pub(crate) use self::status_bar_style::UIStatusBarStyle;
 pub(crate) use self::touch::{UITouch, UITouchPhase, UITouchType};
 pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollection};
 #[allow(unused_imports)]

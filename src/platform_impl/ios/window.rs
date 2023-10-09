@@ -521,7 +521,7 @@ impl Inner {
 
     pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.view_controller
-            .set_preferred_status_bar_style(status_bar_style);
+            .set_preferred_status_bar_style(status_bar_style.into());
     }
 }
 
