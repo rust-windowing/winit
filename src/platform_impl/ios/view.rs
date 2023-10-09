@@ -18,7 +18,7 @@ use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
-    platform::ios::{UIStatusBarStyle, ValidOrientations},
+    platform::ios::{StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
@@ -267,7 +267,7 @@ impl WinitView {
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
-    preferred_status_bar_style: Cell<UIStatusBarStyle>,
+    preferred_status_bar_style: Cell<StatusBarStyle>,
     prefers_home_indicator_auto_hidden: Cell<bool>,
     supported_orientations: Cell<UIInterfaceOrientationMask>,
     preferred_screen_edges_deferring_system_gestures: Cell<UIRectEdge>,
@@ -298,7 +298,7 @@ declare_class!(
                     &mut this.state,
                     Box::new(ViewControllerState {
                         prefers_status_bar_hidden: Cell::new(false),
-                        preferred_status_bar_style: Cell::new(UIStatusBarStyle::Default),
+                        preferred_status_bar_style: Cell::new(StatusBarStyle::Default),
                         prefers_home_indicator_auto_hidden: Cell::new(false),
                         supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
                         preferred_screen_edges_deferring_system_gestures: Cell::new(
@@ -323,7 +323,7 @@ declare_class!(
         }
 
         #[method(preferredStatusBarStyle)]
-        fn preferred_status_bar_style(&self) -> UIStatusBarStyle {
+        fn preferred_status_bar_style(&self) -> StatusBarStyle {
             self.state.preferred_status_bar_style.get()
         }
 
@@ -352,7 +352,7 @@ impl WinitViewController {
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
-    pub(crate) fn set_preferred_status_bar_style(&self, val: UIStatusBarStyle) {
+    pub(crate) fn set_preferred_status_bar_style(&self, val: StatusBarStyle) {
         self.state.preferred_status_bar_style.set(val);
         self.setNeedsStatusBarAppearanceUpdate();
     }

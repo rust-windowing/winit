@@ -88,7 +88,7 @@ pub trait WindowExtIOS {
     ///
     /// [`setNeedsStatusBarAppearanceUpdate()`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc)
     /// is also called for you.
-    fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle);
+    fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle);
 }
 
 impl WindowExtIOS for Window {
@@ -124,7 +124,7 @@ impl WindowExtIOS for Window {
     }
 
     #[inline]
-    fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle) {
+    fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.window
             .maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
     }
@@ -185,7 +185,7 @@ pub trait WindowBuilderExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController preferredStatusBarStyle]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621416-preferredstatusbarstyle?language=objc),
-    fn with_preferred_status_bar_style(self, status_bar_style: UIStatusBarStyle) -> WindowBuilder;
+    fn with_preferred_status_bar_style(self, status_bar_style: StatusBarStyle) -> WindowBuilder;
 }
 
 impl WindowBuilderExtIOS for WindowBuilder {
@@ -226,7 +226,7 @@ impl WindowBuilderExtIOS for WindowBuilder {
     #[inline]
     fn with_preferred_status_bar_style(
         mut self,
-        status_bar_style: UIStatusBarStyle,
+        status_bar_style: StatusBarStyle,
     ) -> WindowBuilder {
         self.platform_specific.preferred_status_bar_style = status_bar_style;
         self
@@ -312,13 +312,13 @@ bitflags! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(isize)]
-pub enum UIStatusBarStyle {
+pub enum StatusBarStyle {
     #[default]
     Default = 0,
     LightContent = 1,
     DarkContent = 3,
 }
 
-unsafe impl Encode for UIStatusBarStyle {
+unsafe impl Encode for StatusBarStyle {
     const ENCODING: Encoding = NSInteger::ENCODING;
 }

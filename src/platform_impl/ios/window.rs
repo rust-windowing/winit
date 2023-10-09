@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    platform::ios::{ScreenEdge, UIStatusBarStyle, ValidOrientations},
+    platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
@@ -519,7 +519,7 @@ impl Inner {
         self.view_controller.set_prefers_status_bar_hidden(hidden);
     }
 
-    pub fn set_preferred_status_bar_style(&self, status_bar_style: UIStatusBarStyle) {
+    pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.view_controller
             .set_preferred_status_bar_style(status_bar_style);
     }
@@ -631,6 +631,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
-    pub preferred_status_bar_style: UIStatusBarStyle,
+    pub preferred_status_bar_style: StatusBarStyle,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
