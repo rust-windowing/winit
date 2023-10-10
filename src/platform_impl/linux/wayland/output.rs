@@ -3,7 +3,7 @@ use sctk::reexports::client::Proxy;
 
 use sctk::output::OutputData;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::event_loop::ControlFlow;
 use crate::platform_impl::platform::VideoMode as PlatformVideoMode;
 
@@ -92,7 +92,18 @@ impl MonitorHandle {
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| info.location).into()
+        output_data.with_output_info(|info| {
+            info.logical_position.map_or_else(
+                || {
+                    LogicalPosition::<i32>::from(info.location)
+                        .to_physical(info.scale_factor as f64)
+                },
+                |logical_position| {
+                    LogicalPosition::<i32>::from(logical_position)
+                        .to_physical(info.scale_factor as f64)
+                },
+            )
+        })
     }
 
     #[inline]
