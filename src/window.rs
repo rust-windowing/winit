@@ -40,7 +40,7 @@ pub use raw_window_handle;
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
+///     event_loop::{ControlFlow, EventLoop},
 ///     window::Window,
 /// };
 ///
