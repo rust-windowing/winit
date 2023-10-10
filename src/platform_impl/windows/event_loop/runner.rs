@@ -115,7 +115,7 @@ impl<T> EventLoopRunner<T> {
             interrupt_msg_dispatch,
             runner_state,
             panic_error,
-            control_flow,
+            control_flow: _,
             exit,
             last_events_cleared: _,
             event_handler,
@@ -124,7 +124,6 @@ impl<T> EventLoopRunner<T> {
         interrupt_msg_dispatch.set(false);
         runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
-        control_flow.set(ControlFlow::default());
         exit.set(None);
         event_handler.set(None);
     }
