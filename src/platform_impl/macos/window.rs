@@ -894,6 +894,9 @@ impl WinitWindow {
     }
 
     #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
+    #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.setIgnoresMouseEvents(!hittest);
         Ok(())

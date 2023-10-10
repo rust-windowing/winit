@@ -40,7 +40,7 @@ pub use raw_window_handle;
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
+///     event_loop::{ControlFlow, EventLoop},
 ///     window::Window,
 /// };
 ///
@@ -1421,6 +1421,21 @@ impl Window {
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
+    }
+
+    /// Show [window menu] at a specified position .
+    ///
+    /// This is the context menu that is normally shown when interacting with
+    /// the title bar. This is useful when implementing custom decorations.
+    ///
+    /// ## Platform-specific
+    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    ///
+    /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
+    pub fn show_window_menu(&self, position: impl Into<Position>) {
+        let position = position.into();
+        self.window
+            .maybe_queue_on_main(move |w| w.show_window_menu(position))
     }
 
     /// Modifies whether the window catches cursor events.
