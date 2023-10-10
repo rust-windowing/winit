@@ -114,9 +114,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
             }
             WlKeyboardEvent::Key {
                 key,
-                state: key_state,
+                state: WEnum::Value(WlKeyState::Pressed),
                 ..
-            } if key_state == WEnum::Value(WlKeyState::Pressed) => {
+            } => {
                 let key = key + 8;
 
                 key_input(
@@ -184,9 +184,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
             }
             WlKeyboardEvent::Key {
                 key,
-                state: key_state,
+                state: WEnum::Value(WlKeyState::Released),
                 ..
-            } if key_state == WEnum::Value(WlKeyState::Released) => {
+            } => {
                 let key = key + 8;
 
                 key_input(

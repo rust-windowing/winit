@@ -1027,6 +1027,9 @@ impl UnownedWindow {
     #[inline]
     pub fn set_transparent(&self, _transparent: bool) {}
 
+    #[inline]
+    pub fn set_blur(&self, _blur: bool) {}
+
     fn set_decorations_inner(&self, decorations: bool) -> Result<VoidCookie<'_>, X11Error> {
         self.shared_state_lock().is_decorated = decorations;
         let mut hints = self.xconn.get_motif_hints(self.xwindow);

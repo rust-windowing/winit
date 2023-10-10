@@ -526,7 +526,6 @@ impl<T: 'static> EventLoop<T> {
             // than once
             self.pending_redraw = false;
             self.cause = StartCause::Init;
-            self.set_control_flow(ControlFlow::default());
 
             // run the initial loop iteration
             self.single_iteration(None, &mut callback);
@@ -635,10 +634,6 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender: self.user_events_sender.clone(),
             waker: self.android_app.create_waker(),
         }
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
     }
 
     fn control_flow(&self) -> ControlFlow {
@@ -842,6 +837,8 @@ impl Window {
     pub fn set_title(&self, _title: &str) {}
 
     pub fn set_transparent(&self, _transparent: bool) {}
+
+    pub fn set_blur(&self, _blur: bool) {}
 
     pub fn set_visible(&self, _visibility: bool) {}
 
