@@ -30,7 +30,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
     pub skip_taskbar: bool,
-    pub class_name: String,
+    pub class_name: Option<String>,
     pub decoration_shadow: bool,
 }
 
@@ -43,7 +43,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             no_redirection_bitmap: false,
             drag_and_drop: true,
             skip_taskbar: false,
-            class_name: "Window Class".to_string(),
+            class_name: None,
             decoration_shadow: false,
         }
     }

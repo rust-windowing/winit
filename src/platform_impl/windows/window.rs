@@ -1199,8 +1199,13 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = util::encode_wide(&pl_attribs.class_name);
-    unsafe { register_window_class::<T>(&class_name) };
+    let class_name = if let Some(name) = &pl_attribs.class_name {
+        let class_name = util::encode_wide(name);
+        unsafe { register_window_class::<T>(&class_name)? };
+        class_name
+    } else {
+        unsafe { default_window_class::<T>()? }
+    };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1289,7 +1294,27 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
+unsafe fn default_window_class<T: 'static>() -> Result<Vec<u16>, RootOsError> {
+    static CLASS_NAME: Mutex<Option<Vec<u16>>> = Mutex::new(None);
+
+    let mut guard = CLASS_NAME.lock().unwrap();
+    if let Some(name) = &*guard {
+        return Ok(name.clone());
+    }
+
+    // Use the address of `CLASS_NAME` as part of the window class name to ensure different
+    // `winit` versions use different names.
+    let name = util::encode_wide(format!(
+        "winit Window Class {:x}",
+        &CLASS_NAME as *const _ as usize
+    ));
+    unsafe { register_window_class::<T>(&name) }?;
+
+    *guard = Some(name.clone());
+    Ok(name)
+}
+
+unsafe fn register_window_class<T: 'static>(class_name: &[u16]) -> Result<(), RootOsError> {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1305,11 +1330,12 @@ unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
         hIconSm: 0,
     };
 
-    // We ignore errors because registering the same window class twice would trigger
-    //  an error, and because errors here are detected during CreateWindowEx anyway.
-    // Also since there is no weird element in the struct, there is no reason for this
-    //  call to fail.
-    unsafe { RegisterClassExW(&class) };
+    let atom = unsafe { RegisterClassExW(&class) };
+
+    // Check errors as using a class with another `lpfnWndProc` may lead to unsafety.
+    (atom != 0)
+        .then_some(())
+        .ok_or_else(|| os_error!(io::Error::last_os_error()))
 }
 
 struct ComInitialized(*mut ());

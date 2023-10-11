@@ -253,7 +253,7 @@ impl WindowBuilderExtWindows for WindowBuilder {
 
     #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> WindowBuilder {
-        self.platform_specific.class_name = class_name.into();
+        self.platform_specific.class_name = Some(class_name.into());
         self
     }
 
