@@ -52,7 +52,7 @@ use windows_sys::Win32::{
             SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
             SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
             TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND,
-            WNDCLASSEXW,
+            WNDCLASSEXW, WNDPROC,
         },
     },
 };
@@ -1201,7 +1201,10 @@ where
 
     let class_name = if let Some(name) = &pl_attribs.class_name {
         let class_name = util::encode_wide(name);
-        unsafe { register_window_class::<T>(&class_name)? };
+        register_window_class(
+            &class_name,
+            Some(super::event_loop::public_window_callback::<T>),
+        )?;
         class_name
     } else {
         unsafe { default_window_class::<T>()? }
@@ -1308,17 +1311,17 @@ unsafe fn default_window_class<T: 'static>() -> Result<Vec<u16>, RootOsError> {
         "winit Window Class {:x}",
         &CLASS_NAME as *const _ as usize
     ));
-    unsafe { register_window_class::<T>(&name) }?;
+    register_window_class(&name, Some(super::event_loop::public_window_callback::<T>))?;
 
     *guard = Some(name.clone());
     Ok(name)
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) -> Result<(), RootOsError> {
+pub(super) fn register_window_class(class_name: &[u16], proc: WNDPROC) -> Result<(), RootOsError> {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
+        lpfnWndProc: proc,
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
