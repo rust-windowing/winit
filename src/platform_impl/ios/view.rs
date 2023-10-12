@@ -525,10 +525,14 @@ declare_class!(
         }
 
         #[method(applicationWillEnterForeground:)]
-        fn will_enter_foreground(&self, _application: &UIApplication) {}
+        fn will_enter_foreground(&self, application: &UIApplication) {
+            self.send_occluded_event_for_all_windows(application, false);
+        }
 
         #[method(applicationDidEnterBackground:)]
-        fn did_enter_background(&self, _application: &UIApplication) {}
+        fn did_enter_background(&self, application: &UIApplication) {
+            self.send_occluded_event_for_all_windows(application, true);
+        }
 
         #[method(applicationWillTerminate:)]
         fn will_terminate(&self, application: &UIApplication) {
@@ -551,5 +555,33 @@ declare_class!(
             app_state::handle_nonuser_events(mtm, events);
             app_state::terminated(mtm);
         }
+
+        #[method(applicationDidReceiveMemoryWarning:)]
+        fn did_receive_memory_warning(&self, _application: &UIApplication) {
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::MemoryWarning))
+        }
     }
 );
+
+impl WinitApplicationDelegate {
+    fn send_occluded_event_for_all_windows(&self, application: &UIApplication, occluded: bool) {
+        let mut events = Vec::new();
+        for window in application.windows().iter() {
+            if window.is_kind_of::<WinitUIWindow>() {
+                // SAFETY: We just checked that the window is a `winit` window
+                let window = unsafe {
+                    let ptr: *const UIWindow = window;
+                    let ptr: *const WinitUIWindow = ptr.cast();
+                    &*ptr
+                };
+                events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.id()),
+                    event: WindowEvent::Occluded(occluded),
+                }));
+            }
+        }
+        let mtm = MainThreadMarker::new().unwrap();
+        app_state::handle_nonuser_events(mtm, events);
+    }
+}
