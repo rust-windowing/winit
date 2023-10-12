@@ -31,6 +31,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
 - On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
 - Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Windows for now.
+- On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
+- **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
 
 # 0.29.1-beta
 
@@ -95,9 +97,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
 - On iOS, add force data to touch events when using the Apple Pencil.
 - On Android, add force data to touch events.
-- On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
-- on iOS, add event `Event::MemoryWarning`.
-- On Android, add event `Event::MemoryWarning`.
 
 # 0.29.0-beta.0
 
