@@ -612,7 +612,8 @@ impl DeviceId {
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
+        #[allow(unused_unsafe)]
+        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
     }
 }
 

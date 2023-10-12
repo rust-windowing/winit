@@ -178,9 +178,9 @@ pub enum DeviceId {
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(wayland_platform)]
-        return DeviceId::Wayland(wayland::DeviceId::dummy());
+        return DeviceId::Wayland(unsafe { wayland::DeviceId::dummy() });
         #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(x11::DeviceId::dummy());
+        return DeviceId::X(unsafe { x11::DeviceId::dummy() });
     }
 }
 
@@ -330,6 +330,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_blur(blur));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }
@@ -438,6 +443,9 @@ impl Window {
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
@@ -649,26 +657,31 @@ unsafe extern "C" fn x_error_callback(
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
-        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
+        for hook in unsafe { XLIB_ERROR_HOOKS.lock() }.unwrap().iter() {
             error_handled |= hook(display as *mut _, event as *mut _);
         }
 
         // `assume_init` is safe here because the array consists of `MaybeUninit` values,
         // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
-        (xconn.xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr() as *mut c_char,
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
+        let mut buf: [MaybeUninit<c_char>; 1024] = unsafe { MaybeUninit::uninit().assume_init() };
+        unsafe {
+            (xconn.xlib.XGetErrorText)(
+                display,
+                (*event).error_code as c_int,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            )
+        };
+        let description =
+            unsafe { CStr::from_ptr(buf.as_ptr() as *const c_char) }.to_string_lossy();
 
-        let error = XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
+        let error = unsafe {
+            XError {
+                description: description.into_owned(),
+                error_code: (*event).error_code,
+                request_code: (*event).request_code,
+                minor_code: (*event).minor_code,
+            }
         };
 
         // Don't log error.
@@ -769,14 +782,14 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        self.run_ondemand(callback)
+        self.run_on_demand(callback)
     }
 
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
         F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus

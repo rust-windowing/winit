@@ -92,6 +92,8 @@ impl Inner {
 
     pub fn set_transparent(&self, _transparent: bool) {}
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
     }
@@ -241,6 +243,9 @@ impl Inner {
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {

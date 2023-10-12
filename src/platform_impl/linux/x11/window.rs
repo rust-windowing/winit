@@ -242,7 +242,7 @@ impl UnownedWindow {
                 // Find a suitable visual, true color with 32 bits of depth.
                 all_visuals
                     .find_map(|(visual, depth)| {
-                        (visual.class == xproto::VisualClass::TRUE_COLOR)
+                        (depth == 32 && visual.class == xproto::VisualClass::TRUE_COLOR)
                             .then_some((Some(visual), depth, true))
                     })
                     .unwrap_or_else(|| {
@@ -1026,6 +1026,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_transparent(&self, _transparent: bool) {}
+
+    #[inline]
+    pub fn set_blur(&self, _blur: bool) {}
 
     fn set_decorations_inner(&self, decorations: bool) -> Result<VoidCookie<'_>, X11Error> {
         self.shared_state_lock().is_decorated = decorations;

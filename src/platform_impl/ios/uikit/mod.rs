@@ -1,4 +1,3 @@
-#![deny(unsafe_op_in_unsafe_fn)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 

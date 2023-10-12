@@ -398,7 +398,7 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootELW<T>),
     {
@@ -421,7 +421,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // Applications aren't allowed to carry windows between separate
-        // `run_ondemand` calls but if they have only just dropped their
+        // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
         let wt = get_xtarget(&self.target);
@@ -438,11 +438,6 @@ impl<T: 'static> EventLoop<T> {
     {
         if !self.loop_running {
             self.loop_running = true;
-
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once.
-            self.set_control_flow(ControlFlow::Poll);
 
             // run the initial loop iteration
             self.single_iteration(&mut callback, StartCause::Init);
@@ -644,10 +639,6 @@ impl<T: 'static> EventLoop<T> {
                 }
             });
         }
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.target.p.set_control_flow(control_flow)
     }
 
     fn control_flow(&self) -> ControlFlow {

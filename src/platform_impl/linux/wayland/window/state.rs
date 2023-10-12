@@ -4,7 +4,7 @@ use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Weak};
 
-use log::warn;
+use log::{info, warn};
 
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
@@ -23,9 +23,11 @@ use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
+use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::{ExternalError, NotSupportedError};
+use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::WindowId;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -130,6 +132,8 @@ pub struct WindowState {
 
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
+    blur: Option<OrgKdeKwinBlur>,
+    blur_manager: Option<KWinBlurManager>,
 
     /// Whether the client side decorations have pending move operations.
     ///
@@ -159,6 +163,8 @@ impl WindowState {
             .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
         Self {
+            blur: None,
+            blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             connection,
             csd_fails: false,
@@ -840,6 +846,26 @@ impl WindowState {
         }
     }
 
+    /// Make window background blurred
+    #[inline]
+    pub fn set_blur(&mut self, blurred: bool) {
+        if blurred && self.blur.is_none() {
+            if let Some(blur_manager) = self.blur_manager.as_ref() {
+                let blur = blur_manager.blur(self.window.wl_surface(), &self.queue_handle);
+                blur.commit();
+                self.blur = Some(blur);
+            } else {
+                info!("Blur manager unavailable, unable to change blur")
+            }
+        } else if !blurred && self.blur.is_some() {
+            self.blur_manager
+                .as_ref()
+                .unwrap()
+                .unset(self.window.wl_surface());
+            self.blur.take().unwrap().release();
+        }
+    }
+
     /// Set the window title to a new value.
     ///
     /// This will autmatically truncate the title to something meaningfull.
@@ -898,6 +924,10 @@ impl Drop for WindowState {
         let surface = self.window.wl_surface().clone();
         unsafe {
             ManuallyDrop::drop(&mut self.window);
+        }
+
+        if let Some(blur) = &self.blur {
+            blur.release();
         }
 
         surface.destroy();

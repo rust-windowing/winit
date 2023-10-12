@@ -40,7 +40,7 @@ type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>,
 
 /// The Wayland event loop.
 pub struct EventLoop<T: 'static> {
-    /// Has `run` or `run_ondemand` been called or a call to `pump_events` that starts the loop
+    /// Has `run` or `run_on_demand` been called or a call to `pump_events` that starts the loop
     loop_running: bool,
 
     buffer_sink: EventSink,
@@ -189,7 +189,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
@@ -212,7 +212,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // Applications aren't allowed to carry windows between separate
-        // `run_ondemand` calls but if they have only just dropped their
+        // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // compositor.
         let _ = self.roundtrip().map_err(EventLoopError::Os);
@@ -226,11 +226,6 @@ impl<T: 'static> EventLoop<T> {
     {
         if !self.loop_running {
             self.loop_running = true;
-
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once.
-            self.set_control_flow(ControlFlow::Poll);
 
             // Run the initial loop iteration.
             self.single_iteration(&mut callback, StartCause::Init);
@@ -609,10 +604,6 @@ impl<T: 'static> EventLoop<T> {
                 error
             ))))
         })
-    }
-
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
     }
 
     fn control_flow(&self) -> ControlFlow {

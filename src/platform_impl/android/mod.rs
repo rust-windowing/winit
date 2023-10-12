@@ -384,7 +384,7 @@ impl<T: 'static> EventLoop<T> {
         match event {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId);
+                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
@@ -456,7 +456,7 @@ impl<T: 'static> EventLoop<T> {
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId),
+                                device_id: event::DeviceId(DeviceId(key.device_id())),
                                 event: event::KeyEvent {
                                     state,
                                     physical_key: keycodes::to_physical_keycode(keycode),
@@ -485,10 +485,10 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
     {
-        self.run_ondemand(event_handler)
+        self.run_on_demand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
     {
@@ -523,7 +523,6 @@ impl<T: 'static> EventLoop<T> {
             // than once
             self.pending_redraw = false;
             self.cause = StartCause::Init;
-            self.set_control_flow(ControlFlow::default());
 
             // run the initial loop iteration
             self.single_iteration(None, &mut callback);
@@ -634,10 +633,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
-    }
-
     fn control_flow(&self) -> ControlFlow {
         self.window_target.p.control_flow()
     }
@@ -736,11 +731,11 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
+pub struct DeviceId(i32);
 
 impl DeviceId {
     pub const fn dummy() -> Self {
-        DeviceId
+        DeviceId(0)
     }
 }
 
@@ -840,6 +835,8 @@ impl Window {
 
     pub fn set_transparent(&self, _transparent: bool) {}
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, _visibility: bool) {}
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -928,6 +925,9 @@ impl Window {
             error::NotSupportedError::new(),
         ))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(

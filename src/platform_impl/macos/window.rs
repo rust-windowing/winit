@@ -596,6 +596,8 @@ impl WinitWindow {
         self.setOpaque(!transparent)
     }
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => self.makeKeyAndOrderFront(None),
@@ -890,6 +892,9 @@ impl WinitWindow {
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {

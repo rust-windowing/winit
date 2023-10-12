@@ -8,8 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Renamed `EventLoopExtRunOnDemand` / `run_ondemand` to `EventLoopExtRunOnDemand` / `run_on_demand`.
 - Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
-- Fix window size sometimes being invalid when resizing on macOS.
 - On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
 - On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
@@ -27,6 +27,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
 - **Breaking:** remove `DeviceEvent::Text`.
+- On Android, fix `DeviceId` to contain device id's.
+- Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
+- On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
+- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Windows for now.
 
 # 0.29.1-beta
 
@@ -177,6 +181,10 @@ And please only add new entries to the top of this list, right below the `# Unre
   `DeviceEvent::Key` support.
 - **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
   on Wayland, X11, Windows, macOS and Web.
+
+# 0.28.7
+
+- Fix window size sometimes being invalid when resizing on macOS 14 Sonoma.
 
 # 0.28.6
 

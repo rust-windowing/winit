@@ -262,6 +262,9 @@ impl Window {
     pub fn set_transparent(&self, _transparent: bool) {}
 
     #[inline]
+    pub fn set_blur(&self, _blur: bool) {}
+
+    #[inline]
     pub fn set_visible(&self, _visibility: bool) {}
 
     #[inline]
@@ -386,6 +389,9 @@ impl Window {
             error::NotSupportedError::new(),
         ))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {

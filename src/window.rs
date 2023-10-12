@@ -40,11 +40,12 @@ pub use raw_window_handle;
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
+///     event_loop::{ControlFlow, EventLoop},
 ///     window::Window,
 /// };
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
+/// event_loop.set_control_flow(ControlFlow::Wait);
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, elwt| {
@@ -101,7 +102,8 @@ impl WindowId {
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
-        WindowId(platform_impl::WindowId::dummy())
+        #[allow(unused_unsafe)]
+        WindowId(unsafe { platform_impl::WindowId::dummy() })
     }
 }
 
@@ -150,6 +152,7 @@ pub struct WindowAttributes {
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
+    pub blur: bool,
     pub decorations: bool,
     pub window_icon: Option<Icon>,
     pub preferred_theme: Option<Theme>,
@@ -175,6 +178,7 @@ impl Default for WindowAttributes {
             fullscreen: None,
             visible: true,
             transparent: false,
+            blur: false,
             decorations: true,
             window_level: Default::default(),
             window_icon: None,
@@ -342,6 +346,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets whether the background of the window should be blurred by the system.
+    ///
+    /// The default is `false`.
+    ///
+    /// See [`Window::set_blur`] for details.
+    #[inline]
+    pub fn with_blur(mut self, blur: bool) -> Self {
+        self.window.blur = blur;
+        self
+    }
+
     /// Get whether the window will support transparency.
     #[inline]
     pub fn transparent(&self) -> bool {
@@ -392,8 +407,8 @@ impl WindowBuilder {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and "light".
+    /// - **Wayland:** This controls only CSD. When using `None` it'll try to use dbus to get the
+    ///   system preference. When explicit theme is used, this will avoid dbus all together.
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
@@ -875,11 +890,25 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows / X11 / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **Windows / Web / iOS / Android / Orbital:** Unsupported.
+    /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window
             .maybe_queue_on_main(move |w| w.set_transparent(transparent))
+    }
+
+    /// Change the window blur state.
+    ///
+    /// If `true`, this will make the transparent window background blurry.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / iOS / macOS / X11 / Web / Windows:** Unsupported.
+    /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
+    #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        self.window.maybe_queue_on_main(move |w| w.set_blur(blur))
     }
 
     /// Modifies the window's visibility.
@@ -1242,8 +1271,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and "light". When unspecified, a theme is automatically selected.
+    /// - **Wayland:** Sets the theme for the client side decorations. Using `None` will use dbus
+    ///   to get the system preference.
     /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
@@ -1392,6 +1421,21 @@ impl Window {
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
+    }
+
+    /// Show [window menu] at a specified position .
+    ///
+    /// This is the context menu that is normally shown when interacting with
+    /// the title bar. This is useful when implementing custom decorations.
+    ///
+    /// ## Platform-specific
+    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    ///
+    /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
+    pub fn show_window_menu(&self, position: impl Into<Position>) {
+        let position = position.into();
+        self.window
+            .maybe_queue_on_main(move |w| w.show_window_menu(position))
     }
 
     /// Modifies whether the window catches cursor events.

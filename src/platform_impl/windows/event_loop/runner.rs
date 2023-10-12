@@ -88,7 +88,7 @@ impl<T> EventLoopRunner<T> {
     /// outlive the EventLoopRunner) and can lead to undefined behaviour if
     /// the handler is not cleared before the end of real lifetime.
     ///
-    /// All public APIs that take an event handler (`run`, `run_ondemand`,
+    /// All public APIs that take an event handler (`run`, `run_on_demand`,
     /// `pump_events`) _must_ pair a call to `set_event_handler` with
     /// a call to `clear_event_handler` before returning to avoid
     /// undefined behaviour.
@@ -96,10 +96,12 @@ impl<T> EventLoopRunner<T> {
     where
         F: FnMut(Event<T>),
     {
-        let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<T>)>>,
-            Option<Box<dyn FnMut(Event<T>)>>,
-        >(Some(Box::new(f))));
+        // Erase closure lifetime.
+        // SAFETY: Caller upholds that the lifetime of the closure is upheld.
+        let f = unsafe {
+            mem::transmute::<Box<dyn FnMut(Event<T>)>, Box<dyn FnMut(Event<T>)>>(Box::new(f))
+        };
+        let old_event_handler = self.event_handler.replace(Some(f));
         assert!(old_event_handler.is_none());
     }
 
@@ -113,7 +115,7 @@ impl<T> EventLoopRunner<T> {
             interrupt_msg_dispatch,
             runner_state,
             panic_error,
-            control_flow,
+            control_flow: _,
             exit,
             last_events_cleared: _,
             event_handler,
@@ -122,7 +124,6 @@ impl<T> EventLoopRunner<T> {
         interrupt_msg_dispatch.set(false);
         runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
-        control_flow.set(ControlFlow::default());
         exit.set(None);
         event_handler.set(None);
     }

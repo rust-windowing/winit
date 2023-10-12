@@ -42,6 +42,10 @@ impl Inner {
         debug!("`Window::set_transparent` is ignored on iOS")
     }
 
+    pub fn set_blur(&self, _blur: bool) {
+        debug!("`Window::set_blur` is ignored on iOS")
+    }
+
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
     }
@@ -193,6 +197,9 @@ impl Inner {
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
