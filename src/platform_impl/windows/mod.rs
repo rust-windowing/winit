@@ -12,7 +12,7 @@ pub(crate) use self::{
     },
     icon::{SelectedCursor, WinIcon},
     monitor::{MonitorHandle, VideoMode},
-    window::Window,
+    window::{OwnedWindowHandle, Window},
 };
 
 pub use self::icon::WinIcon as PlatformIcon;

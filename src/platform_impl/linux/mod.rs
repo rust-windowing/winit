@@ -141,6 +141,43 @@ impl fmt::Display for OsError {
     }
 }
 
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub(crate) enum OwnedWindowHandle {
+    #[cfg(x11_platform)]
+    X(x11rb::protocol::xproto::Window),
+    #[cfg(wayland_platform)]
+    Wayland,
+}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(handle: rwh_06::WindowHandle<'_>) -> Self {
+        // TODO: Do we need to do something extra to extend the lifetime of
+        // the window lives beyond the passed-in handle?
+        match handle.as_raw() {
+            #[cfg(x11_platform)]
+            rwh_06::RawWindowHandle::Xlib(handle) => {
+                Self::X(handle.window as x11rb::protocol::xproto::Window)
+            }
+            #[cfg(x11_platform)]
+            rwh_06::RawWindowHandle::Xcb(handle) => Self::X(handle.window.get()),
+            #[cfg(wayland_platform)]
+            rwh_06::RawWindowHandle::Wayland(_handle) => {
+                // Wayland does not currently support parent windows, but it
+                // could support owned handles.
+                Self::Wayland
+            }
+            #[cfg(not(x11_platform))]
+            handle => panic!("invalid window handle {handle:?} on Wayland"),
+            #[cfg(not(wayland_platform))]
+            handle => panic!("invalid window handle {handle:?} on X11"),
+            #[cfg(all(x11_platform, wayland_platform))]
+            handle => panic!("invalid window handle {handle:?} on X11 or Wayland"),
+        }
+    }
+}
+
 pub(crate) enum Window {
     #[cfg(x11_platform)]
     X(x11::Window),

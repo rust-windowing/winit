@@ -751,6 +751,18 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedWindowHandle {}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(_handle: rwh_06::WindowHandle<'_>) -> Self {
+        // Parent windows are currently unsupported, though owned window
+        // handles would be implementable.
+        Self {}
+    }
+}
+
 pub(crate) struct Window {
     app: AndroidApp,
     redraw_requester: RedrawRequester,

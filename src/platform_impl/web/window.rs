@@ -17,6 +17,18 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedWindowHandle {}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(_handle: rwh_06::WindowHandle<'_>) -> Self {
+        // Parent windows are currently unsupported, though owned window
+        // handles would be implementable.
+        Self {}
+    }
+}
+
 pub struct Window {
     inner: Dispatcher<Inner>,
 }

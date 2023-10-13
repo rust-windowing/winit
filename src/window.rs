@@ -153,8 +153,7 @@ pub struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub active: bool,
-    #[cfg(feature = "rwh_06")]
-    pub(crate) parent_window: SendSyncWrapper<Option<rwh_06::RawWindowHandle>>,
+    pub(crate) parent_window: Option<platform_impl::OwnedWindowHandle>,
     pub(crate) fullscreen: SendSyncWrapper<Option<Fullscreen>>,
 }
 
@@ -180,8 +179,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
-            #[cfg(feature = "rwh_06")]
-            parent_window: SendSyncWrapper(None),
+            parent_window: None,
             active: true,
         }
     }
@@ -190,8 +188,8 @@ impl Default for WindowAttributes {
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
     #[cfg(feature = "rwh_06")]
-    pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
-        self.parent_window.0.as_ref()
+    pub fn parent_window(&self) -> Option<Result<rwh_06::RawWindowHandle, rwh_06::HandleError>> {
+        Some(self.parent_window.as_ref()?.raw_window_handle())
     }
 
     /// Get `Fullscreen` option stored on the attributes.
@@ -476,10 +474,6 @@ impl WindowBuilder {
     ///
     /// The default is `None`.
     ///
-    /// ## Safety
-    ///
-    /// `parent_window` must be a valid window handle.
-    ///
     /// ## Platform-specific
     ///
     /// - **Windows** : A child window has the WS_CHILD style and is confined
@@ -489,11 +483,9 @@ impl WindowBuilder {
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub unsafe fn with_parent_window(
-        mut self,
-        parent_window: Option<rwh_06::RawWindowHandle>,
-    ) -> Self {
-        self.window.parent_window = SendSyncWrapper(parent_window);
+    pub fn with_parent_window(mut self, parent_window: Option<rwh_06::WindowHandle<'_>>) -> Self {
+        self.window.parent_window =
+            parent_window.map(platform_impl::OwnedWindowHandle::new_parent_window);
         self
     }
 

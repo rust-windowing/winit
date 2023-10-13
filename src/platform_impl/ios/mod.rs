@@ -73,7 +73,7 @@ pub(crate) use self::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
-    window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
+    window::{OwnedWindowHandle, PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
 use self::uikit::UIScreen;
