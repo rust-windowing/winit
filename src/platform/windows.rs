@@ -20,6 +20,12 @@ pub type HMONITOR = isize;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
+    /// Whether to allow multiple event loops to be created.
+    ///
+    /// By default, only a single event loop is allowed to be created, to make platform
+    /// compatibility easier.
+    fn with_multiple_instances(&mut self, multiple_instances: bool) -> &mut Self;
+
     /// Whether to allow the event loop to be created off of the main thread.
     ///
     /// By default, the window is only allowed to be created on the main
@@ -90,6 +96,12 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     #[inline]
     fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
         self.platform_specific.any_thread = any_thread;
+        self
+    }
+
+    #[inline]
+    fn with_multiple_instances(&mut self, multiple_instances: bool) -> &mut Self {
+        self.multiple_instances = multiple_instances;
         self
     }
 

@@ -58,6 +58,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 /// easier. But note that constructing multiple event loops is not supported.
 #[derive(Default)]
 pub struct EventLoopBuilder<T: 'static> {
+    pub(crate) multiple_instances: bool,
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
     _p: PhantomData<T>,
 }
@@ -78,6 +79,7 @@ impl<T> EventLoopBuilder<T> {
     #[inline]
     pub fn with_user_event() -> Self {
         Self {
+            multiple_instances: false,
             platform_specific: Default::default(),
             _p: PhantomData,
         }
@@ -117,7 +119,7 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
-        if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
+        if !self.multiple_instances && EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             return Err(EventLoopError::RecreationAttempt);
         }
 
