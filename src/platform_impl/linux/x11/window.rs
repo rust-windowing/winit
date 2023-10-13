@@ -12,8 +12,11 @@ use x11rb::{
     connection::Connection,
     properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
     protocol::{
-        randr, xinput,
-        xproto::{self, ConnectionExt as _},
+        randr,
+        shape::SK,
+        xfixes::{ConnectionExt, RegionWrapper},
+        xinput,
+        xproto::{self, ConnectionExt as _, Rectangle},
     },
 };
 
@@ -62,6 +65,7 @@ pub struct SharedState {
     pub base_size: Option<Size>,
     pub visibility: Visibility,
     pub has_focus: bool,
+    pub cursor_hittest: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -102,6 +106,7 @@ impl SharedState {
             resize_increments: None,
             base_size: None,
             has_focus: false,
+            cursor_hittest: true,
         })
     }
 }
@@ -1286,6 +1291,10 @@ impl UnownedWindow {
         self.xconn
             .flush_requests()
             .expect("Failed to call XResizeWindow");
+        // cursor_hittest needs to be reapplied after window resize
+        if self.shared_state_lock().cursor_hittest {
+            let _ = self.set_cursor_hittest(true);
+        }
     }
 
     #[inline]
@@ -1595,8 +1604,25 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        let mut rectangles: Vec<Rectangle> = Vec::new();
+        if hittest {
+            let size = self.inner_size();
+            rectangles.push(Rectangle {
+                x: 0,
+                y: 0,
+                width: size.width as u16,
+                height: size.height as u16,
+            })
+        }
+        let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
+            .map_err(|_e| ExternalError::Ignored)?;
+        self.xconn
+            .xcb_connection()
+            .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
+            .map_err(|_e| ExternalError::Ignored)?;
+        self.shared_state_lock().cursor_hittest = hittest;
+        Ok(())
     }
 
     /// Moves the window while it is being dragged.
