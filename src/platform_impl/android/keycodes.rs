@@ -3,10 +3,10 @@ use android_activity::{
     AndroidApp,
 };
 
-use crate::keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode};
+use crate::keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode, PhysicalKey};
 
-pub fn to_physical_keycode(keycode: Keycode) -> KeyCode {
-    match keycode {
+pub fn to_physical_key(keycode: Keycode) -> PhysicalKey {
+    PhysicalKey::Code(match keycode {
         Keycode::A => KeyCode::KeyA,
         Keycode::B => KeyCode::KeyB,
         Keycode::C => KeyCode::KeyC,
@@ -155,8 +155,8 @@ pub fn to_physical_keycode(keycode: Keycode) -> KeyCode {
         Keycode::Sleep => KeyCode::Sleep, // what about SoftSleep?
         Keycode::Wakeup => KeyCode::WakeUp,
 
-        keycode => KeyCode::Unidentified(NativeKeyCode::Android(keycode.into())),
-    }
+        keycode => return PhysicalKey::Unidentified(NativeKeyCode::Android(keycode.into())),
+    })
 }
 
 /// Tries to map the `key_event` to a `KeyMapChar` containing a unicode character or dead key accent

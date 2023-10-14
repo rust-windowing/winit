@@ -19,6 +19,7 @@ use crate::{
     event_loop::{self, ControlFlow, DeviceEvents},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
+        PhysicalKey,
     },
     window::WindowId as RootWindowId,
 };
@@ -28,8 +29,8 @@ use super::{
     RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
-fn convert_scancode(scancode: u8) -> KeyCode {
-    match scancode {
+fn convert_scancode(scancode: u8) -> PhysicalKey {
+    PhysicalKey::Code(match scancode {
         orbclient::K_A => KeyCode::KeyA,
         orbclient::K_B => KeyCode::KeyB,
         orbclient::K_C => KeyCode::KeyC,
@@ -110,8 +111,8 @@ fn convert_scancode(scancode: u8) -> KeyCode {
         orbclient::K_F11 => KeyCode::F11,
         orbclient::K_F12 => KeyCode::F12,
 
-        _ => KeyCode::Unidentified(NativeKeyCode::Unidentified),
-    }
+        _ => return PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+    })
 }
 
 fn element_state(pressed: bool) -> event::ElementState {
@@ -153,7 +154,12 @@ struct EventState {
 }
 
 impl EventState {
-    fn key(&mut self, code: KeyCode, pressed: bool) {
+    fn key(&mut self, key: PhysicalKey, pressed: bool) {
+        let code = match key {
+            PhysicalKey::Code(code) => code,
+            _ => return,
+        };
+
         match code {
             KeyCode::ShiftLeft => self.keyboard.set(KeyboardModifierState::LSHIFT, pressed),
             KeyCode::ShiftRight => self.keyboard.set(KeyboardModifierState::RSHIFT, pressed),
@@ -333,16 +339,16 @@ impl<T: 'static> EventLoop<T> {
                 pressed,
             }) => {
                 if scancode != 0 {
-                    let code = convert_scancode(scancode);
+                    let physical_key = convert_scancode(scancode);
                     let modifiers_before = event_state.keyboard;
-                    event_state.key(code, pressed);
+                    event_state.key(physical_key, pressed);
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
                         event: event::WindowEvent::KeyboardInput {
                             device_id: event::DeviceId(DeviceId),
                             event: event::KeyEvent {
                                 logical_key: Key::Unidentified(NativeKey::Unidentified),
-                                physical_key: code,
+                                physical_key,
                                 location: KeyLocation::Standard,
                                 state: element_state(pressed),
                                 repeat: false,

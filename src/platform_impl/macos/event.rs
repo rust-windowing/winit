@@ -12,8 +12,11 @@ use crate::{
     event::{ElementState, KeyEvent, Modifiers},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
+        PhysicalKey,
     },
-    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
+    platform::{
+        modifier_supplement::KeyEventExtModifierSupplement, scancode::PhysicalKeyExtScancode,
+    },
     platform_impl::platform::ffi,
 };
 
@@ -112,13 +115,14 @@ pub(crate) fn create_key_event(
     ns_event: &NSEvent,
     is_press: bool,
     is_repeat: bool,
-    key_override: Option<KeyCode>,
+    key_override: Option<PhysicalKey>,
 ) -> KeyEvent {
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
     let scancode = ns_event.key_code();
-    let mut physical_key = key_override.unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
+    let mut physical_key =
+        key_override.unwrap_or_else(|| PhysicalKey::from_scancode(scancode as u32));
 
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
@@ -130,7 +134,7 @@ pub(crate) fn create_key_event(
         if characters.is_empty() {
             None
         } else {
-            if matches!(physical_key, KeyCode::Unidentified(_)) {
+            if matches!(physical_key, PhysicalKey::Unidentified(_)) {
                 // The key may be one of the funky function keys
                 physical_key = extra_function_key_to_code(scancode, &characters);
             }
@@ -172,7 +176,10 @@ pub(crate) fn create_key_event(
         None
     };
 
-    let location = code_to_location(physical_key);
+    let location = match physical_key {
+        PhysicalKey::Code(code) => code_to_location(code),
+        _ => KeyLocation::Standard,
+    };
 
     KeyEvent {
         location,
@@ -188,7 +195,12 @@ pub(crate) fn create_key_event(
     }
 }
 
-pub fn code_to_key(code: KeyCode, scancode: u16) -> Key {
+pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
+    let code = match key {
+        PhysicalKey::Code(code) => code,
+        PhysicalKey::Unidentified(code) => return Key::Unidentified(code),
+    };
+
     match code {
         KeyCode::Enter => Key::Enter,
         KeyCode::Tab => Key::Tab,
@@ -283,17 +295,17 @@ pub fn code_to_location(code: KeyCode) -> KeyLocation {
 // While F1-F20 have scancodes we can match on, we have to check against UTF-16
 // constants for the rest.
 // https://developer.apple.com/documentation/appkit/1535851-function-key_unicodes?preferredLanguage=occ
-pub fn extra_function_key_to_code(scancode: u16, string: &str) -> KeyCode {
+pub fn extra_function_key_to_code(scancode: u16, string: &str) -> PhysicalKey {
     if let Some(ch) = string.encode_utf16().next() {
         match ch {
-            0xf718 => KeyCode::F21,
-            0xf719 => KeyCode::F22,
-            0xf71a => KeyCode::F23,
-            0xf71b => KeyCode::F24,
-            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode)),
+            0xf718 => PhysicalKey::Code(KeyCode::F21),
+            0xf719 => PhysicalKey::Code(KeyCode::F22),
+            0xf71a => PhysicalKey::Code(KeyCode::F23),
+            0xf71b => PhysicalKey::Code(KeyCode::F24),
+            _ => PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode)),
         }
     } else {
-        KeyCode::Unidentified(NativeKeyCode::MacOS(scancode))
+        PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode))
     }
 }
 
@@ -340,9 +352,14 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     }
 }
 
-impl KeyCodeExtScancode for KeyCode {
+impl PhysicalKeyExtScancode for PhysicalKey {
     fn to_scancode(self) -> Option<u32> {
-        match self {
+        let code = match self {
+            PhysicalKey::Code(code) => code,
+            PhysicalKey::Unidentified(_) => return None,
+        };
+
+        match code {
             KeyCode::KeyA => Some(0x00),
             KeyCode::KeyS => Some(0x01),
             KeyCode::KeyD => Some(0x02),
@@ -458,8 +475,8 @@ impl KeyCodeExtScancode for KeyCode {
         }
     }
 
-    fn from_scancode(scancode: u32) -> KeyCode {
-        match scancode {
+    fn from_scancode(scancode: u32) -> PhysicalKey {
+        PhysicalKey::Code(match scancode {
             0x00 => KeyCode::KeyA,
             0x01 => KeyCode::KeyS,
             0x02 => KeyCode::KeyD,
@@ -596,7 +613,7 @@ impl KeyCodeExtScancode for KeyCode {
             // 0xA is the caret (^) an macOS's German QERTZ layout. This key is at the same location as
             // backquote (`) on Windows' US layout.
             0xa => KeyCode::Backquote,
-            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
-        }
+            _ => return PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
+        })
     }
 }

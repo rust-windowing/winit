@@ -187,24 +187,34 @@ impl std::fmt::Debug for NativeKey {
 
 /// Represents the location of a physical key.
 ///
+/// This type is a superset of [`KeyCode`], including an [`Unidentified`](Self::Unidentified)
+/// variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PhysicalKey {
+    /// A known key code
+    Code(KeyCode),
+    /// This variant is used when the key cannot be translated to a [`KeyCode`]
+    ///
+    /// The native keycode is provided (if available) so you're able to more reliably match
+    /// key-press and key-release events by hashing the [`PhysicalKey`]. It is also possible to use
+    /// this for keybinds for non-standard keys, but such keybinds are tied to a given platform.
+    Unidentified(NativeKeyCode),
+}
+
+/// Code representing the location of a physical key
+///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.code`] with a few
 /// exceptions:
 /// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
 ///   "SuperRight" here.
 /// - The key that the specification calls "Super" is reported as `Unidentified` here.
-/// - The `Unidentified` variant here, can still identify a key through it's `NativeKeyCode`.
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyCode {
-    /// This variant is used when the key cannot be translated to any other variant.
-    ///
-    /// The native keycode is provided (if available) so you're able to more reliably match
-    /// key-press and key-release events by hashing the [`KeyCode`]. It is also possible to use
-    /// this for keybinds for non-standard keys, but such keybinds are tied to a given platform.
-    Unidentified(NativeKeyCode),
     /// <kbd>`</kbd> on a US keyboard. This is also called a backtick or grave.
     /// This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
     /// (hankaku/zenkaku/kanji) key on Japanese keyboards

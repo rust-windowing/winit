@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 
 use once_cell::unsync::OnceCell;
 use smol_str::SmolStr;
@@ -149,9 +149,9 @@ pub fn mouse_scroll_delta(
     }
 }
 
-pub fn key_code(event: &KeyboardEvent) -> KeyCode {
+pub fn key_code(event: &KeyboardEvent) -> PhysicalKey {
     let code = event.code();
-    KeyCode::from_key_code_attribute_value(&code)
+    PhysicalKey::from_key_code_attribute_value(&code)
 }
 
 pub fn key(event: &KeyboardEvent) -> Key {

@@ -37,8 +37,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     event::{ElementState, KeyEvent},
-    keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode},
-    platform::scancode::KeyCodeExtScancode,
+    keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode, PhysicalKey},
+    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         event_loop::ProcResult,
         keyboard_layout::{Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
@@ -264,8 +264,8 @@ impl KeyEventBuilder {
                             let mod_no_ctrl = mod_state.remove_only_ctrl();
                             let num_lock_on = kbd_state[VK_NUMLOCK as usize] & 1 != 0;
                             let vkey = event_info.vkey;
-                            let keycode = &event_info.code;
-                            let key = layout.get_key(mod_no_ctrl, num_lock_on, vkey, keycode);
+                            let physical_key = &event_info.physical_key;
+                            let key = layout.get_key(mod_no_ctrl, num_lock_on, vkey, physical_key);
                             event_info.text = PartialText::Text(key.to_text().map(SmolStr::new));
                         }
                         let ev = event_info.finalize();
@@ -454,15 +454,16 @@ impl KeyEventBuilder {
             return None;
         }
         let scancode = scancode as ExScancode;
-        let code = KeyCode::from_scancode(scancode as u32);
+        let physical_key = PhysicalKey::from_scancode(scancode as u32);
         let mods = if caps_lock_on {
             WindowsModifiers::CAPS_LOCK
         } else {
             WindowsModifiers::empty()
         };
         let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
-        let logical_key = layout.get_key(mods, num_lock_on, vk, &code);
-        let key_without_modifiers = layout.get_key(WindowsModifiers::empty(), false, vk, &code);
+        let logical_key = layout.get_key(mods, num_lock_on, vk, &physical_key);
+        let key_without_modifiers =
+            layout.get_key(WindowsModifiers::empty(), false, vk, &physical_key);
         let text = if key_state == ElementState::Pressed {
             logical_key.to_text().map(SmolStr::new)
         } else {
@@ -474,7 +475,7 @@ impl KeyEventBuilder {
             key_without_modifiers,
             key_state,
             is_repeat: false,
-            code,
+            physical_key,
             location: get_location(scancode, locale_id),
             utf16parts: Vec::with_capacity(8),
             text: PartialText::Text(text.clone()),
@@ -511,7 +512,7 @@ struct PartialKeyEventInfo {
     vkey: VIRTUAL_KEY,
     key_state: ElementState,
     is_repeat: bool,
-    code: KeyCode,
+    physical_key: PhysicalKey,
     location: KeyLocation,
     logical_key: PartialLogicalKey,
 
@@ -543,7 +544,7 @@ impl PartialKeyEventInfo {
         } else {
             new_ex_scancode(lparam_struct.scancode, lparam_struct.extended)
         };
-        let code = KeyCode::from_scancode(scancode as u32);
+        let physical_key = PhysicalKey::from_scancode(scancode as u32);
         let location = get_location(scancode, layout.hkl as HKL);
 
         let kbd_state = get_kbd_state();
@@ -558,16 +559,17 @@ impl PartialKeyEventInfo {
         // "Why does Ctrl+ScrollLock cancel dialogs?"
         // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
         let code_as_key = if mods.contains(WindowsModifiers::CONTROL) {
-            match code {
-                KeyCode::NumLock => Some(Key::NumLock),
-                KeyCode::Pause => Some(Key::Pause),
+            match physical_key {
+                PhysicalKey::Code(KeyCode::NumLock) => Some(Key::NumLock),
+                PhysicalKey::Code(KeyCode::Pause) => Some(Key::Pause),
                 _ => None,
             }
         } else {
             None
         };
 
-        let preliminary_logical_key = layout.get_key(mods_without_ctrl, num_lock_on, vkey, &code);
+        let preliminary_logical_key =
+            layout.get_key(mods_without_ctrl, num_lock_on, vkey, &physical_key);
         let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
         let is_pressed = state == ElementState::Pressed;
 
@@ -583,7 +585,7 @@ impl PartialKeyEventInfo {
         let key_without_modifiers = if let Some(key) = code_as_key {
             key
         } else {
-            match layout.get_key(NO_MODS, false, vkey, &code) {
+            match layout.get_key(NO_MODS, false, vkey, &physical_key) {
                 // We convert dead keys into their character.
                 // The reason for this is that `key_without_modifiers` is designed for key-bindings,
                 // but the US International layout treats `'` (apostrophe) as a dead key and the
@@ -609,7 +611,7 @@ impl PartialKeyEventInfo {
             logical_key,
             key_without_modifiers,
             is_repeat: lparam_struct.is_repeat,
-            code,
+            physical_key,
             location,
             utf16parts: Vec::with_capacity(8),
             text: PartialText::System(Vec::new()),
@@ -937,7 +939,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     }
 }
 
-impl KeyCodeExtScancode for KeyCode {
+impl PhysicalKeyExtScancode for PhysicalKey {
     fn to_scancode(self) -> Option<u32> {
         // See `from_scancode` for more info
 
@@ -946,7 +948,17 @@ impl KeyCodeExtScancode for KeyCode {
         let primary_lang_id = primarylangid(loword(hkl as u32));
         let is_korean = primary_lang_id as u32 == LANG_KOREAN;
 
-        match self {
+        let code = match self {
+            PhysicalKey::Code(code) => code,
+            PhysicalKey::Unidentified(code) => {
+                return match code {
+                    NativeKeyCode::Windows(scancode) => Some(scancode as u32),
+                    _ => None,
+                };
+            }
+        };
+
+        match code {
             KeyCode::Backquote => Some(0x0029),
             KeyCode::Backslash => Some(0x002B),
             KeyCode::Backspace => Some(0x000E),
@@ -1106,17 +1118,16 @@ impl KeyCodeExtScancode for KeyCode {
             KeyCode::AudioVolumeDown => Some(0xE02E),
             KeyCode::AudioVolumeMute => Some(0xE020),
             KeyCode::AudioVolumeUp => Some(0xE030),
-            KeyCode::Unidentified(NativeKeyCode::Windows(scancode)) => Some(scancode as u32),
             _ => None,
         }
     }
 
-    fn from_scancode(scancode: u32) -> KeyCode {
+    fn from_scancode(scancode: u32) -> PhysicalKey {
         // See: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
         // and: https://www.w3.org/TR/uievents-code/
         // and: The widget/NativeKeyToDOMCodeName.h file in the firefox source
 
-        match scancode {
+        PhysicalKey::Code(match scancode {
             0x0029 => KeyCode::Backquote,
             0x002B => KeyCode::Backslash,
             0x000E => KeyCode::Backspace,
@@ -1266,7 +1277,7 @@ impl KeyCodeExtScancode for KeyCode {
             0xE02E => KeyCode::AudioVolumeDown,
             0xE020 => KeyCode::AudioVolumeMute,
             0xE030 => KeyCode::AudioVolumeUp,
-            _ => KeyCode::Unidentified(NativeKeyCode::Windows(scancode as u16)),
-        }
+            _ => return PhysicalKey::Unidentified(NativeKeyCode::Windows(scancode as u16)),
+        })
     }
 }

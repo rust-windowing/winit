@@ -1,6 +1,6 @@
 use smol_str::SmolStr;
 
-use crate::keyboard::{Key, KeyCode, NativeKey, NativeKeyCode};
+use crate::keyboard::{Key, KeyCode, NativeKey, NativeKeyCode, PhysicalKey};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct KeyEventExtra;
@@ -320,9 +320,9 @@ impl Key {
     }
 }
 
-impl KeyCode {
+impl PhysicalKey {
     pub fn from_key_code_attribute_value(kcav: &str) -> Self {
-        match kcav {
+        PhysicalKey::Code(match kcav {
             "Backquote" => KeyCode::Backquote,
             "Backslash" => KeyCode::Backslash,
             "BracketLeft" => KeyCode::BracketLeft,
@@ -516,7 +516,7 @@ impl KeyCode {
             "F33" => KeyCode::F33,
             "F34" => KeyCode::F34,
             "F35" => KeyCode::F35,
-            _ => KeyCode::Unidentified(NativeKeyCode::Unidentified),
-        }
+            _ => return PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+        })
     }
 }

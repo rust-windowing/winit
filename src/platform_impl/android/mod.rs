@@ -459,7 +459,7 @@ impl<T: 'static> EventLoop<T> {
                                 device_id: event::DeviceId(DeviceId(key.device_id())),
                                 event: event::KeyEvent {
                                     state,
-                                    physical_key: keycodes::to_physical_keycode(keycode),
+                                    physical_key: keycodes::to_physical_key(keycode),
                                     logical_key: keycodes::to_logical(key_char, keycode),
                                     location: keycodes::to_location(keycode),
                                     repeat: key.repeat_count() > 0,

@@ -52,8 +52,8 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    keyboard::{Key, KeyCode, ModifiersState, NativeKey},
-    platform::scancode::KeyCodeExtScancode,
+    keyboard::{Key, KeyCode, ModifiersState, NativeKey, PhysicalKey},
+    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::{loword, primarylangid},
 };
 
@@ -224,7 +224,7 @@ impl Layout {
         mods: WindowsModifiers,
         num_lock_on: bool,
         vkey: VIRTUAL_KEY,
-        keycode: &KeyCode,
+        physical_key: &PhysicalKey,
     ) -> Key {
         let native_code = NativeKey::Windows(vkey);
 
@@ -252,9 +252,11 @@ impl Layout {
         } else if let Some(key) = self.numlock_off_keys.get(&vkey) {
             return key.clone();
         }
-        if let Some(keys) = self.keys.get(&mods) {
-            if let Some(key) = keys.get(keycode) {
-                return key.clone();
+        if let PhysicalKey::Code(code) = physical_key {
+            if let Some(keys) = self.keys.get(&mods) {
+                if let Some(key) = keys.get(code) {
+                    return key.clone();
+                }
             }
         }
         Key::Unidentified(native_code)
@@ -334,7 +336,10 @@ impl LayoutCache {
             if scancode == 0 {
                 continue;
             }
-            let keycode = KeyCode::from_scancode(scancode);
+            let keycode = match PhysicalKey::from_scancode(scancode) {
+                PhysicalKey::Code(code) => code,
+                _ => continue,
+            };
             if !is_numpad_specific(vk as VIRTUAL_KEY) && NUMPAD_KEYCODES.contains(&keycode) {
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
                 let map_vkey = keycode_to_vkey(keycode, locale_id);
@@ -382,7 +387,10 @@ impl LayoutCache {
                 }
 
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
-                let key_code = KeyCode::from_scancode(scancode);
+                let key_code = match PhysicalKey::from_scancode(scancode) {
+                    PhysicalKey::Code(code) => code,
+                    _ => continue,
+                };
                 // Let's try to get the key from just the scancode and vk
                 // We don't necessarily know yet if AltGraph is present on this layout so we'll
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
@@ -733,7 +741,6 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::F33 => 0,
         KeyCode::F34 => 0,
         KeyCode::F35 => 0,
-        KeyCode::Unidentified(_) => 0,
         _ => 0,
     }
 }

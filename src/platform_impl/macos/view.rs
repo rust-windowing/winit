@@ -26,9 +26,9 @@ use crate::{
         DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
         TouchPhase, WindowEvent,
     },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, PhysicalKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform::scancode::KeyCodeExtScancode,
+    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         app_state::AppState,
         event::{create_key_event, event_mods},
@@ -921,16 +921,16 @@ impl WinitView {
         // has already been pressed
         if is_flags_changed_event {
             let scancode = ns_event.key_code();
-            let keycode = KeyCode::from_scancode(scancode as u32);
+            let physical_key = PhysicalKey::from_scancode(scancode as u32);
 
             // We'll correct the `is_press` later.
-            let mut event = create_key_event(ns_event, false, false, Some(keycode));
+            let mut event = create_key_event(ns_event, false, false, Some(physical_key));
 
-            let key = code_to_key(keycode, scancode);
+            let key = code_to_key(physical_key, scancode);
             let event_modifier = key_to_modifier(&key);
-            event.physical_key = keycode;
+            event.physical_key = physical_key;
             event.logical_key = key.clone();
-            event.location = code_to_location(keycode);
+            event.location = code_to_location(physical_key);
             let location_mask = ModLocationMask::from_location(event.location);
 
             let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
