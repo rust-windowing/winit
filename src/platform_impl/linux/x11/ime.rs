@@ -445,6 +445,7 @@ impl ImeData {
                 }
             }
 
+            // This scope keeps track of the event queue handle.
             {
                 // Check the event queue for events.
                 let event_queue = self.handler.event_queue.clone();
@@ -481,7 +482,6 @@ impl ImeData {
                 }
             }
 
-            // TODO: have an queue queue.
             log::info!("Waiting for IME event");
             last_event = Some(self.conn().wait_for_event()?);
         }
