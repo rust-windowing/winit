@@ -946,10 +946,10 @@ impl Window {
 
     #[cfg(feature = "rwh_04")]
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        use rwh_04::HasRawWindowHandle;
+
         if let Some(native_window) = self.app.native_window().as_ref() {
-            let mut handle = rwh_04::AndroidNdkHandle::empty();
-            handle.a_native_window = native_window.ptr().as_ptr() as *mut _;
-            rwh_04::RawWindowHandle::AndroidNdk(handle)
+            native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         }
@@ -972,10 +972,13 @@ impl Window {
     }
 
     #[cfg(feature = "rwh_06")]
+    // Allow the usage of HasRawWindowHandle inside this function
+    #[allow(deprecated)]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        use rwh_06::HasRawWindowHandle;
+
         if let Some(native_window) = self.app.native_window().as_ref() {
-            let handle = rwh_06::AndroidNdkWindowHandle::new(native_window.ptr().cast());
-            Ok(rwh_06::RawWindowHandle::AndroidNdk(handle))
+            native_window.raw_window_handle()
         } else {
             log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
             Err(rwh_06::HandleError::Unavailable)
