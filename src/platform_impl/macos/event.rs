@@ -203,6 +203,7 @@ pub fn code_to_key(code: KeyCode, scancode: u16) -> Key {
         KeyCode::ShiftRight => Key::Shift,
         KeyCode::AltRight => Key::Alt,
         KeyCode::ControlRight => Key::Control,
+        KeyCode::CapsLock => Key::CapsLock,
 
         KeyCode::NumLock => Key::NumLock,
         KeyCode::AudioVolumeUp => Key::AudioVolumeUp,
@@ -398,6 +399,7 @@ impl KeyCodeExtScancode for KeyCode {
             KeyCode::SuperRight => Some(0x36),
             KeyCode::SuperLeft => Some(0x37),
             KeyCode::ShiftLeft => Some(0x38),
+            KeyCode::CapsLock => Some(0x39),
             KeyCode::AltLeft => Some(0x3a),
             KeyCode::ControlLeft => Some(0x3b),
             KeyCode::ShiftRight => Some(0x3c),
