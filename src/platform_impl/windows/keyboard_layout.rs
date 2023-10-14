@@ -338,6 +338,7 @@ impl LayoutCache {
             }
             let keycode = match PhysicalKey::from_scancode(scancode) {
                 PhysicalKey::Code(code) => code,
+                // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                 _ => continue,
             };
             if !is_numpad_specific(vk as VIRTUAL_KEY) && NUMPAD_KEYCODES.contains(&keycode) {
@@ -389,6 +390,7 @@ impl LayoutCache {
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
                 let key_code = match PhysicalKey::from_scancode(scancode) {
                     PhysicalKey::Code(code) => code,
+                    // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                     _ => continue,
                 };
                 // Let's try to get the key from just the scancode and vk
@@ -741,6 +743,7 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::F33 => 0,
         KeyCode::F34 => 0,
         KeyCode::F35 => 0,
+        // TODO: validate removal of KeyCode::Unidentified(_) => 0,
         _ => 0,
     }
 }
