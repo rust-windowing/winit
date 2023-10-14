@@ -52,7 +52,7 @@ use windows_sys::Win32::{
             SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
             SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
             TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND,
-            WNDCLASSEXW,
+            WNDCLASSEXW, WNDPROC,
         },
     },
 };
@@ -1199,8 +1199,16 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = util::encode_wide(&pl_attribs.class_name);
-    unsafe { register_window_class::<T>(&class_name) };
+    let class_name = if let Some(name) = &pl_attribs.class_name {
+        let class_name = util::encode_wide(name);
+        register_window_class(
+            &class_name,
+            Some(super::event_loop::public_window_callback::<T>),
+        )?;
+        class_name
+    } else {
+        unsafe { default_window_class::<T>()? }
+    };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1289,11 +1297,31 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
+unsafe fn default_window_class<T: 'static>() -> Result<Vec<u16>, RootOsError> {
+    static CLASS_NAME: Mutex<Option<Vec<u16>>> = Mutex::new(None);
+
+    let mut guard = CLASS_NAME.lock().unwrap();
+    if let Some(name) = &*guard {
+        return Ok(name.clone());
+    }
+
+    // Use the address of `CLASS_NAME` as part of the window class name to ensure different
+    // `winit` versions use different names.
+    let name = util::encode_wide(format!(
+        "winit Window Class {:x}",
+        &CLASS_NAME as *const _ as usize
+    ));
+    register_window_class(&name, Some(super::event_loop::public_window_callback::<T>))?;
+
+    *guard = Some(name.clone());
+    Ok(name)
+}
+
+pub(super) fn register_window_class(class_name: &[u16], proc: WNDPROC) -> Result<(), RootOsError> {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
+        lpfnWndProc: proc,
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
@@ -1305,11 +1333,12 @@ unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
         hIconSm: 0,
     };
 
-    // We ignore errors because registering the same window class twice would trigger
-    //  an error, and because errors here are detected during CreateWindowEx anyway.
-    // Also since there is no weird element in the struct, there is no reason for this
-    //  call to fail.
-    unsafe { RegisterClassExW(&class) };
+    let atom = unsafe { RegisterClassExW(&class) };
+
+    // Check errors as using a class with another `lpfnWndProc` may lead to unsafety.
+    (atom != 0)
+        .then_some(())
+        .ok_or_else(|| os_error!(io::Error::last_os_error()))
 }
 
 struct ComInitialized(*mut ());

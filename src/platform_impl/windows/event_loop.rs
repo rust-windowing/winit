@@ -6,6 +6,7 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     ffi::c_void,
+    io,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -52,8 +53,8 @@ use windows_sys::Win32::{
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
             GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW,
-            RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
-            TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
+            RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos, TranslateMessage,
+            CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA, GWL_WNDPROC,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
             PT_TOUCH, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE,
             SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA,
@@ -66,16 +67,15 @@ use windows_sys::Win32::{
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
-            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-            WS_VISIBLE,
+            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+            WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
         },
     },
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    error::EventLoopError,
+    error::{EventLoopError, OsError},
     event::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
@@ -92,7 +92,7 @@ use crate::{
         keyboard_layout::LAYOUT_CACHE,
         monitor::{self, MonitorHandle},
         raw_input, util,
-        window::InitData,
+        window::{register_window_class, InitData},
         window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
         wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
     },
@@ -219,7 +219,7 @@ impl<T: 'static> EventLoop<T> {
             become_dpi_aware();
         }
 
-        let thread_msg_target = create_event_target_window::<T>();
+        let thread_msg_target = create_event_target_window()?;
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
 
@@ -797,33 +797,32 @@ pub static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg
 // documentation in the `window_state` module for more information.
 pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
     LazyMessageId::new("Winit::SetRetainMaximized\0");
-static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
-    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
-fn create_event_target_window<T: 'static>() -> HWND {
-    use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
-    use windows_sys::Win32::UI::WindowsAndMessaging::CS_VREDRAW;
-    unsafe {
-        let class = WNDCLASSEXW {
-            cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
-            style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(thread_event_target_callback::<T>),
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: util::get_instance_handle(),
-            hIcon: 0,
-            hCursor: 0, // must be null in order for cursor state to work properly
-            hbrBackground: 0,
-            lpszMenuName: ptr::null(),
-            lpszClassName: THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
-            hIconSm: 0,
-        };
+fn default_event_target_window_class() -> Result<Vec<u16>, OsError> {
+    static CLASS_NAME: Mutex<Option<Vec<u16>>> = Mutex::new(None);
 
-        RegisterClassExW(&class);
+    let mut guard = CLASS_NAME.lock().unwrap();
+    if let Some(name) = &*guard {
+        return Ok(name.clone());
     }
+
+    // Use the address of `CLASS_NAME` as part of the window class name to ensure different
+    // `winit` versions use different names.
+    let name = util::encode_wide(format!(
+        "winit Event Target Class {:x}",
+        &CLASS_NAME as *const _ as usize
+    ));
+    register_window_class(&name, Some(default_thread_event_target_callback))?;
+
+    *guard = Some(name.clone());
+    Ok(name)
+}
+
+fn create_event_target_window() -> Result<HWND, OsError> {
+    let class_name = default_event_target_window_class()?;
 
     unsafe {
         let window = CreateWindowExW(
@@ -838,7 +837,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
                 // `explorer.exe` and then starting the process back up.
                 // It is unclear why the bug is triggered by waiting for several hours.
                 | WS_EX_TOOLWINDOW,
-            THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
+            class_name.as_ptr(),
             ptr::null(),
             WS_OVERLAPPED,
             0,
@@ -851,6 +850,10 @@ fn create_event_target_window<T: 'static>() -> HWND {
             ptr::null(),
         );
 
+        if window == 0 {
+            return Err(os_error!(io::Error::last_os_error()));
+        }
+
         super::set_window_long(
             window,
             GWL_STYLE,
@@ -859,7 +862,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             // the LAYERED style.
             (WS_VISIBLE | WS_POPUP) as isize,
         );
-        window
+        Ok(window)
     }
 }
 
@@ -875,7 +878,15 @@ fn insert_event_target_window_data<T>(
     };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
-    unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
+    unsafe {
+        #[allow(clippy::fn_to_numeric_cast)]
+        super::set_window_long(
+            thread_msg_target,
+            GWL_WNDPROC,
+            thread_event_target_callback::<T> as isize,
+        );
+        super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize)
+    };
 
     tx
 }
@@ -2291,6 +2302,15 @@ unsafe fn public_window_callback_inner<T: 'static>(
         ProcResult::DefWindowProc(wparam) => unsafe { DefWindowProcW(window, msg, wparam, lparam) },
         ProcResult::Value(val) => val,
     }
+}
+
+unsafe extern "system" fn default_thread_event_target_callback(
+    window: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    unsafe { DefWindowProcW(window, msg, wparam, lparam) }
 }
 
 unsafe extern "system" fn thread_event_target_callback<T: 'static>(
