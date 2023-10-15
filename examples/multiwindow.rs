@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
     keyboard::Key,
     window::Window,
@@ -40,19 +40,18 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                 }
                 WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state: ElementState::Pressed,
-                            logical_key: Key::Character(c),
-                            ..
-                        },
+                    event,
                     is_synthetic: false,
                     ..
-                } if matches!(c.as_ref(), "n" | "N") => {
-                    let window = Window::new(elwt).unwrap();
-                    println!("Opened a new window: {:?}", window.id());
-                    windows.insert(window.id(), window);
-                }
+                } if event.state == ElementState::Pressed => match event.logical_key {
+                    Key::Escape => elwt.exit(),
+                    Key::Character(c) if c == "n" || c == "N" => {
+                        let window = Window::new(elwt).unwrap();
+                        println!("Opened a new window: {:?}", window.id());
+                        windows.insert(window.id(), window);
+                    }
+                    _ => (),
+                },
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = windows.get(&window_id) {
                         fill::fill_window(window);

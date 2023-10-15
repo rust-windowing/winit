@@ -198,6 +198,21 @@ impl From<NativeKeyCode> for NativeKey {
     }
 }
 
+impl PartialEq<NativeKey> for NativeKeyCode {
+    #[allow(clippy::cmp_owned)] // uses less code than direct match; target is stack allocated
+    #[inline]
+    fn eq(&self, rhs: &NativeKey) -> bool {
+        NativeKey::from(*self) == *rhs
+    }
+}
+
+impl PartialEq<NativeKeyCode> for NativeKey {
+    #[inline]
+    fn eq(&self, rhs: &NativeKeyCode) -> bool {
+        rhs == self
+    }
+}
+
 /// Represents the location of a physical key.
 ///
 /// This type is a superset of [`KeyCode`], including an [`Unidentified`](Self::Unidentified)
@@ -226,6 +241,40 @@ impl From<NativeKeyCode> for PhysicalKey {
     #[inline]
     fn from(code: NativeKeyCode) -> Self {
         PhysicalKey::Unidentified(code)
+    }
+}
+
+impl PartialEq<KeyCode> for PhysicalKey {
+    #[inline]
+    fn eq(&self, rhs: &KeyCode) -> bool {
+        match self {
+            PhysicalKey::Code(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<PhysicalKey> for KeyCode {
+    #[inline]
+    fn eq(&self, rhs: &PhysicalKey) -> bool {
+        rhs == self
+    }
+}
+
+impl PartialEq<NativeKeyCode> for PhysicalKey {
+    #[inline]
+    fn eq(&self, rhs: &NativeKeyCode) -> bool {
+        match self {
+            PhysicalKey::Unidentified(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<PhysicalKey> for NativeKeyCode {
+    #[inline]
+    fn eq(&self, rhs: &PhysicalKey) -> bool {
+        rhs == self
     }
 }
 
@@ -1426,6 +1475,40 @@ impl From<NativeKey> for Key {
     #[inline]
     fn from(code: NativeKey) -> Self {
         Key::Unidentified(code)
+    }
+}
+
+impl<Str: PartialEq<str>> PartialEq<str> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &str) -> bool {
+        match self {
+            Key::Character(ref s) => s == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl<Str: PartialEq<str>> PartialEq<&str> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &&str) -> bool {
+        self == *rhs
+    }
+}
+
+impl<Str> PartialEq<NativeKey> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &NativeKey) -> bool {
+        match self {
+            Key::Unidentified(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl<Str> PartialEq<Key<Str>> for NativeKey {
+    #[inline]
+    fn eq(&self, rhs: &Key<Str>) -> bool {
+        rhs == self
     }
 }
 
