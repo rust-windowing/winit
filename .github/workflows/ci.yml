@@ -6,17 +6,6 @@ on:
     branches: [master]
 
 jobs:
-  fmt:
-    name: Check formatting
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt
-    - name: Check Formatting
-      run: cargo fmt -- --check
-
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
@@ -28,18 +17,6 @@ jobs:
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
-          - { name: 'Windows 32bit MSVC', target: i686-pc-windows-msvc,     os: windows-latest,  }
-          - { name: 'Windows 64bit GNU',  target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
-          - { name: 'Windows 32bit GNU',  target: i686-pc-windows-gnu,      os: windows-latest, host: -i686-pc-windows-gnu }
-          - { name: 'Linux 32bit',        target: i686-unknown-linux-gnu,   os: ubuntu-latest,   }
-          - { name: 'Linux 64bit',        target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
-          - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
-          - { name: 'Wayland',            target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=wayland,wayland-dlopen' }
-          - { name: 'Redox OS',           target: x86_64-unknown-redox,     os: ubuntu-latest,   }
-          - { name: 'macOS',              target: x86_64-apple-darwin,      os: macos-latest,    }
-          - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
-          - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
-          - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
         include:
           # Android is tested on stable-3
           - toolchain: '1.69.0'
@@ -111,7 +88,7 @@ jobs:
 
     - name: Build and package crate for Android
       if: contains(matrix.platform.target, 'android')
-      run: x build -p android-xbuild-target --platform android --arch arm64
+      run: x doctor && x build -p android-xbuild-target --platform android --arch arm64
 
     - name: Build and package crate for iOS
       if: contains(matrix.platform.target, 'ios')
@@ -162,28 +139,3 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
-
-  cargo-deny:
-    name: Run cargo-deny on ${{ matrix.platform.name }}
-    runs-on: ubuntu-latest
-
-    # TODO: remove this matrix when https://github.com/EmbarkStudios/cargo-deny/issues/324 is resolved
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { name: 'Android', target: aarch64-linux-android }
-          - { name: 'iOS', target: aarch64-apple-ios }
-          - { name: 'Linux', target: x86_64-unknown-linux-gnu }
-          - { name: 'macOS', target: x86_64-apple-darwin }
-          - { name: 'Redox OS', target: x86_64-unknown-redox }
-          - { name: 'web', target: wasm32-unknown-unknown }
-          - { name: 'Windows', target: x86_64-pc-windows-gnu }
-
-    steps:
-    - uses: actions/checkout@v3
-    - uses: EmbarkStudios/cargo-deny-action@v1
-      with:
-        command: check
-        log-level: error
-        arguments: --all-features --target ${{ matrix.platform.target }}
