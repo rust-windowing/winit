@@ -4,6 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -586,6 +587,18 @@ impl<T: 'static> EventLoop<T> {
 
     fn exit_code(&self) -> Option<i32> {
         self.window_target.p.exit_code()
+    }
+}
+
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.event_loop.as_fd()
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        self.event_loop.as_raw_fd()
     }
 }
 

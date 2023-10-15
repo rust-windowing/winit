@@ -3,6 +3,7 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::VecDeque, env, fmt};
@@ -824,6 +825,18 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
+    }
+}
+
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_fd())
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
 }
 
