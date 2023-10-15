@@ -45,7 +45,6 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use atoms::*;
-use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::{
@@ -704,11 +703,27 @@ impl<T> EventLoopWindowTarget<T> {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen = self.xconn.default_screen_index() as c_int;
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        let display_handle = rwh_06::XlibDisplayHandle::new(
+            // SAFETY: display will never be null
+            Some(
+                std::ptr::NonNull::new(self.xconn.display as *mut _)
+                    .expect("X11 display should never be null"),
+            ),
+            self.xconn.default_screen_index() as c_int,
+        );
+        Ok(display_handle.into())
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
