@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::{Action, Key},
     window::Window,
 };
 
@@ -44,7 +44,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     is_synthetic: false,
                     ..
                 } if event.state == ElementState::Pressed => match event.logical_key {
-                    Key::Escape => elwt.exit(),
+                    Key::Action(Action::Escape) => elwt.exit(),
                     Key::Character(c) if c == "n" || c == "N" => {
                         let window = Window::new(elwt).unwrap();
                         println!("Opened a new window: {:?}", window.id());

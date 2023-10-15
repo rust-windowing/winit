@@ -9,7 +9,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::{Action, Key},
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
 };
@@ -70,10 +70,10 @@ fn main() -> Result<(), impl std::error::Error> {
                     Key::Character("w") => {
                         let _ = windows.remove(&window_id);
                     }
-                    Key::ArrowRight => {
+                    Key::Action(Action::ArrowRight) => {
                         windows.get(&window_id).unwrap().select_next_tab();
                     }
-                    Key::ArrowLeft => {
+                    Key::Action(Action::ArrowLeft) => {
                         windows.get(&window_id).unwrap().select_previous_tab();
                     }
                     Key::Character(ch) => {

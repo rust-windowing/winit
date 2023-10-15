@@ -10,7 +10,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    keyboard::Key,
+    keyboard::{Action, Key},
     window::WindowBuilder,
 };
 
@@ -88,7 +88,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {request_redraw}\n");
                     }
-                    Key::Escape => {
+                    Key::Action(Action::Escape) => {
                         close_requested = true;
                     }
                     _ => (),

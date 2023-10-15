@@ -734,7 +734,7 @@ pub enum KeyCode {
     F35,
 }
 
-/// Key represents the meaning of a keypress.
+/// Action represents the meaning of a keypress.
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
 /// exceptions:
@@ -742,32 +742,12 @@ pub enum KeyCode {
 ///   another key which the specification calls `Super`. That does not exist here.)
 /// - The `Space` variant here, can be identified by the character it generates in the
 ///   specificaiton.
-/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
-/// - The `Dead` variant here, can specify the character which is inserted when pressing the
-///   dead-key twice.
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Key<Str = SmolStr> {
-    /// A key string that corresponds to the character typed by the user, taking into account the
-    /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
-    /// effect.
-    Character(Str),
-
-    /// This variant is used when the key cannot be translated to any other variant.
-    ///
-    /// The native key is provided (if available) in order to allow the user to specify keybindings
-    /// for keys which are not defined by this API, mainly through some sort of UI.
-    Unidentified(NativeKey),
-
-    /// Contains the text representation of the dead-key when available.
-    ///
-    /// ## Platform-specific
-    /// - **Web:** Always contains `None`
-    Dead(Option<char>),
-
+pub enum Action {
     /// The `Alt` (Alternative) key.
     ///
     /// This key enables the alternate modifier function for interpreting concurrent or subsequent
@@ -1471,10 +1451,61 @@ pub enum Key<Str = SmolStr> {
     F35,
 }
 
+/// Key represents the meaning of a keypress.
+///
+/// This is a superset of the UI Events Specification's [`KeyboardEvent.key`] with
+/// additions:
+/// - All simple variants are wrapped under the `Action` variant
+/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+/// - The `Dead` variant here, can specify the character which is inserted when pressing the
+///   dead-key twice.
+///
+/// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Key<Str = SmolStr> {
+    /// A simple (unparameterised) action
+    Action(Action),
+
+    /// A key string that corresponds to the character typed by the user, taking into account the
+    /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
+    /// effect.
+    Character(Str),
+
+    /// This variant is used when the key cannot be translated to any other variant.
+    ///
+    /// The native key is provided (if available) in order to allow the user to specify keybindings
+    /// for keys which are not defined by this API, mainly through some sort of UI.
+    Unidentified(NativeKey),
+
+    /// Contains the text representation of the dead-key when available.
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Always contains `None`
+    Dead(Option<char>),
+}
+
+impl From<Action> for Key {
+    #[inline]
+    fn from(action: Action) -> Self {
+        Key::Action(action)
+    }
+}
+
 impl From<NativeKey> for Key {
     #[inline]
     fn from(code: NativeKey) -> Self {
         Key::Unidentified(code)
+    }
+}
+
+impl<Str> PartialEq<Action> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &Action) -> bool {
+        match self {
+            Key::Action(ref a) => a == rhs,
+            _ => false,
+        }
     }
 }
 
@@ -1512,83 +1543,39 @@ impl<Str> PartialEq<Key<Str>> for NativeKey {
     }
 }
 
-macro_rules! map_match {
-    (
-        $to_match:expr,
-        // Custom match arms
-        { $( $from:pat => $to:expr ),* },
-        // The enum's name
-        $prefix:path,
-        // Trivial match arms for unit variants
-        { $( $t:tt ),* }) => {
-        match $to_match {
-            $( $from => $to, )*
-            $( Key::$t => Key::$t, )*
-        }
-    };
-}
-
 impl Key<SmolStr> {
     /// Convert `Key::Character(SmolStr)` to `Key::Character(&str)` so you can more easily match on
     /// `Key`. All other variants remain unchanged.
     pub fn as_ref(&self) -> Key<&str> {
-        map_match!(
-            self,
-            {
-                Key::Character(ch) => Key::Character(ch.as_str()),
-                Key::Dead(d) => Key::Dead(*d),
-                Key::Unidentified(u) => Key::Unidentified(u.clone())
-            },
-            Key,
-            {
-                Alt, AltGraph, CapsLock, Control, Fn, FnLock, NumLock, ScrollLock, Shift, Symbol,
-                SymbolLock, Meta, Hyper, Super, Enter, Tab, Space, ArrowDown, ArrowLeft,
-                ArrowRight, ArrowUp, End, Home, PageDown, PageUp, Backspace, Clear, Copy, CrSel,
-                Cut, Delete, EraseEof, ExSel, Insert, Paste, Redo, Undo, Accept, Again, Attn,
-                Cancel, ContextMenu, Escape, Execute, Find, Help, Pause, Play, Props, Select,
-                ZoomIn, ZoomOut, BrightnessDown, BrightnessUp, Eject, LogOff, Power, PowerOff,
-                PrintScreen, Hibernate, Standby, WakeUp, AllCandidates, Alphanumeric, CodeInput,
-                Compose, Convert, FinalMode, GroupFirst, GroupLast, GroupNext, GroupPrevious,
-                ModeChange, NextCandidate, NonConvert, PreviousCandidate, Process, SingleCandidate,
-                HangulMode, HanjaMode, JunjaMode, Eisu, Hankaku, Hiragana, HiraganaKatakana,
-                KanaMode, KanjiMode, Katakana, Romaji, Zenkaku, ZenkakuHankaku, Soft1, Soft2,
-                Soft3, Soft4, ChannelDown, ChannelUp, Close, MailForward, MailReply, MailSend,
-                MediaClose, MediaFastForward, MediaPause, MediaPlay, MediaPlayPause, MediaRecord,
-                MediaRewind, MediaStop, MediaTrackNext, MediaTrackPrevious, New, Open, Print, Save,
-                SpellCheck, Key11, Key12, AudioBalanceLeft, AudioBalanceRight, AudioBassBoostDown,
-                AudioBassBoostToggle, AudioBassBoostUp, AudioFaderFront, AudioFaderRear,
-                AudioSurroundModeNext, AudioTrebleDown, AudioTrebleUp, AudioVolumeDown,
-                AudioVolumeUp, AudioVolumeMute, MicrophoneToggle, MicrophoneVolumeDown,
-                MicrophoneVolumeUp, MicrophoneVolumeMute, SpeechCorrectionList, SpeechInputToggle,
-                LaunchApplication1, LaunchApplication2, LaunchCalendar, LaunchContacts, LaunchMail,
-                LaunchMediaPlayer, LaunchMusicPlayer, LaunchPhone, LaunchScreenSaver,
-                LaunchSpreadsheet, LaunchWebBrowser, LaunchWebCam, LaunchWordProcessor,
-                BrowserBack, BrowserFavorites, BrowserForward, BrowserHome, BrowserRefresh,
-                BrowserSearch, BrowserStop, AppSwitch, Call, Camera, CameraFocus, EndCall, GoBack,
-                GoHome, HeadsetHook, LastNumberRedial, Notification, MannerMode, VoiceDial, TV,
-                TV3DMode, TVAntennaCable, TVAudioDescription, TVAudioDescriptionMixDown,
-                TVAudioDescriptionMixUp, TVContentsMenu, TVDataService, TVInput, TVInputComponent1,
-                TVInputComponent2, TVInputComposite1, TVInputComposite2, TVInputHDMI1,
-                TVInputHDMI2, TVInputHDMI3, TVInputHDMI4, TVInputVGA1, TVMediaContext, TVNetwork,
-                TVNumberEntry, TVPower, TVRadioService, TVSatellite, TVSatelliteBS, TVSatelliteCS,
-                TVSatelliteToggle, TVTerrestrialAnalog, TVTerrestrialDigital, TVTimer, AVRInput,
-                AVRPower, ColorF0Red, ColorF1Green, ColorF2Yellow, ColorF3Blue, ColorF4Grey,
-                ColorF5Brown, ClosedCaptionToggle, Dimmer, DisplaySwap, DVR, Exit, FavoriteClear0,
-                FavoriteClear1, FavoriteClear2, FavoriteClear3, FavoriteRecall0, FavoriteRecall1,
-                FavoriteRecall2, FavoriteRecall3, FavoriteStore0, FavoriteStore1, FavoriteStore2,
-                FavoriteStore3, Guide, GuideNextDay, GuidePreviousDay, Info, InstantReplay, Link,
-                ListProgram, LiveContent, Lock, MediaApps, MediaAudioTrack, MediaLast,
-                MediaSkipBackward, MediaSkipForward, MediaStepBackward, MediaStepForward,
-                MediaTopMenu, NavigateIn, NavigateNext, NavigateOut, NavigatePrevious,
-                NextFavoriteChannel, NextUserProfile, OnDemand, Pairing, PinPDown, PinPMove,
-                PinPToggle, PinPUp, PlaySpeedDown, PlaySpeedReset, PlaySpeedUp, RandomToggle,
-                RcLowBattery, RecordSpeedNext, RfBypass, ScanChannelsToggle, ScreenModeNext,
-                Settings, SplitScreenToggle, STBInput, STBPower, Subtitle, Teletext, VideoModeNext,
-                Wink, ZoomToggle, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15,
-                F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31,
-                F32, F33, F34, F35
-            }
-        )
+        match self {
+            Key::Action(a) => Key::Action(*a),
+            Key::Character(ch) => Key::Character(ch.as_str()),
+            Key::Dead(d) => Key::Dead(*d),
+            Key::Unidentified(u) => Key::Unidentified(u.clone()),
+        }
+    }
+}
+
+impl Action {
+    /// Convert an action to its approximate textual equivalent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winit::keyboard::Action;
+    ///
+    /// assert_eq!(Action::Enter.to_text(), Some("\r"));
+    /// assert_eq!(Action::F20.to_text(), None);
+    /// ```
+    pub fn to_text(&self) -> Option<&str> {
+        match self {
+            Action::Enter => Some("\r"),
+            Action::Backspace => Some("\x08"),
+            Action::Tab => Some("\t"),
+            Action::Space => Some(" "),
+            Action::Escape => Some("\x1b"),
+            _ => None,
+        }
     }
 }
 
@@ -1598,20 +1585,16 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use winit::keyboard::Key;
+    /// use winit::keyboard::{Action, Key};
     ///
     /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
-    /// assert_eq!(Key::Enter.to_text(), Some("\r"));
-    /// assert_eq!(Key::F20.to_text(), None);
+    /// assert_eq!(Key::Action(Action::Enter).to_text(), Some("\r"));
+    /// assert_eq!(Key::Action(Action::F20).to_text(), None);
     /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
+            Key::Action(action) => action.to_text(),
             Key::Character(ch) => Some(ch.as_str()),
-            Key::Enter => Some("\r"),
-            Key::Backspace => Some("\x08"),
-            Key::Tab => Some("\t"),
-            Key::Space => Some(" "),
-            Key::Escape => Some("\x1b"),
             _ => None,
         }
     }

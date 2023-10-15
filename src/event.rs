@@ -743,7 +743,7 @@ pub struct KeyEvent {
     /// An additional difference from `logical_key` is that
     /// this field stores the text representation of any key
     /// that has such a representation. For example when
-    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    /// `logical_key` is `Key::Action(Action::Enter)`, this field is `Some("\r")`.
     ///
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.

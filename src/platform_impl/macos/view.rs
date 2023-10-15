@@ -26,7 +26,7 @@ use crate::{
         DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
         TouchPhase, WindowEvent,
     },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, PhysicalKey},
+    keyboard::{Action, Key, KeyCode, KeyLocation, ModifiersState, PhysicalKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
@@ -90,30 +90,30 @@ impl ModLocationMask {
 
 fn key_to_modifier(key: &Key) -> ModifiersState {
     match key {
-        Key::Alt => ModifiersState::ALT,
-        Key::Control => ModifiersState::CONTROL,
-        Key::Super => ModifiersState::SUPER,
-        Key::Shift => ModifiersState::SHIFT,
+        Key::Action(Action::Alt) => ModifiersState::ALT,
+        Key::Action(Action::Control) => ModifiersState::CONTROL,
+        Key::Action(Action::Super) => ModifiersState::SUPER,
+        Key::Action(Action::Shift) => ModifiersState::SHIFT,
         _ => unreachable!(),
     }
 }
 
 fn get_right_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Alt => KeyCode::AltRight,
-        Key::Control => KeyCode::ControlRight,
-        Key::Shift => KeyCode::ShiftRight,
-        Key::Super => KeyCode::SuperRight,
+        Key::Action(Action::Alt) => KeyCode::AltRight,
+        Key::Action(Action::Control) => KeyCode::ControlRight,
+        Key::Action(Action::Shift) => KeyCode::ShiftRight,
+        Key::Action(Action::Super) => KeyCode::SuperRight,
         _ => unreachable!(),
     }
 }
 
 fn get_left_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Alt => KeyCode::AltLeft,
-        Key::Control => KeyCode::ControlLeft,
-        Key::Shift => KeyCode::ShiftLeft,
-        Key::Super => KeyCode::SuperLeft,
+        Key::Action(Action::Alt) => KeyCode::AltLeft,
+        Key::Action(Action::Control) => KeyCode::ControlLeft,
+        Key::Action(Action::Shift) => KeyCode::ShiftLeft,
+        Key::Action(Action::Super) => KeyCode::SuperLeft,
         _ => unreachable!(),
     }
 }

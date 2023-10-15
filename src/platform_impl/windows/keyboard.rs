@@ -37,7 +37,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     event::{ElementState, KeyEvent},
-    keyboard::{Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode, PhysicalKey},
+    keyboard::{Action, Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode, PhysicalKey},
     platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         event_loop::ProcResult,
@@ -560,8 +560,8 @@ impl PartialKeyEventInfo {
         // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
         let code_as_key = if mods.contains(WindowsModifiers::CONTROL) {
             match physical_key {
-                PhysicalKey::Code(KeyCode::NumLock) => Some(Key::NumLock),
-                PhysicalKey::Code(KeyCode::Pause) => Some(Key::Pause),
+                PhysicalKey::Code(KeyCode::NumLock) => Some(Key::Action(Action::NumLock)),
+                PhysicalKey::Code(KeyCode::Pause) => Some(Key::Action(Action::Pause)),
                 _ => None,
             }
         } else {
@@ -742,7 +742,10 @@ fn get_async_kbd_state() -> [u8; 256] {
 /// the next event is a right Alt (AltGr) event. If this is the case, the current event must be the
 /// fake Ctrl event.
 fn is_current_fake(curr_info: &PartialKeyEventInfo, next_msg: MSG, layout: &Layout) -> bool {
-    let curr_is_ctrl = matches!(curr_info.logical_key, PartialLogicalKey::This(Key::Control));
+    let curr_is_ctrl = matches!(
+        curr_info.logical_key,
+        PartialLogicalKey::This(Key::Action(Action::Control))
+    );
     if layout.has_alt_graph {
         let next_code = ex_scancode_from_lparam(next_msg.lParam);
         let next_is_altgr = next_code == 0xE038; // 0xE038 is right alt
