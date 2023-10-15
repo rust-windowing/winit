@@ -572,7 +572,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and `RedrawRequested`
-    ///   is emitted in sync with any `WM_PAINT` messages
+    ///   is emitted in sync with any `WM_PAINT` messages. **Calling this method from `RedrawRequested`
+    ///   event handler won't produce a `RedrawRequested` event**.
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** The events are aligned with the frame callbacks when [`Window::pre_present_notify`]
     ///                is used.
