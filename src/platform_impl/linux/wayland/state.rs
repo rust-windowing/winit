@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
-use fnv::FnvHashMap;
+use ahash::AHashMap;
 
 use sctk::reexports::calloop::LoopHandle;
 use sctk::reexports::client::backend::ObjectId;
@@ -62,10 +62,10 @@ pub struct WinitState {
     pub xdg_shell: XdgShell,
 
     /// The currently present windows.
-    pub windows: RefCell<FnvHashMap<WindowId, Arc<Mutex<WindowState>>>>,
+    pub windows: RefCell<AHashMap<WindowId, Arc<Mutex<WindowState>>>>,
 
     /// The requests from the `Window` to EventLoop, such as close operations and redraw requests.
-    pub window_requests: RefCell<FnvHashMap<WindowId, Arc<WindowRequests>>>,
+    pub window_requests: RefCell<AHashMap<WindowId, Arc<WindowRequests>>>,
 
     /// The events that were generated directly from the window.
     pub window_events_sink: Arc<Mutex<EventSink>>,
@@ -74,10 +74,10 @@ pub struct WinitState {
     pub window_compositor_updates: Vec<WindowCompositorUpdate>,
 
     /// Currently handled seats.
-    pub seats: FnvHashMap<ObjectId, WinitSeatState>,
+    pub seats: AHashMap<ObjectId, WinitSeatState>,
 
     /// Currently present cursor surfaces.
-    pub pointer_surfaces: FnvHashMap<ObjectId, Arc<ThemedPointer<WinitPointerData>>>,
+    pub pointer_surfaces: AHashMap<ObjectId, Arc<ThemedPointer<WinitPointerData>>>,
 
     /// The state of the text input on the client.
     pub text_input_state: Option<TextInputState>,
@@ -136,7 +136,7 @@ impl WinitState {
 
         let seat_state = SeatState::new(globals, queue_handle);
 
-        let mut seats = FnvHashMap::default();
+        let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
             seats.insert(seat.id(), WinitSeatState::new());
         }
@@ -287,7 +287,12 @@ impl WindowHandler for WinitState {
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+            .configure(
+                configure,
+                &self.shm,
+                &self.subcompositor_state,
+                &mut self.events_sink,
+            );
 
         self.window_compositor_updates[pos].size = Some(new_size);
     }
@@ -325,6 +330,16 @@ impl OutputHandler for WinitState {
 }
 
 impl CompositorHandler for WinitState {
+    fn transform_changed(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wayland_client::protocol::wl_surface::WlSurface,
+        _: wayland_client::protocol::wl_output::Transform,
+    ) {
+        // TODO(kchibisov) we need to expose it somehow in winit.
+    }
+
     fn scale_factor_changed(
         &mut self,
         _: &Connection,

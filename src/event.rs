@@ -225,6 +225,32 @@ pub enum Event<T: 'static> {
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as a "do on quit" event.
     LoopExiting,
+
+    /// Emitted when the application has received a memory warning.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
+    /// must [release memory] or risk being killed.
+    ///
+    /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
+    /// [release memory]: https://developer.android.com/topic/performance/memory#release
+    ///
+    /// ### iOS
+    ///
+    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
+    /// callback. The application must free as much memory as possible or risk being terminated, see
+    /// [how to respond to memory warnings].
+    ///
+    /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
+    /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
+    ///
+    /// ### Others
+    ///
+    /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
+    MemoryWarning,
 }
 
 impl<T> Event<T> {
@@ -240,6 +266,7 @@ impl<T> Event<T> {
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+            MemoryWarning => Ok(MemoryWarning),
         }
     }
 }
@@ -531,10 +558,23 @@ pub enum WindowEvent {
     /// This is different to window visibility as it depends on whether the window is closed,
     /// minimised, set invisible, or fully occluded by another window.
     ///
-    /// Platform-specific behavior:
+    /// ## Platform-specific
+    ///
+    /// ### iOS
+    ///
+    /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
+    /// callback which means the application should start preparing its data. The `Occluded(true)` event is
+    /// emitted in response to an [`applicationDidEnterBackground`] callback which means the application
+    /// should free resources (according to the [iOS application lifecycle]).
+    ///
+    /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
+    /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ### Others
     ///
     /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    /// - **Android / Windows / Orbital:** Unsupported.
     ///
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding

@@ -183,92 +183,88 @@ pub enum ActivationPolicy {
 /// - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
-    fn with_movable_by_window_background(self, movable_by_window_background: bool)
-        -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> Self;
     /// Makes the titlebar transparent and allows the content to appear behind it.
-    fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
+    fn with_titlebar_transparent(self, titlebar_transparent: bool) -> Self;
     /// Hides the window title.
-    fn with_title_hidden(self, title_hidden: bool) -> WindowBuilder;
+    fn with_title_hidden(self, title_hidden: bool) -> Self;
     /// Hides the window titlebar.
-    fn with_titlebar_hidden(self, titlebar_hidden: bool) -> WindowBuilder;
+    fn with_titlebar_hidden(self, titlebar_hidden: bool) -> Self;
     /// Hides the window titlebar buttons.
-    fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
+    fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> Self;
     /// Makes the window content appear behind the titlebar.
-    fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
-    fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
-    fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    fn with_fullsize_content_view(self, fullsize_content_view: bool) -> Self;
+    fn with_disallow_hidpi(self, disallow_hidpi: bool) -> Self;
+    fn with_has_shadow(self, has_shadow: bool) -> Self;
     /// Window accepts click-through mouse events.
-    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> Self;
     /// Defines the window tabbing identifier.
     ///
     /// <https://developer.apple.com/documentation/appkit/nswindow/1644704-tabbingidentifier>
-    fn with_tabbing_identifier(self, identifier: &str) -> WindowBuilder;
+    fn with_tabbing_identifier(self, identifier: &str) -> Self;
     /// Set how the <kbd>Option</kbd> keys are interpreted.
     ///
     /// See [`WindowExtMacOS::set_option_as_alt`] for details on what this means if set.
-    fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> WindowBuilder;
+    fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
-    fn with_movable_by_window_background(
-        mut self,
-        movable_by_window_background: bool,
-    ) -> WindowBuilder {
+    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 
     #[inline]
-    fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> WindowBuilder {
+    fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
         self.platform_specific.titlebar_transparent = titlebar_transparent;
         self
     }
 
     #[inline]
-    fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> WindowBuilder {
+    fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
         self.platform_specific.titlebar_hidden = titlebar_hidden;
         self
     }
 
     #[inline]
-    fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> WindowBuilder {
+    fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
         self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
         self
     }
 
     #[inline]
-    fn with_title_hidden(mut self, title_hidden: bool) -> WindowBuilder {
+    fn with_title_hidden(mut self, title_hidden: bool) -> Self {
         self.platform_specific.title_hidden = title_hidden;
         self
     }
 
     #[inline]
-    fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> WindowBuilder {
+    fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
         self.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 
     #[inline]
-    fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
+    fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 
     #[inline]
-    fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
+    fn with_has_shadow(mut self, has_shadow: bool) -> Self {
         self.platform_specific.has_shadow = has_shadow;
         self
     }
 
     #[inline]
-    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
         self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 
     #[inline]
-    fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> WindowBuilder {
+    fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
         self.platform_specific
             .tabbing_identifier
             .replace(tabbing_identifier.to_string());
@@ -276,7 +272,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> WindowBuilder {
+    fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
         self.platform_specific.option_as_alt = option_as_alt;
         self
     }

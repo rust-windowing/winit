@@ -16,9 +16,6 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use once_cell::sync::Lazy;
-use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -272,10 +269,7 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 MainEvent::LowMemory => {
-                    // XXX: how to forward this state to applications?
-                    // It seems like ideally winit should support lifecycle and
-                    // low-memory events, especially for mobile platforms.
-                    warn!("TODO: handle Android LowMemory notification");
+                    callback(event::Event::MemoryWarning, self.window_target());
                 }
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
@@ -526,7 +520,6 @@ impl<T: 'static> EventLoop<T> {
             // than once
             self.pending_redraw = false;
             self.cause = StartCause::Init;
-            self.set_control_flow(ControlFlow::default());
 
             // run the initial loop iteration
             self.single_iteration(None, &mut callback);
@@ -637,10 +630,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
-    }
-
     fn control_flow(&self) -> ControlFlow {
         self.window_target.p.control_flow()
     }
@@ -696,8 +685,20 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -934,13 +935,30 @@ impl Window {
         ))
     }
 
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    #[cfg(feature = "rwh_04")]
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            let mut handle = rwh_04::AndroidNdkHandle::empty();
+            handle.a_native_window = native_window.ptr().as_ptr() as *mut _;
+            rwh_04::RawWindowHandle::AndroidNdk(handle)
+        } else {
+            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+        }
+    }
+
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        use rwh_05::HasRawWindowHandle;
+
         if let Some(native_window) = self.app.native_window().as_ref() {
             native_window.raw_window_handle()
         } else {
@@ -948,8 +966,29 @@ impl Window {
         }
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            let handle = rwh_06::AndroidNdkWindowHandle::new(native_window.ptr().cast());
+            Ok(rwh_06::RawWindowHandle::AndroidNdk(handle))
+        } else {
+            log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            Err(rwh_06::HandleError::Unavailable)
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
     }
 
     pub fn config(&self) -> ConfigurationRef {

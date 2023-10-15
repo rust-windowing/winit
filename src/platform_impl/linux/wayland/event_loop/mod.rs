@@ -9,12 +9,11 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
-
 use sctk::reexports::calloop;
 use sctk::reexports::calloop::Error as CalloopError;
+use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::globals;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
+use sctk::reexports::client::{Connection, QueueHandle};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{EventLoopError, OsError as RootOsError};
@@ -102,7 +101,7 @@ impl<T: 'static> EventLoop<T> {
         )?;
 
         // Register Wayland source.
-        let wayland_source = map_err!(WaylandSource::new(event_queue), WaylandError::Wire)?;
+        let wayland_source = WaylandSource::new(connection.clone(), event_queue);
         let wayland_dispatcher =
             calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
                 let result = queue.dispatch_pending(winit_state);
@@ -227,11 +226,6 @@ impl<T: 'static> EventLoop<T> {
         if !self.loop_running {
             self.loop_running = true;
 
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once.
-            self.set_control_flow(ControlFlow::Poll);
-
             // Run the initial loop iteration.
             self.single_iteration(&mut callback, StartCause::Init);
         }
@@ -259,46 +253,7 @@ impl<T: 'static> EventLoop<T> {
         let cause = loop {
             let start = Instant::now();
 
-            // TODO(rib): remove this workaround and instead make sure that the calloop
-            // WaylandSource correctly implements the cooperative prepare_read protocol
-            // that support multithreaded wayland clients that may all read from the
-            // same socket.
-            //
-            // During the run of the user callback, some other code monitoring and reading the
-            // Wayland socket may have been run (mesa for example does this with vsync), if that
-            // is the case, some events may have been enqueued in our event queue.
-            //
-            // If some messages are there, the event loop needs to behave as if it was instantly
-            // woken up by messages arriving from the Wayland socket, to avoid delaying the
-            // dispatch of these events until we're woken up again.
-            let instant_wakeup = {
-                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
-                let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(x11_platform)]
-                    _ => unreachable!(),
-                };
-
-                match queue.dispatch_pending(state) {
-                    Ok(dispatched) => {
-                        state.dispatched_events |= !state.events_sink.is_empty()
-                            || !state.window_compositor_updates.is_empty();
-                        dispatched > 0
-                    }
-                    Err(error) => {
-                        error!("Error dispatching wayland queue: {}", error);
-                        self.set_exit_code(1);
-                        return;
-                    }
-                }
-            };
-
-            timeout = if instant_wakeup {
-                Some(Duration::ZERO)
-            } else {
+            timeout = {
                 let control_flow_timeout = match self.control_flow() {
                     ControlFlow::Wait => None,
                     ControlFlow::Poll => Some(Duration::ZERO),
@@ -312,7 +267,13 @@ impl<T: 'static> EventLoop<T> {
             // NOTE Ideally we should flush as the last thing we do before polling
             // to wait for events, and this should be done by the calloop
             // WaylandSource but we currently need to flush writes manually.
-            let _ = self.connection.flush();
+            //
+            // Checking for flush error is essential to perform an exit with error, since
+            // once we have a protocol error, we could get stuck retrying...
+            if self.connection.flush().is_err() {
+                self.set_exit_code(1);
+                return;
+            }
 
             if let Err(error) = self.loop_dispatch(timeout) {
                 // NOTE We exit on errors from dispatches, since if we've got protocol error
@@ -611,10 +572,6 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.window_target.p.set_control_flow(control_flow)
-    }
-
     fn control_flow(&self) -> ControlFlow {
         self.window_target.p.control_flow()
     }
@@ -662,10 +619,28 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        use sctk::reexports::client::Proxy;
+
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use sctk::reexports::client::Proxy;
+
+        Ok(rwh_06::WaylandDisplayHandle::new({
+            let ptr = self.connection.display().id().as_ptr();
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+        })
+        .into())
     }
 }
 

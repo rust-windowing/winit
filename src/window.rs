@@ -1,10 +1,6 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
-use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
@@ -17,9 +13,6 @@ pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
-
-#[doc(inline)]
-pub use raw_window_handle;
 
 /// Represents a window.
 ///
@@ -40,11 +33,12 @@ pub use raw_window_handle;
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
+///     event_loop::{ControlFlow, EventLoop},
 ///     window::Window,
 /// };
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
+/// event_loop.set_control_flow(ControlFlow::Wait);
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, elwt| {
@@ -158,7 +152,8 @@ pub struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
-    pub parent_window: Option<RawWindowHandle>,
+    #[cfg(feature = "rwh_06")]
+    pub parent_window: Option<rwh_06::RawWindowHandle>,
     pub active: bool,
 }
 
@@ -184,6 +179,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
         }
@@ -196,7 +192,9 @@ impl WindowBuilder {
     pub fn new() -> Self {
         Default::default()
     }
+}
 
+impl WindowBuilder {
     /// Get the current window attributes.
     pub fn window_attributes(&self) -> &WindowAttributes {
         &self.window
@@ -406,8 +404,8 @@ impl WindowBuilder {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and "light".
+    /// - **Wayland:** This controls only CSD. When using `None` it'll try to use dbus to get the
+    ///   system preference. When explicit theme is used, this will avoid dbus all together.
     /// - **x11:** Build window with `_GTK_THEME_VARIANT` hint set to `dark` or `light`.
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
@@ -455,7 +453,7 @@ impl WindowBuilder {
     ///
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
     #[inline]
-    pub fn with_active(mut self, active: bool) -> WindowBuilder {
+    pub fn with_active(mut self, active: bool) -> Self {
         self.window.active = active;
         self
     }
@@ -475,8 +473,12 @@ impl WindowBuilder {
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
+    #[cfg(feature = "rwh_06")]
     #[inline]
-    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
+    pub unsafe fn with_parent_window(
+        mut self,
+        parent_window: Option<rwh_06::RawWindowHandle>,
+    ) -> Self {
         self.window.parent_window = parent_window;
         self
     }
@@ -1270,8 +1272,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This is an app-wide setting.
-    /// - **Wayland:** You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    ///   Possible values for env variable are: "dark" and "light". When unspecified, a theme is automatically selected.
+    /// - **Wayland:** Sets the theme for the client side decorations. Using `None` will use dbus
+    ///   to get the system preference.
     /// - **X11:** Sets `_GTK_THEME_VARIANT` hint to `dark` or `light` and if `None` is used, it will default to  [`Theme::Dark`].
     /// - **iOS / Android / Web / Orbital:** Unsupported.
     #[inline]
@@ -1422,6 +1424,21 @@ impl Window {
             .maybe_wait_on_main(|w| w.drag_resize_window(direction))
     }
 
+    /// Show [window menu] at a specified position .
+    ///
+    /// This is the context menu that is normally shown when interacting with
+    /// the title bar. This is useful when implementing custom decorations.
+    ///
+    /// ## Platform-specific
+    /// **Android / iOS / macOS / Orbital / Wayland / Web / X11:** Unsupported.
+    ///
+    /// [window menu]: https://en.wikipedia.org/wiki/Common_menus_in_Microsoft_Windows#System_menu
+    pub fn show_window_menu(&self, position: impl Into<Position>) {
+        let position = position.into();
+        self.window
+            .maybe_queue_on_main(move |w| w.show_window_menu(position))
+    }
+
     /// Modifies whether the window catches cursor events.
     ///
     /// If `true`, the window will catch the cursor events. If `false`, events are passed through
@@ -1429,7 +1446,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11 / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window
@@ -1489,41 +1506,71 @@ impl Window {
     }
 }
 
-unsafe impl HasRawWindowHandle for Window {
-    /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
-    ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
-    /// try to get the handle outside of that period, this function will panic*!
-    ///
-    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
-    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
-    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
-    ///
-    /// [`Event::Resumed`]: crate::event::Event::Resumed
-    /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        struct Wrapper(RawWindowHandle);
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        struct Wrapper(rwh_06::RawWindowHandle);
+        unsafe impl Send for Wrapper {}
+
+        let raw = self
+            .window
+            .maybe_wait_on_main(|w| w.raw_window_handle_rwh_06().map(Wrapper))?
+            .0;
+
+        // SAFETY: The window handle will never be deallocated while the window is alive.
+        Ok(unsafe { rwh_06::WindowHandle::borrow_raw(raw) })
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        struct Wrapper(rwh_06::RawDisplayHandle);
+        unsafe impl Send for Wrapper {}
+
+        let raw = self
+            .window
+            .maybe_wait_on_main(|w| w.raw_display_handle_rwh_06().map(Wrapper))?
+            .0;
+
+        // SAFETY: The window handle will never be deallocated while the window is alive.
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
+        struct Wrapper(rwh_05::RawWindowHandle);
         unsafe impl Send for Wrapper {}
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle()))
+            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle_rwh_05()))
             .0
     }
 }
 
-unsafe impl HasRawDisplayHandle for Window {
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawDisplayHandle for Window {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        struct Wrapper(RawDisplayHandle);
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
+        struct Wrapper(rwh_05::RawDisplayHandle);
         unsafe impl Send for Wrapper {}
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_display_handle()))
+            .maybe_wait_on_main(|w| Wrapper(w.raw_display_handle_rwh_05()))
+            .0
+    }
+}
+
+#[cfg(feature = "rwh_04")]
+unsafe impl rwh_04::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
+        struct Wrapper(rwh_04::RawWindowHandle);
+        unsafe impl Send for Wrapper {}
+        self.window
+            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle_rwh_04()))
             .0
     }
 }

@@ -7,13 +7,15 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11rb::{
     connection::Connection,
     properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
     protocol::{
-        randr, xinput,
-        xproto::{self, ConnectionExt as _},
+        randr,
+        shape::SK,
+        xfixes::{ConnectionExt, RegionWrapper},
+        xinput,
+        xproto::{self, ConnectionExt as _, Rectangle},
     },
 };
 
@@ -62,6 +64,7 @@ pub struct SharedState {
     pub base_size: Option<Size>,
     pub visibility: Visibility,
     pub has_focus: bool,
+    pub cursor_hittest: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -102,6 +105,7 @@ impl SharedState {
             resize_increments: None,
             base_size: None,
             has_focus: false,
+            cursor_hittest: true,
         })
     }
 }
@@ -112,9 +116,11 @@ unsafe impl Sync for UnownedWindow {}
 pub(crate) struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
-    visual: u32,                        // never changes
+    #[allow(dead_code)]
+    visual: u32, // never changes
     root: xproto::Window,               // never changes
-    screen_id: i32,                     // never changes
+    #[allow(dead_code)]
+    screen_id: i32, // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
@@ -143,12 +149,15 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
+        #[cfg(feature = "rwh_06")]
         let root = match window_attrs.parent_window {
-            Some(RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
-            Some(RawWindowHandle::Xcb(handle)) => handle.window,
+            Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
+            Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
             None => event_loop.root,
         };
+        #[cfg(not(feature = "rwh_06"))]
+        let root = event_loop.root;
 
         let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {
@@ -1286,6 +1295,10 @@ impl UnownedWindow {
         self.xconn
             .flush_requests()
             .expect("Failed to call XResizeWindow");
+        // cursor_hittest needs to be reapplied after window resize
+        if self.shared_state_lock().cursor_hittest {
+            let _ = self.set_cursor_hittest(true);
+        }
     }
 
     #[inline]
@@ -1455,11 +1468,13 @@ impl UnownedWindow {
         WindowButtons::all()
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn xlib_display(&self) -> *mut c_void {
         self.xconn.display as _
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn xlib_window(&self) -> c_ulong {
         self.xwindow as ffi::Window
@@ -1595,14 +1610,34 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        let mut rectangles: Vec<Rectangle> = Vec::new();
+        if hittest {
+            let size = self.inner_size();
+            rectangles.push(Rectangle {
+                x: 0,
+                y: 0,
+                width: size.width as u16,
+                height: size.height as u16,
+            })
+        }
+        let region = RegionWrapper::create_region(self.xconn.xcb_connection(), &rectangles)
+            .map_err(|_e| ExternalError::Ignored)?;
+        self.xconn
+            .xcb_connection()
+            .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
+            .map_err(|_e| ExternalError::Ignored)?;
+        self.shared_state_lock().cursor_hittest = hittest;
+        Ok(())
     }
 
     /// Moves the window while it is being dragged.
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.drag_initiate(util::MOVERESIZE_MOVE)
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     /// Resizes the window while it is being dragged.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
@@ -1791,20 +1826,55 @@ impl UnownedWindow {
         // TODO timer
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = XlibWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::XlibHandle::empty();
+        window_handle.display = self.xlib_display();
         window_handle.window = self.xlib_window();
         window_handle.visual_id = self.visual as c_ulong;
-        RawWindowHandle::Xlib(window_handle)
+        rwh_04::RawWindowHandle::Xlib(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::XlibWindowHandle::empty();
+        window_handle.window = self.xlib_window();
+        window_handle.visual_id = self.visual as c_ulong;
+        window_handle.into()
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
         display_handle.display = self.xlib_display();
         display_handle.screen = self.screen_id;
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::XlibWindowHandle::new(self.xlib_window());
+        window_handle.visual_id = self.visual as c_ulong;
+        Ok(window_handle.into())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::XlibDisplayHandle::new(
+            Some(
+                std::ptr::NonNull::new(self.xlib_display())
+                    .expect("display pointer should never be null"),
+            ),
+            self.screen_id,
+        )
+        .into())
     }
 
     #[inline]

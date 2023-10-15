@@ -1,8 +1,5 @@
 #![cfg(windows_platform)]
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
-};
 use std::{
     cell::Cell,
     ffi::c_void,
@@ -40,15 +37,19 @@ use windows_sys::Win32::{
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
         WindowsAndMessaging::{
-            CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, GetWindowTextLengthW, GetWindowTextW,
-            IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW, RegisterClassExW, SetCursor,
-            SetCursorPos, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowPlacement,
-            SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
+            CreateWindowExW, EnableMenuItem, FlashWindowEx, GetClientRect, GetCursorPos,
+            GetForegroundWindow, GetSystemMenu, GetSystemMetrics, GetWindowPlacement,
+            GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, LoadCursorW, PeekMessageW,
+            PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
+            SetMenuDefaultItem, SetWindowDisplayAffinity, SetWindowPlacement, SetWindowPos,
+            SetWindowTextW, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO,
             FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTBOTTOM,
             HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT,
-            NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
-            SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            MENU_ITEM_STATE, MFS_DISABLED, MFS_ENABLED, MF_BYCOMMAND, NID_READY, PM_NOREMOVE,
+            SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE, SM_DIGITIZER,
+            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, TPM_LEFTALIGN,
+            TPM_RETURNCMD, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_NCLBUTTONDOWN, WM_SYSCOMMAND,
+            WNDCLASSEXW,
         },
     },
 };
@@ -333,18 +334,53 @@ impl Window {
         self.window.0
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = Win32WindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::Win32Handle::empty();
         window_handle.hwnd = self.window.0 as *mut _;
         let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
         window_handle.hinstance = hinstance as *mut _;
-        RawWindowHandle::Win32(window_handle)
+        rwh_04::RawWindowHandle::Win32(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::Win32WindowHandle::empty();
+        window_handle.hwnd = self.window.0 as *mut _;
+        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        window_handle.hinstance = hinstance as *mut _;
+        rwh_05::RawWindowHandle::Win32(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Windows(rwh_05::WindowsDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::Win32WindowHandle::new(unsafe {
+            // SAFETY: Handle will never be zero.
+            let window = self.window.0;
+            std::num::NonZeroIsize::new_unchecked(window)
+        });
+        let hinstance = unsafe { super::get_window_long(self.hwnd(), GWLP_HINSTANCE) };
+        window_handle.hinstance = std::num::NonZeroIsize::new(hinstance);
+        Ok(rwh_06::RawWindowHandle::Win32(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Windows(
+            rwh_06::WindowsDisplayHandle::new(),
+        ))
     }
 
     #[inline]
@@ -473,6 +509,83 @@ impl Window {
         }
 
         Ok(())
+    }
+
+    unsafe fn handle_showing_window_menu(&self, position: Position) {
+        unsafe {
+            let point = {
+                let mut point = POINT { x: 0, y: 0 };
+                let scale_factor = self.scale_factor();
+                let (x, y) = position.to_physical::<i32>(scale_factor).into();
+                point.x = x;
+                point.y = y;
+                if ClientToScreen(self.hwnd(), &mut point) == false.into() {
+                    warn!("Can't convert client-area coordinates to screen coordinates when showing window menu.");
+                    return;
+                }
+                point
+            };
+
+            // get the current system menu
+            let h_menu = GetSystemMenu(self.hwnd(), 0);
+            if h_menu == 0 {
+                warn!("The corresponding window doesn't have a system menu");
+                // This situation should not be treated as an error so just return without showing menu.
+                return;
+            }
+
+            fn enable(b: bool) -> MENU_ITEM_STATE {
+                if b {
+                    MFS_ENABLED
+                } else {
+                    MFS_DISABLED
+                }
+            }
+
+            // Change the menu items according to the current window status.
+
+            let restore_btn = enable(self.is_maximized() && self.is_resizable());
+            let size_btn = enable(!self.is_maximized() && self.is_resizable());
+            let maximize_btn = enable(!self.is_maximized() && self.is_resizable());
+
+            EnableMenuItem(h_menu, SC_RESTORE, MF_BYCOMMAND | restore_btn);
+            EnableMenuItem(h_menu, SC_MOVE, MF_BYCOMMAND | enable(!self.is_maximized()));
+            EnableMenuItem(h_menu, SC_SIZE, MF_BYCOMMAND | size_btn);
+            EnableMenuItem(h_menu, SC_MINIMIZE, MF_BYCOMMAND | MFS_ENABLED);
+            EnableMenuItem(h_menu, SC_MAXIMIZE, MF_BYCOMMAND | maximize_btn);
+            EnableMenuItem(h_menu, SC_CLOSE, MF_BYCOMMAND | MFS_ENABLED);
+
+            // Set the default menu item.
+            SetMenuDefaultItem(h_menu, SC_CLOSE, 0);
+
+            // Popup the system menu at the position.
+            let result = TrackPopupMenu(
+                h_menu,
+                TPM_RETURNCMD | TPM_LEFTALIGN, // for now im using LTR, but we have to use user layout direction
+                point.x,
+                point.y,
+                0,
+                self.hwnd(),
+                std::ptr::null_mut(),
+            );
+
+            if result == 0 {
+                // User canceled the menu, no need to continue.
+                return;
+            }
+
+            // Send the command that the user select to the corresponding window.
+            if PostMessageW(self.hwnd(), WM_SYSCOMMAND, result as _, 0) == 0 {
+                warn!("Can't post the system menu message to the window.");
+            }
+        }
+    }
+
+    #[inline]
+    pub fn show_window_menu(&self, position: Position) {
+        unsafe {
+            self.handle_showing_window_menu(position);
+        }
     }
 
     #[inline]
@@ -1147,26 +1260,32 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
+    let mut fallback_parent = || match pl_attribs.owner {
+        Some(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
+
+    #[cfg(feature = "rwh_06")]
     let parent = match attributes.parent_window {
-        Some(RawWindowHandle::Win32(handle)) => {
+        Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
-            Some(handle.hwnd as HWND)
+            Some(handle.hwnd.get() as HWND)
         }
         Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
-        None => match pl_attribs.owner {
-            Some(parent) => {
-                window_flags.set(WindowFlags::POPUP, true);
-                Some(parent)
-            }
-            None => {
-                window_flags.set(WindowFlags::ON_TASKBAR, true);
-                None
-            }
-        },
+        None => fallback_parent(),
     };
+
+    #[cfg(not(feature = "rwh_06"))]
+    let parent = fallback_parent();
 
     let mut initdata = InitData {
         event_loop,

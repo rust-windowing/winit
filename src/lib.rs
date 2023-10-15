@@ -49,15 +49,16 @@
 //! let event_loop = EventLoop::new().unwrap();
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //!
-//! event_loop.run(move |event, elwt| {
-//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//!     // dispatched any events. This is ideal for games and similar applications.
-//!     elwt.set_control_flow(ControlFlow::Poll);
+//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//! // dispatched any events. This is ideal for games and similar applications.
+//! event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
-//!     // This is ideal for non-game applications that only update in response to user
-//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//!     elwt.set_control_flow(ControlFlow::Wait);
+//! // ControlFlow::Wait pauses the event loop if no events are available to process.
+//! // This is ideal for non-game applications that only update in response to user
+//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//! event_loop.set_control_flow(ControlFlow::Wait);
+//!
+//! event_loop.run(move |event, elwt| {
 //!     match event {
 //!         Event::WindowEvent {
 //!             event: WindowEvent::CloseRequested,
@@ -137,6 +138,9 @@
 // Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
+
+#[cfg(feature = "rwh_06")]
+pub use rwh_06 as raw_window_handle;
 
 #[allow(unused_imports)]
 #[macro_use]
