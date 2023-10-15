@@ -444,7 +444,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_window_menu(&self, _position: Position) {}
+    pub fn show_window_menu(&self, position: Position) {
+        x11_or_wayland!(match self; Window(w) => w.show_window_menu(position))
+    }
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {

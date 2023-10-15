@@ -32,7 +32,7 @@ use std::{
     ops::Deref,
     os::{
         raw::*,
-        unix::io::{AsRawFd, RawFd},
+        unix::io::{AsRawFd, BorrowedFd},
     },
     ptr,
     rc::Rc,
@@ -82,7 +82,7 @@ use crate::{
 const ALL_DEVICES: u16 = 0;
 const ALL_MASTER_DEVICES: u16 = 1;
 
-type X11Source = Generic<RawFd>;
+type X11Source = Generic<BorrowedFd<'static>>;
 
 struct WakeSender<T> {
     sender: Sender<T>,
@@ -268,7 +268,8 @@ impl<T: 'static> EventLoop<T> {
 
         // Create the X11 event dispatcher.
         let source = X11Source::new(
-            xconn.xcb_connection().as_raw_fd(),
+            // SAFETY: xcb owns the FD and outlives the source.
+            unsafe { BorrowedFd::borrow_raw(xconn.xcb_connection().as_raw_fd()) },
             calloop::Interest::READ,
             calloop::Mode::Level,
         );
