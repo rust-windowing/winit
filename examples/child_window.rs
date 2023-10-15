@@ -1,8 +1,15 @@
-#[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[cfg(all(
+    feature = "rwh_06",
+    any(x11_platform, macos_platform, windows_platform)
+))]
 #[path = "util/fill.rs"]
 mod fill;
 
-#[cfg(any(x11_platform, macos_platform, windows_platform))]
+#[cfg(all(
+    feature = "rwh_06",
+    any(x11_platform, macos_platform, windows_platform)
+))]
+#[allow(deprecated)]
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
@@ -10,7 +17,7 @@ fn main() -> Result<(), impl std::error::Error> {
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{EventLoop, EventLoopWindowTarget},
-        window::raw_window_handle::HasRawWindowHandle,
+        raw_window_handle::HasRawWindowHandle,
         window::{Window, WindowBuilder, WindowId},
     };
 
@@ -19,7 +26,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event_loop: &EventLoopWindowTarget<()>,
         windows: &mut HashMap<WindowId, Window>,
     ) {
-        let parent = parent.raw_window_handle();
+        let parent = parent.raw_window_handle().unwrap();
         let mut builder = WindowBuilder::new()
             .with_title("child window")
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
@@ -81,7 +88,10 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(not(any(x11_platform, macos_platform, windows_platform)))]
+#[cfg(not(all(
+    feature = "rwh_06",
+    any(x11_platform, macos_platform, windows_platform)
+)))]
 fn main() {
-    panic!("This example is supported only on x11, macOS, and Windows.");
+    panic!("This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature enabled.");
 }

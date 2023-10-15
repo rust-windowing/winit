@@ -13,7 +13,7 @@ categories = ["gui"]
 rust-version = "1.65.0"
 
 [package.metadata.docs.rs]
-features = ["serde"]
+features = ["rwh_04", "rwh_05", "rwh_06", "serde"]
 default-target = "x86_64-unknown-linux-gnu"
 # These are all tested in CI
 targets = [
@@ -35,7 +35,7 @@ targets = [
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
+default = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
 wayland = ["wayland-client", "wayland-backend", "wayland-protocols", "wayland-protocols-plasma", "sctk", "fnv", "memmap2"]
 wayland-dlopen = ["wayland-backend/dlopen"]
@@ -55,7 +55,9 @@ cursor-icon = "1.0.0"
 log = "0.4"
 mint = { version = "0.5.6", optional = true }
 once_cell = "1.12"
-raw_window_handle = { package = "raw-window-handle", version = "0.5", features = ["std"] }
+rwh_04 = { package = "raw-window-handle", version = "0.4", optional = true }
+rwh_05 = { package = "raw-window-handle", version = "0.5", features = ["std"], optional = true }
+rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"], optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 smol_str = "0.2.0"
 

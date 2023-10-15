@@ -139,6 +139,9 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
 
+#[cfg(feature = "rwh_06")]
+pub use rwh_06 as raw_window_handle;
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
