@@ -185,6 +185,19 @@ impl std::fmt::Debug for NativeKey {
     }
 }
 
+impl From<NativeKeyCode> for NativeKey {
+    #[inline]
+    fn from(code: NativeKeyCode) -> Self {
+        match code {
+            NativeKeyCode::Unidentified => NativeKey::Unidentified,
+            NativeKeyCode::Android(x) => NativeKey::Android(x),
+            NativeKeyCode::MacOS(x) => NativeKey::MacOS(x),
+            NativeKeyCode::Windows(x) => NativeKey::Windows(x),
+            NativeKeyCode::Xkb(x) => NativeKey::Xkb(x),
+        }
+    }
+}
+
 /// Represents the location of a physical key.
 ///
 /// This type is a superset of [`KeyCode`], including an [`Unidentified`](Self::Unidentified)
@@ -200,6 +213,20 @@ pub enum PhysicalKey {
     /// key-press and key-release events by hashing the [`PhysicalKey`]. It is also possible to use
     /// this for keybinds for non-standard keys, but such keybinds are tied to a given platform.
     Unidentified(NativeKeyCode),
+}
+
+impl From<KeyCode> for PhysicalKey {
+    #[inline]
+    fn from(code: KeyCode) -> Self {
+        PhysicalKey::Code(code)
+    }
+}
+
+impl From<NativeKeyCode> for PhysicalKey {
+    #[inline]
+    fn from(code: NativeKeyCode) -> Self {
+        PhysicalKey::Unidentified(code)
+    }
 }
 
 /// Code representing the location of a physical key
@@ -1393,6 +1420,13 @@ pub enum Key<Str = SmolStr> {
     F34,
     /// General-purpose function key.
     F35,
+}
+
+impl From<NativeKey> for Key {
+    #[inline]
+    fn from(code: NativeKey) -> Self {
+        Key::Unidentified(code)
+    }
 }
 
 macro_rules! map_match {
