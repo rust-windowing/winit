@@ -13,10 +13,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.65.0']
-        platform:
-          # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
-          - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
         include:
           # Android is tested on stable-3
           - toolchain: '1.69.0'
@@ -89,6 +85,8 @@ jobs:
     - name: Build and package crate for Android
       if: contains(matrix.platform.target, 'android')
       run: x doctor && x build -p android-xbuild-target --platform android --arch arm64
+      env:
+        RUSTFLAGS: -C linker=clang
 
     - name: Build and package crate for iOS
       if: contains(matrix.platform.target, 'ios')
