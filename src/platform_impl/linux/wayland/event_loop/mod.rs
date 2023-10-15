@@ -9,12 +9,10 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
-
 use sctk::reexports::calloop;
 use sctk::reexports::calloop::Error as CalloopError;
 use sctk::reexports::client::globals;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
+use sctk::reexports::client::{Connection, QueueHandle, WaylandSource};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{EventLoopError, OsError as RootOsError};
@@ -653,10 +651,28 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        use sctk::reexports::client::Proxy;
+
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use sctk::reexports::client::Proxy;
+
+        Ok(rwh_06::WaylandDisplayHandle::new({
+            let ptr = self.connection.display().id().as_ptr();
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+        })
+        .into())
     }
 }
 

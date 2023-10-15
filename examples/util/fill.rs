@@ -9,7 +9,7 @@
 
 use winit::window::Window;
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[cfg(all(feature = "rwh_05", not(any(target_os = "android", target_os = "ios"))))]
 pub(super) fn fill_window(window: &Window) {
     use softbuffer::{Context, Surface};
     use std::cell::RefCell;
@@ -80,7 +80,7 @@ pub(super) fn fill_window(window: &Window) {
     })
 }
 
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(not(all(feature = "rwh_05", not(any(target_os = "android", target_os = "ios")))))]
 pub(super) fn fill_window(_window: &Window) {
     // No-op on mobile platforms.
 }
