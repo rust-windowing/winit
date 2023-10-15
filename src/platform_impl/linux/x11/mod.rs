@@ -32,7 +32,7 @@ use std::{
     ops::Deref,
     os::{
         raw::*,
-        unix::io::{AsRawFd, BorrowedFd},
+        unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd},
     },
     ptr,
     rc::Rc,
@@ -655,6 +655,18 @@ impl<T: 'static> EventLoop<T> {
 
     fn exit_code(&self) -> Option<i32> {
         self.target.p.exit_code()
+    }
+}
+
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.event_loop.as_fd()
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        self.event_loop.as_raw_fd()
     }
 }
 
