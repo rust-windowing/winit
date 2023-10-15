@@ -28,7 +28,7 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
-    mem::{self, MaybeUninit},
+    mem::MaybeUninit,
     ops::Deref,
     os::{
         raw::*,
@@ -1051,12 +1051,10 @@ impl Device {
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIScrollClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
-                    };
+            for &class_ptr in Device::classes(info) {
+                let ty = unsafe { (*class_ptr)._type };
+                if ty == ffi::XIScrollClass {
+                    let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
                     scroll_axes.push((
                         info.number,
                         ScrollAxis {
@@ -1084,12 +1082,10 @@ impl Device {
 
     fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
         if Device::physical_device(info) {
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIValuatorClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
-                    };
+            for &class_ptr in Device::classes(info) {
+                let ty = unsafe { (*class_ptr)._type };
+                if ty == ffi::XIValuatorClass {
+                    let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     if let Some(&mut (_, ref mut axis)) = self
                         .scroll_axes
                         .iter_mut()
