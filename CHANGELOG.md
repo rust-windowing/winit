@@ -34,6 +34,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
 - **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
 - On Wayland, support `Occluded` event with xdg-shell v6
+- Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
 
 # 0.29.1-beta
 
