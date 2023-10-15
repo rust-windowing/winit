@@ -217,10 +217,7 @@ impl WindowBuilderExtIOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_preferred_status_bar_style(
-        mut self,
-        status_bar_style: StatusBarStyle,
-    ) -> Self {
+    fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
         self.platform_specific.preferred_status_bar_style = status_bar_style;
         self
     }
