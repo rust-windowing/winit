@@ -176,10 +176,7 @@ pub(crate) fn create_key_event(
         None
     };
 
-    let location = match physical_key {
-        PhysicalKey::Code(code) => code_to_location(code),
-        _ => KeyLocation::Standard,
-    };
+    let location = code_to_location(physical_key);
 
     KeyEvent {
         location,
@@ -198,7 +195,7 @@ pub(crate) fn create_key_event(
 pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
     let code = match key {
         PhysicalKey::Code(code) => code,
-        PhysicalKey::Unidentified(code) => return Key::Unidentified(code),
+        PhysicalKey::Unidentified(code) => return Key::Unidentified(code.into()),
     };
 
     match code {
@@ -258,7 +255,12 @@ pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
     }
 }
 
-pub fn code_to_location(code: KeyCode) -> KeyLocation {
+pub fn code_to_location(key: PhysicalKey) -> KeyLocation {
+    let code = match key {
+        PhysicalKey::Code(code) => code,
+        PhysicalKey::Unidentified(_) => return KeyLocation::Standard,
+    };
+
     match code {
         KeyCode::SuperRight => KeyLocation::Right,
         KeyCode::SuperLeft => KeyLocation::Left,

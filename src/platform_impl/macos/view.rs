@@ -951,7 +951,7 @@ impl WinitView {
                 if phys_mod.contains(ModLocationMask::LEFT) {
                     let mut event = event.clone();
                     event.location = KeyLocation::Left;
-                    event.physical_key = get_left_modifier_code(&event.logical_key);
+                    event.physical_key = get_left_modifier_code(&event.logical_key).into();
                     events.push_back(WindowEvent::KeyboardInput {
                         device_id: DEVICE_ID,
                         event,
@@ -960,7 +960,7 @@ impl WinitView {
                 }
                 if phys_mod.contains(ModLocationMask::RIGHT) {
                     event.location = KeyLocation::Right;
-                    event.physical_key = get_right_modifier_code(&event.logical_key);
+                    event.physical_key = get_right_modifier_code(&event.logical_key).into();
                     events.push_back(WindowEvent::KeyboardInput {
                         device_id: DEVICE_ID,
                         event,

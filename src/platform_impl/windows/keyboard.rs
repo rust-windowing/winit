@@ -658,7 +658,7 @@ impl PartialKeyEventInfo {
         };
 
         KeyEvent {
-            physical_key: self.code,
+            physical_key: self.physical_key,
             logical_key,
             text,
             location: self.location,

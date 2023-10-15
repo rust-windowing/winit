@@ -2512,8 +2512,8 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             PhysicalKey::from_scancode(scancode as u32)
         };
         if keyboard.VKey == VK_SHIFT {
-            match physical_key {
-                PhysicalKey::Code(code) => match code {
+            if let PhysicalKey::Code(code) = physical_key {
+                match code {
                     KeyCode::NumpadDecimal
                     | KeyCode::Numpad0
                     | KeyCode::Numpad1
@@ -2543,8 +2543,7 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
                         return;
                     }
                     _ => (),
-                },
-                _ => (),
+                }
             }
         }
         userdata.send_event(Event::DeviceEvent {
