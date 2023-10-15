@@ -111,8 +111,7 @@ jobs:
 
     - name: Build and package crate for Android
       if: contains(matrix.platform.target, 'android')
-      # TODO: Figure out why this build fails on Github Actions
-      run: x build -p ios-xbuild-target --platform android --arch arm64
+      run: x build -p android-xbuild-target --platform android --arch arm64
 
     - name: Build and package crate for iOS
       if: contains(matrix.platform.target, 'ios')

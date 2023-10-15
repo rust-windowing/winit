@@ -2,7 +2,8 @@
 name = "ios-xbuild-target"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [dependencies.winit]
 version = "0.29.1-beta"
-path = ".."
+path = "../.."

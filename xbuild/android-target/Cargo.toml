@@ -2,11 +2,12 @@
 name = "android-xbuild-target"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
 crate_type = ["cdylib"]
 
 [dependencies.winit]
 version = "0.29.1-beta"
-path = ".."
-features = ["android-game-activity"]
+path = "../.."
+features = ["android-native-activity"]
