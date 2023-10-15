@@ -309,7 +309,6 @@ bitflags! {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum StatusBarStyle {
     #[default]
     Default,
