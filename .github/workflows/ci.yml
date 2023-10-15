@@ -86,7 +86,7 @@ jobs:
       if: contains(matrix.platform.target, 'android')
       run: x doctor && x build -p android-xbuild-target --platform android --arch arm64
       env:
-        RUSTFLAGS: -C linker=clang
+        RUSTFLAGS: -C linker=clang -C link-args=-fuse-ld=lld
 
     - name: Build and package crate for iOS
       if: contains(matrix.platform.target, 'ios')
