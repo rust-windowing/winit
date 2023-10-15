@@ -375,6 +375,13 @@ impl Window {
     }
 
     #[inline]
+    pub fn show_window_menu(&self, position: Position) {
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
+        self.window_state.lock().unwrap().show_window_menu(position);
+    }
+
+    #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window_state
             .lock()

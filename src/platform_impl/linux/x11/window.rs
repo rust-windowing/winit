@@ -1636,6 +1636,9 @@ impl UnownedWindow {
         self.drag_initiate(util::MOVERESIZE_MOVE)
     }
 
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
     /// Resizes the window while it is being dragged.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.drag_initiate(match direction {
