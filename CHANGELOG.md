@@ -31,9 +31,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Android, fix `DeviceId` to contain device id's.
 - Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
 - On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
-- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Windows for now.
+- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Wayland/Windows for now.
 - On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
 - **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
+- On Wayland, support `Occluded` event with xdg-shell v6
 
 # 0.29.1-beta
 
