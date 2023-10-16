@@ -33,7 +33,7 @@ impl<T> WakerSpawner<T> {
         let wrapper = Wrapper::new(
             handler,
             |handler, count| {
-                let handler = handler.read().unwrap();
+                let handler = handler.borrow();
                 let handler = handler.as_ref().unwrap();
                 (handler.handler)(&handler.value, count);
             },
@@ -64,7 +64,7 @@ impl<T> WakerSpawner<T> {
                     })
                     .await
                     {
-                        let handler = handler.read().unwrap();
+                        let handler = handler.borrow();
                         let handler = handler.as_ref().unwrap();
                         (handler.handler)(&handler.value, count);
                     }

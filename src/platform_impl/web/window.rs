@@ -77,7 +77,9 @@ impl Window {
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {
-        self.inner.with(|inner| inner.canvas.borrow().raw().clone())
+        self.inner
+            .value()
+            .map(|inner| inner.canvas.borrow().raw().clone())
     }
 }
 

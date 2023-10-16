@@ -1,6 +1,7 @@
+use std::cell::{Ref, RefCell};
 use std::future::Future;
 use std::marker::PhantomData;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 
@@ -8,7 +9,7 @@ use wasm_bindgen::{JsCast, JsValue};
 // `value` **must** only be accessed on the main thread.
 pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
     value: Value<SYNC, V>,
-    handler: fn(&RwLock<Option<V>>, E),
+    handler: fn(&RefCell<Option<V>>, E),
     sender_data: S,
     sender_handler: fn(&S, E),
 }
@@ -19,10 +20,10 @@ struct Value<const SYNC: bool, V> {
     //
     // - We wrap this in an `Arc` to allow it to be safely cloned without
     //   accessing the value.
-    // - The `RwLock` lets us safely drop in any thread.
-    // - The `Option` lets us safely drop `T` only in the main thread, while
-    //   letting other threads drop `None`.
-    value: Arc<RwLock<Option<V>>>,
+    // - The `RefCell` lets us mutably access in the main thread but is safe to
+    //   drop in any thread because it has no `Drop` behavior.
+    // - The `Option` lets us safely drop `T` only in the main thread.
+    value: Arc<RefCell<Option<V>>>,
     // Prevent's `Send` or `Sync` to be automatically implemented.
     local: PhantomData<*const ()>,
 }
@@ -52,8 +53,8 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     #[track_caller]
     pub fn new<R: Future<Output = ()>>(
         value: V,
-        handler: fn(&RwLock<Option<V>>, E),
-        receiver: impl 'static + FnOnce(Arc<RwLock<Option<V>>>) -> R,
+        handler: fn(&RefCell<Option<V>>, E),
+        receiver: impl 'static + FnOnce(Arc<RefCell<Option<V>>>) -> R,
         sender_data: S,
         sender_handler: fn(&S, E),
     ) -> Option<Self> {
@@ -63,13 +64,13 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
             }
         });
 
-        let value = Arc::new(RwLock::new(Some(value)));
+        let value = Arc::new(RefCell::new(Some(value)));
 
         wasm_bindgen_futures::spawn_local({
             let value = Arc::clone(&value);
             async move {
                 receiver(Arc::clone(&value)).await;
-                value.write().unwrap().take().unwrap();
+                drop(value.borrow_mut().take().unwrap());
             }
         });
 
@@ -98,10 +99,12 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
         Self::MAIN_THREAD.with(|is_main_thread| *is_main_thread)
     }
 
-    pub fn with<T>(&self, f: impl FnOnce(&V) -> T) -> Option<T> {
+    pub fn value(&self) -> Option<Ref<'_, V>> {
         Self::MAIN_THREAD.with(|is_main_thread| {
             if *is_main_thread {
-                Some(f(self.value.value.read().unwrap().as_ref().unwrap()))
+                Some(Ref::map(self.value.value.borrow(), |value| {
+                    value.as_ref().unwrap()
+                }))
             } else {
                 None
             }

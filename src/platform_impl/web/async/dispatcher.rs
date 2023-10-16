@@ -1,5 +1,8 @@
 use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
-use std::sync::{Arc, Condvar, Mutex};
+use std::{
+    cell::Ref,
+    sync::{Arc, Condvar, Mutex},
+};
 
 pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
 
@@ -15,7 +18,7 @@ impl<T> Dispatcher<T> {
             |value, Closure(closure)| {
                 // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
                 // funny with it here. See `Self::queue()`.
-                closure(value.read().unwrap().as_ref().unwrap())
+                closure(value.borrow().as_ref().unwrap())
             },
             {
                 let receiver = receiver.clone();
@@ -23,7 +26,7 @@ impl<T> Dispatcher<T> {
                     while let Ok(Closure(closure)) = receiver.next().await {
                         // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
                         // funny with it here. See `Self::queue()`.
-                        closure(value.read().unwrap().as_ref().unwrap())
+                        closure(value.borrow().as_ref().unwrap())
                     }
                 }
             },
@@ -37,21 +40,21 @@ impl<T> Dispatcher<T> {
         .map(|wrapper| (Self(wrapper.clone()), DispatchRunner { wrapper, receiver }))
     }
 
-    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
-        self.0.with(f)
+    pub fn value(&self) -> Option<Ref<'_, T>> {
+        self.0.value()
     }
 
     pub fn dispatch(&self, f: impl 'static + FnOnce(&T) + Send) {
-        if self.0.is_main_thread() {
-            self.0.with(f).unwrap()
+        if let Some(value) = self.0.value() {
+            f(&value)
         } else {
             self.0.send(Closure(Box::new(f)))
         }
     }
 
     pub fn queue<R: Send>(&self, f: impl FnOnce(&T) -> R + Send) -> R {
-        if self.0.is_main_thread() {
-            self.0.with(f).unwrap()
+        if let Some(value) = self.0.value() {
+            f(&value)
         } else {
             let pair = Arc::new((Mutex::new(None), Condvar::new()));
             let closure = Box::new({
@@ -97,13 +100,14 @@ impl<T> DispatchRunner<T> {
             .try_recv()
             .expect("should only be closed when `Dispatcher` is dropped")
         {
-            self.wrapper
-                .with(|value| {
-                    // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-                    // funny with it here. See `Self::queue()`.
-                    closure(value)
-                })
-                .expect("don't call this outside the main thread")
+            // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+            // funny with it here. See `Self::queue()`.
+            closure(
+                &self
+                    .wrapper
+                    .value()
+                    .expect("don't call this outside the main thread"),
+            )
         }
     }
 }
