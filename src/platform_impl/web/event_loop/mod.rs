@@ -27,11 +27,12 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 impl<T> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let (user_event_sender, user_event_receiver) = mpsc::channel();
+        let elw = RootEventLoopWindowTarget {
+            p: EventLoopWindowTarget::new(),
+            _marker: PhantomData,
+        };
         Ok(EventLoop {
-            elw: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget::new(),
-                _marker: PhantomData,
-            },
+            elw,
             user_event_sender,
             user_event_receiver,
         })
@@ -101,7 +102,7 @@ impl<T> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.elw.p.runner.clone(), self.user_event_sender.clone())
+        EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
