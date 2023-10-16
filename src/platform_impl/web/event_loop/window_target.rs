@@ -81,7 +81,6 @@ impl<T> EventLoopWindowTarget<T> {
         id: WindowId,
         prevent_default: bool,
     ) {
-        self.runner.add_canvas(RootWindowId(id), canvas);
         let canvas_clone = canvas.clone();
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());

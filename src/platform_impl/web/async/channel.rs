@@ -1,5 +1,6 @@
 use atomic_waker::AtomicWaker;
 use std::future;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -21,7 +22,10 @@ pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
         sender,
         inner: Arc::clone(&inner),
     };
-    let receiver = AsyncReceiver { receiver, inner };
+    let receiver = AsyncReceiver {
+        receiver: Rc::new(receiver),
+        inner,
+    };
 
     (sender, receiver)
 }
@@ -59,7 +63,7 @@ impl<T> Clone for AsyncSender<T> {
 }
 
 pub struct AsyncReceiver<T> {
-    receiver: Receiver<T>,
+    receiver: Rc<Receiver<T>>,
     inner: Arc<Inner>,
 }
 
@@ -85,6 +89,23 @@ impl<T> AsyncReceiver<T> {
             Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
         })
         .await
+    }
+
+    pub fn try_recv(&self) -> Result<Option<T>, RecvError> {
+        match self.receiver.try_recv() {
+            Ok(value) => Ok(Some(value)),
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(TryRecvError::Disconnected) => Err(RecvError),
+        }
+    }
+}
+
+impl<T> Clone for AsyncReceiver<T> {
+    fn clone(&self) -> Self {
+        Self {
+            receiver: Rc::clone(&self.receiver),
+            inner: Arc::clone(&self.inner),
+        }
     }
 }
 

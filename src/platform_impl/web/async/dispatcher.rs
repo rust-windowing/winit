@@ -1,4 +1,4 @@
-use super::{channel, AsyncSender, Wrapper};
+use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
 use std::sync::{Arc, Condvar, Mutex};
 
 pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
@@ -7,7 +7,7 @@ struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
-    pub fn new(value: T) -> Option<Self> {
+    pub fn new(value: T) -> Option<(Self, DispatchRunner<T>)> {
         let (sender, receiver) = channel::<Closure<T>>();
 
         Wrapper::new(
@@ -17,11 +17,14 @@ impl<T> Dispatcher<T> {
                 // funny with it here. See `Self::queue()`.
                 closure(value.read().unwrap().as_ref().unwrap())
             },
-            move |value| async move {
-                while let Ok(Closure(closure)) = receiver.next().await {
-                    // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
-                    // funny with it here. See `Self::queue()`.
-                    closure(value.read().unwrap().as_ref().unwrap())
+            {
+                let receiver = receiver.clone();
+                move |value| async move {
+                    while let Ok(Closure(closure)) = receiver.next().await {
+                        // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+                        // funny with it here. See `Self::queue()`.
+                        closure(value.read().unwrap().as_ref().unwrap())
+                    }
                 }
             },
             sender,
@@ -31,7 +34,7 @@ impl<T> Dispatcher<T> {
                 sender.send(closure).unwrap()
             },
         )
-        .map(Self)
+        .map(|wrapper| (Self(wrapper.clone()), DispatchRunner { wrapper, receiver }))
     }
 
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
@@ -79,5 +82,28 @@ impl<T> Dispatcher<T> {
 impl<T> Drop for Dispatcher<T> {
     fn drop(&mut self) {
         self.0.with_sender_data(|sender| sender.close())
+    }
+}
+
+pub struct DispatchRunner<T: 'static> {
+    wrapper: Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>,
+    receiver: AsyncReceiver<Closure<T>>,
+}
+
+impl<T> DispatchRunner<T> {
+    pub fn run(&self) {
+        while let Some(Closure(closure)) = self
+            .receiver
+            .try_recv()
+            .expect("should only be closed when `Dispatcher` is dropped")
+        {
+            self.wrapper
+                .with(|value| {
+                    // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
+                    // funny with it here. See `Self::queue()`.
+                    closure(value)
+                })
+                .expect("don't call this outside the main thread")
+        }
     }
 }

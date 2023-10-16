@@ -61,9 +61,11 @@ impl Window {
         inner.set_visible(attr.visible);
         inner.set_window_icon(attr.window_icon);
 
-        Ok(Window {
-            inner: Dispatcher::new(inner).unwrap(),
-        })
+        let canvas = Rc::downgrade(&inner.canvas);
+        let (dispatcher, runner) = Dispatcher::new(inner).unwrap();
+        target.runner.add_canvas(RootWI(id), canvas, runner);
+
+        Ok(Window { inner: dispatcher })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {

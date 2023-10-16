@@ -8,7 +8,8 @@ use crate::event::{
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::PollStrategy;
 use crate::platform_impl::platform::backend::EventListenerHandle;
-use crate::platform_impl::platform::r#async::{Waker, WakerSpawner};
+use crate::platform_impl::platform::r#async::{DispatchRunner, Waker, WakerSpawner};
+use crate::platform_impl::platform::window::Inner;
 use crate::window::WindowId;
 
 use std::{
@@ -47,7 +48,14 @@ pub struct Execution {
     id: RefCell<u32>,
     window: web_sys::Window,
     document: Document,
-    all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
+    #[allow(clippy::type_complexity)]
+    all_canvases: RefCell<
+        Vec<(
+            WindowId,
+            Weak<RefCell<backend::Canvas>>,
+            DispatchRunner<Inner>,
+        )>,
+    >,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     page_transition_event_handle: RefCell<Option<backend::PageTransitionEventHandle>>,
@@ -186,11 +194,13 @@ impl Shared {
         &self.0.document
     }
 
-    pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
-        self.0
-            .all_canvases
-            .borrow_mut()
-            .push((id, Rc::downgrade(canvas)));
+    pub fn add_canvas(
+        &self,
+        id: WindowId,
+        canvas: Weak<RefCell<backend::Canvas>>,
+        runner: DispatchRunner<Inner>,
+    ) {
+        self.0.all_canvases.borrow_mut().push((id, canvas, runner));
     }
 
     pub fn notify_destroy_window(&self, id: WindowId) {
@@ -422,7 +432,7 @@ impl Shared {
             "visibilitychange",
             Closure::new(move |_| {
                 if !runner.0.suspended.get() {
-                    for (id, canvas) in &*runner.0.all_canvases.borrow() {
+                    for (id, canvas, _) in &*runner.0.all_canvases.borrow() {
                         if let Some(canvas) = canvas.upgrade() {
                             let is_visible = backend::is_visible(runner.document());
                             // only fire if:
@@ -560,7 +570,7 @@ impl Shared {
             self.0
                 .all_canvases
                 .borrow_mut()
-                .retain(|&(item_id, _)| item_id != id);
+                .retain(|&(item_id, _, _)| item_id != id);
             self.handle_event(Event::WindowEvent {
                 window_id: id,
                 event: crate::event::WindowEvent::Destroyed,
@@ -629,6 +639,15 @@ impl Shared {
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
         if !is_closed && self.0.runner.borrow().maybe_runner().is_some() {
+            // Pre-fetch window commands to avoid having to wait until the next event loop cycle
+            // and potentially block other threads in the meantime.
+            for (_, window, runner) in self.0.all_canvases.borrow().iter() {
+                if let Some(window) = window.upgrade() {
+                    runner.run();
+                    drop(window)
+                }
+            }
+
             // Take an event out of the queue and handle it
             // Make sure not to let the borrow_mut live during the next handle_event
             let event = {
@@ -712,7 +731,7 @@ impl Shared {
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.
         *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
-        for (_, canvas) in all_canvases {
+        for (_, canvas, _) in all_canvases {
             // In case any remaining `Window`s are still not dropped, we will need
             // to explicitly remove the event handlers associated with their canvases.
             if let Some(canvas) = canvas.upgrade() {
@@ -756,23 +775,29 @@ impl Shared {
     fn device_events(&self) -> bool {
         match self.0.device_events.get() {
             DeviceEvents::Always => true,
-            DeviceEvents::WhenFocused => self.0.all_canvases.borrow().iter().any(|(_, canvas)| {
-                if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().has_focus.get()
-                } else {
-                    false
-                }
-            }),
+            DeviceEvents::WhenFocused => {
+                self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
+                    if let Some(canvas) = canvas.upgrade() {
+                        canvas.borrow().has_focus.get()
+                    } else {
+                        false
+                    }
+                })
+            }
             DeviceEvents::Never => false,
         }
     }
 
     fn transient_activation(&self) {
-        self.0.all_canvases.borrow().iter().for_each(|(_, canvas)| {
-            if let Some(canvas) = canvas.upgrade() {
-                canvas.borrow().transient_activation();
-            }
-        });
+        self.0
+            .all_canvases
+            .borrow()
+            .iter()
+            .for_each(|(_, canvas, _)| {
+                if let Some(canvas) = canvas.upgrade() {
+                    canvas.borrow().transient_activation();
+                }
+            });
     }
 
     pub fn event_loop_recreation(&self, allow: bool) {
