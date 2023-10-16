@@ -49,8 +49,8 @@ use windows_sys::Win32::{
             RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-            GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
+            GetCursorPos, GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW,
             RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
@@ -1438,39 +1438,63 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_MOUSEMOVE => {
-            use crate::event::WindowEvent::{CursorEntered, CursorMoved};
-            let mouse_was_outside_window = {
+            use crate::event::WindowEvent::{CursorEntered, CursorLeft, CursorMoved};
+
+            let x = super::get_x_lparam(lparam as u32) as i32;
+            let y = super::get_y_lparam(lparam as u32) as i32;
+            let position = PhysicalPosition::new(x as f64, y as f64);
+
+            'o: {
                 let mut w = userdata.window_state_lock();
+                let mouse_was_outside_window =
+                    !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
 
-                let was_outside_window = !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
-                w.mouse
-                    .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
-                    .ok();
-                was_outside_window
-            };
-
-            if mouse_was_outside_window {
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: CursorEntered {
-                        device_id: DEVICE_ID,
-                    },
-                });
-
-                // Calling TrackMouseEvent in order to receive mouse leave events.
-                unsafe {
-                    TrackMouseEvent(&mut TRACKMOUSEEVENT {
-                        cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                        dwFlags: TME_LEAVE,
-                        hwndTrack: window,
-                        dwHoverTime: HOVER_DEFAULT,
-                    })
+                let rect: RECT = unsafe {
+                    let mut rect: RECT = mem::zeroed();
+                    if GetClientRect(window, &mut rect) == false.into() {
+                        break 'o; // exit early if GetClientRect failed
+                    }
+                    rect
                 };
+
+                let x = (rect.left..rect.right).contains(&x);
+                let y = (rect.top..rect.bottom).contains(&y);
+
+                if mouse_was_outside_window && x && y {
+                    w.mouse
+                        .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
+                        .ok();
+
+                    userdata.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: CursorEntered {
+                            device_id: DEVICE_ID,
+                        },
+                    });
+
+                    // Calling TrackMouseEvent in order to receive mouse leave events.
+                    unsafe {
+                        TrackMouseEvent(&mut TRACKMOUSEEVENT {
+                            cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                            dwFlags: TME_LEAVE,
+                            hwndTrack: window,
+                            dwHoverTime: HOVER_DEFAULT,
+                        })
+                    };
+                } else if !(mouse_was_outside_window || x && y) {
+                    w.mouse
+                        .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
+                        .ok();
+
+                    userdata.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: CursorLeft {
+                            device_id: DEVICE_ID,
+                        },
+                    });
+                }
             }
 
-            let x = super::get_x_lparam(lparam as u32) as f64;
-            let y = super::get_y_lparam(lparam as u32) as f64;
-            let position = PhysicalPosition::new(x, y);
             let cursor_moved;
             {
                 // handle spurious WM_MOUSEMOVE messages
