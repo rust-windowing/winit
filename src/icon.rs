@@ -168,7 +168,7 @@ impl CustomCursorIcon {
         hotspot_y: u32,
     ) -> Result<Self, BadIcon> {
         Ok(CustomCursorIcon {
-            inner: PlatformCustomCursorIcon::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?,
+            inner: PlatformCustomCursorIcon::from_rgba_with_hotspot(rgba, width, height, hotspot_x, hotspot_y)?,
         })
     }
 }

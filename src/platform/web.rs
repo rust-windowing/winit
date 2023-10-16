@@ -194,11 +194,20 @@ pub enum PollStrategy {
 /// Additional methods on `CustomCursorIcon` that are specific to Web.
 pub trait CustomCursorIconExtWeb: Sized {
     /// Create an icon from a url.
-    fn from_url(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self;
+    fn from_url(url: &str) -> Self;
+
+    /// Create an icon from a url with hotspot.
+    fn from_url_with_hotspot(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self;
 }
 
 impl CustomCursorIconExtWeb for CustomCursorIcon {
-    fn from_url(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self {
+    fn from_url(url: &str) -> Self {
+        Self {
+            inner: PlatformCustomCursorIcon::from_url(url, 0, 0),
+        }
+    }
+
+    fn from_url_with_hotspot(url: &str, hotspot_x: u32, hotspot_y: u32) -> Self {
         Self {
             inner: PlatformCustomCursorIcon::from_url(url, hotspot_x, hotspot_y),
         }
