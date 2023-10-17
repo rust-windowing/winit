@@ -38,6 +38,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
 - Make `WindowBuilder` `Send + Sync`.
 - On macOS, fix assertion when pressing `Globe` key.
+- On Windows, updated `WM_MOUSEMOVE` to detect when cursor go in and out of window client area while captured and send the corresponding events. (#3153)
 
 # 0.29.1-beta
 
