@@ -63,7 +63,7 @@ impl Canvas {
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match platform_attr.canvas {
+        let canvas = match platform_attr.canvas.0 {
             Some(canvas) => canvas,
             None => document
                 .create_element("canvas")
@@ -127,7 +127,7 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.is_some() {
+        if attr.fullscreen.0.is_some() {
             common.fullscreen_handler.request_fullscreen();
         }
 

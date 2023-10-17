@@ -422,7 +422,7 @@ impl Window {
         // TODO: transparency, visible
 
         let main_screen = UIScreen::main(mtm);
-        let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
+        let fullscreen = window_attributes.fullscreen.0.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
