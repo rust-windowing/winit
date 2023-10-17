@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use winit::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, PhysicalKey},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey},
     window::CursorIcon,
 };
 
@@ -23,6 +23,7 @@ fn events_serde() {
     needs_serde::<MouseButton>();
     needs_serde::<MouseScrollDelta>();
     needs_serde::<Key>();
+    needs_serde::<NamedKey>();
     needs_serde::<KeyCode>();
     needs_serde::<PhysicalKey>();
     needs_serde::<KeyLocation>();
