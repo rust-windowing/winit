@@ -36,10 +36,11 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
 - On Wayland, support `Occluded` event with xdg-shell v6
 - Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
+- **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
 
 # 0.29.1-beta
 
-- **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `v0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
+- **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
 - **Breaking:** Bump MSRV from `1.64` to `1.65`.
 - Make iOS windows usable from other threads.
 - Reexport `raw-window-handle` in `window` module.
@@ -87,7 +88,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 - On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
 - On Windows, add `drag_resize_window` method support.
-- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** `run() -> !` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
   - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
