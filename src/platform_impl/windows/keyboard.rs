@@ -37,7 +37,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     event::{ElementState, KeyEvent},
-    keyboard::{Action, Key, KeyCode, KeyLocation, NativeKey, NativeKeyCode, PhysicalKey},
+    keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey},
     platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         event_loop::ProcResult,
@@ -560,8 +560,8 @@ impl PartialKeyEventInfo {
         // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
         let code_as_key = if mods.contains(WindowsModifiers::CONTROL) {
             match physical_key {
-                PhysicalKey::Code(KeyCode::NumLock) => Some(Key::Action(Action::NumLock)),
-                PhysicalKey::Code(KeyCode::Pause) => Some(Key::Action(Action::Pause)),
+                PhysicalKey::Code(KeyCode::NumLock) => Some(Key::Named(NamedKey::NumLock)),
+                PhysicalKey::Code(KeyCode::Pause) => Some(Key::Named(NamedKey::Pause)),
                 _ => None,
             }
         } else {
@@ -744,7 +744,7 @@ fn get_async_kbd_state() -> [u8; 256] {
 fn is_current_fake(curr_info: &PartialKeyEventInfo, next_msg: MSG, layout: &Layout) -> bool {
     let curr_is_ctrl = matches!(
         curr_info.logical_key,
-        PartialLogicalKey::This(Key::Action(Action::Control))
+        PartialLogicalKey::This(Key::Named(NamedKey::Control))
     );
     if layout.has_alt_graph {
         let next_code = ex_scancode_from_lparam(next_msg.lParam);

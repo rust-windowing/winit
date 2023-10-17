@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::{Action, Key, ModifiersState},
+    keyboard::{Key, ModifiersState, NamedKey},
     window::{CursorGrabMode, WindowBuilder},
 };
 
@@ -35,7 +35,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 ..
             } => {
                 let result = match key {
-                    Key::Action(Action::Escape) => {
+                    Key::Named(NamedKey::Escape) => {
                         elwt.exit();
                         Ok(())
                     }

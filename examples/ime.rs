@@ -6,7 +6,7 @@ use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Action,
+    keyboard::NamedKey,
     window::{ImePurpose, WindowBuilder},
 };
 
@@ -69,12 +69,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::KeyboardInput { event, .. } => {
                     println!("key: {event:?}");
 
-                    if event.state == ElementState::Pressed && event.logical_key == Action::F2 {
+                    if event.state == ElementState::Pressed && event.logical_key == NamedKey::F2 {
                         ime_allowed = !ime_allowed;
                         window.set_ime_allowed(ime_allowed);
                         println!("\nIME allowed: {ime_allowed}\n");
                     }
-                    if event.state == ElementState::Pressed && event.logical_key == Action::F3 {
+                    if event.state == ElementState::Pressed && event.logical_key == NamedKey::F3 {
                         ime_purpose = match ime_purpose {
                             ImePurpose::Normal => ImePurpose::Password,
                             ImePurpose::Password => ImePurpose::Terminal,

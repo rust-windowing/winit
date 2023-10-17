@@ -9,7 +9,7 @@ fn main() -> Result<(), impl std::error::Error> {
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::EventLoop,
-        keyboard::{Action, Key, ModifiersState},
+        keyboard::{Key, ModifiersState, NamedKey},
         window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
     };
 
@@ -65,12 +65,12 @@ fn main() -> Result<(), impl std::error::Error> {
                             },
                         ..
                     } => {
-                        use Action::{ArrowLeft, ArrowRight};
+                        use NamedKey::{ArrowLeft, ArrowRight};
                         window.set_title(&format!("{key:?}"));
                         let state = !modifiers.shift_key();
                         match key {
                             // Cycle through video modes
-                            Key::Action(ArrowRight) | Key::Action(ArrowLeft) => {
+                            Key::Named(ArrowRight) | Key::Named(ArrowLeft) => {
                                 if key == ArrowLeft {
                                     video_mode_id = video_mode_id.saturating_sub(1);
                                 } else if key == ArrowRight {
@@ -185,7 +185,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     event:
                         KeyEvent {
                             state: ElementState::Released,
-                            logical_key: Key::Action(Action::Escape),
+                            logical_key: Key::Named(NamedKey::Escape),
                             ..
                         },
                     ..

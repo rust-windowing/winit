@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Action, Key, KeyLocation, ModifiersState, PhysicalKey};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use once_cell::unsync::OnceCell;
 use smol_str::SmolStr;
@@ -163,9 +163,9 @@ pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
     let key = Key::from_key_attribute_value(&key);
     match &key {
         Key::Character(text) => Some(text.clone()),
-        Key::Action(Action::Tab) => Some(SmolStr::new("\t")),
-        Key::Action(Action::Enter) => Some(SmolStr::new("\r")),
-        Key::Action(Action::Space) => Some(SmolStr::new(" ")),
+        Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),
+        Key::Named(NamedKey::Enter) => Some(SmolStr::new("\r")),
+        Key::Named(NamedKey::Space) => Some(SmolStr::new(" ")),
         _ => None,
     }
     .map(SmolStr::new)

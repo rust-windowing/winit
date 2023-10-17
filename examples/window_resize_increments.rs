@@ -4,7 +4,7 @@ use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Action,
+    keyboard::NamedKey,
     window::WindowBuilder,
 };
 
@@ -28,7 +28,8 @@ fn main() -> Result<(), impl std::error::Error> {
         Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
             WindowEvent::CloseRequested => elwt.exit(),
             WindowEvent::KeyboardInput { event, .. }
-                if event.logical_key == Action::Space && event.state == ElementState::Released =>
+                if event.logical_key == NamedKey::Space
+                    && event.state == ElementState::Released =>
             {
                 has_increments = !has_increments;
 

@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
-use winit::keyboard::{Action, Key};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Fullscreen, WindowBuilder};
 
 #[cfg(target_os = "macos")]
@@ -65,7 +65,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key {
-                    Key::Action(Action::Escape) => elwt.exit(),
+                    Key::Named(NamedKey::Escape) => elwt.exit(),
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {

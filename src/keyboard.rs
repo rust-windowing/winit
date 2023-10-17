@@ -734,7 +734,7 @@ pub enum KeyCode {
     F35,
 }
 
-/// Action represents the meaning of a keypress.
+/// A [`Key::Named`] value
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
 /// exceptions:
@@ -747,7 +747,7 @@ pub enum KeyCode {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Action {
+pub enum NamedKey {
     /// The `Alt` (Alternative) key.
     ///
     /// This key enables the alternate modifier function for interpreting concurrent or subsequent
@@ -1455,7 +1455,7 @@ pub enum Action {
 ///
 /// This is a superset of the UI Events Specification's [`KeyboardEvent.key`] with
 /// additions:
-/// - All simple variants are wrapped under the `Action` variant
+/// - All simple variants are wrapped under the `Named` variant
 /// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
 /// - The `Dead` variant here, can specify the character which is inserted when pressing the
 ///   dead-key twice.
@@ -1465,7 +1465,7 @@ pub enum Action {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Key<Str = SmolStr> {
     /// A simple (unparameterised) action
-    Action(Action),
+    Named(NamedKey),
 
     /// A key string that corresponds to the character typed by the user, taking into account the
     /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
@@ -1485,10 +1485,10 @@ pub enum Key<Str = SmolStr> {
     Dead(Option<char>),
 }
 
-impl From<Action> for Key {
+impl From<NamedKey> for Key {
     #[inline]
-    fn from(action: Action) -> Self {
-        Key::Action(action)
+    fn from(action: NamedKey) -> Self {
+        Key::Named(action)
     }
 }
 
@@ -1499,11 +1499,11 @@ impl From<NativeKey> for Key {
     }
 }
 
-impl<Str> PartialEq<Action> for Key<Str> {
+impl<Str> PartialEq<NamedKey> for Key<Str> {
     #[inline]
-    fn eq(&self, rhs: &Action) -> bool {
+    fn eq(&self, rhs: &NamedKey) -> bool {
         match self {
-            Key::Action(ref a) => a == rhs,
+            Key::Named(ref a) => a == rhs,
             _ => false,
         }
     }
@@ -1548,7 +1548,7 @@ impl Key<SmolStr> {
     /// `Key`. All other variants remain unchanged.
     pub fn as_ref(&self) -> Key<&str> {
         match self {
-            Key::Action(a) => Key::Action(*a),
+            Key::Named(a) => Key::Named(*a),
             Key::Character(ch) => Key::Character(ch.as_str()),
             Key::Dead(d) => Key::Dead(*d),
             Key::Unidentified(u) => Key::Unidentified(u.clone()),
@@ -1556,24 +1556,24 @@ impl Key<SmolStr> {
     }
 }
 
-impl Action {
+impl NamedKey {
     /// Convert an action to its approximate textual equivalent.
     ///
     /// # Examples
     ///
     /// ```
-    /// use winit::keyboard::Action;
+    /// use winit::keyboard::NamedKey;
     ///
-    /// assert_eq!(Action::Enter.to_text(), Some("\r"));
-    /// assert_eq!(Action::F20.to_text(), None);
+    /// assert_eq!(NamedKey::Enter.to_text(), Some("\r"));
+    /// assert_eq!(NamedKey::F20.to_text(), None);
     /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
-            Action::Enter => Some("\r"),
-            Action::Backspace => Some("\x08"),
-            Action::Tab => Some("\t"),
-            Action::Space => Some(" "),
-            Action::Escape => Some("\x1b"),
+            NamedKey::Enter => Some("\r"),
+            NamedKey::Backspace => Some("\x08"),
+            NamedKey::Tab => Some("\t"),
+            NamedKey::Space => Some(" "),
+            NamedKey::Escape => Some("\x1b"),
             _ => None,
         }
     }
@@ -1585,15 +1585,15 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use winit::keyboard::{Action, Key};
+    /// use winit::keyboard::{NamedKey, Key};
     ///
     /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
-    /// assert_eq!(Key::Action(Action::Enter).to_text(), Some("\r"));
-    /// assert_eq!(Key::Action(Action::F20).to_text(), None);
+    /// assert_eq!(Key::Named(NamedKey::Enter).to_text(), Some("\r"));
+    /// assert_eq!(Key::Named(NamedKey::F20).to_text(), None);
     /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
-            Key::Action(action) => action.to_text(),
+            Key::Named(action) => action.to_text(),
             Key::Character(ch) => Some(ch.as_str()),
             _ => None,
         }

@@ -26,7 +26,7 @@ use crate::{
         DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
         TouchPhase, WindowEvent,
     },
-    keyboard::{Action, Key, KeyCode, KeyLocation, ModifiersState, PhysicalKey},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
@@ -90,30 +90,30 @@ impl ModLocationMask {
 
 fn key_to_modifier(key: &Key) -> ModifiersState {
     match key {
-        Key::Action(Action::Alt) => ModifiersState::ALT,
-        Key::Action(Action::Control) => ModifiersState::CONTROL,
-        Key::Action(Action::Super) => ModifiersState::SUPER,
-        Key::Action(Action::Shift) => ModifiersState::SHIFT,
+        Key::Named(NamedKey::Alt) => ModifiersState::ALT,
+        Key::Named(NamedKey::Control) => ModifiersState::CONTROL,
+        Key::Named(NamedKey::Super) => ModifiersState::SUPER,
+        Key::Named(NamedKey::Shift) => ModifiersState::SHIFT,
         _ => unreachable!(),
     }
 }
 
 fn get_right_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Action(Action::Alt) => KeyCode::AltRight,
-        Key::Action(Action::Control) => KeyCode::ControlRight,
-        Key::Action(Action::Shift) => KeyCode::ShiftRight,
-        Key::Action(Action::Super) => KeyCode::SuperRight,
+        Key::Named(NamedKey::Alt) => KeyCode::AltRight,
+        Key::Named(NamedKey::Control) => KeyCode::ControlRight,
+        Key::Named(NamedKey::Shift) => KeyCode::ShiftRight,
+        Key::Named(NamedKey::Super) => KeyCode::SuperRight,
         _ => unreachable!(),
     }
 }
 
 fn get_left_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Action(Action::Alt) => KeyCode::AltLeft,
-        Key::Action(Action::Control) => KeyCode::ControlLeft,
-        Key::Action(Action::Shift) => KeyCode::ShiftLeft,
-        Key::Action(Action::Super) => KeyCode::SuperLeft,
+        Key::Named(NamedKey::Alt) => KeyCode::AltLeft,
+        Key::Named(NamedKey::Control) => KeyCode::ControlLeft,
+        Key::Named(NamedKey::Shift) => KeyCode::ShiftLeft,
+        Key::Named(NamedKey::Super) => KeyCode::SuperLeft,
         _ => unreachable!(),
     }
 }
