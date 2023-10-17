@@ -31,6 +31,7 @@ use crate::event::Event;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
 use crate::window::{Window, WindowBuilder};
+use crate::SendSyncWrapper;
 
 use web_sys::HtmlCanvasElement;
 
@@ -81,26 +82,22 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.canvas = canvas;
-
+        self.platform_specific.canvas = SendSyncWrapper(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
         self.platform_specific.prevent_default = prevent_default;
-
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
         self.platform_specific.focusable = focusable;
-
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
         self.platform_specific.append = append;
-
         self
     }
 }
