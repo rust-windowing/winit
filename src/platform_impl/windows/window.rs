@@ -1185,8 +1185,8 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen.map(Into::into));
+        if attributes.fullscreen.0.is_some() {
+            win.set_fullscreen(attributes.fullscreen.0.map(Into::into));
             unsafe { force_window_active(win.window.0) };
         } else {
             let size = attributes
@@ -1272,7 +1272,7 @@ where
     };
 
     #[cfg(feature = "rwh_06")]
-    let parent = match attributes.parent_window {
+    let parent = match attributes.parent_window.0 {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
             if pl_attribs.menu.is_some() {

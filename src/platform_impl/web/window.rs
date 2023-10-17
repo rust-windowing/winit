@@ -5,6 +5,7 @@ use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
+use crate::SendSyncWrapper;
 
 use web_sys::HtmlCanvasElement;
 
@@ -455,7 +456,7 @@ impl From<u64> for WindowId {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) canvas: SendSyncWrapper<Option<backend::RawCanvasType>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
@@ -464,7 +465,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            canvas: None,
+            canvas: SendSyncWrapper(None),
             prevent_default: true,
             focusable: true,
             append: false,
