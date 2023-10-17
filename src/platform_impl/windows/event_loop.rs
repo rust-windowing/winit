@@ -914,6 +914,36 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     }
 }
 
+enum PointerMoveKind {
+    /// Pointer enterd to the window.
+    Enter,
+    /// Pointer leaved the window client area.
+    Leave,
+    /// Pointer is inside the window or `GetClientRect` failed.
+    None,
+}
+
+unsafe fn get_pointer_move_kind(window: HWND, mouse_was_inside_window: bool, x: i32, y: i32) -> PointerMoveKind {
+    let rect: RECT = unsafe {
+        let mut rect: RECT = mem::zeroed();
+        if GetClientRect(window, &mut rect) == false.into() {
+            return PointerMoveKind::None; // exit early if GetClientRect failed
+        }
+        rect
+    };
+
+    let x = (rect.left..rect.right).contains(&x);
+    let y = (rect.top..rect.bottom).contains(&y);
+
+    if !mouse_was_inside_window && x && y {
+        PointerMoveKind::Enter
+    } else if mouse_was_inside_window && !(x && y) {
+        PointerMoveKind::Leave
+    } else {
+        PointerMoveKind::None
+    }
+}
+
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
 fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
@@ -1444,66 +1474,56 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let y = super::get_y_lparam(lparam as u32) as i32;
             let position = PhysicalPosition::new(x as f64, y as f64);
 
-            'o: {
-                let mut w = userdata.window_state_lock();
-                let mouse_was_outside_window =
-                    !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
-
-                let rect: RECT = unsafe {
-                    let mut rect: RECT = mem::zeroed();
-                    if GetClientRect(window, &mut rect) == false.into() {
-                        break 'o; // exit early if GetClientRect failed
-                    }
-                    rect
-                };
-
-                let x = (rect.left..rect.right).contains(&x);
-                let y = (rect.top..rect.bottom).contains(&y);
-
-                if mouse_was_outside_window && x && y {
-                    w.mouse
-                        .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
-                        .ok();
-
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: CursorEntered {
-                            device_id: DEVICE_ID,
-                        },
-                    });
-
-                    // Calling TrackMouseEvent in order to receive mouse leave events.
-                    unsafe {
-                        TrackMouseEvent(&mut TRACKMOUSEEVENT {
-                            cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                            dwFlags: TME_LEAVE,
-                            hwndTrack: window,
-                            dwHoverTime: HOVER_DEFAULT,
-                        })
-                    };
-                } else if !(mouse_was_outside_window || x && y) {
-                    w.mouse
-                        .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
-                        .ok();
-
-                    userdata.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: CursorLeft {
-                            device_id: DEVICE_ID,
-                        },
-                    });
-                }
-            }
-
             let cursor_moved;
             {
+                let mut w = userdata.window_state_lock();
+                let mouse_was_inside_window = w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
+
+                match unsafe { get_pointer_move_kind(window, mouse_was_inside_window, x, y) } {
+                    PointerMoveKind::Enter => {
+                        w.mouse
+                            .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
+                            .ok();
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: CursorEntered {
+                                device_id: DEVICE_ID,
+                            },
+                        });
+
+                        // Calling TrackMouseEvent in order to receive mouse leave events.
+                        unsafe {
+                            TrackMouseEvent(&mut TRACKMOUSEEVENT {
+                                cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                                dwFlags: TME_LEAVE,
+                                hwndTrack: window,
+                                dwHoverTime: HOVER_DEFAULT,
+                            })
+                        };
+                    },
+                    PointerMoveKind::Leave => {
+                        w.mouse
+                            .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
+                            .ok();
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: CursorLeft {
+                                device_id: DEVICE_ID,
+                            },
+                        });
+                    },
+                    PointerMoveKind::None => (),
+                }
+
                 // handle spurious WM_MOUSEMOVE messages
                 // see https://devblogs.microsoft.com/oldnewthing/20031001-00/?p=42343
                 // and http://debugandconquer.blogspot.com/2015/08/the-cause-of-spurious-mouse-move.html
-                let mut w = userdata.window_state_lock();
                 cursor_moved = w.mouse.last_position != Some(position);
                 w.mouse.last_position = Some(position);
             }
+            
             if cursor_moved {
                 update_modifiers(window, userdata);
 
