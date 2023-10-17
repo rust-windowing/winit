@@ -914,41 +914,6 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     }
 }
 
-enum PointerMoveKind {
-    /// Pointer enterd to the window.
-    Enter,
-    /// Pointer leaved the window client area.
-    Leave,
-    /// Pointer is inside the window or `GetClientRect` failed.
-    None,
-}
-
-unsafe fn get_pointer_move_kind(
-    window: HWND,
-    mouse_was_inside_window: bool,
-    x: i32,
-    y: i32,
-) -> PointerMoveKind {
-    let rect: RECT = unsafe {
-        let mut rect: RECT = mem::zeroed();
-        if GetClientRect(window, &mut rect) == false.into() {
-            return PointerMoveKind::None; // exit early if GetClientRect failed
-        }
-        rect
-    };
-
-    let x = (rect.left..rect.right).contains(&x);
-    let y = (rect.top..rect.bottom).contains(&y);
-
-    if !mouse_was_inside_window && x && y {
-        PointerMoveKind::Enter
-    } else if mouse_was_inside_window && !(x && y) {
-        PointerMoveKind::Leave
-    } else {
-        PointerMoveKind::None
-    }
-}
-
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
 fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
@@ -1485,7 +1450,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 let mouse_was_inside_window =
                     w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
 
-                match unsafe { get_pointer_move_kind(window, mouse_was_inside_window, x, y) } {
+                match get_pointer_move_kind(window, mouse_was_inside_window, x, y) {
                     PointerMoveKind::Enter => {
                         w.mouse
                             .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
@@ -2610,5 +2575,40 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
                 state,
             }),
         });
+    }
+}
+
+enum PointerMoveKind {
+    /// Pointer enterd to the window.
+    Enter,
+    /// Pointer leaved the window client area.
+    Leave,
+    /// Pointer is inside the window or `GetClientRect` failed.
+    None,
+}
+
+fn get_pointer_move_kind(
+    window: HWND,
+    mouse_was_inside_window: bool,
+    x: i32,
+    y: i32,
+) -> PointerMoveKind {
+    let rect: RECT = unsafe {
+        let mut rect: RECT = mem::zeroed();
+        if GetClientRect(window, &mut rect) == false.into() {
+            return PointerMoveKind::None; // exit early if GetClientRect failed
+        }
+        rect
+    };
+
+    let x = (rect.left..rect.right).contains(&x);
+    let y = (rect.top..rect.bottom).contains(&y);
+
+    if !mouse_was_inside_window && x && y {
+        PointerMoveKind::Enter
+    } else if mouse_was_inside_window && !(x && y) {
+        PointerMoveKind::Leave
+    } else {
+        PointerMoveKind::None
     }
 }
