@@ -66,7 +66,7 @@ smol_str = "0.2.0"
 
 [dev-dependencies]
 image = { version = "0.24.0", default-features = false, features = ["png"] }
-simple_logger = { version = "2.1.0", default_features = false }
+simple_logger = { version = "4.2.0", default_features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
 softbuffer = "0.3.0"
