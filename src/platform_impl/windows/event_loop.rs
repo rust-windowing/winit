@@ -923,7 +923,12 @@ enum PointerMoveKind {
     None,
 }
 
-unsafe fn get_pointer_move_kind(window: HWND, mouse_was_inside_window: bool, x: i32, y: i32) -> PointerMoveKind {
+unsafe fn get_pointer_move_kind(
+    window: HWND,
+    mouse_was_inside_window: bool,
+    x: i32,
+    y: i32,
+) -> PointerMoveKind {
     let rect: RECT = unsafe {
         let mut rect: RECT = mem::zeroed();
         if GetClientRect(window, &mut rect) == false.into() {
@@ -1477,7 +1482,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let cursor_moved;
             {
                 let mut w = userdata.window_state_lock();
-                let mouse_was_inside_window = w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
+                let mouse_was_inside_window =
+                    w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
 
                 match unsafe { get_pointer_move_kind(window, mouse_was_inside_window, x, y) } {
                     PointerMoveKind::Enter => {
@@ -1501,7 +1507,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                                 dwHoverTime: HOVER_DEFAULT,
                             })
                         };
-                    },
+                    }
                     PointerMoveKind::Leave => {
                         w.mouse
                             .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
@@ -1513,7 +1519,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                                 device_id: DEVICE_ID,
                             },
                         });
-                    },
+                    }
                     PointerMoveKind::None => (),
                 }
 
@@ -1523,7 +1529,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 cursor_moved = w.mouse.last_position != Some(position);
                 w.mouse.last_position = Some(position);
             }
-            
+
             if cursor_moved {
                 update_modifiers(window, userdata);
 
