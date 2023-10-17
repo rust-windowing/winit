@@ -555,6 +555,10 @@ pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
             ThumbsUp => Key::Unidentified(native),
             ThumbsDown => Key::Unidentified(native),
             ProfileSwitch => Key::Unidentified(native),
+
+            // It's always possible that new versions of Android could introduce
+            // key codes we can't know about at compile time.
+            _ => Key::Unidentified(native),
         },
     }
 }
