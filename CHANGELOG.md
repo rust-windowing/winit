@@ -37,6 +37,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, support `Occluded` event with xdg-shell v6
 - Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
 - **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
+- Make `WindowBuilder` `Send + Sync`.
 
 # 0.29.1-beta
 
