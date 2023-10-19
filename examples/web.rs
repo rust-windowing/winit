@@ -3,7 +3,7 @@
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::KeyCode,
+    keyboard::Key,
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -39,13 +39,13 @@ pub fn main() -> Result<(), impl std::error::Error> {
                     WindowEvent::KeyboardInput {
                         event:
                             KeyEvent {
-                                physical_key: KeyCode::KeyF,
+                                logical_key: Key::Character(c),
                                 state: ElementState::Released,
                                 ..
                             },
                         ..
                     },
-            } if window_id == window.id() => {
+            } if window_id == window.id() && c == "f" => {
                 if window.fullscreen().is_some() {
                     window.set_fullscreen(None);
                 } else {
