@@ -25,10 +25,10 @@ use crate::{
         EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    keyboard::{Key, KeyCode},
+    keyboard::{Key, PhysicalKey},
     platform::{
         modifier_supplement::KeyEventExtModifierSupplement, pump_events::PumpStatus,
-        scancode::KeyCodeExtScancode,
+        scancode::PhysicalKeyExtScancode,
     },
     window::{
         ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
@@ -657,13 +657,13 @@ impl KeyEventExtModifierSupplement for KeyEvent {
     }
 }
 
-impl KeyCodeExtScancode for KeyCode {
-    fn from_scancode(scancode: u32) -> KeyCode {
+impl PhysicalKeyExtScancode for PhysicalKey {
+    fn from_scancode(scancode: u32) -> PhysicalKey {
         common::keymap::scancode_to_keycode(scancode)
     }
 
     fn to_scancode(self) -> Option<u32> {
-        common::keymap::keycode_to_scancode(self)
+        common::keymap::physicalkey_to_scancode(self)
     }
 }
 

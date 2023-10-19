@@ -11,7 +11,6 @@ mod example {
 
     use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
     use winit::event_loop::EventLoop;
-    use winit::keyboard::Key;
     use winit::platform::startup_notify::{
         EventLoopExtStartupNotify, WindowBuilderExtStartupNotify, WindowExtStartupNotify,
     };
@@ -46,7 +45,7 @@ mod example {
                             },
                         ..
                     } => {
-                        if logical_key == Key::Character("n".into()) {
+                        if logical_key == "n" {
                             if let Some(window) = windows.get(&window_id) {
                                 // Request a new activation token on this window.
                                 // Once we get it we will use it to create a window.

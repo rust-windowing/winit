@@ -9,7 +9,7 @@ fn main() -> Result<(), impl std::error::Error> {
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::EventLoop,
-        keyboard::{Key, ModifiersState},
+        keyboard::{Key, ModifiersState, NamedKey},
         window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
     };
 
@@ -65,17 +65,17 @@ fn main() -> Result<(), impl std::error::Error> {
                             },
                         ..
                     } => {
-                        use Key::{ArrowLeft, ArrowRight};
+                        use NamedKey::{ArrowLeft, ArrowRight};
                         window.set_title(&format!("{key:?}"));
                         let state = !modifiers.shift_key();
                         match key {
                             // Cycle through video modes
-                            Key::ArrowRight | Key::ArrowLeft => {
-                                video_mode_id = match key {
-                                    ArrowLeft => video_mode_id.saturating_sub(1),
-                                    ArrowRight => (video_modes.len() - 1).min(video_mode_id + 1),
-                                    _ => unreachable!(),
-                                };
+                            Key::Named(ArrowRight) | Key::Named(ArrowLeft) => {
+                                if key == ArrowLeft {
+                                    video_mode_id = video_mode_id.saturating_sub(1);
+                                } else if key == ArrowRight {
+                                    video_mode_id = (video_modes.len() - 1).min(video_mode_id + 1);
+                                }
                                 println!("Picking video mode: {}", video_modes[video_mode_id]);
                             }
                             // WARNING: Consider using `key_without_modifers()` if available on your platform.
@@ -185,7 +185,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     event:
                         KeyEvent {
                             state: ElementState::Released,
-                            logical_key: Key::Escape,
+                            logical_key: Key::Named(NamedKey::Escape),
                             ..
                         },
                     ..

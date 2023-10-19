@@ -11,9 +11,12 @@ use super::appkit::{NSEvent, NSEventModifierFlags};
 use crate::{
     event::{ElementState, KeyEvent, Modifiers},
     keyboard::{
-        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
+        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey,
+        NativeKeyCode, PhysicalKey,
     },
-    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
+    platform::{
+        modifier_supplement::KeyEventExtModifierSupplement, scancode::PhysicalKeyExtScancode,
+    },
     platform_impl::platform::ffi,
 };
 
@@ -112,13 +115,14 @@ pub(crate) fn create_key_event(
     ns_event: &NSEvent,
     is_press: bool,
     is_repeat: bool,
-    key_override: Option<KeyCode>,
+    key_override: Option<PhysicalKey>,
 ) -> KeyEvent {
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
     let scancode = ns_event.key_code();
-    let mut physical_key = key_override.unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
+    let mut physical_key =
+        key_override.unwrap_or_else(|| PhysicalKey::from_scancode(scancode as u32));
 
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
@@ -130,7 +134,7 @@ pub(crate) fn create_key_event(
         if characters.is_empty() {
             None
         } else {
-            if matches!(physical_key, KeyCode::Unidentified(_)) {
+            if matches!(physical_key, PhysicalKey::Unidentified(_)) {
                 // The key may be one of the funky function keys
                 physical_key = extra_function_key_to_code(scancode, &characters);
             }
@@ -188,65 +192,75 @@ pub(crate) fn create_key_event(
     }
 }
 
-pub fn code_to_key(code: KeyCode, scancode: u16) -> Key {
-    match code {
-        KeyCode::Enter => Key::Enter,
-        KeyCode::Tab => Key::Tab,
-        KeyCode::Space => Key::Space,
-        KeyCode::Backspace => Key::Backspace,
-        KeyCode::Escape => Key::Escape,
-        KeyCode::SuperRight => Key::Super,
-        KeyCode::SuperLeft => Key::Super,
-        KeyCode::ShiftLeft => Key::Shift,
-        KeyCode::AltLeft => Key::Alt,
-        KeyCode::ControlLeft => Key::Control,
-        KeyCode::ShiftRight => Key::Shift,
-        KeyCode::AltRight => Key::Alt,
-        KeyCode::ControlRight => Key::Control,
+pub fn code_to_key(key: PhysicalKey, scancode: u16) -> Key {
+    let code = match key {
+        PhysicalKey::Code(code) => code,
+        PhysicalKey::Unidentified(code) => return Key::Unidentified(code.into()),
+    };
 
-        KeyCode::NumLock => Key::NumLock,
-        KeyCode::AudioVolumeUp => Key::AudioVolumeUp,
-        KeyCode::AudioVolumeDown => Key::AudioVolumeDown,
+    Key::Named(match code {
+        KeyCode::Enter => NamedKey::Enter,
+        KeyCode::Tab => NamedKey::Tab,
+        KeyCode::Space => NamedKey::Space,
+        KeyCode::Backspace => NamedKey::Backspace,
+        KeyCode::Escape => NamedKey::Escape,
+        KeyCode::SuperRight => NamedKey::Super,
+        KeyCode::SuperLeft => NamedKey::Super,
+        KeyCode::ShiftLeft => NamedKey::Shift,
+        KeyCode::AltLeft => NamedKey::Alt,
+        KeyCode::ControlLeft => NamedKey::Control,
+        KeyCode::ShiftRight => NamedKey::Shift,
+        KeyCode::AltRight => NamedKey::Alt,
+        KeyCode::ControlRight => NamedKey::Control,
+
+        KeyCode::NumLock => NamedKey::NumLock,
+        KeyCode::AudioVolumeUp => NamedKey::AudioVolumeUp,
+        KeyCode::AudioVolumeDown => NamedKey::AudioVolumeDown,
 
         // Other numpad keys all generate text on macOS (if I understand correctly)
-        KeyCode::NumpadEnter => Key::Enter,
+        KeyCode::NumpadEnter => NamedKey::Enter,
 
-        KeyCode::F1 => Key::F1,
-        KeyCode::F2 => Key::F2,
-        KeyCode::F3 => Key::F3,
-        KeyCode::F4 => Key::F4,
-        KeyCode::F5 => Key::F5,
-        KeyCode::F6 => Key::F6,
-        KeyCode::F7 => Key::F7,
-        KeyCode::F8 => Key::F8,
-        KeyCode::F9 => Key::F9,
-        KeyCode::F10 => Key::F10,
-        KeyCode::F11 => Key::F11,
-        KeyCode::F12 => Key::F12,
-        KeyCode::F13 => Key::F13,
-        KeyCode::F14 => Key::F14,
-        KeyCode::F15 => Key::F15,
-        KeyCode::F16 => Key::F16,
-        KeyCode::F17 => Key::F17,
-        KeyCode::F18 => Key::F18,
-        KeyCode::F19 => Key::F19,
-        KeyCode::F20 => Key::F20,
+        KeyCode::F1 => NamedKey::F1,
+        KeyCode::F2 => NamedKey::F2,
+        KeyCode::F3 => NamedKey::F3,
+        KeyCode::F4 => NamedKey::F4,
+        KeyCode::F5 => NamedKey::F5,
+        KeyCode::F6 => NamedKey::F6,
+        KeyCode::F7 => NamedKey::F7,
+        KeyCode::F8 => NamedKey::F8,
+        KeyCode::F9 => NamedKey::F9,
+        KeyCode::F10 => NamedKey::F10,
+        KeyCode::F11 => NamedKey::F11,
+        KeyCode::F12 => NamedKey::F12,
+        KeyCode::F13 => NamedKey::F13,
+        KeyCode::F14 => NamedKey::F14,
+        KeyCode::F15 => NamedKey::F15,
+        KeyCode::F16 => NamedKey::F16,
+        KeyCode::F17 => NamedKey::F17,
+        KeyCode::F18 => NamedKey::F18,
+        KeyCode::F19 => NamedKey::F19,
+        KeyCode::F20 => NamedKey::F20,
 
-        KeyCode::Insert => Key::Insert,
-        KeyCode::Home => Key::Home,
-        KeyCode::PageUp => Key::PageUp,
-        KeyCode::Delete => Key::Delete,
-        KeyCode::End => Key::End,
-        KeyCode::PageDown => Key::PageDown,
-        KeyCode::ArrowLeft => Key::ArrowLeft,
-        KeyCode::ArrowRight => Key::ArrowRight,
-        KeyCode::ArrowDown => Key::ArrowDown,
-        KeyCode::ArrowUp => Key::ArrowUp,
-        _ => Key::Unidentified(NativeKey::MacOS(scancode)),
-    }
+        KeyCode::Insert => NamedKey::Insert,
+        KeyCode::Home => NamedKey::Home,
+        KeyCode::PageUp => NamedKey::PageUp,
+        KeyCode::Delete => NamedKey::Delete,
+        KeyCode::End => NamedKey::End,
+        KeyCode::PageDown => NamedKey::PageDown,
+        KeyCode::ArrowLeft => NamedKey::ArrowLeft,
+        KeyCode::ArrowRight => NamedKey::ArrowRight,
+        KeyCode::ArrowDown => NamedKey::ArrowDown,
+        KeyCode::ArrowUp => NamedKey::ArrowUp,
+        _ => return Key::Unidentified(NativeKey::MacOS(scancode)),
+    })
 }
 
-pub fn code_to_location(code: KeyCode) -> KeyLocation {
+pub fn code_to_location(key: PhysicalKey) -> KeyLocation {
+    let code = match key {
+        PhysicalKey::Code(code) => code,
+        PhysicalKey::Unidentified(_) => return KeyLocation::Standard,
+    };
+
     match code {
         KeyCode::SuperRight => KeyLocation::Right,
         KeyCode::SuperLeft => KeyLocation::Left,
@@ -283,17 +297,17 @@ pub fn code_to_location(code: KeyCode) -> KeyLocation {
 // While F1-F20 have scancodes we can match on, we have to check against UTF-16
 // constants for the rest.
 // https://developer.apple.com/documentation/appkit/1535851-function-key_unicodes?preferredLanguage=occ
-pub fn extra_function_key_to_code(scancode: u16, string: &str) -> KeyCode {
+pub fn extra_function_key_to_code(scancode: u16, string: &str) -> PhysicalKey {
     if let Some(ch) = string.encode_utf16().next() {
         match ch {
-            0xf718 => KeyCode::F21,
-            0xf719 => KeyCode::F22,
-            0xf71a => KeyCode::F23,
-            0xf71b => KeyCode::F24,
-            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode)),
+            0xf718 => PhysicalKey::Code(KeyCode::F21),
+            0xf719 => PhysicalKey::Code(KeyCode::F22),
+            0xf71a => PhysicalKey::Code(KeyCode::F23),
+            0xf71b => PhysicalKey::Code(KeyCode::F24),
+            _ => PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode)),
         }
     } else {
-        KeyCode::Unidentified(NativeKeyCode::MacOS(scancode))
+        PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode))
     }
 }
 
@@ -340,9 +354,14 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     }
 }
 
-impl KeyCodeExtScancode for KeyCode {
+impl PhysicalKeyExtScancode for PhysicalKey {
     fn to_scancode(self) -> Option<u32> {
-        match self {
+        let code = match self {
+            PhysicalKey::Code(code) => code,
+            PhysicalKey::Unidentified(_) => return None,
+        };
+
+        match code {
             KeyCode::KeyA => Some(0x00),
             KeyCode::KeyS => Some(0x01),
             KeyCode::KeyD => Some(0x02),
@@ -458,8 +477,8 @@ impl KeyCodeExtScancode for KeyCode {
         }
     }
 
-    fn from_scancode(scancode: u32) -> KeyCode {
-        match scancode {
+    fn from_scancode(scancode: u32) -> PhysicalKey {
+        PhysicalKey::Code(match scancode {
             0x00 => KeyCode::KeyA,
             0x01 => KeyCode::KeyS,
             0x02 => KeyCode::KeyD,
@@ -596,7 +615,7 @@ impl KeyCodeExtScancode for KeyCode {
             // 0xA is the caret (^) an macOS's German QERTZ layout. This key is at the same location as
             // backquote (`) on Windows' US layout.
             0xa => KeyCode::Backquote,
-            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
-        }
+            _ => return PhysicalKey::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
+        })
     }
 }
