@@ -80,8 +80,8 @@ use crate::{
         WindowEvent,
     },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    keyboard::{KeyCode, ModifiersState},
-    platform::{pump_events::PumpStatus, scancode::KeyCodeExtScancode},
+    keyboard::{KeyCode, ModifiersState, PhysicalKey},
+    platform::{pump_events::PumpStatus, scancode::PhysicalKeyExtScancode},
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -2518,7 +2518,7 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
             return;
         }
-        let code = if keyboard.VKey == VK_NUMLOCK {
+        let physical_key = if keyboard.VKey == VK_NUMLOCK {
             // Historically, the NumLock and the Pause key were one and the same physical key.
             // The user could trigger Pause by pressing Ctrl+NumLock.
             // Now these are often physically separate and the two keys can be differentiated by
@@ -2531,47 +2531,49 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // For more on this, read the article by Raymond Chen, titled:
             // "Why does Ctrl+ScrollLock cancel dialogs?"
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            KeyCode::NumLock
+            PhysicalKey::Code(KeyCode::NumLock)
         } else {
-            KeyCode::from_scancode(scancode as u32)
+            PhysicalKey::from_scancode(scancode as u32)
         };
         if keyboard.VKey == VK_SHIFT {
-            match code {
-                KeyCode::NumpadDecimal
-                | KeyCode::Numpad0
-                | KeyCode::Numpad1
-                | KeyCode::Numpad2
-                | KeyCode::Numpad3
-                | KeyCode::Numpad4
-                | KeyCode::Numpad5
-                | KeyCode::Numpad6
-                | KeyCode::Numpad7
-                | KeyCode::Numpad8
-                | KeyCode::Numpad9 => {
-                    // On Windows, holding the Shift key makes numpad keys behave as if NumLock
-                    // wasn't active. The way this is exposed to applications by the system is that
-                    // the application receives a fake key release event for the shift key at the
-                    // moment when the numpad key is pressed, just before receiving the numpad key
-                    // as well.
-                    //
-                    // The issue is that in the raw device event (here), the fake shift release
-                    // event reports the numpad key as the scancode. Unfortunately, the event doesn't
-                    // have any information to tell whether it's the left shift or the right shift
-                    // that needs to get the fake release (or press) event so we don't forward this
-                    // event to the application at all.
-                    //
-                    // For more on this, read the article by Raymond Chen, titled:
-                    // "The shift key overrides NumLock"
-                    // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
-                    return;
+            if let PhysicalKey::Code(code) = physical_key {
+                match code {
+                    KeyCode::NumpadDecimal
+                    | KeyCode::Numpad0
+                    | KeyCode::Numpad1
+                    | KeyCode::Numpad2
+                    | KeyCode::Numpad3
+                    | KeyCode::Numpad4
+                    | KeyCode::Numpad5
+                    | KeyCode::Numpad6
+                    | KeyCode::Numpad7
+                    | KeyCode::Numpad8
+                    | KeyCode::Numpad9 => {
+                        // On Windows, holding the Shift key makes numpad keys behave as if NumLock
+                        // wasn't active. The way this is exposed to applications by the system is that
+                        // the application receives a fake key release event for the shift key at the
+                        // moment when the numpad key is pressed, just before receiving the numpad key
+                        // as well.
+                        //
+                        // The issue is that in the raw device event (here), the fake shift release
+                        // event reports the numpad key as the scancode. Unfortunately, the event doesn't
+                        // have any information to tell whether it's the left shift or the right shift
+                        // that needs to get the fake release (or press) event so we don't forward this
+                        // event to the application at all.
+                        //
+                        // For more on this, read the article by Raymond Chen, titled:
+                        // "The shift key overrides NumLock"
+                        // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
+                        return;
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
         }
         userdata.send_event(Event::DeviceEvent {
             device_id,
             event: Key(RawKeyEvent {
-                physical_key: code,
+                physical_key,
                 state,
             }),
         });

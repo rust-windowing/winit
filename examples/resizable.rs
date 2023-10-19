@@ -5,7 +5,7 @@ use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::KeyCode,
+    keyboard::{KeyCode, PhysicalKey},
     window::WindowBuilder,
 };
 
@@ -34,7 +34,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
-                            physical_key: KeyCode::Space,
+                            physical_key: PhysicalKey::Code(KeyCode::Space),
                             state: ElementState::Released,
                             ..
                         },

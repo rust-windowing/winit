@@ -7,7 +7,7 @@ use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
     event_loop::{DeviceEvents, EventLoop},
-    keyboard::{Key, KeyCode},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -51,14 +51,14 @@ fn main() -> Result<(), impl std::error::Error> {
                     }),
                 ..
             } => match physical_key {
-                KeyCode::KeyM => {
+                PhysicalKey::Code(KeyCode::KeyM) => {
                     if minimized {
                         minimized = !minimized;
                         window.set_minimized(minimized);
                         window.focus_window();
                     }
                 }
-                KeyCode::KeyV => {
+                PhysicalKey::Code(KeyCode::KeyV) => {
                     if !visible {
                         visible = !visible;
                         window.set_visible(visible);

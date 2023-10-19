@@ -22,7 +22,7 @@ use crate::platform_impl::common::keymap;
 use crate::platform_impl::KeyEventExtra;
 use crate::{
     event::ElementState,
-    keyboard::{Key, KeyCode, KeyLocation},
+    keyboard::{Key, KeyLocation, PhysicalKey},
 };
 
 // TODO: Wire this up without using a static `AtomicBool`.
@@ -391,7 +391,7 @@ impl KbdState {
     ) -> KeyEvent {
         let mut event =
             KeyEventResults::new(self, keycode, !repeat && state == ElementState::Pressed);
-        let physical_key = event.keycode();
+        let physical_key = event.physical_key();
         let (logical_key, location) = event.key();
         let text = event.text();
         let (key_without_modifiers, _) = event.key_without_modifiers();
@@ -498,8 +498,8 @@ impl<'a> KeyEventResults<'a> {
         }
     }
 
-    fn keycode(&mut self) -> KeyCode {
-        keymap::raw_keycode_to_keycode(self.keycode)
+    fn physical_key(&mut self) -> PhysicalKey {
+        keymap::raw_keycode_to_physicalkey(self.keycode)
     }
 
     pub fn key(&mut self) -> (Key, KeyLocation) {

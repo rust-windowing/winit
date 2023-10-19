@@ -2,9 +2,9 @@ use log::debug;
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::NamedKey,
     window::WindowBuilder,
 };
 
@@ -27,15 +27,10 @@ fn main() -> Result<(), impl std::error::Error> {
     event_loop.run(move |event, elwt| match event {
         Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
             WindowEvent::CloseRequested => elwt.exit(),
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        logical_key: Key::Space,
-                        state: ElementState::Released,
-                        ..
-                    },
-                ..
-            } => {
+            WindowEvent::KeyboardInput { event, .. }
+                if event.logical_key == NamedKey::Space
+                    && event.state == ElementState::Released =>
+            {
                 has_increments = !has_increments;
 
                 let new_increments = match window.resize_increments() {

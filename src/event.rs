@@ -671,7 +671,7 @@ pub enum DeviceEvent {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
-    pub physical_key: keyboard::KeyCode,
+    pub physical_key: keyboard::PhysicalKey,
     pub state: ElementState,
 }
 
@@ -703,7 +703,7 @@ pub struct KeyEvent {
     /// `Fn` and `FnLock` key events are *exceedingly unlikely* to be emitted by Winit. These keys
     /// are usually handled at the hardware or OS level, and aren't surfaced to applications. If
     /// you somehow see this in the wild, we'd like to know :)
-    pub physical_key: keyboard::KeyCode,
+    pub physical_key: keyboard::PhysicalKey,
 
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
@@ -743,7 +743,7 @@ pub struct KeyEvent {
     /// An additional difference from `logical_key` is that
     /// this field stores the text representation of any key
     /// that has such a representation. For example when
-    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    /// `logical_key` is `Key::Named(NamedKey::Enter)`, this field is `Some("\r")`.
     ///
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.
