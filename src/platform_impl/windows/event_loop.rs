@@ -49,8 +49,8 @@ use windows_sys::Win32::{
             RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-            GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
+            GetCursorPos, GetMenu, GetMessageW, KillTimer, LoadCursorW, PeekMessageW, PostMessageW,
             RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
@@ -80,8 +80,8 @@ use crate::{
         WindowEvent,
     },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    keyboard::{KeyCode, ModifiersState},
-    platform::{pump_events::PumpStatus, scancode::KeyCodeExtScancode},
+    keyboard::{KeyCode, ModifiersState, PhysicalKey},
+    platform::{pump_events::PumpStatus, scancode::PhysicalKeyExtScancode},
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -1438,48 +1438,63 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_MOUSEMOVE => {
-            use crate::event::WindowEvent::{CursorEntered, CursorMoved};
-            let mouse_was_outside_window = {
-                let mut w = userdata.window_state_lock();
+            use crate::event::WindowEvent::{CursorEntered, CursorLeft, CursorMoved};
 
-                let was_outside_window = !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
-                w.mouse
-                    .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
-                    .ok();
-                was_outside_window
-            };
+            let x = super::get_x_lparam(lparam as u32) as i32;
+            let y = super::get_y_lparam(lparam as u32) as i32;
+            let position = PhysicalPosition::new(x as f64, y as f64);
 
-            if mouse_was_outside_window {
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: CursorEntered {
-                        device_id: DEVICE_ID,
-                    },
-                });
-
-                // Calling TrackMouseEvent in order to receive mouse leave events.
-                unsafe {
-                    TrackMouseEvent(&mut TRACKMOUSEEVENT {
-                        cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                        dwFlags: TME_LEAVE,
-                        hwndTrack: window,
-                        dwHoverTime: HOVER_DEFAULT,
-                    })
-                };
-            }
-
-            let x = super::get_x_lparam(lparam as u32) as f64;
-            let y = super::get_y_lparam(lparam as u32) as f64;
-            let position = PhysicalPosition::new(x, y);
             let cursor_moved;
             {
+                let mut w = userdata.window_state_lock();
+                let mouse_was_inside_window =
+                    w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
+
+                match get_pointer_move_kind(window, mouse_was_inside_window, x, y) {
+                    PointerMoveKind::Enter => {
+                        w.mouse
+                            .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
+                            .ok();
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: CursorEntered {
+                                device_id: DEVICE_ID,
+                            },
+                        });
+
+                        // Calling TrackMouseEvent in order to receive mouse leave events.
+                        unsafe {
+                            TrackMouseEvent(&mut TRACKMOUSEEVENT {
+                                cbSize: mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                                dwFlags: TME_LEAVE,
+                                hwndTrack: window,
+                                dwHoverTime: HOVER_DEFAULT,
+                            })
+                        };
+                    }
+                    PointerMoveKind::Leave => {
+                        w.mouse
+                            .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
+                            .ok();
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: CursorLeft {
+                                device_id: DEVICE_ID,
+                            },
+                        });
+                    }
+                    PointerMoveKind::None => (),
+                }
+
                 // handle spurious WM_MOUSEMOVE messages
                 // see https://devblogs.microsoft.com/oldnewthing/20031001-00/?p=42343
                 // and http://debugandconquer.blogspot.com/2015/08/the-cause-of-spurious-mouse-move.html
-                let mut w = userdata.window_state_lock();
                 cursor_moved = w.mouse.last_position != Some(position);
                 w.mouse.last_position = Some(position);
             }
+
             if cursor_moved {
                 update_modifiers(window, userdata);
 
@@ -2503,7 +2518,7 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
             return;
         }
-        let code = if keyboard.VKey == VK_NUMLOCK {
+        let physical_key = if keyboard.VKey == VK_NUMLOCK {
             // Historically, the NumLock and the Pause key were one and the same physical key.
             // The user could trigger Pause by pressing Ctrl+NumLock.
             // Now these are often physically separate and the two keys can be differentiated by
@@ -2516,49 +2531,86 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // For more on this, read the article by Raymond Chen, titled:
             // "Why does Ctrl+ScrollLock cancel dialogs?"
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            KeyCode::NumLock
+            PhysicalKey::Code(KeyCode::NumLock)
         } else {
-            KeyCode::from_scancode(scancode as u32)
+            PhysicalKey::from_scancode(scancode as u32)
         };
         if keyboard.VKey == VK_SHIFT {
-            match code {
-                KeyCode::NumpadDecimal
-                | KeyCode::Numpad0
-                | KeyCode::Numpad1
-                | KeyCode::Numpad2
-                | KeyCode::Numpad3
-                | KeyCode::Numpad4
-                | KeyCode::Numpad5
-                | KeyCode::Numpad6
-                | KeyCode::Numpad7
-                | KeyCode::Numpad8
-                | KeyCode::Numpad9 => {
-                    // On Windows, holding the Shift key makes numpad keys behave as if NumLock
-                    // wasn't active. The way this is exposed to applications by the system is that
-                    // the application receives a fake key release event for the shift key at the
-                    // moment when the numpad key is pressed, just before receiving the numpad key
-                    // as well.
-                    //
-                    // The issue is that in the raw device event (here), the fake shift release
-                    // event reports the numpad key as the scancode. Unfortunately, the event doesn't
-                    // have any information to tell whether it's the left shift or the right shift
-                    // that needs to get the fake release (or press) event so we don't forward this
-                    // event to the application at all.
-                    //
-                    // For more on this, read the article by Raymond Chen, titled:
-                    // "The shift key overrides NumLock"
-                    // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
-                    return;
+            if let PhysicalKey::Code(code) = physical_key {
+                match code {
+                    KeyCode::NumpadDecimal
+                    | KeyCode::Numpad0
+                    | KeyCode::Numpad1
+                    | KeyCode::Numpad2
+                    | KeyCode::Numpad3
+                    | KeyCode::Numpad4
+                    | KeyCode::Numpad5
+                    | KeyCode::Numpad6
+                    | KeyCode::Numpad7
+                    | KeyCode::Numpad8
+                    | KeyCode::Numpad9 => {
+                        // On Windows, holding the Shift key makes numpad keys behave as if NumLock
+                        // wasn't active. The way this is exposed to applications by the system is that
+                        // the application receives a fake key release event for the shift key at the
+                        // moment when the numpad key is pressed, just before receiving the numpad key
+                        // as well.
+                        //
+                        // The issue is that in the raw device event (here), the fake shift release
+                        // event reports the numpad key as the scancode. Unfortunately, the event doesn't
+                        // have any information to tell whether it's the left shift or the right shift
+                        // that needs to get the fake release (or press) event so we don't forward this
+                        // event to the application at all.
+                        //
+                        // For more on this, read the article by Raymond Chen, titled:
+                        // "The shift key overrides NumLock"
+                        // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
+                        return;
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
         }
         userdata.send_event(Event::DeviceEvent {
             device_id,
             event: Key(RawKeyEvent {
-                physical_key: code,
+                physical_key,
                 state,
             }),
         });
+    }
+}
+
+enum PointerMoveKind {
+    /// Pointer enterd to the window.
+    Enter,
+    /// Pointer leaved the window client area.
+    Leave,
+    /// Pointer is inside the window or `GetClientRect` failed.
+    None,
+}
+
+fn get_pointer_move_kind(
+    window: HWND,
+    mouse_was_inside_window: bool,
+    x: i32,
+    y: i32,
+) -> PointerMoveKind {
+    let rect: RECT = unsafe {
+        let mut rect: RECT = mem::zeroed();
+        if GetClientRect(window, &mut rect) == false.into() {
+            return PointerMoveKind::None; // exit early if GetClientRect failed
+        }
+        rect
+    };
+
+    let x = (rect.left..rect.right).contains(&x);
+    let y = (rect.top..rect.bottom).contains(&y);
+
+    if !mouse_was_inside_window && x && y {
+        PointerMoveKind::Enter
+    } else if mouse_was_inside_window && !(x && y) {
+        PointerMoveKind::Leave
+    } else {
+        PointerMoveKind::None
     }
 }

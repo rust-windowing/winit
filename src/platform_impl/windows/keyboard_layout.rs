@@ -52,8 +52,8 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    keyboard::{Key, KeyCode, ModifiersState, NativeKey},
-    platform::scancode::KeyCodeExtScancode,
+    keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey},
+    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::{loword, primarylangid},
 };
 
@@ -224,7 +224,7 @@ impl Layout {
         mods: WindowsModifiers,
         num_lock_on: bool,
         vkey: VIRTUAL_KEY,
-        keycode: &KeyCode,
+        physical_key: &PhysicalKey,
     ) -> Key {
         let native_code = NativeKey::Windows(vkey);
 
@@ -252,9 +252,11 @@ impl Layout {
         } else if let Some(key) = self.numlock_off_keys.get(&vkey) {
             return key.clone();
         }
-        if let Some(keys) = self.keys.get(&mods) {
-            if let Some(key) = keys.get(keycode) {
-                return key.clone();
+        if let PhysicalKey::Code(code) = physical_key {
+            if let Some(keys) = self.keys.get(&mods) {
+                if let Some(key) = keys.get(code) {
+                    return key.clone();
+                }
             }
         }
         Key::Unidentified(native_code)
@@ -334,7 +336,11 @@ impl LayoutCache {
             if scancode == 0 {
                 continue;
             }
-            let keycode = KeyCode::from_scancode(scancode);
+            let keycode = match PhysicalKey::from_scancode(scancode) {
+                PhysicalKey::Code(code) => code,
+                // TODO: validate that we can skip on unidentified keys (probably never occurs?)
+                _ => continue,
+            };
             if !is_numpad_specific(vk as VIRTUAL_KEY) && NUMPAD_KEYCODES.contains(&keycode) {
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
                 let map_vkey = keycode_to_vkey(keycode, locale_id);
@@ -382,7 +388,11 @@ impl LayoutCache {
                 }
 
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
-                let key_code = KeyCode::from_scancode(scancode);
+                let key_code = match PhysicalKey::from_scancode(scancode) {
+                    PhysicalKey::Code(code) => code,
+                    // TODO: validate that we can skip on unidentified keys (probably never occurs?)
+                    _ => continue,
+                };
                 // Let's try to get the key from just the scancode and vk
                 // We don't necessarily know yet if AltGraph is present on this layout so we'll
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
@@ -446,7 +456,7 @@ impl LayoutCache {
                 let mod_state = WindowsModifiers::from_bits_retain(mod_state);
                 if let Some(keys) = layout.keys.get_mut(&mod_state) {
                     if let Some(key) = keys.get_mut(&KeyCode::AltRight) {
-                        *key = Key::AltGraph;
+                        *key = Key::Named(NamedKey::AltGraph);
                     }
                 }
             }
@@ -733,7 +743,6 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::F33 => 0,
         KeyCode::F34 => 0,
         KeyCode::F35 => 0,
-        KeyCode::Unidentified(_) => 0,
         _ => 0,
     }
 }
@@ -769,56 +778,56 @@ fn vkey_to_non_char_key(
         VK_MBUTTON => Key::Unidentified(NativeKey::Unidentified), // Mouse
         VK_XBUTTON1 => Key::Unidentified(NativeKey::Unidentified), // Mouse
         VK_XBUTTON2 => Key::Unidentified(NativeKey::Unidentified), // Mouse
-        VK_BACK => Key::Backspace,
-        VK_TAB => Key::Tab,
-        VK_CLEAR => Key::Clear,
-        VK_RETURN => Key::Enter,
-        VK_SHIFT => Key::Shift,
-        VK_CONTROL => Key::Control,
-        VK_MENU => Key::Alt,
-        VK_PAUSE => Key::Pause,
-        VK_CAPITAL => Key::CapsLock,
+        VK_BACK => Key::Named(NamedKey::Backspace),
+        VK_TAB => Key::Named(NamedKey::Tab),
+        VK_CLEAR => Key::Named(NamedKey::Clear),
+        VK_RETURN => Key::Named(NamedKey::Enter),
+        VK_SHIFT => Key::Named(NamedKey::Shift),
+        VK_CONTROL => Key::Named(NamedKey::Control),
+        VK_MENU => Key::Named(NamedKey::Alt),
+        VK_PAUSE => Key::Named(NamedKey::Pause),
+        VK_CAPITAL => Key::Named(NamedKey::CapsLock),
 
-        //VK_HANGEUL => Key::HangulMode, // Deprecated in favour of VK_HANGUL
+        //VK_HANGEUL => Key::Named(NamedKey::HangulMode), // Deprecated in favour of VK_HANGUL
 
         // VK_HANGUL and VK_KANA are defined as the same constant, therefore
         // we use appropriate conditions to differentate between them
-        VK_HANGUL if is_korean => Key::HangulMode,
-        VK_KANA if is_japanese => Key::KanaMode,
+        VK_HANGUL if is_korean => Key::Named(NamedKey::HangulMode),
+        VK_KANA if is_japanese => Key::Named(NamedKey::KanaMode),
 
-        VK_JUNJA => Key::JunjaMode,
-        VK_FINAL => Key::FinalMode,
+        VK_JUNJA => Key::Named(NamedKey::JunjaMode),
+        VK_FINAL => Key::Named(NamedKey::FinalMode),
 
         // VK_HANJA and VK_KANJI are defined as the same constant, therefore
         // we use appropriate conditions to differentate between them
-        VK_HANJA if is_korean => Key::HanjaMode,
-        VK_KANJI if is_japanese => Key::KanjiMode,
+        VK_HANJA if is_korean => Key::Named(NamedKey::HanjaMode),
+        VK_KANJI if is_japanese => Key::Named(NamedKey::KanjiMode),
 
-        VK_ESCAPE => Key::Escape,
-        VK_CONVERT => Key::Convert,
-        VK_NONCONVERT => Key::NonConvert,
-        VK_ACCEPT => Key::Accept,
-        VK_MODECHANGE => Key::ModeChange,
-        VK_SPACE => Key::Space,
-        VK_PRIOR => Key::PageUp,
-        VK_NEXT => Key::PageDown,
-        VK_END => Key::End,
-        VK_HOME => Key::Home,
-        VK_LEFT => Key::ArrowLeft,
-        VK_UP => Key::ArrowUp,
-        VK_RIGHT => Key::ArrowRight,
-        VK_DOWN => Key::ArrowDown,
-        VK_SELECT => Key::Select,
-        VK_PRINT => Key::Print,
-        VK_EXECUTE => Key::Execute,
-        VK_SNAPSHOT => Key::PrintScreen,
-        VK_INSERT => Key::Insert,
-        VK_DELETE => Key::Delete,
-        VK_HELP => Key::Help,
-        VK_LWIN => Key::Super,
-        VK_RWIN => Key::Super,
-        VK_APPS => Key::ContextMenu,
-        VK_SLEEP => Key::Standby,
+        VK_ESCAPE => Key::Named(NamedKey::Escape),
+        VK_CONVERT => Key::Named(NamedKey::Convert),
+        VK_NONCONVERT => Key::Named(NamedKey::NonConvert),
+        VK_ACCEPT => Key::Named(NamedKey::Accept),
+        VK_MODECHANGE => Key::Named(NamedKey::ModeChange),
+        VK_SPACE => Key::Named(NamedKey::Space),
+        VK_PRIOR => Key::Named(NamedKey::PageUp),
+        VK_NEXT => Key::Named(NamedKey::PageDown),
+        VK_END => Key::Named(NamedKey::End),
+        VK_HOME => Key::Named(NamedKey::Home),
+        VK_LEFT => Key::Named(NamedKey::ArrowLeft),
+        VK_UP => Key::Named(NamedKey::ArrowUp),
+        VK_RIGHT => Key::Named(NamedKey::ArrowRight),
+        VK_DOWN => Key::Named(NamedKey::ArrowDown),
+        VK_SELECT => Key::Named(NamedKey::Select),
+        VK_PRINT => Key::Named(NamedKey::Print),
+        VK_EXECUTE => Key::Named(NamedKey::Execute),
+        VK_SNAPSHOT => Key::Named(NamedKey::PrintScreen),
+        VK_INSERT => Key::Named(NamedKey::Insert),
+        VK_DELETE => Key::Named(NamedKey::Delete),
+        VK_HELP => Key::Named(NamedKey::Help),
+        VK_LWIN => Key::Named(NamedKey::Super),
+        VK_RWIN => Key::Named(NamedKey::Super),
+        VK_APPS => Key::Named(NamedKey::ContextMenu),
+        VK_SLEEP => Key::Named(NamedKey::Standby),
 
         // Numpad keys produce characters
         VK_NUMPAD0 => Key::Unidentified(native_code),
@@ -838,30 +847,30 @@ fn vkey_to_non_char_key(
         VK_DECIMAL => Key::Unidentified(native_code),
         VK_DIVIDE => Key::Unidentified(native_code),
 
-        VK_F1 => Key::F1,
-        VK_F2 => Key::F2,
-        VK_F3 => Key::F3,
-        VK_F4 => Key::F4,
-        VK_F5 => Key::F5,
-        VK_F6 => Key::F6,
-        VK_F7 => Key::F7,
-        VK_F8 => Key::F8,
-        VK_F9 => Key::F9,
-        VK_F10 => Key::F10,
-        VK_F11 => Key::F11,
-        VK_F12 => Key::F12,
-        VK_F13 => Key::F13,
-        VK_F14 => Key::F14,
-        VK_F15 => Key::F15,
-        VK_F16 => Key::F16,
-        VK_F17 => Key::F17,
-        VK_F18 => Key::F18,
-        VK_F19 => Key::F19,
-        VK_F20 => Key::F20,
-        VK_F21 => Key::F21,
-        VK_F22 => Key::F22,
-        VK_F23 => Key::F23,
-        VK_F24 => Key::F24,
+        VK_F1 => Key::Named(NamedKey::F1),
+        VK_F2 => Key::Named(NamedKey::F2),
+        VK_F3 => Key::Named(NamedKey::F3),
+        VK_F4 => Key::Named(NamedKey::F4),
+        VK_F5 => Key::Named(NamedKey::F5),
+        VK_F6 => Key::Named(NamedKey::F6),
+        VK_F7 => Key::Named(NamedKey::F7),
+        VK_F8 => Key::Named(NamedKey::F8),
+        VK_F9 => Key::Named(NamedKey::F9),
+        VK_F10 => Key::Named(NamedKey::F10),
+        VK_F11 => Key::Named(NamedKey::F11),
+        VK_F12 => Key::Named(NamedKey::F12),
+        VK_F13 => Key::Named(NamedKey::F13),
+        VK_F14 => Key::Named(NamedKey::F14),
+        VK_F15 => Key::Named(NamedKey::F15),
+        VK_F16 => Key::Named(NamedKey::F16),
+        VK_F17 => Key::Named(NamedKey::F17),
+        VK_F18 => Key::Named(NamedKey::F18),
+        VK_F19 => Key::Named(NamedKey::F19),
+        VK_F20 => Key::Named(NamedKey::F20),
+        VK_F21 => Key::Named(NamedKey::F21),
+        VK_F22 => Key::Named(NamedKey::F22),
+        VK_F23 => Key::Named(NamedKey::F23),
+        VK_F24 => Key::Named(NamedKey::F24),
         VK_NAVIGATION_VIEW => Key::Unidentified(native_code),
         VK_NAVIGATION_MENU => Key::Unidentified(native_code),
         VK_NAVIGATION_UP => Key::Unidentified(native_code),
@@ -870,44 +879,44 @@ fn vkey_to_non_char_key(
         VK_NAVIGATION_RIGHT => Key::Unidentified(native_code),
         VK_NAVIGATION_ACCEPT => Key::Unidentified(native_code),
         VK_NAVIGATION_CANCEL => Key::Unidentified(native_code),
-        VK_NUMLOCK => Key::NumLock,
-        VK_SCROLL => Key::ScrollLock,
+        VK_NUMLOCK => Key::Named(NamedKey::NumLock),
+        VK_SCROLL => Key::Named(NamedKey::ScrollLock),
         VK_OEM_NEC_EQUAL => Key::Unidentified(native_code),
         //VK_OEM_FJ_JISHO => Key::Unidentified(native_code), // Conflicts with `VK_OEM_NEC_EQUAL`
         VK_OEM_FJ_MASSHOU => Key::Unidentified(native_code),
         VK_OEM_FJ_TOUROKU => Key::Unidentified(native_code),
         VK_OEM_FJ_LOYA => Key::Unidentified(native_code),
         VK_OEM_FJ_ROYA => Key::Unidentified(native_code),
-        VK_LSHIFT => Key::Shift,
-        VK_RSHIFT => Key::Shift,
-        VK_LCONTROL => Key::Control,
-        VK_RCONTROL => Key::Control,
-        VK_LMENU => Key::Alt,
+        VK_LSHIFT => Key::Named(NamedKey::Shift),
+        VK_RSHIFT => Key::Named(NamedKey::Shift),
+        VK_LCONTROL => Key::Named(NamedKey::Control),
+        VK_RCONTROL => Key::Named(NamedKey::Control),
+        VK_LMENU => Key::Named(NamedKey::Alt),
         VK_RMENU => {
             if has_alt_graph {
-                Key::AltGraph
+                Key::Named(NamedKey::AltGraph)
             } else {
-                Key::Alt
+                Key::Named(NamedKey::Alt)
             }
         }
-        VK_BROWSER_BACK => Key::BrowserBack,
-        VK_BROWSER_FORWARD => Key::BrowserForward,
-        VK_BROWSER_REFRESH => Key::BrowserRefresh,
-        VK_BROWSER_STOP => Key::BrowserStop,
-        VK_BROWSER_SEARCH => Key::BrowserSearch,
-        VK_BROWSER_FAVORITES => Key::BrowserFavorites,
-        VK_BROWSER_HOME => Key::BrowserHome,
-        VK_VOLUME_MUTE => Key::AudioVolumeMute,
-        VK_VOLUME_DOWN => Key::AudioVolumeDown,
-        VK_VOLUME_UP => Key::AudioVolumeUp,
-        VK_MEDIA_NEXT_TRACK => Key::MediaTrackNext,
-        VK_MEDIA_PREV_TRACK => Key::MediaTrackPrevious,
-        VK_MEDIA_STOP => Key::MediaStop,
-        VK_MEDIA_PLAY_PAUSE => Key::MediaPlayPause,
-        VK_LAUNCH_MAIL => Key::LaunchMail,
-        VK_LAUNCH_MEDIA_SELECT => Key::LaunchMediaPlayer,
-        VK_LAUNCH_APP1 => Key::LaunchApplication1,
-        VK_LAUNCH_APP2 => Key::LaunchApplication2,
+        VK_BROWSER_BACK => Key::Named(NamedKey::BrowserBack),
+        VK_BROWSER_FORWARD => Key::Named(NamedKey::BrowserForward),
+        VK_BROWSER_REFRESH => Key::Named(NamedKey::BrowserRefresh),
+        VK_BROWSER_STOP => Key::Named(NamedKey::BrowserStop),
+        VK_BROWSER_SEARCH => Key::Named(NamedKey::BrowserSearch),
+        VK_BROWSER_FAVORITES => Key::Named(NamedKey::BrowserFavorites),
+        VK_BROWSER_HOME => Key::Named(NamedKey::BrowserHome),
+        VK_VOLUME_MUTE => Key::Named(NamedKey::AudioVolumeMute),
+        VK_VOLUME_DOWN => Key::Named(NamedKey::AudioVolumeDown),
+        VK_VOLUME_UP => Key::Named(NamedKey::AudioVolumeUp),
+        VK_MEDIA_NEXT_TRACK => Key::Named(NamedKey::MediaTrackNext),
+        VK_MEDIA_PREV_TRACK => Key::Named(NamedKey::MediaTrackPrevious),
+        VK_MEDIA_STOP => Key::Named(NamedKey::MediaStop),
+        VK_MEDIA_PLAY_PAUSE => Key::Named(NamedKey::MediaPlayPause),
+        VK_LAUNCH_MAIL => Key::Named(NamedKey::LaunchMail),
+        VK_LAUNCH_MEDIA_SELECT => Key::Named(NamedKey::LaunchMediaPlayer),
+        VK_LAUNCH_APP1 => Key::Named(NamedKey::LaunchApplication1),
+        VK_LAUNCH_APP2 => Key::Named(NamedKey::LaunchApplication2),
 
         // This function only converts "non-printable"
         VK_OEM_1 => Key::Unidentified(native_code),
@@ -955,7 +964,7 @@ fn vkey_to_non_char_key(
         VK_ICO_HELP => Key::Unidentified(native_code),
         VK_ICO_00 => Key::Unidentified(native_code),
 
-        VK_PROCESSKEY => Key::Process,
+        VK_PROCESSKEY => Key::Named(NamedKey::Process),
 
         VK_ICO_CLEAR => Key::Unidentified(native_code),
         VK_PACKET => Key::Unidentified(native_code),
@@ -967,32 +976,32 @@ fn vkey_to_non_char_key(
         VK_OEM_WSCTRL => Key::Unidentified(native_code),
         VK_OEM_CUSEL => Key::Unidentified(native_code),
 
-        VK_OEM_ATTN => Key::Attn,
+        VK_OEM_ATTN => Key::Named(NamedKey::Attn),
         VK_OEM_FINISH => {
             if is_japanese {
-                Key::Katakana
+                Key::Named(NamedKey::Katakana)
             } else {
                 // This matches IE and Firefox behaviour according to
                 // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
-                // At the time of writing, there is no `Key::Finish` variant as
+                // At the time of writing, there is no `NamedKey::Finish` variant as
                 // Finish is not mentionned at https://w3c.github.io/uievents-key/
                 // Also see: https://github.com/pyfisch/keyboard-types/issues/9
                 Key::Unidentified(native_code)
             }
         }
-        VK_OEM_COPY => Key::Copy,
-        VK_OEM_AUTO => Key::Hankaku,
-        VK_OEM_ENLW => Key::Zenkaku,
-        VK_OEM_BACKTAB => Key::Romaji,
-        VK_ATTN => Key::KanaMode,
-        VK_CRSEL => Key::CrSel,
-        VK_EXSEL => Key::ExSel,
-        VK_EREOF => Key::EraseEof,
-        VK_PLAY => Key::Play,
-        VK_ZOOM => Key::ZoomToggle,
+        VK_OEM_COPY => Key::Named(NamedKey::Copy),
+        VK_OEM_AUTO => Key::Named(NamedKey::Hankaku),
+        VK_OEM_ENLW => Key::Named(NamedKey::Zenkaku),
+        VK_OEM_BACKTAB => Key::Named(NamedKey::Romaji),
+        VK_ATTN => Key::Named(NamedKey::KanaMode),
+        VK_CRSEL => Key::Named(NamedKey::CrSel),
+        VK_EXSEL => Key::Named(NamedKey::ExSel),
+        VK_EREOF => Key::Named(NamedKey::EraseEof),
+        VK_PLAY => Key::Named(NamedKey::Play),
+        VK_ZOOM => Key::Named(NamedKey::ZoomToggle),
         VK_NONAME => Key::Unidentified(native_code),
         VK_PA1 => Key::Unidentified(native_code),
-        VK_OEM_CLEAR => Key::Clear,
+        VK_OEM_CLEAR => Key::Named(NamedKey::Clear),
         _ => Key::Unidentified(native_code),
     }
 }

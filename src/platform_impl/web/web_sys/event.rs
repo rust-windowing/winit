@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use once_cell::unsync::OnceCell;
 use smol_str::SmolStr;
@@ -149,9 +149,9 @@ pub fn mouse_scroll_delta(
     }
 }
 
-pub fn key_code(event: &KeyboardEvent) -> KeyCode {
+pub fn key_code(event: &KeyboardEvent) -> PhysicalKey {
     let code = event.code();
-    KeyCode::from_key_code_attribute_value(&code)
+    PhysicalKey::from_key_code_attribute_value(&code)
 }
 
 pub fn key(event: &KeyboardEvent) -> Key {
@@ -163,9 +163,9 @@ pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
     let key = Key::from_key_attribute_value(&key);
     match &key {
         Key::Character(text) => Some(text.clone()),
-        Key::Tab => Some(SmolStr::new("\t")),
-        Key::Enter => Some(SmolStr::new("\r")),
-        Key::Space => Some(SmolStr::new(" ")),
+        Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),
+        Key::Named(NamedKey::Enter) => Some(SmolStr::new("\r")),
+        Key::Named(NamedKey::Space) => Some(SmolStr::new(" ")),
         _ => None,
     }
     .map(SmolStr::new)
