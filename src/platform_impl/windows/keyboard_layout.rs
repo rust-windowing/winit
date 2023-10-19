@@ -743,7 +743,6 @@ fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
         KeyCode::F33 => 0,
         KeyCode::F34 => 0,
         KeyCode::F35 => 0,
-        // TODO: validate removal of KeyCode::Unidentified(_) => 0,
         _ => 0,
     }
 }
