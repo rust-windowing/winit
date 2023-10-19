@@ -3,6 +3,7 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::VecDeque, env, fmt};
@@ -11,7 +12,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
@@ -445,7 +445,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn show_window_menu(&self, _position: Position) {}
+    pub fn show_window_menu(&self, position: Position) {
+        x11_or_wayland!(match self; Window(w) => w.show_window_menu(position))
+    }
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
@@ -578,14 +580,36 @@ impl Window {
         Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_04())
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_05())
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_05())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_06())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_06())
     }
 
     #[inline]
@@ -728,11 +752,16 @@ impl<T: 'static> EventLoop<T> {
             );
         }
 
-        // NOTE: Wayland first because of X11 could be present under wayland as well.
+        // NOTE: Wayland first because of X11 could be present under Wayland as well. Empty
+        // variables are also treated as not set.
         let backend = match (
             attributes.forced_backend,
-            env::var("WAYLAND_DISPLAY").is_ok(),
-            env::var("DISPLAY").is_ok(),
+            env::var("WAYLAND_DISPLAY")
+                .map(|var| !var.is_empty())
+                .unwrap_or(false),
+            env::var("DISPLAY")
+                .map(|var| !var.is_empty())
+                .unwrap_or(false),
         ) {
             // User is forcing a backend.
             (Some(backend), _, _) => backend,
@@ -804,6 +833,18 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_fd())
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
+    }
+}
+
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
@@ -855,8 +896,18 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle_rwh_05())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle_rwh_06())
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {

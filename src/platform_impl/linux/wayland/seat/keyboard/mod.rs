@@ -67,7 +67,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 };
 
                 // Drop the repeat, if there were any.
-                seat_state.keyboard_state.as_mut().unwrap().current_repeat = None;
+                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
+                keyboard_state.current_repeat = None;
+                if let Some(token) = keyboard_state.repeat_token.take() {
+                    keyboard_state.loop_handle.remove(token);
+                }
 
                 // The keyboard focus is considered as general focus.
                 state
@@ -89,7 +93,11 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 // NOTE: we should drop the repeat regardless whethere it was for the present
                 // window of for the window which just went gone.
-                seat_state.keyboard_state.as_mut().unwrap().current_repeat = None;
+                let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
+                keyboard_state.current_repeat = None;
+                if let Some(token) = keyboard_state.repeat_token.take() {
+                    keyboard_state.loop_handle.remove(token);
+                }
 
                 // NOTE: The check whether the window exists is essential as we might get a
                 // nil surface, regardless of what protocol says.
@@ -204,6 +212,9 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     && Some(key) == keyboard_state.current_repeat
                 {
                     keyboard_state.current_repeat = None;
+                    if let Some(token) = keyboard_state.repeat_token.take() {
+                        keyboard_state.loop_handle.remove(token);
+                    }
                 }
             }
             WlKeyboardEvent::Modifiers {

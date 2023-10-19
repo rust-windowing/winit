@@ -28,11 +28,11 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
-    mem::{self, MaybeUninit},
+    mem::MaybeUninit,
     ops::Deref,
     os::{
         raw::*,
-        unix::io::{AsRawFd, RawFd},
+        unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd},
     },
     ptr,
     rc::Rc,
@@ -45,7 +45,6 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use atoms::*;
-use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::{
@@ -83,7 +82,7 @@ use crate::{
 const ALL_DEVICES: u16 = 0;
 const ALL_MASTER_DEVICES: u16 = 1;
 
-type X11Source = Generic<RawFd>;
+type X11Source = Generic<BorrowedFd<'static>>;
 
 struct WakeSender<T> {
     sender: Sender<T>,
@@ -269,7 +268,8 @@ impl<T: 'static> EventLoop<T> {
 
         // Create the X11 event dispatcher.
         let source = X11Source::new(
-            xconn.xcb_connection().as_raw_fd(),
+            // SAFETY: xcb owns the FD and outlives the source.
+            unsafe { BorrowedFd::borrow_raw(xconn.xcb_connection().as_raw_fd()) },
             calloop::Interest::READ,
             calloop::Mode::Level,
         );
@@ -658,6 +658,18 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.event_loop.as_fd()
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        self.event_loop.as_raw_fd()
+    }
+}
+
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
@@ -704,11 +716,27 @@ impl<T> EventLoopWindowTarget<T> {
             .expect_then_ignore_error("Failed to update device event filter");
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        let mut display_handle = XlibDisplayHandle::empty();
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::XlibDisplayHandle::empty();
         display_handle.display = self.xconn.display as *mut _;
         display_handle.screen = self.xconn.default_screen_index() as c_int;
-        RawDisplayHandle::Xlib(display_handle)
+        display_handle.into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        let display_handle = rwh_06::XlibDisplayHandle::new(
+            // SAFETY: display will never be null
+            Some(
+                std::ptr::NonNull::new(self.xconn.display as *mut _)
+                    .expect("X11 display should never be null"),
+            ),
+            self.xconn.default_screen_index() as c_int,
+        );
+        Ok(display_handle.into())
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -1036,12 +1064,10 @@ impl Device {
 
         if Device::physical_device(info) {
             // Identify scroll axes
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIScrollClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
-                    };
+            for &class_ptr in Device::classes(info) {
+                let ty = unsafe { (*class_ptr)._type };
+                if ty == ffi::XIScrollClass {
+                    let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
                     scroll_axes.push((
                         info.number,
                         ScrollAxis {
@@ -1069,12 +1095,10 @@ impl Device {
 
     fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
         if Device::physical_device(info) {
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                if class._type == ffi::XIValuatorClass {
-                    let info = unsafe {
-                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
-                    };
+            for &class_ptr in Device::classes(info) {
+                let ty = unsafe { (*class_ptr)._type };
+                if ty == ffi::XIValuatorClass {
+                    let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
                     if let Some(&mut (_, ref mut axis)) = self
                         .scroll_axes
                         .iter_mut()

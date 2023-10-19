@@ -31,18 +31,10 @@ multiple-versions = "deny"
 wildcards = "allow" # at least until https://github.com/EmbarkStudios/cargo-deny/issues/241 is fixed
 deny = []
 skip = [
+    { name = "raw-window-handle" },    # we intentionally have multiple versions of this
     { name = "bitflags" },             # the ecosystem is in the process of migrating.
-    { name = "nix" },                  # differing version - as of 2023-03-02 whis can be solved with `cargo update && cargo update -p calloop --precise 0.10.2`
-    { name = "memoffset"},             # due to different nix versions.
-    { name = "memmap2" },              # sctk uses a different version until the next update
     { name = "libloading" },           # x11rb uses a different version until the next update
-    { name = "syn" },                  # https://github.com/rust-mobile/ndk/issues/392
-    { name = "num_enum"},              # See above ^, waiting for release
-    { name = "num_enum_derive"},       # See above ^, waiting for release
-    { name = "miniz_oxide"},           # https://github.com/rust-lang/flate2-rs/issues/340
     { name = "redox_syscall" },        # https://gitlab.redox-os.org/redox-os/orbclient/-/issues/46
-    { name = "foreign-types-shared" }, # https://github.com/servo/core-foundation-rs/issues/634
-    { name = "foreign-types" },        # See above ^, waiting for release
 ]
 skip-tree = []
 

@@ -1,30 +1,25 @@
-use std::sync::mpsc::Sender;
+use std::rc::Weak;
+use std::sync::mpsc::{SendError, Sender};
 
-use super::runner;
-use crate::event::Event;
+use super::runner::Execution;
 use crate::event_loop::EventLoopClosed;
-use crate::platform_impl::platform::r#async::Channel;
+use crate::platform_impl::platform::r#async::Waker;
 
 pub struct EventLoopProxy<T: 'static> {
-    // used to wake the event loop handler, not to actually pass data
-    runner: Channel<runner::Shared, ()>,
+    runner: Waker<Weak<Execution>>,
     sender: Sender<T>,
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn new(runner: runner::Shared, sender: Sender<T>) -> Self {
-        Self {
-            runner: Channel::new(runner, |runner, event| {
-                runner.send_event(Event::UserEvent(event))
-            })
-            .unwrap(),
-            sender,
-        }
+    pub fn new(runner: Waker<Weak<Execution>>, sender: Sender<T>) -> Self {
+        Self { runner, sender }
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).unwrap();
-        self.runner.send(());
+        self.sender
+            .send(event)
+            .map_err(|SendError(event)| EventLoopClosed(event))?;
+        self.runner.wake();
         Ok(())
     }
 }

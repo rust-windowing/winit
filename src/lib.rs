@@ -139,6 +139,9 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
 
+#[cfg(feature = "rwh_06")]
+pub use rwh_06 as raw_window_handle;
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
@@ -160,3 +163,18 @@ mod platform_impl;
 pub mod window;
 
 pub mod platform;
+
+/// Wrapper for objects which winit will access on the main thread so they are effectively `Send`
+/// and `Sync`, since they always excute on a single thread.
+///
+/// # Safety
+///
+/// Winit can run only one event loop at the time and the event loop itself is tied to some thread.
+/// The objects could be send across the threads, but once passed to winit, they execute on the
+/// mean thread if the platform demands it. Thus marking such objects as `Send + Sync` is safe.
+#[doc(hidden)]
+#[derive(Clone, Debug)]
+pub(crate) struct SendSyncWrapper<T>(pub(crate) T);
+
+unsafe impl<T> Send for SendSyncWrapper<T> {}
+unsafe impl<T> Sync for SendSyncWrapper<T> {}

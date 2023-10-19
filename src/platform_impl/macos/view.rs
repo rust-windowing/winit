@@ -918,8 +918,13 @@ impl WinitView {
 
         // This function was called form the flagsChanged event, which is triggered
         // when the user presses/releases a modifier even if the same kind of modifier
-        // has already been pressed
-        if is_flags_changed_event {
+        // has already been pressed.
+        //
+        // When flags changed event has key code of zero it means that event doesn't carry any key
+        // event, thus we can't generate regular presses based on that. The `ModifiersChanged`
+        // later will work though, since the flags are attached to the event and contain valid
+        // information.
+        if is_flags_changed_event && ns_event.key_code() != 0 {
             let scancode = ns_event.key_code();
             let physical_key = PhysicalKey::from_scancode(scancode as u32);
 

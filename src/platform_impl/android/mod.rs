@@ -16,9 +16,6 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use once_cell::sync::Lazy;
-use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -688,8 +685,20 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -935,7 +944,10 @@ impl Window {
         ))
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    #[cfg(feature = "rwh_04")]
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        use rwh_04::HasRawWindowHandle;
+
         if let Some(native_window) = self.app.native_window().as_ref() {
             native_window.raw_window_handle()
         } else {
@@ -943,8 +955,43 @@ impl Window {
         }
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        use rwh_05::HasRawWindowHandle;
+
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            native_window.raw_window_handle()
+        } else {
+            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+        }
+    }
+
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    // Allow the usage of HasRawWindowHandle inside this function
+    #[allow(deprecated)]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        use rwh_06::HasRawWindowHandle;
+
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            native_window.raw_window_handle()
+        } else {
+            log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            Err(rwh_06::HandleError::Unavailable)
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
     }
 
     pub fn config(&self) -> ConfigurationRef {

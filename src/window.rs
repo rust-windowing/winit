@@ -1,25 +1,18 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
-use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
-    platform_impl,
+    platform_impl, SendSyncWrapper,
 };
 
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
-
-#[doc(inline)]
-pub use raw_window_handle;
 
 /// Represents a window.
 ///
@@ -148,7 +141,6 @@ pub struct WindowAttributes {
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
-    pub fullscreen: Option<Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -159,8 +151,10 @@ pub struct WindowAttributes {
     pub resize_increments: Option<Size>,
     pub content_protected: bool,
     pub window_level: WindowLevel,
-    pub parent_window: Option<RawWindowHandle>,
     pub active: bool,
+    #[cfg(feature = "rwh_06")]
+    pub(crate) parent_window: SendSyncWrapper<Option<rwh_06::RawWindowHandle>>,
+    pub(crate) fullscreen: SendSyncWrapper<Option<Fullscreen>>,
 }
 
 impl Default for WindowAttributes {
@@ -175,7 +169,7 @@ impl Default for WindowAttributes {
             enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
-            fullscreen: None,
+            fullscreen: SendSyncWrapper(None),
             visible: true,
             transparent: false,
             blur: false,
@@ -185,9 +179,23 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
-            parent_window: None,
+            #[cfg(feature = "rwh_06")]
+            parent_window: SendSyncWrapper(None),
             active: true,
         }
+    }
+}
+
+impl WindowAttributes {
+    /// Get the parent window stored on the attributes.
+    #[cfg(feature = "rwh_06")]
+    pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
+        self.parent_window.0.as_ref()
+    }
+
+    /// Get `Fullscreen` option stored on the attributes.
+    pub fn fullscreen(&self) -> Option<&Fullscreen> {
+        self.fullscreen.0.as_ref()
     }
 }
 
@@ -197,7 +205,9 @@ impl WindowBuilder {
     pub fn new() -> Self {
         Default::default()
     }
+}
 
+impl WindowBuilder {
     /// Get the current window attributes.
     pub fn window_attributes(&self) -> &WindowAttributes {
         &self.window
@@ -306,7 +316,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.window.fullscreen = SendSyncWrapper(fullscreen);
         self
     }
 
@@ -456,7 +466,7 @@ impl WindowBuilder {
     ///
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
     #[inline]
-    pub fn with_active(mut self, active: bool) -> WindowBuilder {
+    pub fn with_active(mut self, active: bool) -> Self {
         self.window.active = active;
         self
     }
@@ -476,9 +486,13 @@ impl WindowBuilder {
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
     /// - **Android / iOS / Wayland / Web:** Unsupported.
+    #[cfg(feature = "rwh_06")]
     #[inline]
-    pub unsafe fn with_parent_window(mut self, parent_window: Option<RawWindowHandle>) -> Self {
-        self.window.parent_window = parent_window;
+    pub unsafe fn with_parent_window(
+        mut self,
+        parent_window: Option<rwh_06::RawWindowHandle>,
+    ) -> Self {
+        self.window.parent_window = SendSyncWrapper(parent_window);
         self
     }
 
@@ -571,7 +585,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **Windows** This API uses `RedrawWindow` to request a `WM_PAINT` message and `RedrawRequested`
-    ///   is emitted in sync with any `WM_PAINT` messages
+    ///   is emitted in sync with any `WM_PAINT` messages. **Calling this method from `RedrawRequested`
+    ///   event handler won't produce a `RedrawRequested` event**.
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** The events are aligned with the frame callbacks when [`Window::pre_present_notify`]
     ///                is used.
@@ -1505,41 +1520,59 @@ impl Window {
     }
 }
 
-unsafe impl HasRawWindowHandle for Window {
-    /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
-    ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
-    /// try to get the handle outside of that period, this function will panic*!
-    ///
-    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
-    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
-    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
-    ///
-    /// [`Event::Resumed`]: crate::event::Event::Resumed
-    /// [`Event::Suspended`]: crate::event::Event::Suspended
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        struct Wrapper(RawWindowHandle);
-        unsafe impl Send for Wrapper {}
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        let raw = self
+            .window
+            .maybe_wait_on_main(|w| w.raw_window_handle_rwh_06().map(SendSyncWrapper))?
+            .0;
+
+        // SAFETY: The window handle will never be deallocated while the window is alive.
+        Ok(unsafe { rwh_06::WindowHandle::borrow_raw(raw) })
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self
+            .window
+            .maybe_wait_on_main(|w| w.raw_display_handle_rwh_06().map(SendSyncWrapper))?
+            .0;
+
+        // SAFETY: The window handle will never be deallocated while the window is alive.
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_window_handle()))
+            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_05()))
             .0
     }
 }
 
-unsafe impl HasRawDisplayHandle for Window {
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawDisplayHandle for Window {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        struct Wrapper(RawDisplayHandle);
-        unsafe impl Send for Wrapper {}
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.window
-            .maybe_wait_on_main(|w| Wrapper(w.raw_display_handle()))
+            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_display_handle_rwh_05()))
+            .0
+    }
+}
+
+#[cfg(feature = "rwh_04")]
+unsafe impl rwh_04::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
+        self.window
+            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_04()))
             .0
     }
 }

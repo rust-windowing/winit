@@ -9,10 +9,11 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
+#[cfg(any(x11_platform, wayland_platform))]
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
-use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 #[cfg(not(wasm_platform))]
 use std::time::{Duration, Instant};
 #[cfg(wasm_platform)]
@@ -248,10 +249,46 @@ impl<T> EventLoop<T> {
     }
 }
 
-unsafe impl<T> HasRawDisplayHandle for EventLoop<T> {
+#[cfg(feature = "rwh_06")]
+impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        rwh_06::HasDisplayHandle::display_handle(&**self)
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.event_loop.window_target().p.raw_display_handle()
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::HasRawDisplayHandle::raw_display_handle(&**self)
+    }
+}
+
+#[cfg(any(x11_platform, wayland_platform))]
+impl<T> AsFd for EventLoop<T> {
+    /// Get the underlying [EventLoop]'s `fd` which you can register
+    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
+    /// loop must be polled with the [`pump_events`] API.
+    ///
+    /// [`calloop`]: https://crates.io/crates/calloop
+    /// [`mio`]: https://crates.io/crates/mio
+    /// [`pump_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_events
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.event_loop.as_fd()
+    }
+}
+
+#[cfg(any(x11_platform, wayland_platform))]
+impl<T> AsRawFd for EventLoop<T> {
+    /// Get the underlying [EventLoop]'s raw `fd` which you can register
+    /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
+    /// loop must be polled with the [`pump_events`] API.
+    ///
+    /// [`calloop`]: https://crates.io/crates/calloop
+    /// [`mio`]: https://crates.io/crates/mio
+    /// [`pump_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_events
+    fn as_raw_fd(&self) -> RawFd {
+        self.event_loop.as_raw_fd()
     }
 }
 
@@ -327,10 +364,20 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
-unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
+#[cfg(feature = "rwh_06")]
+impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.p.raw_display_handle_rwh_06()?;
+        // SAFETY: The display will never be deallocated while the event loop is alive.
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.p.raw_display_handle()
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
+        self.p.raw_display_handle_rwh_05()
     }
 }
 

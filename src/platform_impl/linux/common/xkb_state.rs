@@ -13,7 +13,7 @@ use xkbcommon_dl::{
     XkbCommonCompose,
 };
 #[cfg(feature = "wayland")]
-use {memmap2::MmapOptions, wayland_backend::io_lifetimes::OwnedFd};
+use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 #[cfg(feature = "x11")]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
 
