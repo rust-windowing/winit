@@ -209,11 +209,15 @@ impl MonitorHandle {
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
-        let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
-        PhysicalPosition {
-            x: rc_monitor.left,
-            y: rc_monitor.top,
-        }
+        get_monitor_info(self.0)
+            .map(|info| {
+                let rc_monitor = info.monitorInfo.rcMonitor;
+                PhysicalPosition {
+                    x: rc_monitor.left,
+                    y: rc_monitor.top,
+                }
+            })
+            .unwrap_or(PhysicalPosition { x: 0, y: 0 })
     }
 
     #[inline]
