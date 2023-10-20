@@ -872,17 +872,22 @@ impl Window {
 
     #[inline]
     pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
-        unsafe {
-            ImeContext::current(self.hwnd()).set_ime_cursor_area(spot, size, self.scale_factor());
-        }
+        let window = self.window.clone();
+        let state = self.window_state.clone();
+        self.thread_executor.execute_in_thread(move || unsafe {
+            let scale_factor = state.lock().unwrap().scale_factor;
+            ImeContext::current(window.0).set_ime_cursor_area(spot, size, scale_factor);
+        });
     }
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        self.window_state_lock().ime_allowed = allowed;
-        unsafe {
-            ImeContext::set_ime_allowed(self.hwnd(), allowed);
-        }
+        let window = self.window.clone();
+        let state = self.window_state.clone();
+        self.thread_executor.execute_in_thread(move || unsafe {
+            state.lock().unwrap().ime_allowed = allowed;
+            ImeContext::set_ime_allowed(window.0, allowed);
+        })
     }
 
     #[inline]
