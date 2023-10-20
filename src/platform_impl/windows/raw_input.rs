@@ -17,8 +17,10 @@ use windows_sys::Win32::{
             RID_DEVICE_INFO_MOUSE, RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
-            RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
-            RI_MOUSE_MIDDLE_BUTTON_UP, RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP,
+            RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP, RI_MOUSE_BUTTON_2_DOWN,
+            RI_MOUSE_BUTTON_2_UP, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP,
+            RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP, RI_MOUSE_BUTTON_5_DOWN,
+            RI_MOUSE_BUTTON_5_UP,
         },
     },
 };
@@ -209,22 +211,12 @@ fn button_flags_to_element_state(
     }
 }
 
-pub fn get_raw_mouse_button_state(button_flags: u32) -> [Option<ElementState>; 3] {
+pub fn get_raw_mouse_button_state(button_flags: u32) -> [Option<ElementState>; 5] {
     [
-        button_flags_to_element_state(
-            button_flags,
-            RI_MOUSE_LEFT_BUTTON_DOWN,
-            RI_MOUSE_LEFT_BUTTON_UP,
-        ),
-        button_flags_to_element_state(
-            button_flags,
-            RI_MOUSE_MIDDLE_BUTTON_DOWN,
-            RI_MOUSE_MIDDLE_BUTTON_UP,
-        ),
-        button_flags_to_element_state(
-            button_flags,
-            RI_MOUSE_RIGHT_BUTTON_DOWN,
-            RI_MOUSE_RIGHT_BUTTON_UP,
-        ),
+        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP),
+        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP),
+        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP),
+        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP),
+        button_flags_to_element_state(button_flags, RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP),
     ]
 }
