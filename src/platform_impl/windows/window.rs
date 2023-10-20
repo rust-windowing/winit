@@ -149,6 +149,8 @@ impl Window {
 
     #[inline]
     pub fn request_redraw(&self) {
+        // NOTE: mark that we requested a redraw to handle requests during `WM_PAINT` handling.
+        self.window_state.lock().unwrap().redraw_requested = true;
         unsafe {
             RedrawWindow(self.hwnd(), ptr::null(), 0, RDW_INTERNALPAINT);
         }
