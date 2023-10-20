@@ -40,23 +40,19 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::UserEvent(event) => println!("user event: {event:?}"),
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => control_flow.set_exit(),
-            Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            } => {
-                fill::fill_window(&window);
-            }
-            _ => (),
+    event_loop.run(move |event, elwt| match event {
+        Event::UserEvent(event) => println!("user event: {event:?}"),
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => elwt.exit(),
+        Event::WindowEvent {
+            event: WindowEvent::RedrawRequested,
+            ..
+        } => {
+            fill::fill_window(&window);
         }
+        _ => (),
     })
 }
 

@@ -30,9 +30,7 @@
 //!
 //! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until the `control_flow` argument given to the closure is set to
-//! [`ControlFlow`]`::`[`ExitWithCode`] (which [`ControlFlow`]`::`[`Exit`] aliases to), at which
-//! point [`Event`]`::`[`LoopExiting`] is emitted and the entire program terminates.
+//! will run until [`exit()`] is used, at which point [`Event`]`::`[`LoopExiting`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
@@ -44,30 +42,30 @@
 //! ```no_run
 //! use winit::{
 //!     event::{Event, WindowEvent},
-//!     event_loop::EventLoop,
+//!     event_loop::{ControlFlow, EventLoop},
 //!     window::WindowBuilder,
 //! };
 //!
 //! let event_loop = EventLoop::new().unwrap();
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //!
-//! event_loop.run(move |event, _, control_flow| {
-//!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-//!     // dispatched any events. This is ideal for games and similar applications.
-//!     control_flow.set_poll();
+//! // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//! // dispatched any events. This is ideal for games and similar applications.
+//! event_loop.set_control_flow(ControlFlow::Poll);
 //!
-//!     // ControlFlow::Wait pauses the event loop if no events are available to process.
-//!     // This is ideal for non-game applications that only update in response to user
-//!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//!     control_flow.set_wait();
+//! // ControlFlow::Wait pauses the event loop if no events are available to process.
+//! // This is ideal for non-game applications that only update in response to user
+//! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//! event_loop.set_control_flow(ControlFlow::Wait);
 //!
+//! event_loop.run(move |event, elwt| {
 //!     match event {
 //!         Event::WindowEvent {
 //!             event: WindowEvent::CloseRequested,
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             control_flow.set_exit();
+//!             elwt.exit();
 //!         },
 //!         Event::AboutToWait => {
 //!             // Application update code.
@@ -115,9 +113,7 @@
 //! [`EventLoopExtPumpEvents::pump_events`]: ./platform/pump_events/trait.EventLoopExtPumpEvents.html#tymethod.pump_events
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
-//! [`ControlFlow`]: event_loop::ControlFlow
-//! [`Exit`]: event_loop::ControlFlow::Exit
-//! [`ExitWithCode`]: event_loop::ControlFlow::ExitWithCode
+//! [`exit()`]: event_loop::EventLoopWindowTarget::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowBuilder`]: window::WindowBuilder
@@ -137,10 +133,14 @@
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(clippy::all)]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(feature = "cargo-clippy", deny(warnings))]
 // Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::missing_safety_doc)]
+
+#[cfg(feature = "rwh_06")]
+pub use rwh_06 as raw_window_handle;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -163,3 +163,18 @@ mod platform_impl;
 pub mod window;
 
 pub mod platform;
+
+/// Wrapper for objects which winit will access on the main thread so they are effectively `Send`
+/// and `Sync`, since they always excute on a single thread.
+///
+/// # Safety
+///
+/// Winit can run only one event loop at the time and the event loop itself is tied to some thread.
+/// The objects could be send across the threads, but once passed to winit, they execute on the
+/// mean thread if the platform demands it. Thus marking such objects as `Send + Sync` is safe.
+#[doc(hidden)]
+#[derive(Clone, Debug)]
+pub(crate) struct SendSyncWrapper<T>(pub(crate) T);
+
+unsafe impl<T> Send for SendSyncWrapper<T> {}
+unsafe impl<T> Sync for SendSyncWrapper<T> {}

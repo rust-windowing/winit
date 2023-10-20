@@ -9,7 +9,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::{Key, NamedKey},
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
 };
@@ -30,9 +30,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        control_flow.set_wait();
-
+    event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {
@@ -42,7 +40,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     windows.remove(&window_id);
 
                     if windows.is_empty() {
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                 }
                 WindowEvent::Resized(_) => {
@@ -64,7 +62,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
                         let window = WindowBuilder::new()
                             .with_tabbing_identifier(&tabbing_id)
-                            .build(event_loop)
+                            .build(elwt)
                             .unwrap();
                         println!("Added a new tab: {:?}", window.id());
                         windows.insert(window.id(), window);
@@ -72,10 +70,10 @@ fn main() -> Result<(), impl std::error::Error> {
                     Key::Character("w") => {
                         let _ = windows.remove(&window_id);
                     }
-                    Key::ArrowRight => {
+                    Key::Named(NamedKey::ArrowRight) => {
                         windows.get(&window_id).unwrap().select_next_tab();
                     }
-                    Key::ArrowLeft => {
+                    Key::Named(NamedKey::ArrowLeft) => {
                         windows.get(&window_id).unwrap().select_previous_tab();
                     }
                     Key::Character(ch) => {

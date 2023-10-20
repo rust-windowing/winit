@@ -20,13 +20,12 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
         println!("{event:?}");
 
         match event {
             Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     // Notify the windowing system that we'll be presenting to the window.
                     window.pre_present_notify();

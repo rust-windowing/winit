@@ -122,12 +122,14 @@ impl<T: 'static> EventProcessor<T> {
             1
         }
 
-        let result = (wt.xconn.xlib.XCheckIfEvent)(
-            wt.xconn.display,
-            event_ptr,
-            Some(predicate),
-            std::ptr::null_mut(),
-        );
+        let result = unsafe {
+            (wt.xconn.xlib.XCheckIfEvent)(
+                wt.xconn.display,
+                event_ptr,
+                Some(predicate),
+                std::ptr::null_mut(),
+            )
+        };
 
         result != 0
     }
@@ -1199,7 +1201,7 @@ impl<T: 'static> EventProcessor<T> {
                         if keycode < KEYCODE_OFFSET as u32 {
                             return;
                         }
-                        let physical_key = keymap::raw_keycode_to_keycode(keycode);
+                        let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
 
                         callback(Event::DeviceEvent {
                             device_id,

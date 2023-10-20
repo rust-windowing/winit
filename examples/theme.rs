@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     window::{Theme, WindowBuilder},
 };
@@ -27,12 +27,10 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("  (L) Light theme");
     println!("  (D) Dark theme");
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-
+    event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { window_id, event } = event {
             match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::ThemeChanged(theme) if window_id == window.id() => {
                     println!("Theme is changed: {theme:?}")
                 }

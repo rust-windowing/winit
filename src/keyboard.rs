@@ -185,26 +185,112 @@ impl std::fmt::Debug for NativeKey {
     }
 }
 
+impl From<NativeKeyCode> for NativeKey {
+    #[inline]
+    fn from(code: NativeKeyCode) -> Self {
+        match code {
+            NativeKeyCode::Unidentified => NativeKey::Unidentified,
+            NativeKeyCode::Android(x) => NativeKey::Android(x),
+            NativeKeyCode::MacOS(x) => NativeKey::MacOS(x),
+            NativeKeyCode::Windows(x) => NativeKey::Windows(x),
+            NativeKeyCode::Xkb(x) => NativeKey::Xkb(x),
+        }
+    }
+}
+
+impl PartialEq<NativeKey> for NativeKeyCode {
+    #[allow(clippy::cmp_owned)] // uses less code than direct match; target is stack allocated
+    #[inline]
+    fn eq(&self, rhs: &NativeKey) -> bool {
+        NativeKey::from(*self) == *rhs
+    }
+}
+
+impl PartialEq<NativeKeyCode> for NativeKey {
+    #[inline]
+    fn eq(&self, rhs: &NativeKeyCode) -> bool {
+        rhs == self
+    }
+}
+
 /// Represents the location of a physical key.
+///
+/// This type is a superset of [`KeyCode`], including an [`Unidentified`](Self::Unidentified)
+/// variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PhysicalKey {
+    /// A known key code
+    Code(KeyCode),
+    /// This variant is used when the key cannot be translated to a [`KeyCode`]
+    ///
+    /// The native keycode is provided (if available) so you're able to more reliably match
+    /// key-press and key-release events by hashing the [`PhysicalKey`]. It is also possible to use
+    /// this for keybinds for non-standard keys, but such keybinds are tied to a given platform.
+    Unidentified(NativeKeyCode),
+}
+
+impl From<KeyCode> for PhysicalKey {
+    #[inline]
+    fn from(code: KeyCode) -> Self {
+        PhysicalKey::Code(code)
+    }
+}
+
+impl From<NativeKeyCode> for PhysicalKey {
+    #[inline]
+    fn from(code: NativeKeyCode) -> Self {
+        PhysicalKey::Unidentified(code)
+    }
+}
+
+impl PartialEq<KeyCode> for PhysicalKey {
+    #[inline]
+    fn eq(&self, rhs: &KeyCode) -> bool {
+        match self {
+            PhysicalKey::Code(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<PhysicalKey> for KeyCode {
+    #[inline]
+    fn eq(&self, rhs: &PhysicalKey) -> bool {
+        rhs == self
+    }
+}
+
+impl PartialEq<NativeKeyCode> for PhysicalKey {
+    #[inline]
+    fn eq(&self, rhs: &NativeKeyCode) -> bool {
+        match self {
+            PhysicalKey::Unidentified(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<PhysicalKey> for NativeKeyCode {
+    #[inline]
+    fn eq(&self, rhs: &PhysicalKey) -> bool {
+        rhs == self
+    }
+}
+
+/// Code representing the location of a physical key
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.code`] with a few
 /// exceptions:
 /// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
 ///   "SuperRight" here.
 /// - The key that the specification calls "Super" is reported as `Unidentified` here.
-/// - The `Unidentified` variant here, can still identify a key through it's `NativeKeyCode`.
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyCode {
-    /// This variant is used when the key cannot be translated to any other variant.
-    ///
-    /// The native keycode is provided (if available) so you're able to more reliably match
-    /// key-press and key-release events by hashing the [`KeyCode`]. It is also possible to use
-    /// this for keybinds for non-standard keys, but such keybinds are tied to a given platform.
-    Unidentified(NativeKeyCode),
     /// <kbd>`</kbd> on a US keyboard. This is also called a backtick or grave.
     /// This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
     /// (hankaku/zenkaku/kanji) key on Japanese keyboards
@@ -648,7 +734,7 @@ pub enum KeyCode {
     F35,
 }
 
-/// Key represents the meaning of a keypress.
+/// A [`Key::Named`] value
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
 /// exceptions:
@@ -656,32 +742,12 @@ pub enum KeyCode {
 ///   another key which the specification calls `Super`. That does not exist here.)
 /// - The `Space` variant here, can be identified by the character it generates in the
 ///   specificaiton.
-/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
-/// - The `Dead` variant here, can specify the character which is inserted when pressing the
-///   dead-key twice.
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Key<Str = SmolStr> {
-    /// A key string that corresponds to the character typed by the user, taking into account the
-    /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
-    /// effect.
-    Character(Str),
-
-    /// This variant is used when the key cannot be translated to any other variant.
-    ///
-    /// The native key is provided (if available) in order to allow the user to specify keybindings
-    /// for keys which are not defined by this API, mainly through some sort of UI.
-    Unidentified(NativeKey),
-
-    /// Contains the text representation of the dead-key when available.
-    ///
-    /// ## Platform-specific
-    /// - **Web:** Always contains `None`
-    Dead(Option<char>),
-
+pub enum NamedKey {
     /// The `Alt` (Alternative) key.
     ///
     /// This key enables the alternate modifier function for interpreting concurrent or subsequent
@@ -1385,83 +1451,131 @@ pub enum Key<Str = SmolStr> {
     F35,
 }
 
-macro_rules! map_match {
-    (
-        $to_match:expr,
-        // Custom match arms
-        { $( $from:pat => $to:expr ),* },
-        // The enum's name
-        $prefix:path,
-        // Trivial match arms for unit variants
-        { $( $t:tt ),* }) => {
-        match $to_match {
-            $( $from => $to, )*
-            $( Key::$t => Key::$t, )*
+/// Key represents the meaning of a keypress.
+///
+/// This is a superset of the UI Events Specification's [`KeyboardEvent.key`] with
+/// additions:
+/// - All simple variants are wrapped under the `Named` variant
+/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+/// - The `Dead` variant here, can specify the character which is inserted when pressing the
+///   dead-key twice.
+///
+/// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Key<Str = SmolStr> {
+    /// A simple (unparameterised) action
+    Named(NamedKey),
+
+    /// A key string that corresponds to the character typed by the user, taking into account the
+    /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
+    /// effect.
+    Character(Str),
+
+    /// This variant is used when the key cannot be translated to any other variant.
+    ///
+    /// The native key is provided (if available) in order to allow the user to specify keybindings
+    /// for keys which are not defined by this API, mainly through some sort of UI.
+    Unidentified(NativeKey),
+
+    /// Contains the text representation of the dead-key when available.
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Always contains `None`
+    Dead(Option<char>),
+}
+
+impl From<NamedKey> for Key {
+    #[inline]
+    fn from(action: NamedKey) -> Self {
+        Key::Named(action)
+    }
+}
+
+impl From<NativeKey> for Key {
+    #[inline]
+    fn from(code: NativeKey) -> Self {
+        Key::Unidentified(code)
+    }
+}
+
+impl<Str> PartialEq<NamedKey> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &NamedKey) -> bool {
+        match self {
+            Key::Named(ref a) => a == rhs,
+            _ => false,
         }
-    };
+    }
+}
+
+impl<Str: PartialEq<str>> PartialEq<str> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &str) -> bool {
+        match self {
+            Key::Character(ref s) => s == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl<Str: PartialEq<str>> PartialEq<&str> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &&str) -> bool {
+        self == *rhs
+    }
+}
+
+impl<Str> PartialEq<NativeKey> for Key<Str> {
+    #[inline]
+    fn eq(&self, rhs: &NativeKey) -> bool {
+        match self {
+            Key::Unidentified(ref code) => code == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl<Str> PartialEq<Key<Str>> for NativeKey {
+    #[inline]
+    fn eq(&self, rhs: &Key<Str>) -> bool {
+        rhs == self
+    }
 }
 
 impl Key<SmolStr> {
     /// Convert `Key::Character(SmolStr)` to `Key::Character(&str)` so you can more easily match on
     /// `Key`. All other variants remain unchanged.
     pub fn as_ref(&self) -> Key<&str> {
-        map_match!(
-            self,
-            {
-                Key::Character(ch) => Key::Character(ch.as_str()),
-                Key::Dead(d) => Key::Dead(*d),
-                Key::Unidentified(u) => Key::Unidentified(u.clone())
-            },
-            Key,
-            {
-                Alt, AltGraph, CapsLock, Control, Fn, FnLock, NumLock, ScrollLock, Shift, Symbol,
-                SymbolLock, Meta, Hyper, Super, Enter, Tab, Space, ArrowDown, ArrowLeft,
-                ArrowRight, ArrowUp, End, Home, PageDown, PageUp, Backspace, Clear, Copy, CrSel,
-                Cut, Delete, EraseEof, ExSel, Insert, Paste, Redo, Undo, Accept, Again, Attn,
-                Cancel, ContextMenu, Escape, Execute, Find, Help, Pause, Play, Props, Select,
-                ZoomIn, ZoomOut, BrightnessDown, BrightnessUp, Eject, LogOff, Power, PowerOff,
-                PrintScreen, Hibernate, Standby, WakeUp, AllCandidates, Alphanumeric, CodeInput,
-                Compose, Convert, FinalMode, GroupFirst, GroupLast, GroupNext, GroupPrevious,
-                ModeChange, NextCandidate, NonConvert, PreviousCandidate, Process, SingleCandidate,
-                HangulMode, HanjaMode, JunjaMode, Eisu, Hankaku, Hiragana, HiraganaKatakana,
-                KanaMode, KanjiMode, Katakana, Romaji, Zenkaku, ZenkakuHankaku, Soft1, Soft2,
-                Soft3, Soft4, ChannelDown, ChannelUp, Close, MailForward, MailReply, MailSend,
-                MediaClose, MediaFastForward, MediaPause, MediaPlay, MediaPlayPause, MediaRecord,
-                MediaRewind, MediaStop, MediaTrackNext, MediaTrackPrevious, New, Open, Print, Save,
-                SpellCheck, Key11, Key12, AudioBalanceLeft, AudioBalanceRight, AudioBassBoostDown,
-                AudioBassBoostToggle, AudioBassBoostUp, AudioFaderFront, AudioFaderRear,
-                AudioSurroundModeNext, AudioTrebleDown, AudioTrebleUp, AudioVolumeDown,
-                AudioVolumeUp, AudioVolumeMute, MicrophoneToggle, MicrophoneVolumeDown,
-                MicrophoneVolumeUp, MicrophoneVolumeMute, SpeechCorrectionList, SpeechInputToggle,
-                LaunchApplication1, LaunchApplication2, LaunchCalendar, LaunchContacts, LaunchMail,
-                LaunchMediaPlayer, LaunchMusicPlayer, LaunchPhone, LaunchScreenSaver,
-                LaunchSpreadsheet, LaunchWebBrowser, LaunchWebCam, LaunchWordProcessor,
-                BrowserBack, BrowserFavorites, BrowserForward, BrowserHome, BrowserRefresh,
-                BrowserSearch, BrowserStop, AppSwitch, Call, Camera, CameraFocus, EndCall, GoBack,
-                GoHome, HeadsetHook, LastNumberRedial, Notification, MannerMode, VoiceDial, TV,
-                TV3DMode, TVAntennaCable, TVAudioDescription, TVAudioDescriptionMixDown,
-                TVAudioDescriptionMixUp, TVContentsMenu, TVDataService, TVInput, TVInputComponent1,
-                TVInputComponent2, TVInputComposite1, TVInputComposite2, TVInputHDMI1,
-                TVInputHDMI2, TVInputHDMI3, TVInputHDMI4, TVInputVGA1, TVMediaContext, TVNetwork,
-                TVNumberEntry, TVPower, TVRadioService, TVSatellite, TVSatelliteBS, TVSatelliteCS,
-                TVSatelliteToggle, TVTerrestrialAnalog, TVTerrestrialDigital, TVTimer, AVRInput,
-                AVRPower, ColorF0Red, ColorF1Green, ColorF2Yellow, ColorF3Blue, ColorF4Grey,
-                ColorF5Brown, ClosedCaptionToggle, Dimmer, DisplaySwap, DVR, Exit, FavoriteClear0,
-                FavoriteClear1, FavoriteClear2, FavoriteClear3, FavoriteRecall0, FavoriteRecall1,
-                FavoriteRecall2, FavoriteRecall3, FavoriteStore0, FavoriteStore1, FavoriteStore2,
-                FavoriteStore3, Guide, GuideNextDay, GuidePreviousDay, Info, InstantReplay, Link,
-                ListProgram, LiveContent, Lock, MediaApps, MediaAudioTrack, MediaLast,
-                MediaSkipBackward, MediaSkipForward, MediaStepBackward, MediaStepForward,
-                MediaTopMenu, NavigateIn, NavigateNext, NavigateOut, NavigatePrevious,
-                NextFavoriteChannel, NextUserProfile, OnDemand, Pairing, PinPDown, PinPMove,
-                PinPToggle, PinPUp, PlaySpeedDown, PlaySpeedReset, PlaySpeedUp, RandomToggle,
-                RcLowBattery, RecordSpeedNext, RfBypass, ScanChannelsToggle, ScreenModeNext,
-                Settings, SplitScreenToggle, STBInput, STBPower, Subtitle, Teletext, VideoModeNext,
-                Wink, ZoomToggle, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15,
-                F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31,
-                F32, F33, F34, F35
-            }
-        )
+        match self {
+            Key::Named(a) => Key::Named(*a),
+            Key::Character(ch) => Key::Character(ch.as_str()),
+            Key::Dead(d) => Key::Dead(*d),
+            Key::Unidentified(u) => Key::Unidentified(u.clone()),
+        }
+    }
+}
+
+impl NamedKey {
+    /// Convert an action to its approximate textual equivalent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winit::keyboard::NamedKey;
+    ///
+    /// assert_eq!(NamedKey::Enter.to_text(), Some("\r"));
+    /// assert_eq!(NamedKey::F20.to_text(), None);
+    /// ```
+    pub fn to_text(&self) -> Option<&str> {
+        match self {
+            NamedKey::Enter => Some("\r"),
+            NamedKey::Backspace => Some("\x08"),
+            NamedKey::Tab => Some("\t"),
+            NamedKey::Space => Some(" "),
+            NamedKey::Escape => Some("\x1b"),
+            _ => None,
+        }
     }
 }
 
@@ -1471,20 +1585,16 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use winit::keyboard::Key;
+    /// use winit::keyboard::{NamedKey, Key};
     ///
     /// assert_eq!(Key::Character("a".into()).to_text(), Some("a"));
-    /// assert_eq!(Key::Enter.to_text(), Some("\r"));
-    /// assert_eq!(Key::F20.to_text(), None);
+    /// assert_eq!(Key::Named(NamedKey::Enter).to_text(), Some("\r"));
+    /// assert_eq!(Key::Named(NamedKey::F20).to_text(), None);
     /// ```
     pub fn to_text(&self) -> Option<&str> {
         match self {
+            Key::Named(action) => action.to_text(),
             Key::Character(ch) => Some(ch.as_str()),
-            Key::Enter => Some("\r"),
-            Key::Backspace => Some("\x08"),
-            Key::Tab => Some("\t"),
-            Key::Space => Some(" "),
-            Key::Escape => Some("\x1b"),
             _ => None,
         }
     }
@@ -1572,7 +1682,7 @@ bitflags! {
     /// Represents the current state of the keyboard modifiers
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
-    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ModifiersState: u32 {
         /// The "shift" key.
         const SHIFT = 0b100;

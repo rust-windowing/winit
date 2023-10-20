@@ -26,9 +26,9 @@ use crate::{
         DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
         TouchPhase, WindowEvent,
     },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform::scancode::KeyCodeExtScancode,
+    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         app_state::AppState,
         event::{create_key_event, event_mods},
@@ -90,30 +90,30 @@ impl ModLocationMask {
 
 fn key_to_modifier(key: &Key) -> ModifiersState {
     match key {
-        Key::Alt => ModifiersState::ALT,
-        Key::Control => ModifiersState::CONTROL,
-        Key::Super => ModifiersState::SUPER,
-        Key::Shift => ModifiersState::SHIFT,
+        Key::Named(NamedKey::Alt) => ModifiersState::ALT,
+        Key::Named(NamedKey::Control) => ModifiersState::CONTROL,
+        Key::Named(NamedKey::Super) => ModifiersState::SUPER,
+        Key::Named(NamedKey::Shift) => ModifiersState::SHIFT,
         _ => unreachable!(),
     }
 }
 
 fn get_right_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Alt => KeyCode::AltRight,
-        Key::Control => KeyCode::ControlRight,
-        Key::Shift => KeyCode::ShiftRight,
-        Key::Super => KeyCode::SuperRight,
+        Key::Named(NamedKey::Alt) => KeyCode::AltRight,
+        Key::Named(NamedKey::Control) => KeyCode::ControlRight,
+        Key::Named(NamedKey::Shift) => KeyCode::ShiftRight,
+        Key::Named(NamedKey::Super) => KeyCode::SuperRight,
         _ => unreachable!(),
     }
 }
 
 fn get_left_modifier_code(key: &Key) -> KeyCode {
     match key {
-        Key::Alt => KeyCode::AltLeft,
-        Key::Control => KeyCode::ControlLeft,
-        Key::Shift => KeyCode::ShiftLeft,
-        Key::Super => KeyCode::SuperLeft,
+        Key::Named(NamedKey::Alt) => KeyCode::AltLeft,
+        Key::Named(NamedKey::Control) => KeyCode::ControlLeft,
+        Key::Named(NamedKey::Shift) => KeyCode::ShiftLeft,
+        Key::Named(NamedKey::Super) => KeyCode::SuperLeft,
         _ => unreachable!(),
     }
 }
@@ -850,7 +850,7 @@ impl WinitView {
             .expect("input context")
             .selectedKeyboardInputSource()
             .map(|input_source| input_source.to_string())
-            .unwrap_or_else(String::new)
+            .unwrap_or_default()
     }
 
     pub(super) fn set_cursor_icon(&self, icon: Id<NSCursor>) {
@@ -918,19 +918,24 @@ impl WinitView {
 
         // This function was called form the flagsChanged event, which is triggered
         // when the user presses/releases a modifier even if the same kind of modifier
-        // has already been pressed
-        if is_flags_changed_event {
+        // has already been pressed.
+        //
+        // When flags changed event has key code of zero it means that event doesn't carry any key
+        // event, thus we can't generate regular presses based on that. The `ModifiersChanged`
+        // later will work though, since the flags are attached to the event and contain valid
+        // information.
+        if is_flags_changed_event && ns_event.key_code() != 0 {
             let scancode = ns_event.key_code();
-            let keycode = KeyCode::from_scancode(scancode as u32);
+            let physical_key = PhysicalKey::from_scancode(scancode as u32);
 
             // We'll correct the `is_press` later.
-            let mut event = create_key_event(ns_event, false, false, Some(keycode));
+            let mut event = create_key_event(ns_event, false, false, Some(physical_key));
 
-            let key = code_to_key(keycode, scancode);
+            let key = code_to_key(physical_key, scancode);
             let event_modifier = key_to_modifier(&key);
-            event.physical_key = keycode;
+            event.physical_key = physical_key;
             event.logical_key = key.clone();
-            event.location = code_to_location(keycode);
+            event.location = code_to_location(physical_key);
             let location_mask = ModLocationMask::from_location(event.location);
 
             let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
@@ -951,7 +956,7 @@ impl WinitView {
                 if phys_mod.contains(ModLocationMask::LEFT) {
                     let mut event = event.clone();
                     event.location = KeyLocation::Left;
-                    event.physical_key = get_left_modifier_code(&event.logical_key);
+                    event.physical_key = get_left_modifier_code(&event.logical_key).into();
                     events.push_back(WindowEvent::KeyboardInput {
                         device_id: DEVICE_ID,
                         event,
@@ -960,7 +965,7 @@ impl WinitView {
                 }
                 if phys_mod.contains(ModLocationMask::RIGHT) {
                     event.location = KeyLocation::Right;
-                    event.physical_key = get_right_modifier_code(&event.logical_key);
+                    event.physical_key = get_right_modifier_code(&event.logical_key).into();
                     events.push_back(WindowEvent::KeyboardInput {
                         device_id: DEVICE_ID,
                         event,

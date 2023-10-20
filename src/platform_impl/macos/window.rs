@@ -7,10 +7,6 @@ use std::os::raw::c_void;
 use std::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
-use raw_window_handle::{
-    AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -299,7 +295,7 @@ impl WinitWindow {
         trace_scope!("WinitWindow::new");
 
         let this = autoreleasepool(|_| {
-            let screen = match attrs.fullscreen.clone().map(Into::into) {
+            let screen = match attrs.fullscreen.0.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
                     monitor.ns_screen().or_else(NSScreen::main)
@@ -452,29 +448,19 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        match attrs.parent_window {
-            Some(RawWindowHandle::AppKit(handle)) => {
+        #[cfg(feature = "rwh_06")]
+        match attrs.parent_window.0 {
+            Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
-                let parent: Id<NSWindow> = match unsafe { Id::retain(handle.ns_window.cast()) } {
-                    Some(window) => window,
-                    None => {
-                        // SAFETY: Caller ensures the pointer is valid or NULL
-                        let parent_view: Id<NSView> =
-                            match unsafe { Id::retain(handle.ns_view.cast()) } {
-                                Some(view) => view,
-                                None => {
-                                    return Err(os_error!(OsError::CreationError(
-                                        "raw window handle should be non-empty"
-                                    )))
-                                }
-                            };
-                        parent_view.window().ok_or_else(|| {
-                            os_error!(OsError::CreationError(
-                                "parent view should be installed in a window"
-                            ))
-                        })?
-                    }
-                };
+                // Unwrap is fine, since the pointer comes from `NonNull`.
+                let parent_view: Id<NSView> =
+                    unsafe { Id::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
+                let parent = parent_view.window().ok_or_else(|| {
+                    os_error!(OsError::CreationError(
+                        "parent view should be installed in a window"
+                    ))
+                })?;
+
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
                 unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
@@ -534,14 +520,14 @@ impl WinitWindow {
             }
         }
 
-        let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
+        let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.0.is_some());
 
         // XXX Send `Focused(false)` right after creating the window delegate, so we won't
         // obscure the real focused events on the startup.
         delegate.queue_event(WindowEvent::Focused(false));
 
         // Set fullscreen mode after we setup everything
-        this.set_fullscreen(attrs.fullscreen.map(Into::into));
+        this.set_fullscreen(attrs.fullscreen.0.map(Into::into));
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -595,6 +581,8 @@ impl WinitWindow {
     pub fn set_transparent(&self, transparent: bool) {
         self.setOpaque(!transparent)
     }
+
+    pub fn set_blur(&self, _blur: bool) {}
 
     pub fn set_visible(&self, visible: bool) {
         match visible {
@@ -890,6 +878,9 @@ impl WinitWindow {
     pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
@@ -1347,17 +1338,48 @@ impl WinitWindow {
         Some(monitor)
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = AppKitWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::AppKitHandle::empty();
         window_handle.ns_window = self as *const Self as *mut _;
         window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
-        RawWindowHandle::AppKit(window_handle)
+        rwh_04::RawWindowHandle::AppKit(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::AppKitWindowHandle::empty();
+        window_handle.ns_window = self as *const Self as *mut _;
+        window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
+        rwh_05::RawWindowHandle::AppKit(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let window_handle = rwh_06::AppKitWindowHandle::new({
+            let ptr = Id::as_ptr(&self.contentView()) as *mut _;
+            std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
+        });
+        Ok(rwh_06::RawWindowHandle::AppKit(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::AppKit(
+            rwh_06::AppKitDisplayHandle::new(),
+        ))
     }
 
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {
@@ -1503,27 +1525,35 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn select_next_tab(&self) {
-        self.tabGroup().selectNextTab();
+        if let Some(group) = self.tabGroup() {
+            group.selectNextTab();
+        }
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        self.tabGroup().selectPreviousTab();
+        if let Some(group) = self.tabGroup() {
+            group.selectPreviousTab()
+        }
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        let tab_group = self.tabGroup();
-        let windows = tab_group.tabbedWindows();
-        if index < windows.len() {
-            tab_group.setSelectedWindow(&windows[index]);
+        if let Some(group) = self.tabGroup() {
+            if let Some(windows) = group.tabbedWindows() {
+                if index < windows.len() {
+                    group.setSelectedWindow(&windows[index]);
+                }
+            }
         }
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        let tab_group = self.tabGroup();
-        tab_group.tabbedWindows().len()
+        self.tabGroup()
+            .and_then(|group| group.tabbedWindows())
+            .map(|windows| windows.len())
+            .unwrap_or(1)
     }
 
     fn is_document_edited(&self) -> bool {

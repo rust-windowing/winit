@@ -3,6 +3,7 @@
 #[cfg(all(not(x11_platform), not(wayland_platform)))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::VecDeque, env, fmt};
@@ -11,7 +12,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
@@ -19,16 +19,16 @@ use crate::platform::x11::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
-    event::{Event, KeyEvent},
+    event::KeyEvent,
     event_loop::{
         AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
         EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    keyboard::{Key, KeyCode},
+    keyboard::{Key, PhysicalKey},
     platform::{
         modifier_supplement::KeyEventExtModifierSupplement, pump_events::PumpStatus,
-        scancode::KeyCodeExtScancode,
+        scancode::PhysicalKeyExtScancode,
     },
     window::{
         ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
@@ -178,9 +178,9 @@ pub enum DeviceId {
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(wayland_platform)]
-        return DeviceId::Wayland(wayland::DeviceId::dummy());
+        return DeviceId::Wayland(unsafe { wayland::DeviceId::dummy() });
         #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(x11::DeviceId::dummy());
+        return DeviceId::X(unsafe { x11::DeviceId::dummy() });
     }
 }
 
@@ -330,6 +330,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_blur(blur));
+    }
+
+    #[inline]
     pub fn set_visible(&self, visible: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
     }
@@ -437,6 +442,11 @@ impl Window {
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_resize_window(direction))
+    }
+
+    #[inline]
+    pub fn show_window_menu(&self, position: Position) {
+        x11_or_wayland!(match self; Window(w) => w.show_window_menu(position))
     }
 
     #[inline]
@@ -570,14 +580,36 @@ impl Window {
         Some(x11_or_wayland!(match self; Window(w) => w.primary_monitor()?; as MonitorHandle))
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_04())
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_05())
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_05())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle_rwh_06())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle_rwh_06())
     }
 
     #[inline]
@@ -625,13 +657,13 @@ impl KeyEventExtModifierSupplement for KeyEvent {
     }
 }
 
-impl KeyCodeExtScancode for KeyCode {
-    fn from_scancode(scancode: u32) -> KeyCode {
+impl PhysicalKeyExtScancode for PhysicalKey {
+    fn from_scancode(scancode: u32) -> PhysicalKey {
         common::keymap::scancode_to_keycode(scancode)
     }
 
     fn to_scancode(self) -> Option<u32> {
-        common::keymap::keycode_to_scancode(self)
+        common::keymap::physicalkey_to_scancode(self)
     }
 }
 
@@ -649,26 +681,31 @@ unsafe extern "C" fn x_error_callback(
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
-        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
+        for hook in unsafe { XLIB_ERROR_HOOKS.lock() }.unwrap().iter() {
             error_handled |= hook(display as *mut _, event as *mut _);
         }
 
         // `assume_init` is safe here because the array consists of `MaybeUninit` values,
         // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
-        (xconn.xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr() as *mut c_char,
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
+        let mut buf: [MaybeUninit<c_char>; 1024] = unsafe { MaybeUninit::uninit().assume_init() };
+        unsafe {
+            (xconn.xlib.XGetErrorText)(
+                display,
+                (*event).error_code as c_int,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            )
+        };
+        let description =
+            unsafe { CStr::from_ptr(buf.as_ptr() as *const c_char) }.to_string_lossy();
 
-        let error = XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
+        let error = unsafe {
+            XError {
+                description: description.into_owned(),
+                error_code: (*event).error_code,
+                request_code: (*event).request_code,
+                minor_code: (*event).minor_code,
+            }
         };
 
         // Don't log error.
@@ -715,11 +752,16 @@ impl<T: 'static> EventLoop<T> {
             );
         }
 
-        // NOTE: Wayland first because of X11 could be present under wayland as well.
+        // NOTE: Wayland first because of X11 could be present under Wayland as well. Empty
+        // variables are also treated as not set.
         let backend = match (
             attributes.forced_backend,
-            env::var("WAYLAND_DISPLAY").is_ok(),
-            env::var("DISPLAY").is_ok(),
+            env::var("WAYLAND_DISPLAY")
+                .map(|var| !var.is_empty())
+                .unwrap_or(false),
+            env::var("DISPLAY")
+                .map(|var| !var.is_empty())
+                .unwrap_or(false),
         ) {
             // User is forcing a backend.
             (Some(backend), _, _) => backend,
@@ -767,27 +809,39 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        self.run_ondemand(callback)
+        self.run_on_demand(callback)
     }
 
-    pub fn run_ondemand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_ondemand(callback))
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
+    }
+}
+
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_fd())
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.as_raw_fd())
     }
 }
 
@@ -842,25 +896,42 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.listen_device_events(allowed))
     }
 
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle_rwh_05())
     }
-}
 
-fn sticky_exit_callback<T, F>(
-    evt: Event<T>,
-    target: &RootELW<T>,
-    control_flow: &mut ControlFlow,
-    callback: &mut F,
-) where
-    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
-{
-    // make ControlFlow::ExitWithCode sticky by providing a dummy
-    // control flow reference if it is already ExitWithCode.
-    if let ControlFlow::ExitWithCode(code) = *control_flow {
-        callback(evt, target, &mut ControlFlow::ExitWithCode(code))
-    } else {
-        callback(evt, target, control_flow)
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle_rwh_06())
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.set_control_flow(control_flow))
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        x11_or_wayland!(match self; Self(evlp) => evlp.control_flow())
+    }
+
+    pub(crate) fn exit(&self) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.exit())
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        x11_or_wayland!(match self; Self(evlp) => evlp.exiting())
+    }
+
+    fn set_exit_code(&self, code: i32) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.set_exit_code(code))
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
     }
 }
 

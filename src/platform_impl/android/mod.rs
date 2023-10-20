@@ -1,6 +1,7 @@
 #![cfg(android_platform)]
 
 use std::{
+    cell::Cell,
     collections::VecDeque,
     hash::Hash,
     sync::{
@@ -15,14 +16,11 @@ use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
 use once_cell::sync::Lazy;
-use raw_window_handle::{
-    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
-    event::{self, InnerSizeWriter, StartCause},
+    event::{self, Force, InnerSizeWriter, StartCause},
     event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     window::{
@@ -147,7 +145,6 @@ pub struct EventLoop<T: 'static> {
     loop_running: bool,                        // Dispatched `NewEvents<Init>`
     running: bool,
     pending_redraw: bool,
-    control_flow: ControlFlow,
     cause: StartCause,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
@@ -168,23 +165,6 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-fn sticky_exit_callback<T, F>(
-    evt: event::Event<T>,
-    target: &RootELW<T>,
-    control_flow: &mut ControlFlow,
-    callback: &mut F,
-) where
-    F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
-{
-    // make ControlFlow::ExitWithCode sticky by providing a dummy
-    // control flow reference if it is already ExitWithCode.
-    if let ControlFlow::ExitWithCode(code) = *control_flow {
-        callback(evt, target, &mut ControlFlow::ExitWithCode(code))
-    } else {
-        callback(evt, target, control_flow)
-    }
-}
-
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         attributes: &PlatformSpecificEventLoopAttributes,
@@ -199,6 +179,8 @@ impl<T: 'static> EventLoop<T> {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
                     app: android_app.clone(),
+                    control_flow: Cell::new(ControlFlow::default()),
+                    exit: Cell::new(false),
                     redraw_requester: RedrawRequester::new(
                         &redraw_flag,
                         android_app.create_waker(),
@@ -213,7 +195,6 @@ impl<T: 'static> EventLoop<T> {
             loop_running: false,
             running: false,
             pending_redraw: false,
-            control_flow: Default::default(),
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
@@ -222,41 +203,25 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>),
     {
         trace!("Mainloop iteration");
 
         let cause = self.cause;
-        let mut control_flow = self.control_flow;
         let mut pending_redraw = self.pending_redraw;
         let mut resized = false;
 
-        sticky_exit_callback(
-            event::Event::NewEvents(cause),
-            self.window_target(),
-            &mut control_flow,
-            callback,
-        );
+        callback(event::Event::NewEvents(cause), self.window_target());
 
         if let Some(event) = main_event {
             trace!("Handling main event {:?}", event);
 
             match event {
                 MainEvent::InitWindow { .. } => {
-                    sticky_exit_callback(
-                        event::Event::Resumed,
-                        self.window_target(),
-                        &mut control_flow,
-                        callback,
-                    );
+                    callback(event::Event::Resumed, self.window_target());
                 }
                 MainEvent::TerminateWindow { .. } => {
-                    sticky_exit_callback(
-                        event::Event::Suspended,
-                        self.window_target(),
-                        &mut control_flow,
-                        callback,
-                    );
+                    callback(event::Event::Suspended, self.window_target());
                 }
                 MainEvent::WindowResized { .. } => resized = true,
                 MainEvent::RedrawNeeded { .. } => pending_redraw = true,
@@ -265,26 +230,22 @@ impl<T: 'static> EventLoop<T> {
                 }
                 MainEvent::GainedFocus => {
                     *HAS_FOCUS.write().unwrap() = true;
-                    sticky_exit_callback(
+                    callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::Focused(true),
                         },
                         self.window_target(),
-                        &mut control_flow,
-                        callback,
                     );
                 }
                 MainEvent::LostFocus => {
                     *HAS_FOCUS.write().unwrap() = false;
-                    sticky_exit_callback(
+                    callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::Focused(false),
                         },
                         self.window_target(),
-                        &mut control_flow,
-                        callback,
                     );
                 }
                 MainEvent::ConfigChanged { .. } => {
@@ -304,19 +265,11 @@ impl<T: 'static> EventLoop<T> {
                                 scale_factor,
                             },
                         };
-                        sticky_exit_callback(
-                            event,
-                            self.window_target(),
-                            &mut control_flow,
-                            callback,
-                        );
+                        callback(event, self.window_target());
                     }
                 }
                 MainEvent::LowMemory => {
-                    // XXX: how to forward this state to applications?
-                    // It seems like ideally winit should support lifecycle and
-                    // low-memory events, especially for mobile platforms.
-                    warn!("TODO: handle Android LowMemory notification");
+                    callback(event::Event::MemoryWarning, self.window_target());
                 }
                 MainEvent::Start => {
                     // XXX: how to forward this state to applications?
@@ -363,9 +316,8 @@ impl<T: 'static> EventLoop<T> {
         // Process input events
         match android_app.input_events_iter() {
             Ok(mut input_iter) => loop {
-                let read_event = input_iter.next(|event| {
-                    self.handle_input_event(&android_app, event, &mut control_flow, callback)
-                });
+                let read_event =
+                    input_iter.next(|event| self.handle_input_event(&android_app, event, callback));
 
                 if !read_event {
                     break;
@@ -379,12 +331,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_events_receiver.try_recv() {
-                sticky_exit_callback(
-                    crate::event::Event::UserEvent(event),
-                    self.window_target(),
-                    &mut control_flow,
-                    callback,
-                );
+                callback(crate::event::Event::UserEvent(event), self.window_target());
             }
         }
 
@@ -401,7 +348,7 @@ impl<T: 'static> EventLoop<T> {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::Resized(size),
                 };
-                sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
+                callback(event, self.window_target());
             }
 
             pending_redraw |= self.redraw_flag.get_and_reset();
@@ -411,19 +358,13 @@ impl<T: 'static> EventLoop<T> {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::RedrawRequested,
                 };
-                sticky_exit_callback(event, self.window_target(), &mut control_flow, callback);
+                callback(event, self.window_target());
             }
         }
 
         // This is always the last event we dispatch before poll again
-        sticky_exit_callback(
-            event::Event::AboutToWait,
-            self.window_target(),
-            &mut control_flow,
-            callback,
-        );
+        callback(event::Event::AboutToWait, self.window_target());
 
-        self.control_flow = control_flow;
         self.pending_redraw = pending_redraw;
     }
 
@@ -431,17 +372,16 @@ impl<T: 'static> EventLoop<T> {
         &mut self,
         android_app: &AndroidApp,
         event: &InputEvent<'_>,
-        control_flow: &mut ControlFlow,
         callback: &mut F,
     ) -> InputStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>),
     {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = window::WindowId(WindowId);
-                let device_id = event::DeviceId(DeviceId);
+                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
@@ -480,10 +420,10 @@ impl<T: 'static> EventLoop<T> {
                                 phase,
                                 location,
                                 id: pointer.pointer_id() as u64,
-                                force: None,
+                                force: Some(Force::Normalized(pointer.pressure() as f64)),
                             }),
                         };
-                        sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                        callback(event, self.window_target());
                     }
                 }
             }
@@ -513,10 +453,10 @@ impl<T: 'static> EventLoop<T> {
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId),
+                                device_id: event::DeviceId(DeviceId(key.device_id())),
                                 event: event::KeyEvent {
                                     state,
-                                    physical_key: keycodes::to_physical_keycode(keycode),
+                                    physical_key: keycodes::to_physical_key(keycode),
                                     logical_key: keycodes::to_logical(key_char, keycode),
                                     location: keycodes::to_location(keycode),
                                     repeat: key.repeat_count() > 0,
@@ -526,7 +466,7 @@ impl<T: 'static> EventLoop<T> {
                                 is_synthetic: false,
                             },
                         };
-                        sticky_exit_callback(event, self.window_target(), control_flow, callback);
+                        callback(event, self.window_target());
                     }
                 }
             }
@@ -540,14 +480,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
     {
-        self.run_ondemand(event_handler)
+        self.run_on_demand(event_handler)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -570,7 +510,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -580,7 +520,6 @@ impl<T: 'static> EventLoop<T> {
             // than once
             self.pending_redraw = false;
             self.cause = StartCause::Init;
-            self.control_flow = ControlFlow::Poll;
 
             // run the initial loop iteration
             self.single_iteration(None, &mut callback);
@@ -588,21 +527,15 @@ impl<T: 'static> EventLoop<T> {
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit
-        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+        if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut callback);
         }
-        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+        if self.exiting() {
             self.loop_running = false;
 
-            let mut dummy = self.control_flow;
-            sticky_exit_callback(
-                event::Event::LoopExiting,
-                self.window_target(),
-                &mut dummy,
-                &mut callback,
-            );
+            callback(event::Event::LoopExiting, self.window_target());
 
-            PumpStatus::Exit(code)
+            PumpStatus::Exit(0)
         } else {
             PumpStatus::Continue
         }
@@ -610,7 +543,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(event::Event<T>, &RootELW<T>),
     {
         let start = Instant::now();
 
@@ -621,14 +554,12 @@ impl<T: 'static> EventLoop<T> {
                 // If we already have work to do then we don't want to block on the next poll
                 Some(Duration::ZERO)
             } else {
-                let control_flow_timeout = match self.control_flow {
+                let control_flow_timeout = match self.control_flow() {
                     ControlFlow::Wait => None,
                     ControlFlow::Poll => Some(Duration::ZERO),
                     ControlFlow::WaitUntil(wait_deadline) => {
                         Some(wait_deadline.saturating_duration_since(start))
                     }
-                    // `ExitWithCode()` will be reset to `Poll` before polling
-                    ControlFlow::ExitWithCode(_code) => unreachable!(),
                 };
 
                 min_timeout(control_flow_timeout, timeout)
@@ -663,7 +594,7 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            self.cause = match self.control_flow {
+            self.cause = match self.control_flow() {
                 ControlFlow::Poll => StartCause::Poll,
                 ControlFlow::Wait => StartCause::WaitCancelled {
                     start,
@@ -682,8 +613,6 @@ impl<T: 'static> EventLoop<T> {
                         }
                     }
                 }
-                // `ExitWithCode()` will be reset to `Poll` before polling
-                ControlFlow::ExitWithCode(_code) => unreachable!(),
             };
 
             self.single_iteration(main_event, &mut callback);
@@ -699,6 +628,14 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender: self.user_events_sender.clone(),
             waker: self.android_app.create_waker(),
         }
+    }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.window_target.p.control_flow()
+    }
+
+    fn exiting(&self) -> bool {
+        self.window_target.p.exiting()
     }
 }
 
@@ -728,6 +665,8 @@ impl<T> EventLoopProxy<T> {
 
 pub struct EventLoopWindowTarget<T: 'static> {
     app: AndroidApp,
+    control_flow: Cell<ControlFlow>,
+    exit: Cell<bool>,
     redraw_requester: RedrawRequester,
     _marker: std::marker::PhantomData<T>,
 }
@@ -746,8 +685,36 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(true)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get()
     }
 }
 
@@ -773,11 +740,11 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId;
+pub struct DeviceId(i32);
 
 impl DeviceId {
     pub const fn dummy() -> Self {
-        DeviceId
+        DeviceId(0)
     }
 }
 
@@ -877,6 +844,8 @@ impl Window {
 
     pub fn set_transparent(&self, _transparent: bool) {}
 
+    pub fn set_blur(&self, _blur: bool) {}
+
     pub fn set_visible(&self, _visibility: bool) {}
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -966,13 +935,19 @@ impl Window {
         ))
     }
 
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    #[cfg(feature = "rwh_04")]
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        use rwh_04::HasRawWindowHandle;
+
         if let Some(native_window) = self.app.native_window().as_ref() {
             native_window.raw_window_handle()
         } else {
@@ -980,8 +955,43 @@ impl Window {
         }
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        use rwh_05::HasRawWindowHandle;
+
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            native_window.raw_window_handle()
+        } else {
+            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+        }
+    }
+
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Android(rwh_05::AndroidDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    // Allow the usage of HasRawWindowHandle inside this function
+    #[allow(deprecated)]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        use rwh_06::HasRawWindowHandle;
+
+        if let Some(native_window) = self.app.native_window().as_ref() {
+            native_window.raw_window_handle()
+        } else {
+            log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            Err(rwh_06::HandleError::Unavailable)
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Android(
+            rwh_06::AndroidDisplayHandle::new(),
+        ))
     }
 
     pub fn config(&self) -> ConfigurationRef {

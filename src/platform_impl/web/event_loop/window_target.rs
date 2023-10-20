@@ -3,12 +3,9 @@ use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
 use std::marker::PhantomData;
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
+use std::rc::{Rc, Weak};
 
-use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
-
-use super::runner::EventWrapper;
+use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
@@ -19,8 +16,10 @@ use super::{
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::DeviceEvents;
+use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
+use crate::platform::web::PollStrategy;
+use crate::platform_impl::platform::r#async::Waker;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 #[derive(Default)]
@@ -82,7 +81,6 @@ impl<T> EventLoopWindowTarget<T> {
         id: WindowId,
         prevent_default: bool,
     ) {
-        self.runner.add_canvas(RootWindowId(id), canvas);
         let canvas_clone = canvas.clone();
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
@@ -93,7 +91,7 @@ impl<T> EventLoopWindowTarget<T> {
         let has_focus = canvas.has_focus.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_blur(move || {
-            has_focus.store(false, Ordering::Relaxed);
+            has_focus.set(false);
 
             let clear_modifiers = (!modifiers.get().is_empty()).then(|| {
                 modifiers.set(ModifiersState::empty());
@@ -116,7 +114,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus = canvas.has_focus.clone();
         canvas.on_focus(move || {
-            if !has_focus.swap(true, Ordering::Relaxed) {
+            if !has_focus.replace(true) {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Focused(true),
@@ -205,15 +203,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -234,15 +230,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -264,7 +258,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -279,9 +273,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -308,9 +301,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -342,9 +334,8 @@ impl<T> EventLoopWindowTarget<T> {
                       position: crate::dpi::PhysicalPosition<f64>,
                       buttons,
                       button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -474,7 +465,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -489,9 +480,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, position, button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -529,9 +519,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, location, force| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -559,8 +548,7 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_mouse_wheel(
             move |pointer_id, delta, active_modifiers| {
-                let modifiers_changed = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
+                let modifiers_changed = (has_focus.get() && modifiers.get() != active_modifiers)
                     .then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -671,11 +659,51 @@ impl<T> EventLoopWindowTarget<T> {
         None
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(
+            rwh_06::WebDisplayHandle::new(),
+        ))
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.runner.listen_device_events(allowed)
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner.set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.runner.control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner.exit()
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.runner.exiting()
+    }
+
+    pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.runner.set_poll_strategy(strategy)
+    }
+
+    pub(crate) fn poll_strategy(&self) -> PollStrategy {
+        self.runner.poll_strategy()
+    }
+
+    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+        self.runner.waker()
     }
 }

@@ -41,6 +41,13 @@ jobs:
           - { name: 'iOS x86_64',         target: x86_64-apple-ios,         os: macos-latest,    }
           - { name: 'iOS Aarch64',        target: aarch64-apple-ios,        os: macos-latest,    }
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
+        exclude:
+          # Android is tested on stable-3
+          - toolchain: '1.65.0'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+        include:
+          - toolchain: '1.69.0'
+            platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
 
     env:
       # Set more verbose terminal output
@@ -56,12 +63,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-
-    - uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
-        targets: ${{ matrix.platform.target }}
-        components: clippy
 
     - name: Restore cache of cargo folder
       # We use `restore` and later `save`, so that we can create the key after
@@ -93,11 +94,22 @@ jobs:
       with:
         path: ~/.cargo/bin/cargo-apk
         # Change this key if we update the required cargo-apk version
-        key: cargo-apk-${{ matrix.toolchain }}-${{ matrix.platform.name }}-v0-9-7
+        key: cargo-apk-v0-9-7
+
+    - uses: dtolnay/rust-toolchain@master
+      if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
+      with:
+        toolchain: stable
 
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android') && (steps.cargo-apk-cache.outputs.cache-hit != 'true')
       run: cargo install cargo-apk --version=^0.9.7 --locked
+
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
+        targets: ${{ matrix.platform.target }}
+        components: clippy
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items

@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use smol_str::SmolStr;
@@ -12,7 +11,7 @@ use web_sys::{
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
@@ -29,7 +28,7 @@ use super::{event, ButtonsState, ResizeScaleHandle};
 pub struct Canvas {
     common: Common,
     id: WindowId,
-    pub has_focus: Arc<AtomicBool>,
+    pub has_focus: Rc<Cell<bool>>,
     pub is_intersecting: Option<bool>,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -64,7 +63,7 @@ impl Canvas {
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match platform_attr.canvas {
+        let canvas = match platform_attr.canvas.0 {
             Some(canvas) => canvas,
             None => document
                 .create_element("canvas")
@@ -128,7 +127,7 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.is_some() {
+        if attr.fullscreen.0.is_some() {
             common.fullscreen_handler.request_fullscreen();
         }
 
@@ -139,7 +138,7 @@ impl Canvas {
         Ok(Canvas {
             common,
             id,
-            has_focus: Arc::new(AtomicBool::new(false)),
+            has_focus: Rc::new(Cell::new(false)),
             is_intersecting: None,
             on_touch_start: None,
             on_blur: None,
@@ -259,7 +258,7 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(KeyCode, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_release =
             Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
@@ -281,7 +280,7 @@ impl Canvas {
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(KeyCode, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_press = Some(self.common.add_transient_event(
             "keydown",

@@ -5,8 +5,8 @@ use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
+use crate::SendSyncWrapper;
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 use web_sys::HtmlCanvasElement;
 
 use super::r#async::Dispatcher;
@@ -15,8 +15,6 @@ use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -28,7 +26,6 @@ pub struct Inner {
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
-    has_focus: Arc<AtomicBool>,
 }
 
 impl Window {
@@ -52,14 +49,12 @@ impl Window {
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
 
-        let has_focus = canvas.borrow().has_focus.clone();
         let inner = Inner {
             id,
             window: window.clone(),
             canvas,
             previous_pointer: RefCell::new("auto"),
             destroy_fn: Some(destroy_fn),
-            has_focus,
         };
 
         inner.set_title(&attr.title);
@@ -67,9 +62,11 @@ impl Window {
         inner.set_visible(attr.visible);
         inner.set_window_icon(attr.window_icon);
 
-        Ok(Window {
-            inner: Dispatcher::new(inner).unwrap(),
-        })
+        let canvas = Rc::downgrade(&inner.canvas);
+        let (dispatcher, runner) = Dispatcher::new(inner).unwrap();
+        target.runner.add_canvas(RootWI(id), canvas, runner);
+
+        Ok(Window { inner: dispatcher })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
@@ -81,7 +78,9 @@ impl Window {
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {
-        self.inner.with(|inner| inner.canvas.borrow().raw().clone())
+        self.inner
+            .value()
+            .map(|inner| inner.canvas.borrow().raw().clone())
     }
 }
 
@@ -91,6 +90,8 @@ impl Inner {
     }
 
     pub fn set_transparent(&self, _transparent: bool) {}
+
+    pub fn set_blur(&self, _blur: bool) {}
 
     pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
@@ -243,6 +244,9 @@ impl Inner {
     }
 
     #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
+    #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
@@ -353,16 +357,43 @@ impl Inner {
         self.id
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = WebWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::WebHandle::empty();
         window_handle.id = self.id.0;
-        RawWindowHandle::Web(window_handle)
+        rwh_04::RawWindowHandle::Web(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::WebWindowHandle::empty();
+        window_handle.id = self.id.0;
+        rwh_05::RawWindowHandle::Web(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let window_handle = rwh_06::WebWindowHandle::new(self.id.0);
+        Ok(rwh_06::RawWindowHandle::Web(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(
+            rwh_06::WebDisplayHandle::new(),
+        ))
     }
 
     #[inline]
@@ -383,7 +414,7 @@ impl Inner {
 
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.has_focus.load(Ordering::Relaxed)
+        self.canvas.borrow().has_focus.get()
     }
 
     pub fn title(&self) -> String {
@@ -425,7 +456,7 @@ impl From<u64> for WindowId {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) canvas: SendSyncWrapper<Option<backend::RawCanvasType>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
@@ -434,7 +465,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            canvas: None,
+            canvas: SendSyncWrapper(None),
             prevent_default: true,
             focusable: true,
             append: false,

@@ -7,7 +7,7 @@ use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
     event_loop::{DeviceEvents, EventLoop},
-    keyboard::{Key, KeyCode},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -38,9 +38,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
+    event_loop.run(move |event, elwt| {
         match event {
             // This used to use the virtual key, but the new API
             // only provides the `physical_key` (`Code`).
@@ -53,14 +51,14 @@ fn main() -> Result<(), impl std::error::Error> {
                     }),
                 ..
             } => match physical_key {
-                KeyCode::KeyM => {
+                PhysicalKey::Code(KeyCode::KeyM) => {
                     if minimized {
                         minimized = !minimized;
                         window.set_minimized(minimized);
                         window.focus_window();
                     }
                 }
-                KeyCode::KeyV => {
+                PhysicalKey::Code(KeyCode::KeyV) => {
                     if !visible {
                         visible = !visible;
                         window.set_visible(visible);
@@ -115,7 +113,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         window.set_minimized(minimized);
                     }
                     "q" => {
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                     "v" => {
                         visible = !visible;
@@ -127,7 +125,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
-                WindowEvent::CloseRequested if window_id == window.id() => control_flow.set_exit(),
+                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }

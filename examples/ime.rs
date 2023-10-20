@@ -5,8 +5,8 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    keyboard::{Key, KeyCode},
+    event_loop::EventLoop,
+    keyboard::NamedKey,
     window::{ImePurpose, WindowBuilder},
 };
 
@@ -39,11 +39,10 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
     let mut ime_pos = PhysicalPosition::new(0.0, 0.0);
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::CursorMoved { position, .. } => {
                     cursor_position = position;
                 }
@@ -70,12 +69,12 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::KeyboardInput { event, .. } => {
                     println!("key: {event:?}");
 
-                    if event.state == ElementState::Pressed && event.physical_key == KeyCode::F2 {
+                    if event.state == ElementState::Pressed && event.logical_key == NamedKey::F2 {
                         ime_allowed = !ime_allowed;
                         window.set_ime_allowed(ime_allowed);
                         println!("\nIME allowed: {ime_allowed}\n");
                     }
-                    if event.state == ElementState::Pressed && event.logical_key == Key::F3 {
+                    if event.state == ElementState::Pressed && event.logical_key == NamedKey::F3 {
                         ime_purpose = match ime_purpose {
                             ImePurpose::Normal => ImePurpose::Password,
                             ImePurpose::Password => ImePurpose::Terminal,

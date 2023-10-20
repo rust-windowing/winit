@@ -28,10 +28,10 @@
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
 use crate::event::Event;
-use crate::event_loop::ControlFlow;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
 use crate::window::{Window, WindowBuilder};
+use crate::SendSyncWrapper;
 
 use web_sys::HtmlCanvasElement;
 
@@ -82,26 +82,22 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.canvas = canvas;
-
+        self.platform_specific.canvas = SendSyncWrapper(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
         self.platform_specific.prevent_default = prevent_default;
-
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
         self.platform_specific.focusable = focusable;
-
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
         self.platform_specific.append = append;
-
         self
     }
 }
@@ -122,8 +118,7 @@ pub trait EventLoopExtWebSys {
     /// event loop when switching between tabs on a single page application.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -131,9 +126,62 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
         self.event_loop.spawn(event_handler)
     }
+}
+
+pub trait EventLoopWindowTargetExtWebSys {
+    /// Sets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn set_poll_strategy(&self, strategy: PollStrategy);
+
+    /// Gets the strategy for [`ControlFlow::Poll`].
+    ///
+    /// See [`PollStrategy`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
+    fn poll_strategy(&self) -> PollStrategy;
+}
+
+impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+    #[inline]
+    fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.p.set_poll_strategy(strategy);
+    }
+
+    #[inline]
+    fn poll_strategy(&self) -> PollStrategy {
+        self.p.poll_strategy()
+    }
+}
+
+/// Strategy used for [`ControlFlow::Poll`](crate::event_loop::ControlFlow::Poll).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PollStrategy {
+    /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
+    /// this will fallback to [`setTimeout()`].
+    ///
+    /// This strategy will wait for the browser to enter an idle period before running and might
+    /// be affected by browser throttling.
+    ///
+    /// [`Window.requestIdleCallback()`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+    /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+    IdleCallback,
+    /// Uses the [Prioritized Task Scheduling API] to queue the next event loop. If not available
+    /// this will fallback to [`setTimeout()`].
+    ///
+    /// This strategy will run as fast as possible without disturbing users from interacting with
+    /// the page and is not affected by browser throttling.
+    ///
+    /// This is the default strategy.
+    ///
+    /// [Prioritized Task Scheduling API]: https://developer.mozilla.org/en-US/docs/Web/API/Prioritized_Task_Scheduling_API
+    /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+    #[default]
+    Scheduler,
 }

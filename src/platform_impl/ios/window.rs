@@ -6,7 +6,6 @@ use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, Main
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
@@ -16,7 +15,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    platform::ios::{ScreenEdge, ValidOrientations},
+    platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
@@ -40,6 +39,10 @@ impl Inner {
 
     pub fn set_transparent(&self, _transparent: bool) {
         debug!("`Window::set_transparent` is ignored on iOS")
+    }
+
+    pub fn set_blur(&self, _blur: bool) {
+        debug!("`Window::set_blur` is ignored on iOS")
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -194,6 +197,9 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
+
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
@@ -325,16 +331,47 @@ impl Inner {
         self.window.id()
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = UiKitWindowHandle::empty();
+    #[cfg(feature = "rwh_04")]
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::UiKitHandle::empty();
         window_handle.ui_window = Id::as_ptr(&self.window) as _;
         window_handle.ui_view = Id::as_ptr(&self.view) as _;
         window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
-        RawWindowHandle::UiKit(window_handle)
+        rwh_04::RawWindowHandle::UiKit(window_handle)
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::UiKitWindowHandle::empty();
+        window_handle.ui_window = Id::as_ptr(&self.window) as _;
+        window_handle.ui_view = Id::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        rwh_05::RawWindowHandle::UiKit(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::UiKit(rwh_05::UiKitDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let mut window_handle = rwh_06::UiKitWindowHandle::new({
+            let ui_view = Id::as_ptr(&self.view) as _;
+            std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
+        });
+        window_handle.ui_view_controller =
+            std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
+        Ok(rwh_06::RawWindowHandle::UiKit(window_handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::UiKit(
+            rwh_06::UiKitDisplayHandle::new(),
+        ))
     }
 
     pub fn theme(&self) -> Option<Theme> {
@@ -385,7 +422,7 @@ impl Window {
         // TODO: transparency, visible
 
         let main_screen = UIScreen::main(mtm);
-        let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
+        let fullscreen = window_attributes.fullscreen.0.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
@@ -514,6 +551,11 @@ impl Inner {
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         self.view_controller.set_prefers_status_bar_hidden(hidden);
     }
+
+    pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
+        self.view_controller
+            .set_preferred_status_bar_style(status_bar_style.into());
+    }
 }
 
 impl Inner {
@@ -622,5 +664,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
+    pub preferred_status_bar_style: StatusBarStyle,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }

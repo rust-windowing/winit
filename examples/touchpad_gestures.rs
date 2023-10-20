@@ -1,7 +1,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -19,12 +19,10 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Only supported on macOS at the moment.");
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-
+    event_loop.run(move |event, elwt| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::TouchpadMagnify { delta, .. } => {
                     if delta > 0.0 {
                         println!("Zoomed in {delta}");

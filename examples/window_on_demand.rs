@@ -11,7 +11,7 @@ fn main() -> Result<(), impl std::error::Error> {
         error::EventLoopError,
         event::{Event, WindowEvent},
         event_loop::EventLoop,
-        platform::run_ondemand::EventLoopExtRunOnDemand,
+        platform::run_on_demand::EventLoopExtRunOnDemand,
         window::{Window, WindowBuilder, WindowId},
     };
 
@@ -30,8 +30,7 @@ fn main() -> Result<(), impl std::error::Error> {
     fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopError> {
         let mut app = App::default();
 
-        event_loop.run_ondemand(move |event, event_loop, control_flow| {
-            control_flow.set_wait();
+        event_loop.run_on_demand(move |event, elwt| {
             println!("Run {idx}: {:?}", event);
 
             if let Some(window) = &app.window {
@@ -60,7 +59,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     } if id == window_id => {
                         println!("--------------------------------------------------------- Window {idx} Destroyed");
                         app.window_id = None;
-                        control_flow.set_exit();
+                        elwt.exit();
                     }
                     _ => (),
                 }
@@ -68,7 +67,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 let window = WindowBuilder::new()
                         .with_title("Fantastic window number one!")
                         .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
-                        .build(event_loop)
+                        .build(elwt)
                         .unwrap();
                 app.window_id = Some(window.id());
                 app.window = Some(window);

@@ -3,7 +3,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
 
 use super::{backend, device, window};
 
@@ -27,11 +27,12 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 impl<T> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let (user_event_sender, user_event_receiver) = mpsc::channel();
+        let elw = RootEventLoopWindowTarget {
+            p: EventLoopWindowTarget::new(),
+            _marker: PhantomData,
+        };
         Ok(EventLoop {
-            elw: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget::new(),
-                _marker: PhantomData,
-            },
+            elw,
             user_event_sender,
             user_event_receiver,
         })
@@ -39,7 +40,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -47,7 +48,7 @@ impl<T> EventLoop<T> {
         };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
-        let handler: Box<dyn FnMut(Event<()>, _)> = Box::new(|event, flow| {
+        let handler: Box<dyn FnMut(Event<()>)> = Box::new(|event| {
             let event = match event.map_nonuser_event() {
                 Ok(event) => event,
                 Err(Event::UserEvent(())) => Event::UserEvent(
@@ -57,7 +58,7 @@ impl<T> EventLoop<T> {
                 ),
                 Err(_) => unreachable!(),
             };
-            event_handler(event, &target, flow)
+            event_handler(event, &target)
         });
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
@@ -76,7 +77,7 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -84,7 +85,7 @@ impl<T> EventLoop<T> {
         };
 
         self.elw.p.run(
-            Box::new(move |event, flow| {
+            Box::new(move |event| {
                 let event = match event.map_nonuser_event() {
                     Ok(event) => event,
                     Err(Event::UserEvent(())) => Event::UserEvent(
@@ -94,14 +95,14 @@ impl<T> EventLoop<T> {
                     ),
                     Err(_) => unreachable!(),
                 };
-                event_handler(event, &target, flow)
+                event_handler(event, &target)
             }),
             true,
         );
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.elw.p.runner.clone(), self.user_event_sender.clone())
+        EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {

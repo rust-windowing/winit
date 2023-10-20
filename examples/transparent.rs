@@ -22,13 +22,12 @@ fn main() -> Result<(), impl std::error::Error> {
 
     window.set_title("A fantastic window!");
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
         println!("{event:?}");
 
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }
