@@ -1682,7 +1682,7 @@ bitflags! {
     /// Represents the current state of the keyboard modifiers
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
-    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ModifiersState: u32 {
         /// The "shift" key.
         const SHIFT = 0b100;
