@@ -1117,11 +1117,7 @@ impl<T: 'static> EventProcessor<T> {
                             callback(Event::DeviceEvent {
                                 device_id: mkdid(xev.deviceid as xinput::DeviceId),
                                 event: DeviceEvent::Button {
-                                    button: match xev.detail {
-                                        2 => 2,
-                                        3 => 1,
-                                        other => other as u32 - 1,
-                                    },
+                                    button: xev.detail as u32,
                                     state: match xev.evtype {
                                         ffi::XI_RawButtonPress => Pressed,
                                         ffi::XI_RawButtonRelease => Released,

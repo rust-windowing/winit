@@ -20,7 +20,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
 - Mark `startup_notify` unsafe functions as safe.
 - Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
-- **Breaking**: ButtonIds in Button DeviceEvent now matches MouseButton enum on Windows and X11
 - Add horizontal MouseWheel DeviceEvent on Windows
 
 # 0.29.1-beta
