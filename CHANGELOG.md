@@ -43,6 +43,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, fix crash when accessing tabbing APIs.
 - On Windows, fix `RedrawRequested` not being delivered when calling `Window::request_redraw` from `RedrawRequested`.
 - On Windows, fix IME APIs not working when from non event loop thread.
+- Add horizontal MouseWheel DeviceEvent on Windows
 
 # 0.29.1-beta
 
