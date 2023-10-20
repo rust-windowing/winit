@@ -39,6 +39,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Make `WindowBuilder` `Send + Sync`.
 - On macOS, fix assertion when pressing `Globe` key.
 - On Windows, updated `WM_MOUSEMOVE` to detect when cursor Enter or Leave window client area while captured and send the corresponding events. (#3153)
+- On macOS, fix crash when accessing tabbing APIs.
 
 # 0.29.1-beta
 

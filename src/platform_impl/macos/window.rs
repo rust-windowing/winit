@@ -1525,27 +1525,35 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn select_next_tab(&self) {
-        self.tabGroup().selectNextTab();
+        if let Some(group) = self.tabGroup() {
+            group.selectNextTab();
+        }
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        self.tabGroup().selectPreviousTab();
+        if let Some(group) = self.tabGroup() {
+            group.selectPreviousTab()
+        }
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        let tab_group = self.tabGroup();
-        let windows = tab_group.tabbedWindows();
-        if index < windows.len() {
-            tab_group.setSelectedWindow(&windows[index]);
+        if let Some(group) = self.tabGroup() {
+            if let Some(windows) = group.tabbedWindows() {
+                if index < windows.len() {
+                    group.setSelectedWindow(&windows[index]);
+                }
+            }
         }
     }
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        let tab_group = self.tabGroup();
-        tab_group.tabbedWindows().len()
+        self.tabGroup()
+            .and_then(|group| group.tabbedWindows())
+            .map(|windows| windows.len())
+            .unwrap_or(1)
     }
 
     fn is_document_edited(&self) -> bool {
