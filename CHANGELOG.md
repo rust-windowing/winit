@@ -8,9 +8,43 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Renamed `EventLoopExtRunOnDemand` / `run_ondemand` to `EventLoopExtRunOnDemand` / `run_on_demand`.
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
+- On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
+- On Web, never return a `MonitorHandle`.
+- **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
+- On macOS, fix crash in `window.set_minimized(false)`.
+- On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
+- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
+- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
+- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
+- Mark `startup_notify` unsafe functions as safe.
+- Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
+- **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
+- **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
+- On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
+- Implement `PartialOrd` and `Ord` for `MouseButton`.
+- On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
+- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- **Breaking:** remove `DeviceEvent::Text`.
+- On Android, fix `DeviceId` to contain device id's.
+- Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
+- On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
+- On iOS, add ability to change the status bar style.
+- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Wayland/Windows for now.
+- On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
+- **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
+- On Wayland, support `Occluded` event with xdg-shell v6
+- Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
+- **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
+- Make `WindowBuilder` `Send + Sync`.
+- On macOS, fix assertion when pressing `Globe` key.
+- On Windows, updated `WM_MOUSEMOVE` to detect when cursor Enter or Leave window client area while captured and send the corresponding events. (#3153)
+- On macOS, fix crash when accessing tabbing APIs.
+
 # 0.29.1-beta
 
-- **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `v0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
+- **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
 - **Breaking:** Bump MSRV from `1.64` to `1.65`.
 - Make iOS windows usable from other threads.
 - Reexport `raw-window-handle` in `window` module.
@@ -59,7 +93,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
 - On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
 - On Windows, add `drag_resize_window` method support.
-- **Breaking** `run() ->!` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** `run() -> !` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
 - `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
   - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
@@ -70,6 +104,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
 - On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
 - On iOS, add force data to touch events when using the Apple Pencil.
+- On Android, add force data to touch events.
 
 # 0.29.0-beta.0
 
@@ -153,6 +188,10 @@ And please only add new entries to the top of this list, right below the `# Unre
   `DeviceEvent::Key` support.
 - **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
   on Wayland, X11, Windows, macOS and Web.
+
+# 0.28.7
+
+- Fix window size sometimes being invalid when resizing on macOS 14 Sonoma.
 
 # 0.28.6
 

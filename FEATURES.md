@@ -150,7 +150,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the `UIView` hidpi factor
 * Valid orientations
 * Home indicator visibility
-* Status bar visibility
+* Status bar visibility and style
 * Deferrring system gestures
 * Getting the device idiom
 * Getting the preferred video mode
@@ -182,6 +182,7 @@ Legend:
 |Window resizing                  |✔️     |✔️     |✔️         |✔️        |**N/A**|**N/A**|✔️        |✔️      |
 |Window resize increments         |❌     |✔️     |✔️         |❌             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |✔️      |
+|Window blur                      |❌    |❌    |❌        |✔️             |**N/A**|**N/A**|N/A        |❌     |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
 |Window minimization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|**N/A** |
@@ -205,7 +206,7 @@ Legend:
 |Cursor locking          |❌       |✔️      |❌       |✔️          |**N/A**|**N/A**|✔️        |❌      |
 |Cursor confining        |✔️       |❌      |✔️       |✔️          |**N/A**|**N/A**|❌       |❌      |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |**N/A** |
-|Cursor hittest          |✔️       |✔️      |❌       |✔️          |**N/A**|**N/A**|❌        |❌      |
+|Cursor hittest          |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|❌        |❌      |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |**N/A** |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |**N/A** |

@@ -31,41 +31,38 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut option_as_alt = window.option_as_alt();
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            window_id,
+        } if window_id == window.id() => elwt.exit(),
+        Event::WindowEvent { event, .. } => match event {
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } => {
+                option_as_alt = match option_as_alt {
+                    OptionAsAlt::None => OptionAsAlt::OnlyLeft,
+                    OptionAsAlt::OnlyLeft => OptionAsAlt::OnlyRight,
+                    OptionAsAlt::OnlyRight => OptionAsAlt::Both,
+                    OptionAsAlt::Both => OptionAsAlt::None,
+                };
 
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::MouseInput {
-                    state: ElementState::Pressed,
-                    button: MouseButton::Left,
-                    ..
-                } => {
-                    option_as_alt = match option_as_alt {
-                        OptionAsAlt::None => OptionAsAlt::OnlyLeft,
-                        OptionAsAlt::OnlyLeft => OptionAsAlt::OnlyRight,
-                        OptionAsAlt::OnlyRight => OptionAsAlt::Both,
-                        OptionAsAlt::Both => OptionAsAlt::None,
-                    };
-
-                    println!("Received Mouse click, toggling option_as_alt to: {option_as_alt:?}");
-                    window.set_option_as_alt(option_as_alt);
-                }
-                WindowEvent::KeyboardInput { .. } => println!("KeyboardInput: {event:?}"),
-                _ => (),
-            },
-            Event::AboutToWait => {
-                window.request_redraw();
+                println!("Received Mouse click, toggling option_as_alt to: {option_as_alt:?}");
+                window.set_option_as_alt(option_as_alt);
             }
-            Event::RedrawRequested(_) => {
+            WindowEvent::KeyboardInput { .. } => println!("KeyboardInput: {event:?}"),
+            WindowEvent::RedrawRequested => {
                 fill::fill_window(&window);
             }
             _ => (),
+        },
+        Event::AboutToWait => {
+            window.request_redraw();
         }
+
+        _ => (),
     })
 }
 

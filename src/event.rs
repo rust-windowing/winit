@@ -7,25 +7,24 @@
 //! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
-//! let mut control_flow = ControlFlow::Poll;
 //! let mut start_cause = StartCause::Init;
 //!
-//! while control_flow != ControlFlow::Exit {
-//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//! while !elwt.exiting() {
+//!     event_handler(NewEvents(start_cause), elwt);
 //!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, ..., &mut control_flow);
+//!         event_handler(e, elwt);
 //!     }
 //!
 //!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!         event_handler(RedrawRequested(w), elwt);
 //!     }
 //!
-//!     event_handler(AboutToWait, ..., &mut control_flow);
-//!     start_cause = wait_if_necessary(control_flow);
+//!     event_handler(AboutToWait, elwt);
+//!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, ..., &mut control_flow);
+//! event_handler(LoopExiting, elwt);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
@@ -62,7 +61,7 @@ pub enum Event<T: 'static> {
     ///
     /// This event type is useful as a place to put code that should be done before you start
     /// processing events, such as updating frame timing information for benchmarking or checking
-    /// the [`StartCause`][crate::event::StartCause] to see if a timer set by
+    /// the [`StartCause`] to see if a timer set by
     /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
     NewEvents(StartCause),
 
@@ -218,26 +217,40 @@ pub enum Event<T: 'static> {
     /// ups and also lots of corresponding `AboutToWait` events.
     ///
     /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`Event::RedrawRequested`](crate::event::Event::RedrawRequested)
-    /// events.
+    /// should render in response to [`WindowEvent::RedrawRequested`] events.
     AboutToWait,
-
-    /// Emitted when a window should be redrawn.
-    ///
-    /// This gets triggered in two scenarios:
-    /// - The OS has performed an operation that's invalidated the window's contents (such as
-    ///   resizing the window).
-    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
-    ///
-    /// Winit will aggregate duplicate redraw requests into a single event, to
-    /// help avoid duplicating rendering work.
-    RedrawRequested(WindowId),
 
     /// Emitted when the event loop is being shut down.
     ///
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as a "do on quit" event.
     LoopExiting,
+
+    /// Emitted when the application has received a memory warning.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
+    /// must [release memory] or risk being killed.
+    ///
+    /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
+    /// [release memory]: https://developer.android.com/topic/performance/memory#release
+    ///
+    /// ### iOS
+    ///
+    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
+    /// callback. The application must free as much memory as possible or risk being terminated, see
+    /// [how to respond to memory warnings].
+    ///
+    /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
+    /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
+    ///
+    /// ### Others
+    ///
+    /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
+    MemoryWarning,
 }
 
 impl<T> Event<T> {
@@ -250,10 +263,10 @@ impl<T> Event<T> {
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
             AboutToWait => Ok(AboutToWait),
-            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+            MemoryWarning => Ok(MemoryWarning),
         }
     }
 }
@@ -545,15 +558,39 @@ pub enum WindowEvent {
     /// This is different to window visibility as it depends on whether the window is closed,
     /// minimised, set invisible, or fully occluded by another window.
     ///
-    /// Platform-specific behavior:
+    /// ## Platform-specific
+    ///
+    /// ### iOS
+    ///
+    /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
+    /// callback which means the application should start preparing its data. The `Occluded(true)` event is
+    /// emitted in response to an [`applicationDidEnterBackground`] callback which means the application
+    /// should free resources (according to the [iOS application lifecycle]).
+    ///
+    /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
+    /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// ### Others
     ///
     /// - **Web:** Doesn't take into account CSS [`border`], [`padding`], or [`transform`].
-    /// - **iOS / Android / Wayland / Windows / Orbital:** Unsupported.
+    /// - **Android / Windows / Orbital:** Unsupported.
     ///
     /// [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
     /// [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     Occluded(bool),
+
+    /// Emitted when a window should be redrawn.
+    ///
+    /// This gets triggered in two scenarios:
+    /// - The OS has performed an operation that's invalidated the window's contents (such as
+    ///   resizing the window).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
+    ///
+    /// Winit will aggregate duplicate redraw requests into a single event, to
+    /// help avoid duplicating rendering work.
+    RedrawRequested,
 }
 
 /// Identifier of an input device.
@@ -575,7 +612,8 @@ impl DeviceId {
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
+        #[allow(unused_unsafe)]
+        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
     }
 }
 
@@ -621,10 +659,6 @@ pub enum DeviceEvent {
     },
 
     Key(RawKeyEvent),
-
-    Text {
-        codepoint: char,
-    },
 }
 
 /// Describes a keyboard input as a raw device event.
@@ -637,7 +671,7 @@ pub enum DeviceEvent {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
-    pub physical_key: keyboard::KeyCode,
+    pub physical_key: keyboard::PhysicalKey,
     pub state: ElementState,
 }
 
@@ -669,12 +703,12 @@ pub struct KeyEvent {
     /// `Fn` and `FnLock` key events are *exceedingly unlikely* to be emitted by Winit. These keys
     /// are usually handled at the hardware or OS level, and aren't surfaced to applications. If
     /// you somehow see this in the wild, we'd like to know :)
-    pub physical_key: keyboard::KeyCode,
+    pub physical_key: keyboard::PhysicalKey,
 
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
     #[cfg_attr(
-        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
         allow(rustdoc::broken_intra_doc_links)
     )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
@@ -709,7 +743,7 @@ pub struct KeyEvent {
     /// An additional difference from `logical_key` is that
     /// this field stores the text representation of any key
     /// that has such a representation. For example when
-    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    /// `logical_key` is `Key::Named(NamedKey::Enter)`, this field is `Some("\r")`.
     ///
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.
@@ -942,7 +976,10 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+, **Windows** 8+, and **Web**.
+    /// - Only available on **iOS** 9.0+, **Windows** 8+, **Web**, and **Android**.
+    /// - **Android**: This will never be [None]. If the device doesn't support pressure
+    /// sensitivity, force will either be 0.0 or 1.0. Also see the
+    /// [android documentation](https://developer.android.com/reference/android/view/MotionEvent#AXIS_PRESSURE).
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
@@ -1032,7 +1069,7 @@ impl ElementState {
 ///
 /// **macOS:** `Back` and `Forward` might not work with all hardware.
 /// **Orbital:** `Back` and `Forward` are unsupported due to orbital not supporting them.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
@@ -1123,7 +1160,6 @@ mod tests {
                 let wid = unsafe { WindowId::dummy() };
                 x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
-                x(RedrawRequested(wid));
                 x(AboutToWait);
                 x(LoopExiting);
                 x(Suspended);
@@ -1222,7 +1258,6 @@ mod tests {
                     button: 0,
                     state: event::ElementState::Pressed,
                 });
-                with_device_event(Text { codepoint: 'a' });
             }
         }};
     }

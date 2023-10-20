@@ -80,7 +80,7 @@ impl PointerHandler {
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        self.on_pointer_release = Some(canvas_common.add_user_event(
+        self.on_pointer_release = Some(canvas_common.add_transient_event(
             "pointerup",
             move |event: PointerEvent| {
                 let modifiers = event::mouse_modifiers(&event);
@@ -118,7 +118,7 @@ impl PointerHandler {
     {
         let window = canvas_common.window.clone();
         let canvas = canvas_common.raw.clone();
-        self.on_pointer_press = Some(canvas_common.add_user_event(
+        self.on_pointer_press = Some(canvas_common.add_transient_event(
             "pointerdown",
             move |event: PointerEvent| {
                 if prevent_default {
@@ -168,12 +168,7 @@ impl PointerHandler {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static
-            + FnMut(
-                ModifiersState,
-                i32,
-                &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>,
-            ),
+        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
@@ -223,22 +218,12 @@ impl PointerHandler {
                 // pointer move event
                 let scale = super::scale_factor(&window);
                 match pointer_type.as_str() {
-                    "mouse" => {
-                        let mut delta = event::MouseDelta::init(&window, &event);
-
-                        mouse_handler(
-                            modifiers,
-                            id,
-                            &mut event::pointer_move_event(event).map(|event| {
-                                let position = event::mouse_position(&event).to_physical(scale);
-                                let delta = delta
-                                    .delta(&event)
-                                    .to_physical(super::scale_factor(&window));
-
-                                (position, delta)
-                            }),
-                        )
-                    }
+                    "mouse" => mouse_handler(
+                        modifiers,
+                        id,
+                        &mut event::pointer_move_event(event)
+                            .map(|event| event::mouse_position(&event).to_physical(scale)),
+                    ),
                     "touch" => touch_handler(
                         modifiers,
                         id,

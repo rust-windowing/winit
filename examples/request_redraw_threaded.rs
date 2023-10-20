@@ -33,17 +33,18 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, elwt| {
         println!("{event:?}");
-
-        control_flow.set_wait();
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => control_flow.set_exit(),
-            Event::RedrawRequested(_) => {
+            } => elwt.exit(),
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 println!("\nredrawing!\n");
                 fill::fill_window(&window);
             }

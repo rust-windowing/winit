@@ -1,12 +1,9 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-use std::sync::atomic::AtomicBool;
+use std::cell::Cell;
+use std::rc::{Rc, Weak};
 use std::sync::{Arc, Mutex};
 
-use js_sys::Promise;
 use smol_str::SmolStr;
 use wasm_bindgen::{closure::Closure, JsCast};
-use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
 };
@@ -14,26 +11,26 @@ use web_sys::{
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
+use super::fullscreen::FullscreenHandler;
 use super::intersection_handle::IntersectionObserverHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use super::pointer::PointerHandler;
-use super::{event, fullscreen, ButtonsState, ResizeScaleHandle};
+use super::{event, ButtonsState, ResizeScaleHandle};
 
 #[allow(dead_code)]
 pub struct Canvas {
     common: Common,
     id: WindowId,
-    pub has_focus: Arc<AtomicBool>,
+    pub has_focus: Rc<Cell<bool>>,
     pub is_intersecting: Option<bool>,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
-    on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
@@ -44,6 +41,7 @@ pub struct Canvas {
     on_resize_scale: Option<ResizeScaleHandle>,
     on_intersect: Option<IntersectionObserverHandle>,
     animation_frame_handler: AnimationFrameHandler,
+    on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
 }
 
 pub struct Common {
@@ -54,7 +52,7 @@ pub struct Common {
     style: CssStyleDeclaration,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
-    wants_fullscreen: Rc<RefCell<bool>>,
+    fullscreen_handler: Rc<FullscreenHandler>,
 }
 
 impl Canvas {
@@ -65,7 +63,7 @@ impl Canvas {
         attr: &WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match platform_attr.canvas {
+        let canvas = match platform_attr.canvas.0 {
             Some(canvas) => canvas,
             None => document
                 .create_element("canvas")
@@ -101,12 +99,12 @@ impl Canvas {
 
         let common = Common {
             window: window.clone(),
-            document,
-            raw: canvas,
+            document: document.clone(),
+            raw: canvas.clone(),
             style,
             old_size: Rc::default(),
             current_size: Rc::default(),
-            wants_fullscreen: Rc::new(RefCell::new(false)),
+            fullscreen_handler: Rc::new(FullscreenHandler::new(document.clone(), canvas.clone())),
         };
 
         if let Some(size) = attr.inner_size {
@@ -129,8 +127,8 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.is_some() {
-            common.request_fullscreen();
+        if attr.fullscreen.0.is_some() {
+            common.fullscreen_handler.request_fullscreen();
         }
 
         if attr.active {
@@ -140,10 +138,9 @@ impl Canvas {
         Ok(Canvas {
             common,
             id,
-            has_focus: Arc::new(AtomicBool::new(false)),
+            has_focus: Rc::new(Cell::new(false)),
             is_intersecting: None,
             on_touch_start: None,
-            on_touch_end: None,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -154,6 +151,7 @@ impl Canvas {
             on_resize_scale: None,
             on_intersect: None,
             animation_frame_handler: AnimationFrameHandler::new(window),
+            on_touch_end: None,
         })
     }
 
@@ -260,11 +258,10 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(KeyCode, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
-        self.on_keyboard_release = Some(self.common.add_user_event(
-            "keyup",
-            move |event: KeyboardEvent| {
+        self.on_keyboard_release =
+            Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
                 if prevent_default {
                     event.prevent_default();
                 }
@@ -278,15 +275,14 @@ impl Canvas {
                     event.repeat(),
                     modifiers,
                 );
-            },
-        ));
+            }));
     }
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F, prevent_default: bool)
     where
-        F: 'static + FnMut(KeyCode, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
+        F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
-        self.on_keyboard_press = Some(self.common.add_user_event(
+        self.on_keyboard_press = Some(self.common.add_transient_event(
             "keydown",
             move |event: KeyboardEvent| {
                 if prevent_default {
@@ -367,12 +363,7 @@ impl Canvas {
         prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
-        M: 'static
-            + FnMut(
-                ModifiersState,
-                i32,
-                &mut dyn Iterator<Item = (PhysicalPosition<f64>, PhysicalPosition<f64>)>,
-            ),
+        M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
         T: 'static
             + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
@@ -451,22 +442,30 @@ impl Canvas {
         self.animation_frame_handler.on_animation_frame(f)
     }
 
+    pub(crate) fn on_touch_end(&mut self) {
+        self.on_touch_end = Some(self.common.add_transient_event("touchend", |_| {}));
+    }
+
     pub fn request_fullscreen(&self) {
-        self.common.request_fullscreen()
+        self.common.fullscreen_handler.request_fullscreen()
+    }
+
+    pub fn exit_fullscreen(&self) {
+        self.common.fullscreen_handler.exit_fullscreen()
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        self.common.is_fullscreen()
+        self.common.fullscreen_handler.is_fullscreen()
     }
 
     pub fn request_animation_frame(&self) {
         self.animation_frame_handler.request();
     }
 
-    pub(crate) fn handle_scale_change<T: 'static>(
+    pub(crate) fn handle_scale_change(
         &self,
-        runner: &super::super::event_loop::runner::Shared<T>,
-        event_handler: impl FnOnce(crate::event::Event<T>),
+        runner: &super::super::event_loop::runner::Shared,
+        event_handler: impl FnOnce(crate::event::Event<()>),
         current_size: PhysicalSize<u32>,
         scale: f64,
     ) {
@@ -507,7 +506,12 @@ impl Canvas {
         }
     }
 
+    pub(crate) fn transient_activation(&self) {
+        self.common.fullscreen_handler.transient_activation()
+    }
+
     pub fn remove_listeners(&mut self) {
+        self.on_touch_start = None;
         self.on_focus = None;
         self.on_blur = None;
         self.on_keyboard_release = None;
@@ -517,6 +521,9 @@ impl Canvas {
         self.pointer_handler.remove_listeners();
         self.on_resize_scale = None;
         self.on_intersect = None;
+        self.animation_frame_handler.cancel();
+        self.on_touch_end = None;
+        self.common.fullscreen_handler.cancel();
     }
 }
 
@@ -524,23 +531,19 @@ impl Common {
     pub fn add_event<E, F>(
         &self,
         event_name: &'static str,
-        mut handler: F,
+        handler: F,
     ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
     {
-        let closure = Closure::new(move |event: E| {
-            event.as_ref().stop_propagation();
-            handler(event);
-        });
-        EventListenerHandle::new(&self.raw, event_name, closure)
+        EventListenerHandle::new(self.raw.clone(), event_name, Closure::new(handler))
     }
 
     // The difference between add_event and add_user_event is that the latter has a special meaning
     // for browser security. A user event is a deliberate action by the user (like a mouse or key
     // press) and is the only time things like a fullscreen request may be successfully completed.)
-    pub fn add_user_event<E, F>(
+    pub fn add_transient_event<E, F>(
         &self,
         event_name: &'static str,
         mut handler: F,
@@ -549,37 +552,14 @@ impl Common {
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
     {
-        let wants_fullscreen = self.wants_fullscreen.clone();
-        let canvas = self.raw.clone();
+        let fullscreen_handler = Rc::downgrade(&self.fullscreen_handler);
 
         self.add_event(event_name, move |event: E| {
             handler(event);
 
-            if *wants_fullscreen.borrow() {
-                fullscreen::request_fullscreen(&canvas).expect("Failed to enter fullscreen");
-                *wants_fullscreen.borrow_mut() = false;
+            if let Some(fullscreen_handler) = Weak::upgrade(&fullscreen_handler) {
+                fullscreen_handler.transient_activation()
             }
         })
-    }
-
-    pub fn request_fullscreen(&self) {
-        // This should return a `Promise`, but Safari v<16.4 is not up-to-date with the spec.
-        match fullscreen::request_fullscreen(&self.raw) {
-            Ok(value) if !value.is_undefined() => {
-                let promise: Promise = value.unchecked_into();
-                let wants_fullscreen = self.wants_fullscreen.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    if JsFuture::from(promise).await.is_err() {
-                        *wants_fullscreen.borrow_mut() = true
-                    }
-                });
-            }
-            // We are on Safari v<16.4, let's try again on the next transient activation.
-            _ => *self.wants_fullscreen.borrow_mut() = true,
-        }
-    }
-
-    pub fn is_fullscreen(&self) -> bool {
-        super::is_fullscreen(&self.document, &self.raw)
     }
 }

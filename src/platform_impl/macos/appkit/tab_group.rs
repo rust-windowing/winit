@@ -23,7 +23,7 @@ extern_methods!(
         pub fn selectPreviousTab(&self);
 
         #[method_id(windows)]
-        pub fn tabbedWindows(&self) -> Id<NSArray<NSWindow>>;
+        pub fn tabbedWindows(&self) -> Option<Id<NSArray<NSWindow>>>;
 
         #[method(setSelectedWindow:)]
         pub fn setSelectedWindow(&self, window: &NSWindow);

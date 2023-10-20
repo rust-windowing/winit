@@ -7,7 +7,7 @@ use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
     event_loop::{DeviceEvents, EventLoop},
-    keyboard::{Key, KeyCode},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -38,9 +38,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
+    event_loop.run(move |event, elwt| {
         match event {
             // This used to use the virtual key, but the new API
             // only provides the `physical_key` (`Code`).
@@ -53,14 +51,14 @@ fn main() -> Result<(), impl std::error::Error> {
                     }),
                 ..
             } => match physical_key {
-                KeyCode::KeyM => {
+                PhysicalKey::Code(KeyCode::KeyM) => {
                     if minimized {
                         minimized = !minimized;
                         window.set_minimized(minimized);
                         window.focus_window();
                     }
                 }
-                KeyCode::KeyV => {
+                PhysicalKey::Code(KeyCode::KeyV) => {
                     if !visible {
                         visible = !visible;
                         window.set_visible(visible);
@@ -68,75 +66,71 @@ fn main() -> Result<(), impl std::error::Error> {
                 }
                 _ => (),
             },
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                logical_key: Key::Character(key_str),
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => match key_str.as_ref() {
-                // WARNING: Consider using `key_without_modifers()` if available on your platform.
-                // See the `key_binding` example
-                "e" => {
-                    fn area(size: PhysicalSize<u32>) -> u32 {
-                        size.width * size.height
-                    }
+            Event::WindowEvent { window_id, event } => match event {
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Character(key_str),
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => match key_str.as_ref() {
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    "e" => {
+                        fn area(size: PhysicalSize<u32>) -> u32 {
+                            size.width * size.height
+                        }
 
-                    let monitor = window.current_monitor().unwrap();
-                    if let Some(mode) = monitor
-                        .video_modes()
-                        .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
-                    {
-                        window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
-                    } else {
-                        eprintln!("no video modes available");
+                        let monitor = window.current_monitor().unwrap();
+                        if let Some(mode) = monitor
+                            .video_modes()
+                            .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
+                        {
+                            window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
+                        } else {
+                            eprintln!("no video modes available");
+                        }
                     }
-                }
-                "f" => {
-                    if window.fullscreen().is_some() {
-                        window.set_fullscreen(None);
-                    } else {
-                        let monitor = window.current_monitor();
-                        window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                    "f" => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            let monitor = window.current_monitor();
+                            window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                        }
                     }
-                }
-                "p" => {
-                    if window.fullscreen().is_some() {
-                        window.set_fullscreen(None);
-                    } else {
-                        window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                    "p" => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                        }
                     }
-                }
-                "m" => {
-                    minimized = !minimized;
-                    window.set_minimized(minimized);
-                }
-                "q" => {
-                    control_flow.set_exit();
-                }
-                "v" => {
-                    visible = !visible;
-                    window.set_visible(visible);
-                }
-                "x" => {
-                    let is_maximized = window.is_maximized();
-                    window.set_maximized(!is_maximized);
+                    "m" => {
+                        minimized = !minimized;
+                        window.set_minimized(minimized);
+                    }
+                    "q" => {
+                        elwt.exit();
+                    }
+                    "v" => {
+                        visible = !visible;
+                        window.set_visible(visible);
+                    }
+                    "x" => {
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
+                    }
+                    _ => (),
+                },
+                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
                 }
                 _ => (),
             },
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
-            }
             _ => (),
         }
     })

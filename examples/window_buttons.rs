@@ -31,45 +31,38 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                logical_key: key,
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => match key.as_ref() {
-                Key::Character("F" | "f") => {
-                    let buttons = window.enabled_buttons();
-                    window.set_enabled_buttons(buttons ^ WindowButtons::CLOSE);
-                }
-                Key::Character("G" | "g") => {
-                    let buttons = window.enabled_buttons();
-                    window.set_enabled_buttons(buttons ^ WindowButtons::MAXIMIZE);
-                }
-                Key::Character("H" | "h") => {
-                    let buttons = window.enabled_buttons();
-                    window.set_enabled_buttons(buttons ^ WindowButtons::MINIMIZE);
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { window_id, event } = event {
+            match event {
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: key,
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => match key.as_ref() {
+                    Key::Character("F" | "f") => {
+                        let buttons = window.enabled_buttons();
+                        window.set_enabled_buttons(buttons ^ WindowButtons::CLOSE);
+                    }
+                    Key::Character("G" | "g") => {
+                        let buttons = window.enabled_buttons();
+                        window.set_enabled_buttons(buttons ^ WindowButtons::MAXIMIZE);
+                    }
+                    Key::Character("H" | "h") => {
+                        let buttons = window.enabled_buttons();
+                        window.set_enabled_buttons(buttons ^ WindowButtons::MINIMIZE);
+                    }
+                    _ => (),
+                },
+                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
                 }
                 _ => (),
-            },
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
             }
-            _ => (),
         }
     })
 }

@@ -2,26 +2,24 @@ use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
+use std::marker::PhantomData;
+use std::rc::{Rc, Weak};
 
-use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
-
-use super::runner::EventWrapper;
+use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
     device::DeviceId,
-    proxy::EventLoopProxy,
     runner,
     window::WindowId,
 };
 use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyEvent, RawKeyEvent, Touch,
-    TouchPhase, WindowEvent,
+    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
-use crate::event_loop::DeviceEvents;
+use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
+use crate::platform::web::PollStrategy;
+use crate::platform_impl::platform::r#async::Waker;
 use crate::window::{Theme, WindowId as RootWindowId};
 
 #[derive(Default)]
@@ -44,8 +42,9 @@ impl Clone for ModifiersShared {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) runner: runner::Shared<T>,
+    pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
+    _marker: PhantomData<T>,
 }
 
 impl<T> Clone for EventLoopWindowTarget<T> {
@@ -53,6 +52,7 @@ impl<T> Clone for EventLoopWindowTarget<T> {
         Self {
             runner: self.runner.clone(),
             modifiers: self.modifiers.clone(),
+            _marker: PhantomData,
         }
     }
 }
@@ -62,14 +62,11 @@ impl<T> EventLoopWindowTarget<T> {
         Self {
             runner: runner::Shared::new(),
             modifiers: ModifiersShared::default(),
+            _marker: PhantomData,
         }
     }
 
-    pub fn proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.runner.clone())
-    }
-
-    pub fn run(&self, event_handler: Box<runner::EventHandler<T>>, event_loop_recreation: bool) {
+    pub fn run(&self, event_handler: Box<runner::EventHandler>, event_loop_recreation: bool) {
         self.runner.event_loop_recreation(event_loop_recreation);
         self.runner.set_listener(event_handler);
     }
@@ -84,7 +81,6 @@ impl<T> EventLoopWindowTarget<T> {
         id: WindowId,
         prevent_default: bool,
     ) {
-        self.runner.add_canvas(RootWindowId(id), canvas);
         let canvas_clone = canvas.clone();
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
@@ -95,7 +91,7 @@ impl<T> EventLoopWindowTarget<T> {
         let has_focus = canvas.has_focus.clone();
         let modifiers = self.modifiers.clone();
         canvas.on_blur(move || {
-            has_focus.store(false, Ordering::Relaxed);
+            has_focus.set(false);
 
             let clear_modifiers = (!modifiers.get().is_empty()).then(|| {
                 modifiers.set(ModifiersState::empty());
@@ -118,7 +114,7 @@ impl<T> EventLoopWindowTarget<T> {
         let runner = self.runner.clone();
         let has_focus = canvas.has_focus.clone();
         canvas.on_focus(move || {
-            if !has_focus.swap(true, Ordering::Relaxed) {
+            if !has_focus.replace(true) {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::Focused(true),
@@ -140,34 +136,24 @@ impl<T> EventLoopWindowTarget<T> {
 
                 let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
 
-                let device_event = runner.device_events().then_some(Event::DeviceEvent {
-                    device_id,
-                    event: DeviceEvent::Key(RawKeyEvent {
-                        physical_key,
-                        state: ElementState::Pressed,
-                    }),
-                });
-
                 runner.send_events(
-                    device_event
-                        .into_iter()
-                        .chain(iter::once(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::KeyboardInput {
-                                device_id,
-                                event: KeyEvent {
-                                    physical_key,
-                                    logical_key,
-                                    text,
-                                    location,
-                                    state: ElementState::Pressed,
-                                    repeat,
-                                    platform_specific: KeyEventExtra,
-                                },
-                                is_synthetic: false,
+                    iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id,
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Pressed,
+                                repeat,
+                                platform_specific: KeyEventExtra,
                             },
-                        }))
-                        .chain(modifiers_changed),
+                            is_synthetic: false,
+                        },
+                    })
+                    .chain(modifiers_changed),
                 );
             },
             prevent_default,
@@ -187,34 +173,24 @@ impl<T> EventLoopWindowTarget<T> {
 
                 let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
 
-                let device_event = runner.device_events().then_some(Event::DeviceEvent {
-                    device_id,
-                    event: DeviceEvent::Key(RawKeyEvent {
-                        physical_key,
-                        state: ElementState::Pressed,
-                    }),
-                });
-
                 runner.send_events(
-                    device_event
-                        .into_iter()
-                        .chain(iter::once(Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::KeyboardInput {
-                                device_id,
-                                event: KeyEvent {
-                                    physical_key,
-                                    logical_key,
-                                    text,
-                                    location,
-                                    state: ElementState::Released,
-                                    repeat,
-                                    platform_specific: KeyEventExtra,
-                                },
-                                is_synthetic: false,
+                    iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id,
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Released,
+                                repeat,
+                                platform_specific: KeyEventExtra,
                             },
-                        }))
-                        .chain(modifiers_changed),
+                            is_synthetic: false,
+                        },
+                    })
+                    .chain(modifiers_changed),
                 )
             },
             prevent_default,
@@ -227,15 +203,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -256,15 +230,13 @@ impl<T> EventLoopWindowTarget<T> {
             let modifiers = self.modifiers.clone();
 
             move |active_modifiers, pointer_id| {
-                let focus = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
-                    .then(|| {
-                        modifiers.set(active_modifiers);
-                        Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::ModifiersChanged(active_modifiers.into()),
-                        }
-                    });
+                let focus = (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
+                    modifiers.set(active_modifiers);
+                    Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers.into()),
+                    }
+                });
 
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: RootWindowId(id),
@@ -286,7 +258,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -301,9 +273,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -311,48 +282,17 @@ impl<T> EventLoopWindowTarget<T> {
                             }
                         });
 
-                    runner.send_events(modifiers.into_iter().chain(events.flat_map(
-                        |(position, delta)| {
-                            let device_id = RootDeviceId(DeviceId(pointer_id));
+                    runner.send_events(modifiers.into_iter().chain(events.flat_map(|position| {
+                        let device_id = RootDeviceId(DeviceId(pointer_id));
 
-                            let device_events = runner.device_events().then(|| {
-                                let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
-                                    device_id,
-                                    event: DeviceEvent::Motion {
-                                        axis: 0,
-                                        value: delta.x,
-                                    },
-                                });
-
-                                let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
-                                    device_id,
-                                    event: DeviceEvent::Motion {
-                                        axis: 1,
-                                        value: delta.y,
-                                    },
-                                });
-
-                                x_motion.into_iter().chain(y_motion).chain(iter::once(
-                                    Event::DeviceEvent {
-                                        device_id,
-                                        event: DeviceEvent::MouseMotion {
-                                            delta: (delta.x, delta.y),
-                                        },
-                                    },
-                                ))
-                            });
-
-                            device_events.into_iter().flatten().chain(iter::once(
-                                Event::WindowEvent {
-                                    window_id: RootWindowId(id),
-                                    event: WindowEvent::CursorMoved {
-                                        device_id,
-                                        position,
-                                    },
-                                },
-                            ))
-                        },
-                    )));
+                        iter::once(Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::CursorMoved {
+                                device_id,
+                                position,
+                            },
+                        })
+                    })));
                 }
             },
             {
@@ -361,9 +301,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, events| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -395,9 +334,8 @@ impl<T> EventLoopWindowTarget<T> {
                       position: crate::dpi::PhysicalPosition<f64>,
                       buttons,
                       button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -413,18 +351,10 @@ impl<T> EventLoopWindowTarget<T> {
                         ElementState::Released
                     };
 
-                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Button {
-                            button: button.to_id(),
-                            state,
-                        },
-                    });
-
                     // A chorded button event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
+                    runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
@@ -475,18 +405,11 @@ impl<T> EventLoopWindowTarget<T> {
                     });
 
                     let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
-                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Button {
-                            button: button.to_id(),
-                            state: ElementState::Pressed,
-                        },
-                    });
 
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
+                    runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
@@ -542,7 +465,7 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers| {
-                    if has_focus.load(Ordering::Relaxed) && modifiers.get() != active_modifiers {
+                    if has_focus.get() && modifiers.get() != active_modifiers {
                         modifiers.set(active_modifiers);
                         runner.send_event(Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -557,9 +480,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, pointer_id, position, button| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -568,18 +490,11 @@ impl<T> EventLoopWindowTarget<T> {
                         });
 
                     let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
-                    let device_event = runner.device_events().then(|| Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Button {
-                            button: button.to_id(),
-                            state: ElementState::Pressed,
-                        },
-                    });
 
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
                     // user code has the correct cursor position.
-                    runner.send_events(modifiers.into_iter().chain(device_event).chain([
+                    runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: WindowEvent::CursorMoved {
@@ -604,9 +519,8 @@ impl<T> EventLoopWindowTarget<T> {
                 let modifiers = self.modifiers.clone();
 
                 move |active_modifiers, device_id, location, force| {
-                    let modifiers = (has_focus.load(Ordering::Relaxed)
-                        && modifiers.get() != active_modifiers)
-                        .then(|| {
+                    let modifiers =
+                        (has_focus.get() && modifiers.get() != active_modifiers).then(|| {
                             modifiers.set(active_modifiers);
                             Event::WindowEvent {
                                 window_id: RootWindowId(id),
@@ -634,8 +548,7 @@ impl<T> EventLoopWindowTarget<T> {
         let modifiers = self.modifiers.clone();
         canvas.on_mouse_wheel(
             move |pointer_id, delta, active_modifiers| {
-                let modifiers_changed = (has_focus.load(Ordering::Relaxed)
-                    && modifiers.get() != active_modifiers)
+                let modifiers_changed = (has_focus.get() && modifiers.get() != active_modifiers)
                     .then(|| {
                         modifiers.set(active_modifiers);
                         Event::WindowEvent {
@@ -644,21 +557,16 @@ impl<T> EventLoopWindowTarget<T> {
                         }
                     });
 
-                let device_event = runner.device_events().then_some(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                    event: DeviceEvent::MouseWheel { delta },
-                });
-
-                runner.send_events(modifiers_changed.into_iter().chain(device_event).chain(
-                    iter::once(Event::WindowEvent {
+                runner.send_events(modifiers_changed.into_iter().chain(iter::once(
+                    Event::WindowEvent {
                         window_id: RootWindowId(id),
                         event: WindowEvent::MouseWheel {
                             device_id: RootDeviceId(DeviceId(pointer_id)),
                             delta,
                             phase: TouchPhase::Moved,
                         },
-                    }),
-                ));
+                    },
+                )));
             },
             prevent_default,
         );
@@ -739,6 +647,8 @@ impl<T> EventLoopWindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_animation_frame(move || runner.request_redraw(RootWindowId(id)));
+
+        canvas.on_touch_end();
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
@@ -746,14 +656,54 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle)
+        None
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Web(WebDisplayHandle::empty())
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(
+            rwh_06::WebDisplayHandle::new(),
+        ))
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
         self.runner.listen_device_events(allowed)
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.runner.set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.runner.control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.runner.exit()
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.runner.exiting()
+    }
+
+    pub(crate) fn set_poll_strategy(&self, strategy: PollStrategy) {
+        self.runner.set_poll_strategy(strategy)
+    }
+
+    pub(crate) fn poll_strategy(&self) -> PollStrategy {
+        self.runner.poll_strategy()
+    }
+
+    pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
+        self.runner.waker()
     }
 }

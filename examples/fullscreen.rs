@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
-use winit::keyboard::Key;
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Fullscreen, WindowBuilder};
 
 #[cfg(target_os = "macos")]
@@ -52,12 +52,10 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("- I\tToggle mIn size limit");
     println!("- A\tToggle mAx size limit");
 
-    event_loop.run(move |event, elwt, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -67,7 +65,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key {
-                    Key::Escape => control_flow.set_exit(),
+                    Key::Named(NamedKey::Escape) => elwt.exit(),
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {
@@ -155,12 +153,11 @@ fn main() -> Result<(), impl std::error::Error> {
                     },
                     _ => (),
                 },
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
-            },
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
             }
-            _ => {}
         }
     })
 }

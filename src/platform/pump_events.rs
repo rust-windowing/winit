@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{EventLoop, EventLoopWindowTarget},
 };
 
 /// The return status for `pump_events`
@@ -63,7 +63,7 @@ pub trait EventLoopExtPumpEvents {
     ///
     ///     'main: loop {
     ///         let timeout = Some(Duration::ZERO);
-    ///         let status = event_loop.pump_events(timeout, |event, _, control_flow| {
+    ///         let status = event_loop.pump_events(timeout, |event, elwt| {
     /// #            if let Event::WindowEvent { event, .. } = &event {
     /// #                // Print only Window events to reduce noise
     /// #                println!("{event:?}");
@@ -73,7 +73,7 @@ pub trait EventLoopExtPumpEvents {
     ///                 Event::WindowEvent {
     ///                     event: WindowEvent::CloseRequested,
     ///                     window_id,
-    ///                 } if window_id == window.id() => control_flow.set_exit(),
+    ///                 } if window_id == window.id() => elwt.exit(),
     ///                 Event::AboutToWait => {
     ///                     window.request_redraw();
     ///                 }
@@ -174,7 +174,7 @@ pub trait EventLoopExtPumpEvents {
     ///   callback.
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
 }
 
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
@@ -182,7 +182,7 @@ impl<T> EventLoopExtPumpEvents for EventLoop<T> {
 
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow),
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
         self.event_loop.pump_events(timeout, event_handler)
     }

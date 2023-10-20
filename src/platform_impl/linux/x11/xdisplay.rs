@@ -10,17 +10,20 @@ use std::{
 
 use crate::window::CursorIcon;
 
-use super::{atoms::Atoms, ffi};
-use x11rb::{connection::Connection, protocol::xproto, xcb_ffi::XCBConnection};
+use super::{atoms::Atoms, ffi, monitor::MonitorHandle};
+use x11rb::{connection::Connection, protocol::xproto, resource_manager, xcb_ffi::XCBConnection};
 
 /// A connection to an X server.
 pub(crate) struct XConnection {
     pub xlib: ffi::Xlib,
-    /// Exposes XRandR functions from version < 1.5
-    pub xrandr: ffi::Xrandr_2_2_0,
     pub xcursor: ffi::Xcursor,
+
+    // TODO(notgull): I'd like to remove this, but apparently Xlib and Xinput2 are tied together
+    // for some reason.
     pub xinput2: ffi::XInput2,
+
     pub display: *mut ffi::Display,
+
     /// The manager for the XCB connection.
     ///
     /// The `Option` ensures that we can drop it before we close the `Display`.
@@ -38,6 +41,12 @@ pub(crate) struct XConnection {
     /// The last timestamp received by this connection.
     timestamp: AtomicU32,
 
+    /// List of monitor handles.
+    pub monitor_handles: Mutex<Option<Vec<MonitorHandle>>>,
+
+    /// The resource database.
+    database: resource_manager::Database,
+
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
 }
@@ -53,9 +62,8 @@ impl XConnection {
         // opening the libraries
         let xlib = ffi::Xlib::open()?;
         let xcursor = ffi::Xcursor::open()?;
-        let xrandr = ffi::Xrandr_2_2_0::open()?;
-        let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
+        let xinput2 = ffi::XInput2::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -92,9 +100,12 @@ impl XConnection {
             .reply()
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
+        // Load the database.
+        let database = resource_manager::new_from_default(&xcb)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+
         Ok(XConnection {
             xlib,
-            xrandr,
             xcursor,
             xinput2,
             display,
@@ -103,6 +114,8 @@ impl XConnection {
             default_screen,
             timestamp: AtomicU32::new(0),
             latest_error: Mutex::new(None),
+            monitor_handles: Mutex::new(None),
+            database,
             cursor_cache: Default::default(),
         })
     }
@@ -142,6 +155,12 @@ impl XConnection {
     #[inline]
     pub fn default_root(&self) -> &xproto::Screen {
         &self.xcb_connection().setup().roots[self.default_screen]
+    }
+
+    /// Get the resource database.
+    #[inline]
+    pub fn database(&self) -> &resource_manager::Database {
+        &self.database
     }
 
     /// Get the latest timestamp.

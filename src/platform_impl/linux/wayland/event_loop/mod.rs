@@ -1,28 +1,29 @@
 //! The event-loop routines.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
 use std::marker::PhantomData;
 use std::mem;
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
-
 use sctk::reexports::calloop;
 use sctk::reexports::calloop::Error as CalloopError;
+use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::globals;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, WaylandSource};
+use sctk::reexports::client::{Connection, QueueHandle};
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::{
+    ControlFlow, DeviceEvents, EventLoopWindowTarget as RootEventLoopWindowTarget,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::platform::sticky_exit_callback;
 use crate::platform_impl::{EventLoopWindowTarget as PlatformEventLoopWindowTarget, OsError};
 
 mod proxy;
@@ -39,11 +40,8 @@ type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>,
 
 /// The Wayland event loop.
 pub struct EventLoop<T: 'static> {
-    /// Has `run` or `run_ondemand` been called or a call to `pump_events` that starts the loop
+    /// Has `run` or `run_on_demand` been called or a call to `pump_events` that starts the loop
     loop_running: bool,
-
-    /// The application's latest control_flow state
-    control_flow: ControlFlow,
 
     buffer_sink: EventSink,
     compositor_updates: Vec<WindowCompositorUpdate>,
@@ -104,7 +102,7 @@ impl<T: 'static> EventLoop<T> {
         )?;
 
         // Register Wayland source.
-        let wayland_source = map_err!(WaylandSource::new(event_queue), WaylandError::Wire)?;
+        let wayland_source = WaylandSource::new(connection.clone(), event_queue);
         let wayland_dispatcher =
             calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
                 let result = queue.dispatch_pending(winit_state);
@@ -166,13 +164,14 @@ impl<T: 'static> EventLoop<T> {
             wayland_dispatcher: wayland_dispatcher.clone(),
             event_loop_awakener,
             queue_handle,
+            control_flow: Cell::new(ControlFlow::default()),
+            exit: Cell::new(None),
             state: RefCell::new(winit_state),
             _marker: PhantomData,
         };
 
         let event_loop = Self {
             loop_running: false,
-            control_flow: ControlFlow::default(),
             compositor_updates: Vec::new(),
             buffer_sink: EventSink::default(),
             window_ids: Vec::new(),
@@ -190,9 +189,9 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run_ondemand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -213,7 +212,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         // Applications aren't allowed to carry windows between separate
-        // `run_ondemand` calls but if they have only just dropped their
+        // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // compositor.
         let _ = self.roundtrip().map_err(EventLoopError::Os);
@@ -223,15 +222,10 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         if !self.loop_running {
             self.loop_running = true;
-
-            // Reset the internal state for the loop as we start running to
-            // ensure consistent behaviour in case the loop runs and exits more
-            // than once.
-            self.control_flow = ControlFlow::Poll;
 
             // Run the initial loop iteration.
             self.single_iteration(&mut callback, StartCause::Init);
@@ -239,19 +233,13 @@ impl<T: 'static> EventLoop<T> {
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
-        if !matches!(self.control_flow, ControlFlow::ExitWithCode(_)) {
+        if !self.exiting() {
             self.poll_events_with_timeout(timeout, &mut callback);
         }
-        if let ControlFlow::ExitWithCode(code) = self.control_flow {
+        if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            let mut dummy = self.control_flow;
-            sticky_exit_callback(
-                Event::LoopExiting,
-                self.window_target(),
-                &mut dummy,
-                &mut callback,
-            );
+            callback(Event::LoopExiting, self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -261,62 +249,18 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         let cause = loop {
             let start = Instant::now();
 
-            // TODO(rib): remove this workaround and instead make sure that the calloop
-            // WaylandSource correctly implements the cooperative prepare_read protocol
-            // that support multithreaded wayland clients that may all read from the
-            // same socket.
-            //
-            // During the run of the user callback, some other code monitoring and reading the
-            // Wayland socket may have been run (mesa for example does this with vsync), if that
-            // is the case, some events may have been enqueued in our event queue.
-            //
-            // If some messages are there, the event loop needs to behave as if it was instantly
-            // woken up by messages arriving from the Wayland socket, to avoid delaying the
-            // dispatch of these events until we're woken up again.
-            let instant_wakeup = {
-                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
-                let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(x11_platform)]
-                    _ => unreachable!(),
-                };
-
-                match queue.dispatch_pending(state) {
-                    Ok(dispatched) => {
-                        state.dispatched_events |= !state.events_sink.is_empty()
-                            || !state.window_compositor_updates.is_empty();
-                        dispatched > 0
-                    }
-                    Err(error) => {
-                        error!("Error dispatching wayland queue: {}", error);
-                        self.control_flow = ControlFlow::ExitWithCode(1);
-                        return;
-                    }
-                }
-            };
-
-            timeout = if instant_wakeup {
-                Some(Duration::ZERO)
-            } else {
-                let control_flow_timeout = match self.control_flow {
+            timeout = {
+                let control_flow_timeout = match self.control_flow() {
                     ControlFlow::Wait => None,
                     ControlFlow::Poll => Some(Duration::ZERO),
                     ControlFlow::WaitUntil(wait_deadline) => {
                         Some(wait_deadline.saturating_duration_since(start))
                     }
-                    // This function shouldn't have to handle any requests to exit
-                    // the application (there should be no need to poll for events
-                    // if the application has requested to exit) so we consider
-                    // it a bug in the backend if we ever see `ExitWithCode` here.
-                    ControlFlow::ExitWithCode(_code) => unreachable!(),
                 };
                 min_timeout(control_flow_timeout, timeout)
             };
@@ -324,7 +268,13 @@ impl<T: 'static> EventLoop<T> {
             // NOTE Ideally we should flush as the last thing we do before polling
             // to wait for events, and this should be done by the calloop
             // WaylandSource but we currently need to flush writes manually.
-            let _ = self.connection.flush();
+            //
+            // Checking for flush error is essential to perform an exit with error, since
+            // once we have a protocol error, we could get stuck retrying...
+            if self.connection.flush().is_err() {
+                self.set_exit_code(1);
+                return;
+            }
 
             if let Err(error) = self.loop_dispatch(timeout) {
                 // NOTE We exit on errors from dispatches, since if we've got protocol error
@@ -334,13 +284,13 @@ impl<T: 'static> EventLoop<T> {
                 // with an API to do that via some event.
                 // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
                 let exit_code = error.raw_os_error().unwrap_or(1);
-                self.control_flow = ControlFlow::ExitWithCode(exit_code);
+                self.set_exit_code(exit_code);
                 return;
             }
 
             // NB: `StartCause::Init` is handled as a special case and doesn't need
             // to be considered here
-            let cause = match self.control_flow {
+            let cause = match self.control_flow() {
                 ControlFlow::Poll => StartCause::Poll,
                 ControlFlow::Wait => StartCause::WaitCancelled {
                     start,
@@ -359,11 +309,6 @@ impl<T: 'static> EventLoop<T> {
                         }
                     }
                 }
-                // This function shouldn't have to handle any requests to exit
-                // the application (there should be no need to poll for events
-                // if the application has requested to exit) so we consider
-                // it a bug in the backend if we ever see `ExitWithCode` here.
-                ControlFlow::ExitWithCode(_code) => unreachable!(),
             };
 
             // Reduce spurious wake-ups.
@@ -378,13 +323,11 @@ impl<T: 'static> EventLoop<T> {
         self.single_iteration(&mut callback, cause);
     }
 
-    fn single_iteration<F>(&mut self, mut callback: &mut F, cause: StartCause)
+    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
     {
         // NOTE currently just indented to simplify the diff
-
-        let mut control_flow = self.control_flow;
 
         // We retain these grow-only scratch buffers as part of the EventLoop
         // for the sake of avoiding lots of reallocs. We take them here to avoid
@@ -394,33 +337,18 @@ impl<T: 'static> EventLoop<T> {
         let mut buffer_sink = std::mem::take(&mut self.buffer_sink);
         let mut window_ids = std::mem::take(&mut self.window_ids);
 
-        sticky_exit_callback(
-            Event::NewEvents(cause),
-            &self.window_target,
-            &mut control_flow,
-            callback,
-        );
+        callback(Event::NewEvents(cause), &self.window_target);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            sticky_exit_callback(
-                Event::Resumed,
-                &self.window_target,
-                &mut control_flow,
-                callback,
-            );
+            callback(Event::Resumed, &self.window_target);
         }
 
         // Handle pending user events. We don't need back buffer, since we can't dispatch
         // user events indirectly via callback to the user.
         for user_event in self.pending_user_events.borrow_mut().drain(..) {
-            sticky_exit_callback(
-                Event::UserEvent(user_event),
-                &self.window_target,
-                &mut control_flow,
-                &mut callback,
-            );
+            callback(Event::UserEvent(user_event), &self.window_target);
         }
 
         // Drain the pending compositor updates.
@@ -443,7 +371,7 @@ impl<T: 'static> EventLoop<T> {
                 let old_physical_size = physical_size;
 
                 let new_inner_size = Arc::new(Mutex::new(physical_size));
-                sticky_exit_callback(
+                callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::ScaleFactorChanged {
@@ -454,8 +382,6 @@ impl<T: 'static> EventLoop<T> {
                         },
                     },
                     &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
                 );
 
                 let physical_size = *new_inner_size.lock().unwrap();
@@ -497,26 +423,22 @@ impl<T: 'static> EventLoop<T> {
                     physical_size
                 });
 
-                sticky_exit_callback(
+                callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::Resized(physical_size),
                     },
                     &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
                 );
             }
 
             if compositor_update.close_window {
-                sticky_exit_callback(
+                callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::CloseRequested,
                     },
                     &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
                 );
             }
         }
@@ -527,7 +449,7 @@ impl<T: 'static> EventLoop<T> {
         });
         for event in buffer_sink.drain() {
             let event = event.map_nonuser_event().unwrap();
-            sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
+            callback(event, &self.window_target);
         }
 
         // Handle non-synthetic events.
@@ -536,7 +458,7 @@ impl<T: 'static> EventLoop<T> {
         });
         for event in buffer_sink.drain() {
             let event = event.map_nonuser_event().unwrap();
-            sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
+            callback(event, &self.window_target);
         }
 
         // Collect the window ids
@@ -579,11 +501,12 @@ impl<T: 'static> EventLoop<T> {
             });
 
             if request_redraw {
-                sticky_exit_callback(
-                    Event::RedrawRequested(crate::window::WindowId(window_id)),
+                callback(
+                    Event::WindowEvent {
+                        window_id: crate::window::WindowId(window_id),
+                        event: WindowEvent::RedrawRequested,
+                    },
                     &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
                 );
             }
         }
@@ -594,14 +517,8 @@ impl<T: 'static> EventLoop<T> {
         });
 
         // This is always the last event we dispatch before poll again
-        sticky_exit_callback(
-            Event::AboutToWait,
-            &self.window_target,
-            &mut control_flow,
-            &mut callback,
-        );
+        callback(Event::AboutToWait, &self.window_target);
 
-        self.control_flow = control_flow;
         std::mem::swap(&mut self.compositor_updates, &mut compositor_updates);
         std::mem::swap(&mut self.buffer_sink, &mut buffer_sink);
         std::mem::swap(&mut self.window_ids, &mut window_ids);
@@ -655,6 +572,34 @@ impl<T: 'static> EventLoop<T> {
             ))))
         })
     }
+
+    fn control_flow(&self) -> ControlFlow {
+        self.window_target.p.control_flow()
+    }
+
+    fn exiting(&self) -> bool {
+        self.window_target.p.exiting()
+    }
+
+    fn set_exit_code(&self, code: i32) {
+        self.window_target.p.set_exit_code(code)
+    }
+
+    fn exit_code(&self) -> Option<i32> {
+        self.window_target.p.exit_code()
+    }
+}
+
+impl<T> AsFd for EventLoop<T> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.event_loop.as_fd()
+    }
+}
+
+impl<T> AsRawFd for EventLoop<T> {
+    fn as_raw_fd(&self) -> RawFd {
+        self.event_loop.as_raw_fd()
+    }
 }
 
 pub struct EventLoopWindowTarget<T> {
@@ -663,6 +608,12 @@ pub struct EventLoopWindowTarget<T> {
 
     /// The main queue used by the event loop.
     pub queue_handle: QueueHandle<WinitState>,
+
+    /// The application's latest control_flow state
+    pub(crate) control_flow: Cell<ControlFlow>,
+
+    /// The application's exit state.
+    pub(crate) exit: Cell<Option<i32>>,
 
     // TODO remove that RefCell once we can pass `&mut` in `Window::new`.
     /// Winit state.
@@ -678,10 +629,31 @@ pub struct EventLoopWindowTarget<T> {
 }
 
 impl<T> EventLoopWindowTarget<T> {
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    #[inline]
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        use sctk::reexports::client::Proxy;
+
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.connection.display().id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use sctk::reexports::client::Proxy;
+
+        Ok(rwh_06::WaylandDisplayHandle::new({
+            let ptr = self.connection.display().id().as_ptr();
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
+        })
+        .into())
     }
 }
 

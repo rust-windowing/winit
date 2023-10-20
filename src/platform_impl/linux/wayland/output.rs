@@ -3,28 +3,50 @@ use sctk::reexports::client::Proxy;
 
 use sctk::output::OutputData;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::platform_impl::platform::{
-    MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
-};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use crate::event_loop::ControlFlow;
+use crate::platform_impl::platform::VideoMode as PlatformVideoMode;
 
 use super::event_loop::EventLoopWindowTarget;
 
 impl<T> EventLoopWindowTarget<T> {
     #[inline]
-    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.state
             .borrow()
             .output_state
             .outputs()
             .map(MonitorHandle::new)
-            .collect()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // There's no primary monitor on Wayland.
         None
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    pub(crate) fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub(crate) fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
     }
 }
 
@@ -70,7 +92,18 @@ impl MonitorHandle {
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| info.location).into()
+        output_data.with_output_info(|info| {
+            info.logical_position.map_or_else(
+                || {
+                    LogicalPosition::<i32>::from(info.location)
+                        .to_physical(info.scale_factor as f64)
+                },
+                |logical_position| {
+                    LogicalPosition::<i32>::from(logical_position)
+                        .to_physical(info.scale_factor as f64)
+                },
+            )
+        })
     }
 
     #[inline]
@@ -157,7 +190,7 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> PlatformMonitorHandle {
-        PlatformMonitorHandle::Wayland(self.monitor.clone())
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }

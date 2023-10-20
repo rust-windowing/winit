@@ -12,7 +12,7 @@ mod wasm {
     use winit::{
         dpi::PhysicalSize,
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::web::WindowBuilderExtWebSys,
         window::{Window, WindowBuilder},
     };
@@ -47,18 +47,14 @@ This example demonstrates the desired future functionality which will possibly b
         // Render once with the size info we currently have
         render_circle(&canvas, window.inner_size());
 
-        let _ = event_loop.run(move |event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
-
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(resize),
-                    window_id,
-                } if window_id == window.id() => {
-                    render_circle(&canvas, resize);
-                }
-                _ => (),
+        let _ = event_loop.run(move |event, _| match event {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(resize),
+                window_id,
+            } if window_id == window.id() => {
+                render_circle(&canvas, resize);
             }
+            _ => (),
         });
     }
 

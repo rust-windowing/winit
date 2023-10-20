@@ -34,12 +34,10 @@ In both cases the example window should move like the content of a scroll area i
 In other words, the deltas indicate the direction in which to move the content (in this case the window)."
     );
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
                         println!("mouse wheel Line Delta: ({x},{y})");
@@ -57,12 +55,11 @@ In other words, the deltas indicate the direction in which to move the content (
                         window.set_outer_position(pos)
                     }
                 },
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
                 _ => (),
-            },
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
             }
-            _ => (),
         }
     })
 }

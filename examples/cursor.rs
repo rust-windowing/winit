@@ -19,40 +19,33 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut cursor_idx = 0;
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => {
-                println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-                window.set_cursor_icon(CURSORS[cursor_idx]);
-                if cursor_idx < CURSORS.len() - 1 {
-                    cursor_idx += 1;
-                } else {
-                    cursor_idx = 0;
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, .. } = event {
+            match event {
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => {
+                    println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
+                    window.set_cursor_icon(CURSORS[cursor_idx]);
+                    if cursor_idx < CURSORS.len() - 1 {
+                        cursor_idx += 1;
+                    } else {
+                        cursor_idx = 0;
+                    }
                 }
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(&window);
+                }
+                WindowEvent::CloseRequested => {
+                    elwt.exit();
+                }
+                _ => (),
             }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
-                control_flow.set_exit();
-            }
-            Event::RedrawRequested(_) => {
-                fill::fill_window(&window);
-            }
-            _ => (),
         }
     })
 }

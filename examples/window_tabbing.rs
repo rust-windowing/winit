@@ -9,7 +9,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::{Key, NamedKey},
     platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
 };
@@ -30,78 +30,73 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, window_id } = event {
+            match event {
+                WindowEvent::CloseRequested => {
+                    println!("Window {window_id:?} has received the signal to close");
 
-        match event {
-            Event::WindowEvent { event, window_id } => {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        println!("Window {window_id:?} has received the signal to close");
+                    // This drops the window, causing it to close.
+                    windows.remove(&window_id);
 
-                        // This drops the window, causing it to close.
-                        windows.remove(&window_id);
-
-                        if windows.is_empty() {
-                            control_flow.set_exit();
-                        }
+                    if windows.is_empty() {
+                        elwt.exit();
                     }
-                    WindowEvent::Resized(_) => {
-                        if let Some(window) = windows.get(&window_id) {
-                            window.request_redraw();
-                        }
+                }
+                WindowEvent::Resized(_) => {
+                    if let Some(window) = windows.get(&window_id) {
+                        window.request_redraw();
                     }
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                state: ElementState::Pressed,
-                                logical_key,
-                                ..
-                            },
-                        is_synthetic: false,
-                        ..
-                    } => match logical_key.as_ref() {
-                        Key::Character("t") => {
-                            let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
-                            let window = WindowBuilder::new()
-                                .with_tabbing_identifier(&tabbing_id)
-                                .build(event_loop)
-                                .unwrap();
-                            println!("Added a new tab: {:?}", window.id());
-                            windows.insert(window.id(), window);
-                        }
-                        Key::Character("w") => {
-                            let _ = windows.remove(&window_id);
-                        }
-                        Key::ArrowRight => {
-                            windows.get(&window_id).unwrap().select_next_tab();
-                        }
-                        Key::ArrowLeft => {
-                            windows.get(&window_id).unwrap().select_previous_tab();
-                        }
-                        Key::Character(ch) => {
-                            if let Ok(index) = ch.parse::<NonZeroUsize>() {
-                                let index = index.get();
-                                // Select the last tab when pressing `9`.
-                                let window = windows.get(&window_id).unwrap();
-                                if index == 9 {
-                                    window.select_tab_at_index(window.num_tabs() - 1)
-                                } else {
-                                    window.select_tab_at_index(index - 1);
-                                }
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            logical_key,
+                            ..
+                        },
+                    is_synthetic: false,
+                    ..
+                } => match logical_key.as_ref() {
+                    Key::Character("t") => {
+                        let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
+                        let window = WindowBuilder::new()
+                            .with_tabbing_identifier(&tabbing_id)
+                            .build(elwt)
+                            .unwrap();
+                        println!("Added a new tab: {:?}", window.id());
+                        windows.insert(window.id(), window);
+                    }
+                    Key::Character("w") => {
+                        let _ = windows.remove(&window_id);
+                    }
+                    Key::Named(NamedKey::ArrowRight) => {
+                        windows.get(&window_id).unwrap().select_next_tab();
+                    }
+                    Key::Named(NamedKey::ArrowLeft) => {
+                        windows.get(&window_id).unwrap().select_previous_tab();
+                    }
+                    Key::Character(ch) => {
+                        if let Ok(index) = ch.parse::<NonZeroUsize>() {
+                            let index = index.get();
+                            // Select the last tab when pressing `9`.
+                            let window = windows.get(&window_id).unwrap();
+                            if index == 9 {
+                                window.select_tab_at_index(window.num_tabs() - 1)
+                            } else {
+                                window.select_tab_at_index(index - 1);
                             }
                         }
-                        _ => (),
-                    },
+                    }
                     _ => (),
+                },
+                WindowEvent::RedrawRequested => {
+                    if let Some(window) = windows.get(&window_id) {
+                        fill::fill_window(window);
+                    }
                 }
+                _ => (),
             }
-            Event::RedrawRequested(window_id) => {
-                if let Some(window) = windows.get(&window_id) {
-                    fill::fill_window(window);
-                }
-            }
-            _ => (),
         }
     })
 }

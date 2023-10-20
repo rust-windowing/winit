@@ -3,10 +3,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
-};
-
 use sctk::reexports::calloop;
 use sctk::reexports::client::protocol::wl_display::WlDisplay;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -24,12 +20,12 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
-    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
+    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
     CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons,
+    WindowAttributes, WindowButtons, WindowLevel,
 };
 
 use super::event_loop::sink::EventSink;
@@ -57,6 +53,7 @@ pub struct Window {
     compositor: Arc<CompositorState>,
 
     /// The wayland display used solely for raw window handle.
+    #[allow(dead_code)]
     display: WlDisplay,
 
     /// Xdg activation to request user attention.
@@ -131,6 +128,8 @@ impl Window {
         // Set transparency hint.
         window_state.set_transparent(attributes.transparent);
 
+        window_state.set_blur(attributes.blur);
+
         // Set the decorations hint.
         window_state.set_decorate(attributes.decorations);
 
@@ -152,7 +151,7 @@ impl Window {
         window_state.set_resizable(attributes.resizable);
 
         // Set startup mode.
-        match attributes.fullscreen.map(Into::into) {
+        match attributes.fullscreen.0.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             }
@@ -376,6 +375,13 @@ impl Window {
     }
 
     #[inline]
+    pub fn show_window_menu(&self, position: Position) {
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
+        self.window_state.lock().unwrap().show_window_menu(position);
+    }
+
+    #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window_state
             .lock()
@@ -410,6 +416,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_blur(&self, blur: bool) {
+        self.window_state.lock().unwrap().set_blur(blur);
+    }
+
+    #[inline]
     pub fn set_decorations(&self, decorate: bool) {
         self.window_state.lock().unwrap().set_decorate(decorate)
     }
@@ -418,6 +429,12 @@ impl Window {
     pub fn is_decorated(&self) -> bool {
         self.window_state.lock().unwrap().is_decorated()
     }
+
+    #[inline]
+    pub fn set_window_level(&self, _level: WindowLevel) {}
+
+    #[inline]
+    pub(crate) fn set_window_icon(&self, _window_icon: Option<PlatformIcon>) {}
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
@@ -613,6 +630,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {}
+
+    #[inline]
     pub fn surface(&self) -> &WlSurface {
         self.window.wl_surface()
     }
@@ -629,23 +649,56 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // XXX there's no such concept on Wayland.
         None
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut window_handle = WaylandWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut window_handle = rwh_04::WaylandHandle::empty();
         window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
-        RawWindowHandle::Wayland(window_handle)
+        window_handle.display = self.display.id().as_ptr() as *mut _;
+        rwh_04::RawWindowHandle::Wayland(window_handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut display_handle = WaylandDisplayHandle::empty();
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut window_handle = rwh_05::WaylandWindowHandle::empty();
+        window_handle.surface = self.window.wl_surface().id().as_ptr() as *mut _;
+        rwh_05::RawWindowHandle::Wayland(window_handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        let mut display_handle = rwh_05::WaylandDisplayHandle::empty();
         display_handle.display = self.display.id().as_ptr() as *mut _;
-        RawDisplayHandle::Wayland(display_handle)
+        rwh_05::RawDisplayHandle::Wayland(display_handle)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WaylandWindowHandle::new({
+            let ptr = self.window.wl_surface().id().as_ptr();
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_surface will never be null")
+        })
+        .into())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WaylandDisplayHandle::new({
+            let ptr = self.display.id().as_ptr();
+            std::ptr::NonNull::new(ptr as *mut _).expect("wl_proxy should never be null")
+        })
+        .into())
     }
 
     #[inline]
@@ -657,6 +710,8 @@ impl Window {
     pub fn theme(&self) -> Option<Theme> {
         self.window_state.lock().unwrap().theme()
     }
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 
     #[inline]
     pub fn title(&self) -> String {

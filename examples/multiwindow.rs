@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::{Key, NamedKey},
     window::Window,
 };
 
@@ -26,45 +26,39 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, event_loop, control_flow| {
-        control_flow.set_wait();
+    event_loop.run(move |event, elwt| {
+        if let Event::WindowEvent { event, window_id } = event {
+            match event {
+                WindowEvent::CloseRequested => {
+                    println!("Window {window_id:?} has received the signal to close");
 
-        match event {
-            Event::WindowEvent { event, window_id } => {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        println!("Window {window_id:?} has received the signal to close");
+                    // This drops the window, causing it to close.
+                    windows.remove(&window_id);
 
-                        // This drops the window, causing it to close.
-                        windows.remove(&window_id);
-
-                        if windows.is_empty() {
-                            control_flow.set_exit();
-                        }
+                    if windows.is_empty() {
+                        elwt.exit();
                     }
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                state: ElementState::Pressed,
-                                logical_key: Key::Character(c),
-                                ..
-                            },
-                        is_synthetic: false,
-                        ..
-                    } if matches!(c.as_ref(), "n" | "N") => {
-                        let window = Window::new(event_loop).unwrap();
+                }
+                WindowEvent::KeyboardInput {
+                    event,
+                    is_synthetic: false,
+                    ..
+                } if event.state == ElementState::Pressed => match event.logical_key {
+                    Key::Named(NamedKey::Escape) => elwt.exit(),
+                    Key::Character(c) if c == "n" || c == "N" => {
+                        let window = Window::new(elwt).unwrap();
                         println!("Opened a new window: {:?}", window.id());
                         windows.insert(window.id(), window);
                     }
                     _ => (),
+                },
+                WindowEvent::RedrawRequested => {
+                    if let Some(window) = windows.get(&window_id) {
+                        fill::fill_window(window);
+                    }
                 }
+                _ => (),
             }
-            Event::RedrawRequested(window_id) => {
-                if let Some(window) = windows.get(&window_id) {
-                    fill::fill_window(window);
-                }
-            }
-            _ => (),
         }
     })
 }

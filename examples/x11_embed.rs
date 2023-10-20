@@ -32,18 +32,19 @@ mod imple {
             .build(&event_loop)
             .unwrap();
 
-        event_loop.run(move |event, _, control_flow| {
-            control_flow.set_wait();
-
+        event_loop.run(move |event, elwt| {
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => control_flow.set_exit(),
+                } if window_id == window.id() => elwt.exit(),
                 Event::AboutToWait => {
                     window.request_redraw();
                 }
-                Event::RedrawRequested(_) => {
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
                     // Notify the windowing system that we'll be presenting to the window.
                     window.pre_present_notify();
                     fill::fill_window(&window);

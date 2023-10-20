@@ -17,6 +17,11 @@ fn window_send() {
 }
 
 #[test]
+fn window_builder_send() {
+    needs_send::<winit::window::WindowBuilder>();
+}
+
+#[test]
 fn ids_send() {
     // ensures that the various `..Id` types implement `Send`
     needs_send::<winit::window::WindowId>();

@@ -3,7 +3,7 @@
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::KeyCode,
+    keyboard::Key,
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -21,9 +21,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
     #[cfg(wasm_platform)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
+    event_loop.run(move |event, elwt| {
         #[cfg(wasm_platform)]
         wasm::log_event(&log_list, &event);
 
@@ -31,7 +29,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
+            } if window_id == window.id() => elwt.exit(),
             Event::AboutToWait => {
                 window.request_redraw();
             }
@@ -41,13 +39,13 @@ pub fn main() -> Result<(), impl std::error::Error> {
                     WindowEvent::KeyboardInput {
                         event:
                             KeyEvent {
-                                physical_key: KeyCode::KeyF,
+                                logical_key: Key::Character(c),
                                 state: ElementState::Released,
                                 ..
                             },
                         ..
                     },
-            } if window_id == window.id() => {
+            } if window_id == window.id() && c == "f" => {
                 if window.fullscreen().is_some() {
                     window.set_fullscreen(None);
                 } else {
@@ -65,7 +63,10 @@ mod wasm {
 
     use softbuffer::{Surface, SurfaceExtWeb};
     use wasm_bindgen::prelude::*;
-    use winit::{event::Event, window::Window};
+    use winit::{
+        event::{Event, WindowEvent},
+        window::Window,
+    };
 
     #[wasm_bindgen(start)]
     pub fn run() {
@@ -116,6 +117,10 @@ mod wasm {
         // So we implement this basic logging system into the page to give developers an easy alternative.
         // As a bonus its also kind of handy on desktop.
         let event = match event {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => None,
             Event::WindowEvent { event, .. } => Some(format!("{event:?}")),
             Event::Resumed | Event::Suspended => Some(format!("{event:?}")),
             _ => None,

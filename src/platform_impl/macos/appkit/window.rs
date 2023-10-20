@@ -124,7 +124,7 @@ extern_methods!(
         #[method(miniaturize:)]
         pub(crate) fn miniaturize(&self, sender: Option<&AnyObject>);
 
-        #[method(sender:)]
+        #[method(deminiaturize:)]
         pub(crate) fn deminiaturize(&self, sender: Option<&AnyObject>);
 
         #[method(toggleFullScreen:)]
@@ -218,7 +218,7 @@ extern_methods!(
         pub(crate) fn tabbingIdentifier(&self) -> Id<NSString>;
 
         #[method_id(tabGroup)]
-        pub(crate) fn tabGroup(&self) -> Id<NSWindowTabGroup>;
+        pub(crate) fn tabGroup(&self) -> Option<Id<NSWindowTabGroup>>;
 
         #[method(isDocumentEdited)]
         pub(crate) fn isDocumentEdited(&self) -> bool;

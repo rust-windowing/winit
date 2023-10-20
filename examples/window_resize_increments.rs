@@ -2,9 +2,9 @@ use log::debug;
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
-    keyboard::Key,
+    keyboard::NamedKey,
     window::WindowBuilder,
 };
 
@@ -24,27 +24,13 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut has_increments = true;
 
-    event_loop.run(move |event, _, control_flow| {
-        control_flow.set_wait();
-
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                logical_key: Key::Space,
-                                state: ElementState::Released,
-                                ..
-                            },
-                        ..
-                    },
-                window_id,
-            } if window_id == window.id() => {
+    event_loop.run(move |event, elwt| match event {
+        Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
+            WindowEvent::CloseRequested => elwt.exit(),
+            WindowEvent::KeyboardInput { event, .. }
+                if event.logical_key == NamedKey::Space
+                    && event.state == ElementState::Released =>
+            {
                 has_increments = !has_increments;
 
                 let new_increments = match window.resize_increments() {
@@ -54,11 +40,13 @@ fn main() -> Result<(), impl std::error::Error> {
                 debug!("Had increments: {}", new_increments.is_none());
                 window.set_resize_increments(new_increments);
             }
-            Event::AboutToWait => window.request_redraw(),
-            Event::RedrawRequested(_) => {
+            WindowEvent::RedrawRequested => {
                 fill::fill_window(&window);
             }
             _ => (),
-        }
+        },
+        Event::AboutToWait => window.request_redraw(),
+
+        _ => (),
     })
 }
