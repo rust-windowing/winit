@@ -150,7 +150,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the `UIView` hidpi factor
 * Valid orientations
 * Home indicator visibility
-* Status bar visibility
+* Status bar visibility and style
 * Deferrring system gestures
 * Getting the device idiom
 * Getting the preferred video mode
