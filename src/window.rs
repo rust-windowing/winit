@@ -1556,7 +1556,7 @@ unsafe impl rwh_05::HasRawWindowHandle for Window {
 
 #[cfg(feature = "rwh_05")]
 unsafe impl rwh_05::HasRawDisplayHandle for Window {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
+    /// Returns a [`rwh_05::RawDisplayHandle`] used by the [`EventLoop`] that
     /// created a window.
     ///
     /// [`EventLoop`]: crate::event_loop::EventLoop
