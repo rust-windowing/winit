@@ -64,7 +64,8 @@ pub struct SharedState {
     pub base_size: Option<Size>,
     pub visibility: Visibility,
     pub has_focus: bool,
-    pub cursor_hittest: bool,
+    // Use `Option` to not apply hittest logic when it was never requested.
+    pub cursor_hittest: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -105,7 +106,7 @@ impl SharedState {
             resize_increments: None,
             base_size: None,
             has_focus: false,
-            cursor_hittest: true,
+            cursor_hittest: None,
         })
     }
 }
@@ -1295,8 +1296,8 @@ impl UnownedWindow {
         self.xconn
             .flush_requests()
             .expect("Failed to call XResizeWindow");
-        // cursor_hittest needs to be reapplied after window resize
-        if self.shared_state_lock().cursor_hittest {
+        // cursor_hittest needs to be reapplied after each window resize.
+        if self.shared_state_lock().cursor_hittest.unwrap_or(false) {
             let _ = self.set_cursor_hittest(true);
         }
     }
@@ -1627,7 +1628,7 @@ impl UnownedWindow {
             .xcb_connection()
             .xfixes_set_window_shape_region(self.xwindow, SK::INPUT, 0, 0, region.region())
             .map_err(|_e| ExternalError::Ignored)?;
-        self.shared_state_lock().cursor_hittest = hittest;
+        self.shared_state_lock().cursor_hittest = Some(hittest);
         Ok(())
     }
 

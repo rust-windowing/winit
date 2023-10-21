@@ -484,6 +484,7 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     let mut shared_state_lock = window.shared_state_lock();
+                    let hittest = shared_state_lock.cursor_hittest;
 
                     // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
                     // doesn't need this, but Xfwm does. The hack should not be run on other WMs, since tiling
@@ -500,6 +501,11 @@ impl<T: 'static> EventProcessor<T> {
 
                     // Unlock shared state to prevent deadlock in callback below
                     drop(shared_state_lock);
+
+                    // Reload hittest.
+                    if hittest.unwrap_or(false) {
+                        let _ = window.set_cursor_hittest(true);
+                    }
 
                     if resized {
                         callback(Event::WindowEvent {
