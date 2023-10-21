@@ -2,59 +2,82 @@
 
 All notable changes to this project will be documented in this file.
 
-Please keep one empty line before and after all headers. (This is required for `git` to produce a conflict when a release is made while a PR is open and the PR's changelog entry would go into the wrong section).
+Please keep one empty line before and after all headers. (This is required for
+`git` to produce a conflict when a release is made while a PR is open and the
+PR's changelog entry would go into the wrong section).
 
-And please only add new entries to the top of this list, right below the `# Unreleased` header.
+And please only add new entries to the top of this list, right below the `#
+Unreleased` header.
 
 # Unreleased
 
-- Renamed `EventLoopExtRunOnDemand` / `run_ondemand` to `EventLoopExtRunOnDemand` / `run_on_demand`.
-- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
-- On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
-- On Web, never return a `MonitorHandle`.
-- **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
-- On macOS, fix crash in `window.set_minimized(false)`.
-- On Web, enable event propagation and let `DeviceEvent`s appear after `WindowEvent`s.
-- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
-- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
-- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
-- Mark `startup_notify` unsafe functions as safe.
-- Fix a bug where Wayland would be chosen on Linux even if the user specified `with_x11`. (#3058)
-- **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
-- **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
-- On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
-- Implement `PartialOrd` and `Ord` for `MouseButton`.
-- On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
-- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
-- **Breaking:** remove `DeviceEvent::Text`.
-- On Android, fix `DeviceId` to contain device id's.
-- Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
-- On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
-- On iOS, add ability to change the status bar style.
-- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Wayland/Windows for now.
-- On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
-- **Breaking** add `Event::MemoryWarning`; implemented on iOS/Android.
-- On Wayland, support `Occluded` event with xdg-shell v6
-- Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
+# 0.29.2
+
+- **Breaking:** Bump MSRV from `1.60` to `1.65`.
+- **Breaking:** Add `Event::MemoryWarning`; implemented on iOS/Android.
 - **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
-- Make `WindowBuilder` `Send + Sync`.
-- On macOS, fix assertion when pressing `Globe` key.
-- On Windows, updated `WM_MOUSEMOVE` to detect when cursor Enter or Leave window client area while captured and send the corresponding events. (#3153)
-- On macOS, fix crash when accessing tabbing APIs.
-- On Windows, fix `RedrawRequested` not being delivered when calling `Window::request_redraw` from `RedrawRequested`.
-- On Windows, fix IME APIs not working when from non event loop thread.
-- Add horizontal MouseWheel DeviceEvent on Windows
-
-# 0.29.1-beta
-
-- **Breaking:** Bump `ndk` version to `0.8.0-beta.0`, ndk-sys to `0.5.0-beta.0`, `android-activity` to `0.5.0-beta.1`.
-- **Breaking:** Bump MSRV from `1.64` to `1.65`.
-- Make iOS windows usable from other threads.
-- Reexport `raw-window-handle` in `window` module.
-- **Breaking:** `WINIT_UNIX_BACKEND` was removed in favor of standard `WAYLAND_DISPLAY` and `DISPLAY` variables.
+- **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
+- **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
+- **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
+- **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
 - **Breaking:** `EventLoop::new` and `EventLoopBuilder::build` now return `Result<Self, EventLoopError>`
-- On X11, set `visual_id` in returned `raw-window-handle`.
-- **Breaking:** on Wayland, dispatching user created wayland queue won't wake up the loop unless winit has event to send back.
+- **Breaking:** `WINIT_UNIX_BACKEND` was removed in favor of standard `WAYLAND_DISPLAY` and `DISPLAY` variables.
+- **Breaking:** on Wayland, dispatching user created Wayland queue won't wake up the loop unless winit has event to send back.
+- **Breaking:** remove `DeviceEvent::Text`.
+- **Breaking:** Remove lifetime parameter from `Event` and `WindowEvent`.
+- **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
+- **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
+- **Breaking:** `ScaleFactorChanged` now contains a writer instead of a reference to update inner size.
+- **Breaking** `run() -> !` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_on_demand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
+- `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
+  - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
+- **Breaking** `LoopDestroyed` renamed to `LoopExiting` ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `RedrawEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking** `MainEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking:** Remove all deprecated `modifiers` fields.
+- **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
+- **Breaking** Add `AboutToWait` event which is emitted when the event loop is about to block and wait for new events ([#2900](https://github.com/rust-windowing/winit/issues/2900))
+- **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
+- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
+- **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
+- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events on Wayland, X11, Windows, macOS and Web.
+- **Breaking:** On Web, `instant` is now replaced by `web_time`.
+- **Breaking:** On Web, dropped support for Safari versions below 13.1.
+- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
+- **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to the canvas size will be reported through `WindowEvent::Resized`.
+- **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
+- **Breaking:** `CursorIcon::Arrow` was removed.
+- **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
+- **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
+- **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
+- **Breaking:** Overhaul keyboard input handling.
+  - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
+    - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
+    - Change `Event::Key` to contain a `RawKeyEvent`.
+  - Remove `Event::ReceivedCharacter`. In its place, you should use
+    `KeyEvent.text` in combination with `WindowEvent::Ime`.
+  - Replace `VirtualKeyCode` with the `Key` enum.
+  - Replace `ScanCode` with the `KeyCode` enum.
+  - Rename `ModifiersState::LOGO` to `SUPER` and `ModifiersState::CTRL` to `CONTROL`.
+  - Add `PhysicalKey` wrapping `KeyCode` and `NativeKeyCode`.
+  - Add `KeyCode` to refer to keys (roughly) by their physical location.
+  - Add `NativeKeyCode` to represent raw `KeyCode`s which Winit doesn't
+    understand.
+  - Add `Key` to represent the keys after they've been interpreted by the
+    active (software) keyboard layout.
+  - Add `NamedKey` to represent the categorized keys.
+  - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
+  - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
+    but can appear simultaneously in different spots on the same keyboard
+    layout.
+  - Add `Window::reset_dead_keys` to enable application-controlled cancellation
+    of dead key sequences.
+  - Add `KeyEventExtModifierSupplement` to expose additional (and less
+    portable) interpretations of a given key-press.
+  - Add `PhysicalKeyExtScancode`, which lets you convert between scancodes and
+    `PhysicalKey`.
+  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
 - Removed platform-specific extensions that should be retrieved through `raw-window-handle` trait implementations instead:
   - `platform::windows::HINSTANCE`.
   - `WindowExtWindows::hinstance`.
@@ -71,126 +94,89 @@ And please only add new entries to the top of this list, right below the `# Unre
   - `WindowExtX11::xlib_display`.
   - `WindowExtX11::xlib_screen_id`.
   - `WindowExtX11::xcb_connection`.
-- On Web, use `Window.requestAnimationFrame()` to throttle `RedrawRequested` events.
-- On Wayland, use frame callbacks to throttle `RedrawRequested` events so redraws will align with compositor.
-- Add `Window::pre_present_notify` to notify winit before presenting to the windowing system.
-- On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
-- **Breaking:** Remove lifetime parameter from `Event` and `WindowEvent`.
-- **Breaking:** `ScaleFactorChanged` now contains a writer instead of a reference to update inner size.
-- On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
-- **Breaking:** `ActivationTokenDone` event which could be requested with the new `startup_notify` module, see its docs for more.
-- On Wayland, make double clicking and moving the CSD frame more reliable.
-- On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
-- **Breaking:** Rename `Window::set_inner_size` to `Window::request_inner_size` and indicate if the size was applied immediately.
-- On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
-- Implement `PartialOrd` and `Ord` for `Key`, `KeyCode`, `NativeKey`, and `NativeKeyCode`.
+- Reexport `raw-window-handle` in `window` module.
 - Add `ElementState::is_pressed`.
-- On Web, implement `WindowEvent::Occluded`.
-- On Web, fix touch location to be as accurate as mouse position.
-- On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
-- On Web, add Fullscreen API compatibility for Safari.
-- On Web, implement `Window::set_(min|max)_inner_size()`.
-- On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
-- On Web, fix some `WindowBuilder` methods doing nothing.
-- On Web, implement `Window::focus_window()`.
-- On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
-- On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
-- On Windows, add `drag_resize_window` method support.
-- **Breaking** `run() -> !` has been replaced by `run() -> Result<(), EventLoopError>` for returning errors without calling `std::process::exit()` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
-- **Breaking** Removed `EventLoopExtRunReturn` / `run_return` in favor of `EventLoopExtPumpEvents` / `pump_events` and `EventLoopExtRunOnDemand` / `run_ondemand` ([#2767](https://github.com/rust-windowing/winit/pull/2767))
-- `RedrawRequested` is no longer guaranteed to be emitted after `MainEventsCleared`, it is now platform-specific when the event is emitted after being requested via `redraw_request()`.
-  - On Windows, `RedrawRequested` is now driven by `WM_PAINT` messages which are requested via `redraw_request()`
-- **Breaking** `LoopDestroyed` renamed to `LoopExiting` ([#2900](https://github.com/rust-windowing/winit/issues/2900))
-- **Breaking** `RedrawEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
-- **Breaking** `MainEventsCleared` removed ([#2900](https://github.com/rust-windowing/winit/issues/2900))
-- Added `AboutToWait` event which is emitted when the event loop is about to block and wait for new events ([#2900](https://github.com/rust-windowing/winit/issues/2900))
-- **Breaking:** `with_x11_visual` now takes the visual ID instead of the bare pointer.
-- On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
-- On iOS, add force data to touch events when using the Apple Pencil.
-- On Android, add force data to touch events.
-
-# 0.29.0-beta.0
-
-- On Web, allow event loops to be recreated with `spawn`.
-- **Breaking:** Rename `Window::set_ime_position` to `Window::set_ime_cursor_area` adding a way to set exclusive zone.
-- On Android, changed default behavior of Android to ignore volume keys letting the operating system handle them.
-- On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
-- **Breaking:** Rename `DeviceEventFilter` to `DeviceEvents` reversing the behavior of variants.
-- **Breaking:** Rename `EventLoopWindowTarget::set_device_event_filter` to `listen_device_events`.
-- On X11, fix `EventLoopWindowTarget::listen_device_events` effect being reversed.
-- **Breaking:** Remove all deprecated `modifiers` fields.
-- **Breaking:** Overhaul keyboard input handling.
-  - Replace `KeyboardInput` with `KeyEvent` and `RawKeyEvent`.
-    - Change `WindowEvent::KeyboardInput` to contain a `KeyEvent`.
-    - Change `Event::Key` to contain a `RawKeyEvent`.
-  - Remove `Event::ReceivedCharacter`. In its place, you should use
-    `KeyEvent.text` in combination with `WindowEvent::Ime`.
-  - Replace `VirtualKeyCode` with the `Key` enum.
-  - Replace `ScanCode` with the `KeyCode` enum.
-  - Rename `ModifiersState::LOGO` to `SUPER` and `ModifiersState::CTRL` to `CONTROL`.
-  - Add `KeyCode` to refer to keys (roughly) by their physical location.
-  - Add `NativeKeyCode` to represent raw `KeyCode`s which Winit doesn't
-    understand.
-  - Add `Key` to represent the keys after they've been interpreted by the
-    active (software) keyboard layout.
-  - Add `NativeKey` to represent raw `Key`s which Winit doesn't understand.
-  - Add `KeyLocation` to tell apart `Key`s which usually "mean" the same thing,
-    but can appear simultaneously in different spots on the same keyboard
-    layout.
-  - Add `Window::reset_dead_keys` to enable application-controlled cancellation
-    of dead key sequences.
-  - Add `KeyEventExtModifierSupplement` to expose additional (and less
-    portable) interpretations of a given key-press.
-  - Add `KeyCodeExtScancode`, which lets you convert between raw keycodes and
-    `KeyCode`.
-  - `ModifiersChanged` now uses dedicated `Modifiers` struct.
-- On Orbital, fix `ModifiersChanged` not being sent.
-- **Breaking:** `CursorIcon` is now used from the `cursor-icon` crate.
-- **Breaking:** `CursorIcon::Hand` is now named `CursorIcon::Pointer`.
-- **Breaking:** `CursorIcon::Arrow` was removed.
-- On Wayland, fix maximized startup not taking full size on GNOME.
-- On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
-- On Wayland, `Window::outer_size` now accounts for **client side** decorations.
-- On Wayland, fix window not checking that it actually got initial configure event.
-- On Wayland, fix maximized window creation and window geometry handling.
-- On Wayland, fix forward compatibility issues.
-- On Wayland, add `Window::drag_resize_window` method.
-- On Wayland, drop `WINIT_WAYLAND_CSD_THEME` variable.
+- Add `Window::pre_present_notify` to notify winit before presenting to the windowing system.
+- Add `Window::set_blur` to request a blur behind the window; implemented on Wayland for now.
+- Add `Window::show_window_menu` to request a titlebar/system menu; implemented on Wayland/Windows for now.
+- Implement `AsFd`/`AsRawFd` for `EventLoop<T>` on X11 and Wayland.
+- Implement `PartialOrd` and `Ord` for `MouseButton`.
 - Implement `PartialOrd` and `Ord` on types in the `dpi` module.
-- **Breaking:** Bump MSRV from `1.60` to `1.64`.
-- **Breaking:** On Web, the canvas output bitmap size is no longer adjusted.
-- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
-- On Web: fix position of touch events to be relative to the canvas.
-- On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during
-  a transient activation.
-- On Web, fix pointer button events not being processed when a buttons is already pressed.
-- **Breaking:** Updated `bitflags` crate version to `2`, which changes the API on exposed types.
-- On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
-- **Breaking:** On Web, `instant` is now replaced by `web_time`.
-- On Windows, port to `windows-sys` version 0.48.0.
-- On Web, fix pen treated as mouse input.
-- On Web, send mouse position on button release as well.
-- On Web, fix touch input not gaining or loosing focus.
-- **Breaking:** On Web, dropped support for Safari versions below 13.1.
-- On Web, prevent clicks on the canvas to select text.
+- Make `WindowBuilder` `Send + Sync`.
+- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
+- Make iOS windows usable from other threads.
+- On Android, add force data to touch events.
+- On Android, added `EventLoopBuilderExtAndroid::handle_volume_keys` to indicate that the application will handle the volume keys manually.
+- On Android, fix `DeviceId` to contain device id's.
+- On Orbital, fix `ModifiersChanged` not being sent.
+- On Wayland, `Window::outer_size` now accounts for **client side** decorations.
+- On Wayland, add `Window::drag_resize_window` method.
+- On Wayland, remove `WINIT_WAYLAND_CSD_THEME` variable.
+- On Wayland, fix `TouchPhase::Canceled` being sent for moved events.
+- On Wayland, fix forward compatibility issues.
+- On Wayland, fix initial window size not restored for maximized/fullscreened on startup window.
+- On Wayland, fix maximized startup not taking full size on GNOME.
+- On Wayland, fix maximized window creation and window geometry handling.
+- On Wayland, fix window not checking that it actually got initial configure event.
+- On Wayland, make double clicking and moving the CSD frame more reliable.
+- On Wayland, support `Occluded` event with xdg-shell v6
+- On Wayland, use frame callbacks to throttle `RedrawRequested` events so redraws will align with compositor.
+- On Web, `ControlFlow::WaitUntil` now uses the Prioritized Task Scheduling API. `setTimeout()`, with a trick to circumvent throttling to 4ms, is used as a fallback.
 - On Web, `EventLoopProxy` now implements `Send`.
 - On Web, `Window` now implements `Send` and `Sync`.
-- **Breaking:** `WindowExtWebSys::canvas()` now returns an `Option`.
-- On Web, use the correct canvas size when calculating the new size during scale factor change,
-  instead of using the output bitmap size.
-- On Web, scale factor and dark mode detection are now more robust.
-- On Web, fix the bfcache by not using the `beforeunload` event and map bfcache loading/unloading to `Suspended`/`Resumed` events.
-- On Web, fix scale factor resize suggestion always overwriting the canvas size.
-- On macOS, fix crash when dropping `Window`.
-- On Web, use `Window.requestIdleCallback()` for `ControlFlow::Poll` when available.
-- **Breaking:** On Web, the canvas size is not controlled by Winit anymore and external changes to
-  the canvas size will be reported through `WindowEvent::Resized`.
-- On Web, respect `EventLoopWindowTarget::listen_device_events()` settings.
+- On Web, account for CSS `padding`, `border`, and `margin` when getting or setting the canvas position.
+- On Web, add Fullscreen API compatibility for Safari.
+- On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and `DeviceEvent::Key` support.
+- On Web, add `EventLoopWindowTargetExtWebSys` and `PollStrategy`, which allows to set different strategies for `ControlFlow::Poll`. By default the Prioritized Task Scheduling API is used, but an option to use `Window.requestIdleCallback` is available as well. Both use `setTimeout()`, with a trick to circumvent throttling to 4ms, as a fallback.
+- On Web, add `WindowBuilderExtWebSys::with_append()` to append the canvas element to the web page on creation.
+- On Web, allow event loops to be recreated with `spawn`.
+- On Web, enable event propagation.
+- On Web, fix `ControlFlow::WaitUntil` to never wake up **before** the given time.
 - On Web, fix `DeviceEvent::MouseMotion` only being emitted for each canvas instead of the whole window.
-- On Web, add `DeviceEvent::Motion`, `DeviceEvent::MouseWheel`, `DeviceEvent::Button` and
-  `DeviceEvent::Key` support.
-- **Breaking** `MouseButton` now supports `Back` and `Forward` variants, emitted from mouse events
-  on Wayland, X11, Windows, macOS and Web.
+- On Web, fix `Window:::set_fullscreen` doing nothing when called outside the event loop but during transient activation.
+- On Web, fix pen treated as mouse input.
+- On Web, fix pointer button events not being processed when a buttons is already pressed.
+- On Web, fix scale factor resize suggestion always overwriting the canvas size.
+- On Web, fix some `WindowBuilder` methods doing nothing.
+- On Web, fix some `Window` methods using incorrect HTML attributes instead of CSS properties.
+- On Web, fix the bfcache by not using the `beforeunload` event and map bfcache loading/unloading to `Suspended`/`Resumed` events.
+- On Web, fix touch input not gaining or loosing focus.
+- On Web, fix touch location to be as accurate as mouse position.
+- On Web, handle coalesced pointer events, which increases the resolution of pointer inputs.
+- On Web, implement `Window::focus_window()`.
+- On Web, implement `Window::set_(min|max)_inner_size()`.
+- On Web, implement `WindowEvent::Occluded`.
+- On Web, never return a `MonitorHandle`.
+- On Web, prevent clicks on the canvas to select text.
+- On Web, remove any fullscreen requests from the queue when an external fullscreen activation was detected.
+- On Web, remove unnecessary `Window::is_dark_mode()`, which was replaced with `Window::theme()`.
+- On Web, respect `EventLoopWindowTarget::listen_device_events()` settings.
+- On Web, scale factor and dark mode detection are now more robust.
+- On Web, send mouse position on button release as well.
+- On Web, take all transient activations on the canvas and window into account to queue a fullscreen request.
+- On Web, use `Window.requestAnimationFrame()` to throttle `RedrawRequested` events.
+- On Web, use the correct canvas size when calculating the new size during scale factor change, instead of using the output bitmap size.
+- On Web: fix `Window::request_redraw` not waking the event loop when called from outside the loop.
+- On Web: fix position of touch events to be relative to the canvas.
+- On Windows, add `drag_resize_window` method support.
+- On Windows, add horizontal MouseWheel `DeviceEvent`.
+- On Windows, added `WindowBuilderExtWindows::with_class_name` to customize the internal class name.
+- On Windows, fix IME APIs not working when from non event loop thread.
+- On Windows, fix `CursorEnter/Left` not being sent when grabbing the mouse.
+- On Windows, fix `RedrawRequested` not being delivered when calling `Window::request_redraw` from `RedrawRequested`.
+- On Windows, port to `windows-sys` version 0.48.0.
+- On X11, add a `with_embedded_parent_window` function to the window builder to allow embedding a window into another window.
+- On X11, fix event loop not waking up on `ControlFlow::Poll` and `ControlFlow::WaitUntil`.
+- On X11, fix false positive flagging of key repeats when pressing different keys with no release between presses.
+- On X11, set `visual_id` in returned `raw-window-handle`.
+- On iOS, add ability to change the status bar style.
+- On iOS, add force data to touch events when using the Apple Pencil.
+- On iOS, always wake the event loop when transitioning from `ControlFlow::Poll` to `ControlFlow::Poll`.
+- On iOS, send events `WindowEvent::Occluded(false)`, `WindowEvent::Occluded(true)` when application enters/leaves foreground.
+- On macOS, add tabbing APIs on `WindowExtMacOS` and `EventLoopWindowTargetExtMacOS`.
+- On macOS, fix assertion when pressing `Globe` key.
+- On macOS, fix crash in `window.set_minimized(false)`.
+- On macOS, fix crash when dropping `Window`.
 
 # 0.28.7
 
