@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.29.1-beta"
+winit = "0.29.2"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -116,7 +116,7 @@ clash.
 
 | winit |       ndk-glue               |
 | :---: | :--------------------------: |
-| 0.29.1-beta  | `android-activity = "0.5.0-beta.1"`   |
+| 0.29.2| `android-activity = "0.5"`   |
 | 0.28  | `android-activity = "0.4"`   |
 | 0.27  | `ndk-glue = "0.7"`           |
 | 0.26  | `ndk-glue = "0.5"`           |
@@ -157,7 +157,7 @@ For more details, refer to these `android-activity` [example applications](https
 
 If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk` then the minimal changes would be:
 1. Remove `ndk-glue` from your `Cargo.toml`
-2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.1-beta", features = [ "android-native-activity" ] }`
+2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.2", features = [ "android-native-activity" ] }`
 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize logging as above).
 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your event loop (as shown above).
 
@@ -168,13 +168,13 @@ doing anything; this includes creating windows, fetching monitors, drawing,
 and so on, see issues [#2238], [#2051] and [#2087].
 
 If you encounter problems, you should try doing your initialization inside
-`Event::Resume`.
+`Event::Resumed`.
 
 #### iOS
 
 Similar to macOS, iOS's main `UIApplicationMain` does some init work that's required
 by all UI related code, see issue [#1705]. You should consider creating your windows
-inside `Event::Resume`.
+inside `Event::Resumed`.
 
 
 [#2238]: https://github.com/rust-windowing/winit/issues/2238
