@@ -258,7 +258,7 @@ impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
 
 #[cfg(feature = "rwh_05")]
 unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         rwh_05::HasRawDisplayHandle::raw_display_handle(&**self)
     }
@@ -375,7 +375,7 @@ impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
 
 #[cfg(feature = "rwh_05")]
 unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
-    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.p.raw_display_handle_rwh_05()
     }
