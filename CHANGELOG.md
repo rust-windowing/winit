@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
+
 # 0.29.2
 
 - **Breaking:** Bump MSRV from `1.60` to `1.65`.

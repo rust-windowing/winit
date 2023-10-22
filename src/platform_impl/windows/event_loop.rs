@@ -1465,6 +1465,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true))
                             .ok();
 
+                        drop(w);
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: CursorEntered {
@@ -1487,6 +1488,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
                             .ok();
 
+                        drop(w);
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: CursorLeft {
@@ -1500,6 +1502,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // handle spurious WM_MOUSEMOVE messages
                 // see https://devblogs.microsoft.com/oldnewthing/20031001-00/?p=42343
                 // and http://debugandconquer.blogspot.com/2015/08/the-cause-of-spurious-mouse-move.html
+                let mut w = userdata.window_state_lock();
                 cursor_moved = w.mouse.last_position != Some(position);
                 w.mouse.last_position = Some(position);
             }
