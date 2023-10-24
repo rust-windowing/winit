@@ -35,9 +35,9 @@ pub trait EventLoopExtRunOnDemand {
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
     ///
     /// # Caveats
-    /// - This extension isn't available on all platforms, since it's not always possible to
-    ///   return to the caller (specifically this is impossible on iOS and Web - though with
-    ///   the Web backend it is possible to use `spawn()` more than once instead).
+    /// - This extension isn't available on all platforms, since it's not always possible to return
+    ///   to the caller (specifically this is impossible on iOS and Web - though with the Web
+    ///   backend it is possible to use `EventLoopExtWebSys::spawn()`[^1] more than once instead).
     /// - No [`Window`] state can be carried between separate runs of the event loop.
     ///
     /// You are strongly encouraged to use [`EventLoop::run()`] for portability, unless you specifically need
@@ -57,8 +57,13 @@ pub trait EventLoopExtRunOnDemand {
     ///   on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
     ///
-    /// [`exit()`]: EventLoopWindowTarget::exit
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow
+    #[cfg_attr(
+        not(wasm_platform),
+        doc = "[^1]: `spawn()` is only available on `wasm` platforms."
+    )]
+    ///
+    /// [`exit()`]: EventLoopWindowTarget::exit()
+    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
