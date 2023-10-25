@@ -3,7 +3,7 @@
 //!
 //! If you want to send custom events to the event loop, use
 //! [`EventLoop::create_proxy`] to acquire an [`EventLoopProxy`] and call its
-//! [`send_event`](`EventLoopProxy::send_event`) method.
+//! [`send_event`][EventLoopProxy::send_event] method.
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
@@ -468,7 +468,7 @@ impl ActiveEventLoop {
 
     /// This exits the event loop.
     ///
-    /// See [`LoopExiting`](Event::LoopExiting).
+    /// See [`LoopExiting`][Event::LoopExiting].
     pub fn exit(&self) {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::exit",).entered();
 
@@ -477,7 +477,7 @@ impl ActiveEventLoop {
 
     /// Returns if the [`EventLoop`] is about to stop.
     ///
-    /// See [`exit()`](Self::exit).
+    /// See [`exit()`][Self::exit].
     pub fn exiting(&self) -> bool {
         self.p.exiting()
     }

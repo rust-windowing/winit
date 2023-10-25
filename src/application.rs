@@ -11,7 +11,7 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// This is a useful place to put code that should be done before you start processing
     /// events, such as updating frame timing information for benchmarking or checking the
     /// [`StartCause`] to see if a timer set by
-    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    /// [`ControlFlow::WaitUntil`][crate::event_loop::ControlFlow::WaitUntil] has elapsed.
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         let _ = (event_loop, cause);
     }

@@ -305,7 +305,7 @@ impl WindowExtWindows for Window {
 pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// This only works when [`WindowAttributes::with_parent_window`] isn't called or set to `None`.
-    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
+    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable]
     /// on the owner window to create a modal dialog box.
     ///
     /// From MSDN:

@@ -218,7 +218,7 @@ impl PartialEq<NativeKeyCode> for NativeKey {
 
 /// Represents the location of a physical key.
 ///
-/// This type is a superset of [`KeyCode`], including an [`Unidentified`](Self::Unidentified)
+/// This type is a superset of [`KeyCode`], including an [`Unidentified`][Self::Unidentified]
 /// variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
