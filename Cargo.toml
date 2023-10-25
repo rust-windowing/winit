@@ -164,7 +164,7 @@ xkbcommon-dl = "0.4.0"
 
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.42", default-features = false }
-redox_syscall = "0.3"
+redox_syscall = "0.4"
 
 [target.'cfg(target_family = "wasm")'.dependencies.web_sys]
 package = "web-sys"
