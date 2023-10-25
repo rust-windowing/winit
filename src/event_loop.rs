@@ -224,14 +224,22 @@ impl<T> EventLoop<T> {
     ///   (that Rust doesn't see) that will also mean that the rest of the function is never executed
     ///   and any values not passed to this function will *not* be dropped.
     ///
-    ///   Web applications are recommended to use `spawn()` instead of `run()` to avoid the need
+    ///   Web applications are recommended to use
+    #[cfg_attr(
+        wasm_platform,
+        doc = "[`EventLoopExtWebSys::spawn()`][crate::platform::web::EventLoopExtWebSys::spawn()]"
+    )]
+    #[cfg_attr(not(wasm_platform), doc = "`EventLoopExtWebSys::spawn()`")]
+    ///   [^1] instead of [`run()`] to avoid the need
     ///   for the Javascript exception trick, and to make it clearer that the event loop runs
     ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
     ///   current thread of execution like it does on other platforms.
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow
+    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
+    /// [`run()`]: Self::run()
+    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on WASM.
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
