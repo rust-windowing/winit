@@ -537,7 +537,7 @@ impl WindowState {
     /// Refresh the decorations frame if it's present returning whether the client should redraw.
     pub fn refresh_frame(&mut self) -> bool {
         if let Some(frame) = self.frame.as_mut() {
-            if frame.is_dirty() {
+            if !frame.is_hidden() && frame.is_dirty() {
                 return frame.draw();
             }
         }
