@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
+- On macOS, fix deadlock when entering a nested event loop from an event handler.
 
 # 0.29.2
 
