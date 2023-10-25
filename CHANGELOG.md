@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
+- On Wayland, fix `RedrawRequsted` being always sent without decorations and `sctk-adwaita` feature.
 
 # 0.29.2
 
