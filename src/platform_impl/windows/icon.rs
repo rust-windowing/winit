@@ -1,10 +1,12 @@
-use std::{ffi::c_void, fmt, io, mem, path::Path, ptr::null, sync::Arc};
+use std::{ffi::c_void, fmt, io, mem, path::Path, sync::Arc};
 
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
-        Graphics::Gdi::CreateBitmap,
+        Graphics::Gdi::{
+            CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
+        },
         UI::WindowsAndMessaging::{
             CreateIcon, CreateIconIndirect, DestroyIcon, LoadImageW, SendMessageW, HICON, ICONINFO,
             ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
@@ -71,22 +73,46 @@ impl RgbaIcon {
         }
     }
     fn into_windows_cursor_icon(self, hotspot_x: u32, hotspot_y: u32) -> Result<WinIcon, BadIcon> {
-        let rgba = self.rgba;
-        let pixel_count = rgba.len() / PIXEL_SIZE;
-        let pixels =
-            unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
-        for pixel in pixels {
-            pixel.convert_to_bgra();
-        }
+        let mut rgba = self.rgba;
+
+        // convert to bgra
+        rgba.chunks_mut(4).for_each(|chunk| {
+            chunk.swap(0, 2);
+        });
+
         let handle = unsafe {
-            let hbm_mask = CreateBitmap(self.width as i32, self.height as i32, 1, 1, null());
-            let hbm_color = CreateBitmap(
+            // always visible for each pixel
+            let mask_bits: Vec<u8> = vec![0xff; (((self.width + 15) >> 3) * self.height) as usize];
+            let hbm_mask = CreateBitmap(
                 self.width as i32,
                 self.height as i32,
                 1,
-                (PIXEL_SIZE * 8) as u32,
-                rgba.as_ptr() as *const c_void,
+                1,
+                mask_bits.as_ptr() as *const _,
             );
+            if hbm_mask == 0 {
+                return Err(BadIcon::OsError(io::Error::last_os_error()));
+            }
+
+            let hdc_screen = GetDC(0);
+            if hdc_screen == 0 {
+                return Err(BadIcon::OsError(io::Error::last_os_error()));
+            }
+
+            // uses CreateCompatibleBitmap instead of CreateBitmap according to MSDN
+            // https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createbitmap
+            let hbm_color =
+                CreateCompatibleBitmap(hdc_screen, self.width as i32, self.height as i32);
+
+            if hbm_color == 0 {
+                DeleteObject(hbm_mask);
+                ReleaseDC(0, hdc_screen);
+                return Err(BadIcon::OsError(io::Error::last_os_error()));
+            }
+
+            SetBitmapBits(hbm_color, rgba.len() as u32, rgba.as_ptr() as *const c_void);
+
+            ReleaseDC(0, hdc_screen);
 
             let icon_info = ICONINFO {
                 fIcon: 0,
@@ -98,6 +124,7 @@ impl RgbaIcon {
 
             CreateIconIndirect(&icon_info as *const _)
         };
+
         if handle != 0 {
             Ok(WinIcon::from_handle(handle))
         } else {
