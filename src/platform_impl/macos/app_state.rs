@@ -494,9 +494,9 @@ impl AppState {
 
         // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking()
+            || HANDLER.get_in_callback()
             || !HANDLER.have_callback()
             || !HANDLER.is_running()
-            || HANDLER.get_in_callback()
         {
             return;
         }
@@ -601,9 +601,9 @@ impl AppState {
         // XXX: how does it make sense that `get_in_callback()` can ever return `true` here if we're
         // about to return to the `CFRunLoop` to poll for new events?
         if panic_info.is_panicking()
+            || HANDLER.get_in_callback()
             || !HANDLER.have_callback()
             || !HANDLER.is_running()
-            || HANDLER.get_in_callback()
         {
             return;
         }
