@@ -26,16 +26,36 @@
 //! window or a key getting pressed while the window is focused. Devices can generate
 //! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`]. You can also create and handle your own custom [`UserEvent`]s, if desired.
+//! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if desired.
 //!
-//! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
+//! You can retrieve events by calling [`EventLoop::run()`]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
-//! will run until [`exit()`] is used, at which point [`Event`]`::`[`LoopExiting`].
+//! will run until [`exit()`] is used, at which point [`Event::LoopExiting`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
 //! most other platforms. However, this model can be re-implemented to an extent with
-//! [`EventLoopExtPumpEvents::pump_events`]. See that method's documentation for more reasons about why
+#![cfg_attr(
+    any(
+        windows_platform,
+        macos_platform,
+        android_platform,
+        x11_platform,
+        wayland_platform
+    ),
+    doc = "[`EventLoopExtPumpEvents::pump_events()`][platform::pump_events::EventLoopExtPumpEvents::pump_events()]"
+)]
+#![cfg_attr(
+    not(any(
+        windows_platform,
+        macos_platform,
+        android_platform,
+        x11_platform,
+        wayland_platform
+    )),
+    doc = "`EventLoopExtPumpEvents::pump_events()`"
+)]
+//! [^1]. See that method's documentation for more reasons about why
 //! it's discouraged, beyond compatibility reasons.
 //!
 //!
@@ -92,8 +112,8 @@
 //! });
 //! ```
 //!
-//! [`Event`]`::`[`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
-//! compared to the value returned by [`Window::id()`][window_id_fn] to determine which [`Window`]
+//! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
+//! compared to the value returned by [`Window::id()`] to determine which [`Window`]
 //! dispatched the event.
 //!
 //! # Drawing on the window
@@ -101,7 +121,7 @@
 //! Winit doesn't directly provide any methods for drawing on a [`Window`]. However it allows you to
 //! retrieve the raw handle of the window and display (see the [`platform`] module and/or the
 //! [`raw_window_handle`] and [`raw_display_handle`] methods), which in turn allows
-//!  you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
+//! you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
 //!
 //! Note that many platforms will display garbage data in the window's client area if the
 //! application doesn't render anything to the window by the time the desktop compositor is ready to
@@ -110,9 +130,8 @@
 //! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtPumpEvents::pump_events`]: ./platform/pump_events/trait.EventLoopExtPumpEvents.html#tymethod.pump_events
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [event_loop_run]: event_loop::EventLoop::run
+//! [`EventLoop::run()`]: event_loop::EventLoop::run
 //! [`exit()`]: event_loop::EventLoopWindowTarget::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
@@ -120,15 +139,14 @@
 //! [window_new]: window::Window::new
 //! [window_builder_new]: window::WindowBuilder::new
 //! [window_builder_build]: window::WindowBuilder::build
-//! [window_id_fn]: window::Window::id
-//! [`Event`]: event::Event
+//! [`Window::id()`]: window::Window::id
 //! [`WindowEvent`]: event::WindowEvent
 //! [`DeviceEvent`]: event::DeviceEvent
-//! [`UserEvent`]: event::Event::UserEvent
-//! [`LoopExiting`]: event::Event::LoopExiting
-//! [`platform`]: platform
+//! [`Event::UserEvent`]: event::Event::UserEvent
+//! [`Event::LoopExiting`]: event::Event::LoopExiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
+//! [^1]: `EventLoopExtPumpEvents::pump_events()` is only available on Windows, macOS, Android, X11 and Wayland.
 
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]

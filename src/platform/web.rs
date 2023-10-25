@@ -109,13 +109,28 @@ pub trait EventLoopExtWebSys {
 
     /// Initializes the winit event loop.
     ///
-    /// Unlike `run`, this returns immediately, and doesn't throw an exception in order to
-    /// satisfy its `!` return type.
+    /// Unlike
+    #[cfg_attr(
+        all(wasm_platform, target_feature = "exception-handling"),
+        doc = "`run()`"
+    )]
+    #[cfg_attr(
+        not(all(wasm_platform, target_feature = "exception-handling")),
+        doc = "[`run()`]"
+    )]
+    /// [^1], this returns immediately, and doesn't throw an exception in order to
+    /// satisfy its [`!`] return type.
     ///
     /// Once the event loop has been destroyed, it's possible to reinitialize another event loop
     /// by calling this function again. This can be useful if you want to recreate the event loop
     /// while the WebAssembly module is still loaded. For example, this can be used to recreate the
     /// event loop when switching between tabs on a single page application.
+    ///
+    #[cfg_attr(
+        not(all(wasm_platform, target_feature = "exception-handling")),
+        doc = "[`run()`]: EventLoop::run()"
+    )]
+    /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
