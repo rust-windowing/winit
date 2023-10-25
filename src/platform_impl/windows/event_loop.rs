@@ -1496,7 +1496,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             },
                         });
                     }
-                    PointerMoveKind::None => (),
+                    PointerMoveKind::None => drop(w),
                 }
 
                 // handle spurious WM_MOUSEMOVE messages
