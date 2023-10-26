@@ -28,7 +28,7 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
@@ -133,6 +133,10 @@ pub struct WindowState {
     /// sends `None` for the new size in the configure.
     stateless_size: LogicalSize<u32>,
 
+    /// Initial window size provided by the user. Removed on the first
+    /// configure.
+    initial_size: Option<Size>,
+
     /// The state of the frame callback.
     frame_callback_state: FrameCallbackState,
 
@@ -153,7 +157,7 @@ impl WindowState {
         connection: Connection,
         queue_handle: &QueueHandle<WinitState>,
         winit_state: &WinitState,
-        size: LogicalSize<u32>,
+        initial_size: Size,
         window: Window,
         theme: Option<Theme>,
     ) -> Self {
@@ -194,8 +198,9 @@ impl WindowState {
             resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
-            size,
-            stateless_size: size,
+            size: initial_size.to_logical(1.),
+            stateless_size: initial_size.to_logical(1.),
+            initial_size: Some(initial_size),
             text_inputs: Vec::new(),
             theme,
             title: String::default(),
@@ -253,6 +258,14 @@ impl WindowState {
         subcompositor: &Arc<SubcompositorState>,
         event_sink: &mut EventSink,
     ) -> LogicalSize<u32> {
+        // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
+        // should be delivered before the first configure, thus apply it to
+        // properly scale the physical sizes provided by the users.
+        if let Some(initial_size) = self.initial_size.take() {
+            self.size = initial_size.to_logical(self.scale_factor());
+            self.stateless_size = self.size;
+        }
+
         if configure.decoration_mode == DecorationMode::Client
             && self.frame.is_none()
             && !self.csd_fails
@@ -297,7 +310,7 @@ impl WindowState {
             event_sink.push_window_event(WindowEvent::Occluded(occluded), window_id);
         }
 
-        let new_size = if let Some(frame) = self.frame.as_mut() {
+        let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
             frame.update_state(configure.state);
 
@@ -305,21 +318,37 @@ impl WindowState {
                 (Some(width), Some(height)) => {
                     let (width, height) = frame.subtract_borders(width, height);
                     (
-                        width.map(|w| w.get()).unwrap_or(1),
-                        height.map(|h| h.get()).unwrap_or(1),
+                        (
+                            width.map(|w| w.get()).unwrap_or(1),
+                            height.map(|h| h.get()).unwrap_or(1),
+                        )
+                            .into(),
+                        false,
                     )
-                        .into()
                 }
-                (_, _) if stateless => self.stateless_size,
-                _ => self.size,
+                (_, _) if stateless => (self.stateless_size, true),
+                _ => (self.size, true),
             }
         } else {
             match configure.new_size {
-                (Some(width), Some(height)) => (width.get(), height.get()).into(),
-                _ if stateless => self.stateless_size,
-                _ => self.size,
+                (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
+                _ if stateless => (self.stateless_size, true),
+                _ => (self.size, true),
             }
         };
+
+        // Apply configure bounds only when compositor let the user decide what size to pick.
+        if constrain {
+            let bounds = self.inner_size_bounds(&configure);
+            new_size.width = bounds
+                .0
+                .map(|bound_w| new_size.width.min(bound_w.get()))
+                .unwrap_or(new_size.width);
+            new_size.height = bounds
+                .1
+                .map(|bound_h| new_size.height.min(bound_h.get()))
+                .unwrap_or(new_size.height);
+        }
 
         // XXX Set the configure before doing a resize.
         self.last_configure = Some(configure);
@@ -328,6 +357,30 @@ impl WindowState {
         self.resize(new_size);
 
         new_size
+    }
+
+    /// Compute the bounds for the inner size of the surface.
+    fn inner_size_bounds(
+        &self,
+        configure: &WindowConfigure,
+    ) -> (Option<NonZeroU32>, Option<NonZeroU32>) {
+        let configure_bounds = match configure.suggested_bounds {
+            Some((width, height)) => (NonZeroU32::new(width), NonZeroU32::new(height)),
+            None => (None, None),
+        };
+
+        if let Some(frame) = self.frame.as_ref() {
+            let (width, height) = frame.subtract_borders(
+                configure_bounds.0.unwrap_or(NonZeroU32::new(1).unwrap()),
+                configure_bounds.1.unwrap_or(NonZeroU32::new(1).unwrap()),
+            );
+            (
+                configure_bounds.0.and(width),
+                configure_bounds.1.and(height),
+            )
+        } else {
+            configure_bounds
+        }
     }
 
     #[inline]
@@ -568,8 +621,22 @@ impl WindowState {
         }
     }
 
+    /// Try to resize the window when the user can do so.
+    pub fn request_inner_size(&mut self, inner_size: Size) -> PhysicalSize<u32> {
+        if self
+            .last_configure
+            .as_ref()
+            .map(Self::is_stateless)
+            .unwrap_or(true)
+        {
+            self.resize(inner_size.to_logical(self.scale_factor()))
+        }
+
+        self.inner_size().to_physical(self.scale_factor())
+    }
+
     /// Resize the window to the new inner size.
-    pub fn resize(&mut self, inner_size: LogicalSize<u32>) {
+    fn resize(&mut self, inner_size: LogicalSize<u32>) {
         self.size = inner_size;
 
         // Update the stateless size.
