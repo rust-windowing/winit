@@ -212,7 +212,7 @@ impl XConnection {
             return Ok(MonitorHandle::dummy());
         }
 
-        let default = monitors.get(0).unwrap();
+        let default = monitors.first().unwrap();
 
         let window_rect = match window_rect {
             Some(rect) => rect,
