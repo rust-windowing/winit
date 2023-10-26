@@ -97,11 +97,9 @@ impl Window {
             .map(|activation_state| activation_state.global().clone());
         let display = event_loop_window_target.connection.display();
 
-        // XXX The initial scale factor must be 1, but it might cause sizing issues on HiDPI.
-        let size: LogicalSize<u32> = attributes
+        let size: Size = attributes
             .inner_size
-            .map(|size| size.to_logical::<u32>(1.))
-            .unwrap_or((800, 600).into());
+            .unwrap_or(LogicalSize::new(800., 600.).into());
 
         // We prefer server side decorations, however to not have decorations we ask for client
         // side decorations instead.
@@ -141,7 +139,8 @@ impl Window {
         // Set the window title.
         window_state.set_title(attributes.title);
 
-        // Set the min and max sizes.
+        // Set the min and max sizes. We must set the hints upon creating a window, so
+        // we use the default `1.` scaling...
         let min_size = attributes.min_inner_size.map(|size| size.to_logical(1.));
         let max_size = attributes.max_inner_size.map(|size| size.to_logical(1.));
         window_state.set_min_inner_size(min_size);
@@ -315,12 +314,9 @@ impl Window {
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let mut window_state = self.window_state.lock().unwrap();
-        let scale_factor = window_state.scale_factor();
-        window_state.resize(size.to_logical::<u32>(scale_factor));
-
+        let new_size = window_state.request_inner_size(size);
         self.request_redraw();
-
-        Some(window_state.inner_size().to_physical(scale_factor))
+        Some(new_size)
     }
 
     /// Set the minimum inner size for the window.

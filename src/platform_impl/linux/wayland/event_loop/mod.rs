@@ -393,7 +393,7 @@ impl<T: 'static> EventLoop<T> {
                     self.with_state(|state| {
                         let windows = state.windows.get_mut();
                         let mut window = windows.get(&window_id).unwrap().lock().unwrap();
-                        window.resize(new_logical_size);
+                        window.request_inner_size(new_logical_size.into());
                     });
                 }
 
