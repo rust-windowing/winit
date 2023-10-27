@@ -16,6 +16,7 @@ Unreleased` header.
 - On Wayland, ignore resize requests when the window is fully tiled.
 - On Wayland, use `configure_bounds` to constrain `with_inner_size` when compositor wants users to pick size.
 - On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
+- On Windows, add support for `Window::set_transparent`.
 - On macOS, fix deadlock when entering a nested event loop from an event handler.
 
 # 0.29.2
