@@ -126,7 +126,16 @@ impl Window {
         }
     }
 
-    pub fn set_transparent(&self, _transparent: bool) {}
+    pub fn set_transparent(&self, transparent: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock().unwrap(), window.0, |f| {
+                f.set(WindowFlags::TRANSPARENT, transparent)
+            });
+        });
+    }
 
     pub fn set_blur(&self, _blur: bool) {}
 
