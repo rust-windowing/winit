@@ -82,7 +82,8 @@
 //!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
 //!   XRandR scaling method. Generally speaking, you should try to configure the standard system
 //!   variables to do what you want before resorting to `WINIT_X11_SCALE_FACTOR`.
-//! - **Wayland:** Scale factor is suggested by the the compositor.
+//! - **Wayland:** Scale factor is suggested by the compositor for each window individually. The
+//!   monitor scale factor may differ from the window scale factor.
 //! - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
 //!   from `1.0` to `3.0`. See [this article][apple_1] and [this article][apple_2] for more
 //!   information.

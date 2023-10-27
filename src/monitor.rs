@@ -138,14 +138,18 @@ impl MonitorHandle {
         self.inner.refresh_rate_millihertz()
     }
 
-    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
+    /// pixels and vice versa, use [`Window::scale_factor`].
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// ## Platform-specific
     ///
     /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
+    /// - **Wayland:** May differ from [`Window::scale_factor`].
     /// - **Android:** Always returns 1.0.
+    ///
+    /// [`Window::scale_factor`]: crate::window::Window::scale_factor
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.inner.scale_factor()
