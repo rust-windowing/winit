@@ -46,6 +46,8 @@ use super::appkit::{
     NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
+use super::ffi::CGSMainConnectionID;
+use super::ffi::CGSSetWindowBackgroundBlurRadius;
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -494,6 +496,10 @@ impl WinitWindow {
             this.setBackgroundColor(&NSColor::clear());
         }
 
+        if attrs.blur {
+            this.set_blur(attrs.blur);
+        }
+
         if let Some(dim) = attrs.min_inner_size {
             this.set_min_inner_size(Some(dim));
         }
@@ -582,7 +588,15 @@ impl WinitWindow {
         self.setOpaque(!transparent)
     }
 
-    pub fn set_blur(&self, _blur: bool) {}
+    pub fn set_blur(&self, blur: bool) {
+        // NOTE: in general we want to specify the blur radius, but the choice of 80
+        // should be a reasonable default.
+        let radius = if blur { 80 } else { 0 };
+        let window_number = self.windowNumber();
+        unsafe {
+            CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window_number, radius);
+        }
+    }
 
     pub fn set_visible(&self, visible: bool) {
         match visible {

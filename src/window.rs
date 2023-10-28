@@ -918,7 +918,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / iOS / macOS / X11 / Web / Windows:** Unsupported.
+    /// - **Android / iOS / X11 / Web / Windows:** Unsupported.
     /// - **Wayland:** Only works with org_kde_kwin_blur_manager protocol.
     #[inline]
     pub fn set_blur(&self, blur: bool) {
