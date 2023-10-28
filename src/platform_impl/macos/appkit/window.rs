@@ -36,6 +36,9 @@ extern_methods!(
         #[method(frame)]
         pub(crate) fn frame(&self) -> NSRect;
 
+        #[method(windowNumber)]
+        pub(crate) fn windowNumber(&self) -> NSInteger;
+
         #[method(backingScaleFactor)]
         pub(crate) fn backingScaleFactor(&self) -> CGFloat;
 
