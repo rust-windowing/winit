@@ -543,13 +543,16 @@ impl Window {
         self.window.maybe_wait_on_main(|w| WindowId(w.id()))
     }
 
-    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
-    ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and
+    /// vice versa.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking [`WindowEvent::ScaleFactorChanged`] events is
     /// the most robust way to track the DPI you need to use to draw.
+    ///
+    /// This value may differ from [`MonitorHandle::scale_factor`].
+    ///
+    /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// ## Platform-specific
     ///
