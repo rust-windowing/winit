@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.3
+
 - On Wayland, apply correct scale to `PhysicalSize` passed in `WindowBuilder::with_inner_size` when possible.
 - On Wayland, fix `RedrawRequsted` being always sent without decorations and `sctk-adwaita` feature.
 - On Wayland, ignore resize requests when the window is fully tiled.
