@@ -18,6 +18,7 @@ Unreleased` header.
 - On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
 - On Windows, add support for `Window::set_transparent`.
 - On macOS, fix deadlock when entering a nested event loop from an event handler.
+- On macOS, add support for `Window::set_blur`.
 
 # 0.29.2
 
