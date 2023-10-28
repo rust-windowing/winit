@@ -1144,7 +1144,7 @@ impl<T: 'static> EventProcessor<T> {
                 if keycode < KEYCODE_OFFSET as u32 {
                     return;
                 }
-                let physical_key = keymap::raw_keycode_to_keycode(keycode);
+                let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
 
                 callback(Event::DeviceEvent {
                     device_id,

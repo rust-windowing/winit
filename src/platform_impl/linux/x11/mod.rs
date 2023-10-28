@@ -27,7 +27,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     ffi::CStr,
-    fmt, mem,
+    fmt,
     ops::Deref,
     os::{
         raw::*,
