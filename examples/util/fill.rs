@@ -53,6 +53,13 @@ pub(super) fn fill_window(window: &Window) {
     }
 
     GC.with(|gc| {
+        let size = window.inner_size();
+        let (Some(width), Some(height)) =
+            (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+        else {
+            return;
+        };
+
         // Either get the last context used or create a new one.
         let mut gc = gc.borrow_mut();
         let surface = gc
@@ -61,13 +68,9 @@ pub(super) fn fill_window(window: &Window) {
 
         // Fill a buffer with a solid color.
         const DARK_GRAY: u32 = 0xFF181818;
-        let size = window.inner_size();
 
         surface
-            .resize(
-                NonZeroU32::new(size.width).expect("Width must be greater than zero"),
-                NonZeroU32::new(size.height).expect("Height must be greater than zero"),
-            )
+            .resize(width, height)
             .expect("Failed to resize the softbuffer surface");
 
         let mut buffer = surface

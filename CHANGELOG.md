@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, implement `WindowEvent::Minimized` and `WindowEvent::Restored`.
+
 # 0.29.3
 
 - On Wayland, apply correct scale to `PhysicalSize` passed in `WindowBuilder::with_inner_size` when possible.

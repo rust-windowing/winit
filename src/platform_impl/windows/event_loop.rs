@@ -964,6 +964,19 @@ unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
     });
 }
 
+unsafe fn minimize_or_restore<T>(window: HWND, userdata: &WindowData<T>, minimized: bool) {
+    use crate::event::WindowEvent::{Minimized, Restored};
+
+    userdata
+        .window_state_lock()
+        .set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, minimized));
+    let event = if minimized { Minimized } else { Restored };
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event,
+    });
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -1426,14 +1439,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
         // this is necessary for us to maintain minimize/restore state
         WM_SYSCOMMAND => {
             if wparam == SC_RESTORE as usize {
-                let mut w = userdata.window_state_lock();
-                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
+                unsafe { minimize_or_restore(window, userdata, false) };
             }
             if wparam == SC_MINIMIZE as usize {
-                let mut w = userdata.window_state_lock();
-                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
+                unsafe { minimize_or_restore(window, userdata, true) };
             }
-            // Send `WindowEvent::Minimized` here if we decide to implement one
 
             if wparam == SC_SCREENSAVE as usize {
                 let window_state = userdata.window_state_lock();

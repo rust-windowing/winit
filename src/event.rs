@@ -591,6 +591,20 @@ pub enum WindowEvent {
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
     RedrawRequested,
+
+    /// Emitted when a window is minimized.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **Windows**.
+    Minimized,
+
+    /// Emitted when a window is restored from minimized state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **Windows**.
+    Restored,
 }
 
 /// Identifier of an input device.
