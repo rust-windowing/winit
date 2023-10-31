@@ -600,11 +600,11 @@ impl Window {
         self.window.maybe_queue_on_main(|w| w.request_redraw())
     }
 
-    /// Notify the windowing system that you're before presenting to the window.
+    /// Notify the windowing system before presenting to the window.
     ///
-    /// You should call this event after you've done drawing operations, but before you submit
+    /// You should call this event after you've completed drawing operations, but before you submit
     /// the buffer to the display or commit your drawings. Doing so will help winit to properly
-    /// schedule and do assumptions about its internal state. For example, it could properly
+    /// schedule and make assumptions about its internal state. For example, it could properly
     /// throttle [`WindowEvent::RedrawRequested`].
     ///
     /// ## Example
