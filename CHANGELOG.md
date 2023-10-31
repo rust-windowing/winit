@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, fix so `drag_window` and `drag_resize_window` can be called from another thread.
+
 # 0.29.3
 
 - On Wayland, apply correct scale to `PhysicalSize` passed in `WindowBuilder::with_inner_size` when possible.
