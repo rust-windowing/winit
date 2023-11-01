@@ -2322,8 +2322,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 },
             });
 
-            // area.to_wm_nchittest()
-
             let area_received = *area.lock().unwrap();
             drop(area);
 
