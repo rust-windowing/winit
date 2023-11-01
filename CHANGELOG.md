@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On Windows, fix so `drag_window` and `drag_resize_window` can be called from another thread.
+- On Windows, add `HitTest` event.
 
 # 0.29.3
 
