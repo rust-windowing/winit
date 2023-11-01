@@ -18,7 +18,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, elwt| {
+    let _ = event_loop.run(move |event, elwt| {
         elwt.set_control_flow(ControlFlow::Wait);
 
         match event {
@@ -39,7 +39,7 @@ fn main() {
 
                 const MARGIN: u32 = 30;
 
-                new_area_writer.request_area(match (x, y) {
+                let _ = new_area_writer.request_area(match (x, y) {
                     _ if x <= MARGIN && y <= MARGIN => WindowArea::TOPLEFT,
                     _ if x >= w - MARGIN && y <= MARGIN => WindowArea::TOPRIGHT,
                     _ if x >= w - MARGIN && y >= h - MARGIN => WindowArea::BOTTOMRIGHT,
