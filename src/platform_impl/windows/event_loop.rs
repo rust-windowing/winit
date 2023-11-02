@@ -2696,7 +2696,7 @@ impl WindowArea {
         }
     }
 
-    fn to_wm_nchittest(&self) -> isize {
+    fn to_wm_nchittest(self) -> isize {
         match self {
             Self::BORDER => HTBORDER as isize,
             Self::BOTTOM => HTBOTTOM as isize,
