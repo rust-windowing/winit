@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::iter;
 
 use x11rb::connection::Connection;
 
@@ -56,10 +57,22 @@ impl XConnection {
             None => return self.create_empty_cursor(),
         };
 
-        let name = CString::new(cursor.name()).unwrap();
-        unsafe {
-            (self.xcursor.XcursorLibraryLoadCursor)(self.display, name.as_ptr() as *const c_char)
+        let mut xcursor = 0;
+        for &name in iter::once(&cursor.name()).chain(cursor.alt_names().iter()) {
+            let name = CString::new(name).unwrap();
+            xcursor = unsafe {
+                (self.xcursor.XcursorLibraryLoadCursor)(
+                    self.display,
+                    name.as_ptr() as *const c_char,
+                )
+            };
+
+            if xcursor != 0 {
+                break;
+            }
         }
+
+        xcursor
     }
 
     fn update_cursor(&self, window: xproto::Window, cursor: ffi::Cursor) -> Result<(), X11Error> {
