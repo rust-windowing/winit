@@ -49,7 +49,7 @@ use crate::{
     event_loop::AsyncRequestSerial,
     keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
     platform_impl,
-    window::{ActivationToken, Theme, WindowId},
+    window::{ActivationToken, Theme, WindowArea, WindowId},
 };
 
 /// Describes a generic event.
@@ -591,6 +591,25 @@ pub enum WindowEvent {
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
     RedrawRequested,
+
+    /// Sent to a window in order to determine what part of the window corresponds to a particular screen coordinate.
+    /// This can happen, for example, when the cursor moves, when a mouse button is pressed or released.
+    ///
+    /// - `x` and `y` are relatvie to the window top-left corner.
+    ///
+    /// After this event callback has been processed, the response will be whatever value
+    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Wayland / macOS:** Not implemented.
+    /// - **iOS / Android :** Unsupported.
+    HitTest {
+        x: u32,
+        y: u32,
+        new_area_writer: NewAreaWriter,
+    },
 }
 
 /// Identifier of an input device.
@@ -1137,6 +1156,28 @@ impl InnerSizeWriter {
 impl PartialEq for InnerSizeWriter {
     fn eq(&self, other: &Self) -> bool {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAreaWriter {
+    pub(crate) new_area: Weak<Mutex<WindowArea>>,
+}
+
+impl NewAreaWriter {
+    pub fn request_area(&self, new_area: WindowArea) -> Result<(), ExternalError> {
+        if let Some(inner) = self.new_area.upgrade() {
+            *inner.lock().unwrap() = new_area;
+            Ok(())
+        } else {
+            Err(ExternalError::Ignored)
+        }
+    }
+}
+
+impl PartialEq for NewAreaWriter {
+    fn eq(&self, other: &Self) -> bool {
+        self.new_area.as_ptr() == other.new_area.as_ptr()
     }
 }
 
