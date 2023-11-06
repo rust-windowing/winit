@@ -329,7 +329,7 @@ impl Handler {
     ) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             let new_inner_size = Arc::new(Mutex::new(suggested_size));
-            let event = Event::WindowEvent {
+            let scale_factor_changed_event = Event::WindowEvent {
                 window_id: WindowId(window.id()),
                 event: WindowEvent::ScaleFactorChanged {
                     scale_factor,
@@ -337,13 +337,19 @@ impl Handler {
                 },
             };
 
-            callback.handle_nonuser_event(event);
+            callback.handle_nonuser_event(scale_factor_changed_event);
 
             let physical_size = *new_inner_size.lock().unwrap();
             drop(new_inner_size);
             let logical_size = physical_size.to_logical(scale_factor);
             let size = NSSize::new(logical_size.width, logical_size.height);
             window.setContentSize(size);
+
+            let resized_event = Event::WindowEvent {
+                window_id: WindowId(window.id()),
+                event: WindowEvent::Resized(physical_size),
+            };
+            callback.handle_nonuser_event(resized_event);
         }
     }
 }
