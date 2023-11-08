@@ -13,6 +13,7 @@ Unreleased` header.
 
 - On X11, check common alternative cursor names when loading cursor.
 - On Windows, fix so `drag_window` and `drag_resize_window` can be called from another thread.
+- On Windows, fix `set_control_flow` in `AboutToWait` not being taken in account.
 - On macOS, send a `Resized` event after each `ScaleFactorChanged` event.
 
 # 0.29.3
