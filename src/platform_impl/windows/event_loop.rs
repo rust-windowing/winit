@@ -356,19 +356,6 @@ impl<T: 'static> EventLoop<T> {
 
     /// Wait for one message and dispatch it, optionally with a timeout
     fn wait_and_dispatch_message(&mut self, timeout: Option<Duration>) {
-        let start = Instant::now();
-
-        let runner = &self.window_target.p.runner_shared;
-
-        let control_flow_timeout = match runner.control_flow() {
-            ControlFlow::Wait => None,
-            ControlFlow::Poll => Some(Duration::ZERO),
-            ControlFlow::WaitUntil(wait_deadline) => {
-                Some(wait_deadline.saturating_duration_since(start))
-            }
-        };
-        let timeout = min_timeout(control_flow_timeout, timeout);
-
         fn get_msg_with_timeout(msg: &mut MSG, timeout: Option<Duration>) -> PumpStatus {
             unsafe {
                 // A timeout of None means wait indefinitely (so we don't need to call SetTimer)
@@ -404,6 +391,8 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
+        let runner = &self.window_target.p.runner_shared;
+
         // We aim to be consistent with the MacOS backend which has a RunLoop
         // observer that will dispatch AboutToWait when about to wait for
         // events, and NewEvents after the RunLoop wakes up.
@@ -414,6 +403,16 @@ impl<T: 'static> EventLoop<T> {
         // `GetMessage`
         //
         runner.prepare_wait();
+
+        let control_flow_timeout = match runner.control_flow() {
+            ControlFlow::Wait => None,
+            ControlFlow::Poll => Some(Duration::ZERO),
+            ControlFlow::WaitUntil(wait_deadline) => {
+                let start = Instant::now();
+                Some(wait_deadline.saturating_duration_since(start))
+            }
+        };
+        let timeout = min_timeout(control_flow_timeout, timeout);
 
         // # Safety
         // The Windows API has no documented requirement for bitwise
