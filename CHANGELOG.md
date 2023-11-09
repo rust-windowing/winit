@@ -15,6 +15,7 @@ Unreleased` header.
 - On Windows, fix so `drag_window` and `drag_resize_window` can be called from another thread.
 - On Windows, fix `set_control_flow` in `AboutToWait` not being taken in account.
 - On macOS, send a `Resized` event after each `ScaleFactorChanged` event.
+- On Wayland, fix `wl_surface` being destroyed before associated objects.
 
 # 0.29.3
 
