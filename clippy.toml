@@ -6,6 +6,7 @@ disallowed-methods = [
     { path = "web_sys::HtmlCanvasElement::set_height", reason = "Winit shouldn't touch the internal canvas size" },
     { path = "web_sys::Window::document", reason = "cache this to reduce calls to JS" },
     { path = "web_sys::Window::get_computed_style", reason = "cache this to reduce calls to JS" },
+    { path = "web_sys::HtmlElement::style", reason = "cache this to reduce calls to JS" },
     { path = "web_sys::Element::request_fullscreen", reason = "Doesn't account for compatibility with Safari" },
     { path = "web_sys::Document::exit_fullscreen", reason = "Doesn't account for compatibility with Safari" },
     { path = "web_sys::Document::fullscreen_element", reason = "Doesn't account for compatibility with Safari" },
