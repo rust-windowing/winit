@@ -156,13 +156,11 @@ pub(crate) fn create_key_event(
             // Also not checking if this is a release event because then this issue would
             // still affect the key release.
             Some(text) if !has_ctrl => Key::Character(text.clone()),
-            _ => {
-                let modifierless_chars = match key_without_modifiers.as_ref() {
-                    Key::Character(ch) => ch,
-                    _ => "",
-                };
-                get_logical_key_char(ns_event, modifierless_chars)
-            }
+            _ => match key_without_modifiers.as_ref() {
+                Key::Character(ch) => get_logical_key_char(ns_event, ch),
+                // Don't try to get text for events which likely don't have it.
+                _ => key_without_modifiers.clone(),
+            },
         };
 
         (logical_key, key_without_modifiers)
