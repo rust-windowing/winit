@@ -1,6 +1,5 @@
 //! The state of the window, which is shared with the event-loop.
 
-use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -54,9 +53,6 @@ const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 pub struct WindowState {
     /// The connection to Wayland server.
     pub connection: Connection,
-
-    /// The underlying SCTK window.
-    pub window: ManuallyDrop<Window>,
 
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
@@ -149,6 +145,9 @@ pub struct WindowState {
     ///
     /// The value is the serial of the event triggered moved.
     has_pending_move: Option<u32>,
+
+    /// The underlying SCTK window.
+    pub window: Window,
 }
 
 impl WindowState {
@@ -206,7 +205,7 @@ impl WindowState {
             title: String::default(),
             transparent: false,
             viewport,
-            window: ManuallyDrop::new(window),
+            window,
         }
     }
 
@@ -271,7 +270,7 @@ impl WindowState {
             && !self.csd_fails
         {
             match WinitFrame::new(
-                &*self.window,
+                &self.window,
                 shm,
                 subcompositor.clone(),
                 self.queue_handle.clone(),
@@ -1026,13 +1025,6 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        let surface = self.window.wl_surface().clone();
-        unsafe {
-            ManuallyDrop::drop(&mut self.window);
-        }
-
-        // Cleanup objects.
-
         if let Some(blur) = self.blur.take() {
             blur.release();
         }
@@ -1045,7 +1037,8 @@ impl Drop for WindowState {
             viewport.destroy();
         }
 
-        surface.destroy();
+        // NOTE: the wl_surface used by the window is being cleaned up when
+        // dropping SCTK `Window`.
     }
 }
 
