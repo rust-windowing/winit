@@ -49,10 +49,16 @@ pub struct Common {
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     pub raw: HtmlCanvasElement,
-    style: CssStyleDeclaration,
+    style: Style,
     old_size: Rc<Cell<PhysicalSize<u32>>>,
     current_size: Rc<Cell<PhysicalSize<u32>>>,
     fullscreen_handler: Rc<FullscreenHandler>,
+}
+
+#[derive(Clone)]
+pub struct Style {
+    read: CssStyleDeclaration,
+    write: CssStyleDeclaration,
 }
 
 impl Canvas {
@@ -90,12 +96,7 @@ impl Canvas {
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
-        #[allow(clippy::disallowed_methods)]
-        let style = window
-            .get_computed_style(&canvas)
-            .expect("Failed to obtain computed style")
-            // this can't fail: we aren't using a pseudo-element
-            .expect("Invalid pseudo-element");
+        let style = Style::new(&window, &canvas);
 
         let common = Common {
             window: window.clone(),
@@ -178,9 +179,7 @@ impl Canvas {
             y: bounds.y(),
         };
 
-        if self.document().contains(Some(self.raw()))
-            && self.style().get_property_value("display").unwrap() != "none"
-        {
+        if self.document().contains(Some(self.raw())) && self.style().get("display") != "none" {
             position.x += super::style_size_property(self.style(), "border-left-width")
                 + super::style_size_property(self.style(), "padding-left");
             position.y += super::style_size_property(self.style(), "border-top-width")
@@ -226,7 +225,7 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn style(&self) -> &CssStyleDeclaration {
+    pub fn style(&self) -> &Style {
         &self.common.style
     }
 
@@ -561,5 +560,39 @@ impl Common {
                 fullscreen_handler.transient_activation()
             }
         })
+    }
+}
+
+impl Style {
+    fn new(window: &web_sys::Window, canvas: &HtmlCanvasElement) -> Self {
+        #[allow(clippy::disallowed_methods)]
+        let read = window
+            .get_computed_style(canvas)
+            .expect("Failed to obtain computed style")
+            // this can't fail: we aren't using a pseudo-element
+            .expect("Invalid pseudo-element");
+
+        #[allow(clippy::disallowed_methods)]
+        let write = canvas.style();
+
+        Self { read, write }
+    }
+
+    pub(crate) fn get(&self, property: &str) -> String {
+        self.read
+            .get_property_value(property)
+            .expect("Invalid property")
+    }
+
+    pub(crate) fn remove(&self, property: &str) {
+        self.write
+            .remove_property(property)
+            .expect("Property is read only");
+    }
+
+    pub(crate) fn set(&self, property: &str, value: &str) {
+        self.write
+            .set_property(property, value)
+            .expect("Property is read only");
     }
 }

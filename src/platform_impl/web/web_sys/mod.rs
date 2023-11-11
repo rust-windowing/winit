@@ -10,6 +10,7 @@ mod resize_scaling;
 mod schedule;
 
 pub use self::canvas::Canvas;
+use self::canvas::Style;
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;
@@ -17,9 +18,7 @@ pub use self::schedule::Schedule;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 use wasm_bindgen::closure::Closure;
-use web_sys::{
-    CssStyleDeclaration, Document, HtmlCanvasElement, PageTransitionEvent, VisibilityState,
-};
+use web_sys::{Document, HtmlCanvasElement, PageTransitionEvent, VisibilityState};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -51,8 +50,8 @@ pub fn scale_factor(window: &web_sys::Window) -> f64 {
     window.device_pixel_ratio()
 }
 
-fn fix_canvas_size(style: &CssStyleDeclaration, mut size: LogicalSize<f64>) -> LogicalSize<f64> {
-    if style.get_property_value("box-sizing").unwrap() == "border-box" {
+fn fix_canvas_size(style: &Style, mut size: LogicalSize<f64>) -> LogicalSize<f64> {
+    if style.get("box-sizing") == "border-box" {
         size.width += style_size_property(style, "border-left-width")
             + style_size_property(style, "border-right-width")
             + style_size_property(style, "padding-left")
@@ -69,76 +68,68 @@ fn fix_canvas_size(style: &CssStyleDeclaration, mut size: LogicalSize<f64>) -> L
 pub fn set_canvas_size(
     document: &Document,
     raw: &HtmlCanvasElement,
-    style: &CssStyleDeclaration,
+    style: &Style,
     new_size: LogicalSize<f64>,
 ) {
-    if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+    if !document.contains(Some(raw)) || style.get("display") == "none" {
         return;
     }
 
     let new_size = fix_canvas_size(style, new_size);
 
-    set_canvas_style_property(raw, "width", &format!("{}px", new_size.width));
-    set_canvas_style_property(raw, "height", &format!("{}px", new_size.height));
+    style.set("width", &format!("{}px", new_size.width));
+    style.set("height", &format!("{}px", new_size.height));
 }
 
 pub fn set_canvas_min_size(
     document: &Document,
     raw: &HtmlCanvasElement,
-    style: &CssStyleDeclaration,
+    style: &Style,
     dimensions: Option<LogicalSize<f64>>,
 ) {
     if let Some(dimensions) = dimensions {
-        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+        if !document.contains(Some(raw)) || style.get("display") == "none" {
             return;
         }
 
         let new_size = fix_canvas_size(style, dimensions);
 
-        set_canvas_style_property(raw, "min-width", &format!("{}px", new_size.width));
-        set_canvas_style_property(raw, "min-height", &format!("{}px", new_size.height));
+        style.set("min-width", &format!("{}px", new_size.width));
+        style.set("min-height", &format!("{}px", new_size.height));
     } else {
-        style
-            .remove_property("min-width")
-            .expect("Property is read only");
-        style
-            .remove_property("min-height")
-            .expect("Property is read only");
+        style.remove("min-width");
+        style.remove("min-height");
     }
 }
 
 pub fn set_canvas_max_size(
     document: &Document,
     raw: &HtmlCanvasElement,
-    style: &CssStyleDeclaration,
+    style: &Style,
     dimensions: Option<LogicalSize<f64>>,
 ) {
     if let Some(dimensions) = dimensions {
-        if !document.contains(Some(raw)) || style.get_property_value("display").unwrap() == "none" {
+        if !document.contains(Some(raw)) || style.get("display") == "none" {
             return;
         }
 
         let new_size = fix_canvas_size(style, dimensions);
 
-        set_canvas_style_property(raw, "max-width", &format!("{}px", new_size.width));
-        set_canvas_style_property(raw, "max-height", &format!("{}px", new_size.height));
+        style.set("max-width", &format!("{}px", new_size.width));
+        style.set("max-height", &format!("{}px", new_size.height));
     } else {
-        style
-            .remove_property("max-width")
-            .expect("Property is read only");
-        style
-            .remove_property("max-height")
-            .expect("Property is read only");
+        style.remove("max-width");
+        style.remove("max-height");
     }
 }
 
 pub fn set_canvas_position(
     document: &Document,
     raw: &HtmlCanvasElement,
-    style: &CssStyleDeclaration,
+    style: &Style,
     mut position: LogicalPosition<f64>,
 ) {
-    if document.contains(Some(raw)) && style.get_property_value("display").unwrap() != "none" {
+    if document.contains(Some(raw)) && style.get("display") != "none" {
         position.x -= style_size_property(style, "margin-left")
             + style_size_property(style, "border-left-width")
             + style_size_property(style, "padding-left");
@@ -147,28 +138,19 @@ pub fn set_canvas_position(
             + style_size_property(style, "padding-top");
     }
 
-    set_canvas_style_property(raw, "position", "fixed");
-    set_canvas_style_property(raw, "left", &format!("{}px", position.x));
-    set_canvas_style_property(raw, "top", &format!("{}px", position.y));
+    style.set("position", "fixed");
+    style.set("left", &format!("{}px", position.x));
+    style.set("top", &format!("{}px", position.y));
 }
 
 /// This function will panic if the element is not inserted in the DOM
 /// or is not a CSS property that represents a size in pixel.
-pub fn style_size_property(style: &CssStyleDeclaration, property: &str) -> f64 {
-    let prop = style
-        .get_property_value(property)
-        .expect("Found invalid property");
+pub fn style_size_property(style: &Style, property: &str) -> f64 {
+    let prop = style.get(property);
     prop.strip_suffix("px")
         .expect("Element was not inserted into the DOM or is not a size in pixel")
         .parse()
         .expect("CSS property is not a size in pixel")
-}
-
-pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {
-    let style = raw.style();
-    style
-        .set_property(property, value)
-        .unwrap_or_else(|err| panic!("error: {err:?}\nFailed to set {property}"))
 }
 
 pub fn is_dark_mode(window: &web_sys::Window) -> Option<bool> {
