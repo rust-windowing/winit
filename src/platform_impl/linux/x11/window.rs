@@ -276,7 +276,8 @@ impl UnownedWindow {
                 | EventMask::KEYMAP_STATE
                 | EventMask::BUTTON_PRESS
                 | EventMask::BUTTON_RELEASE
-                | EventMask::POINTER_MOTION;
+                | EventMask::POINTER_MOTION
+                | EventMask::PROPERTY_CHANGE;
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
