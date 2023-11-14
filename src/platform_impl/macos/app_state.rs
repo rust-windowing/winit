@@ -438,6 +438,10 @@ impl AppState {
         HANDLER.exiting()
     }
 
+    pub fn open_urls(urls: Vec<url::Url>) {
+        HANDLER.handle_nonuser_event(Event::Opened { urls });
+    }
+
     pub fn dispatch_init_events() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));

@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::ptr::NonNull;
 
 use icrate::Foundation::NSObject;
@@ -8,6 +9,15 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, ClassType};
 
 use super::app_state::AppState;
 use super::appkit::NSApplicationActivationPolicy;
+
+#[repr(transparent)]
+struct Url {
+    items: Vec<*const i8>,
+}
+
+unsafe impl objc2::Encode for Url {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Object;
+}
 
 declare_class!(
     #[derive(Debug)]
@@ -57,6 +67,20 @@ declare_class!(
             trace_scope!("applicationWillTerminate:");
             // TODO: Notify every window that it will be destroyed, like done in iOS?
             AppState::internal_exit();
+        }
+
+        #[method(applicationOpenUrls:)]
+        fn application_open_urls(&self, urls: Url) -> () {
+            trace!("Trigger `application:openURLs:`");
+
+            let urls = unsafe {
+                (0..urls.items.len())
+                    .flat_map(|i| url::Url::parse(&CStr::from_ptr(urls.items[i]).to_string_lossy()))
+                    .collect::<Vec<_>>()
+            };
+            trace!("Get `application:openURLs:` URLs: {:?}", urls);
+            AppState::open_urls(urls);
+            trace!("Completed `application:openURLs:`");
         }
     }
 );

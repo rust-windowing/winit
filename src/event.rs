@@ -251,6 +251,13 @@ pub enum Event<T: 'static> {
     ///
     /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
     MemoryWarning,
+
+    /// Emitted when the app is open by external resources, like opening a file or deeplink.
+    ///
+    /// ## Others
+    ///
+    /// - **Android / Wayland / Windows / Orbital:** Unsupported.
+    Opened { urls: Vec<url::Url> },
 }
 
 impl<T> Event<T> {
@@ -261,6 +268,7 @@ impl<T> Event<T> {
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            Opened { urls } => Ok(Opened { urls }),
             NewEvents(cause) => Ok(NewEvents(cause)),
             AboutToWait => Ok(AboutToWait),
             LoopExiting => Ok(LoopExiting),
