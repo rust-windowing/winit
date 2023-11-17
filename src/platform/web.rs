@@ -27,9 +27,11 @@
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
+use crate::cursor::CustomCursor;
 use crate::event::Event;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
+use crate::platform_impl::PlatformCustomCursor;
 use crate::window::{Window, WindowBuilder};
 use crate::SendSyncWrapper;
 
@@ -199,4 +201,21 @@ pub enum PollStrategy {
     /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
     #[default]
     Scheduler,
+}
+
+pub trait CustomCursorExtWebSys {
+    fn from_url(url: String, hotspot_x: u32, hotspot_y: u32) -> Self;
+}
+
+impl CustomCursorExtWebSys for CustomCursor {
+    fn from_url(url: String, hotspot_x: u32, hotspot_y: u32) -> Self {
+        Self {
+            inner: PlatformCustomCursor::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            }
+            .into(),
+        }
+    }
 }

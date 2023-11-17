@@ -18,8 +18,8 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as XdgResizeEdge;
 
-use sctk::compositor::{CompositorState, Region};
-use sctk::seat::pointer::ThemedPointer;
+use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
+use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
@@ -27,11 +27,13 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
+use crate::cursor::CustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::make_wid;
+use crate::platform_impl::wayland::types::cursor::{CustomCursorInternal, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::WindowId;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
@@ -66,8 +68,7 @@ pub struct WindowState {
     /// The pointers observed on the window.
     pub pointers: Vec<Weak<ThemedPointer<WinitPointerData>>>,
 
-    /// Cursor icon.
-    pub cursor_icon: CursorIcon,
+    selected_cursor: SelectedCursor,
 
     /// Wether the cursor is visible.
     pub cursor_visible: bool,
@@ -178,7 +179,7 @@ impl WindowState {
             connection,
             csd_fails: false,
             cursor_grab_mode: GrabState::new(),
-            cursor_icon: CursorIcon::Default,
+            selected_cursor: Default::default(),
             cursor_visible: true,
             decorate: true,
             fractional_scale,
@@ -603,7 +604,10 @@ impl WindowState {
     /// Reload the cursor style on the given window.
     pub fn reload_cursor_style(&mut self) {
         if self.cursor_visible {
-            self.set_cursor(self.cursor_icon);
+            match &self.selected_cursor {
+                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
+            }
         } else {
             self.set_cursor_visible(self.cursor_visible);
         }
@@ -692,7 +696,11 @@ impl WindowState {
     ///
     /// Providing `None` will hide the cursor.
     pub fn set_cursor(&mut self, cursor_icon: CursorIcon) {
-        self.cursor_icon = cursor_icon;
+        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
+            cursor.destroy(&self.connection);
+        }
+
+        self.selected_cursor = SelectedCursor::Named(cursor_icon);
 
         if !self.cursor_visible {
             return;
@@ -703,6 +711,46 @@ impl WindowState {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
         })
+    }
+
+    pub fn set_custom_cursor(&mut self, cursor: CustomCursor) {
+        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
+            cursor.destroy(&self.connection);
+        }
+
+        let cursor = CustomCursorInternal::new(&self.connection, &self.shm, &cursor.inner);
+
+        if self.cursor_visible {
+            self.apply_custom_cursor(&cursor);
+        }
+
+        self.selected_cursor = SelectedCursor::Custom(cursor);
+    }
+
+    pub fn apply_custom_cursor(&self, cursor: &CustomCursorInternal) {
+        self.apply_on_poiner(|pointer, _| {
+            let surface = pointer.surface();
+
+            let scale = surface
+                .data::<SurfaceData>()
+                .unwrap()
+                .surface_data()
+                .scale_factor();
+            surface.set_buffer_scale(scale);
+            surface.attach(Some(&cursor.buffer), 0, 0);
+            surface.damage_buffer(0, 0, cursor.w, cursor.h);
+            surface.commit();
+
+            let serial = pointer
+                .pointer()
+                .data::<WinitPointerData>()
+                .and_then(|data| data.pointer_data().latest_enter_serial())
+                .unwrap();
+
+            pointer
+                .pointer()
+                .set_cursor(serial, Some(surface), cursor.hot_x, cursor.hot_y);
+        });
     }
 
     /// Set maximum inner window size.
@@ -839,7 +887,10 @@ impl WindowState {
         self.cursor_visible = cursor_visible;
 
         if self.cursor_visible {
-            self.set_cursor(self.cursor_icon);
+            match &self.selected_cursor {
+                SelectedCursor::Named(icon) => self.set_cursor(*icon),
+                SelectedCursor::Custom(cursor) => self.apply_custom_cursor(cursor),
+            }
         } else {
             for pointer in self.pointers.iter().filter_map(|pointer| pointer.upgrade()) {
                 let latest_enter_serial = pointer.pointer().winit_data().latest_enter_serial();
@@ -1028,6 +1079,10 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
+        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
+            cursor.destroy(&self.connection);
+        }
+
         if let Some(blur) = self.blur.take() {
             blur.release();
         }

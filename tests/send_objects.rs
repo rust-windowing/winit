@@ -28,3 +28,8 @@ fn ids_send() {
     needs_send::<winit::event::DeviceId>();
     needs_send::<winit::monitor::MonitorHandle>();
 }
+
+#[test]
+fn custom_cursor_send() {
+    needs_send::<winit::cursor::CustomCursor>();
+}

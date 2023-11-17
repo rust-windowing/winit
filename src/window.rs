@@ -2,6 +2,7 @@
 use std::fmt;
 
 use crate::{
+    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
@@ -1344,6 +1345,13 @@ impl Window {
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window
             .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
+        let cursor = cursor.clone();
+        self.window
+            .maybe_queue_on_main(move |w| w.set_custom_cursor(cursor))
     }
 
     /// Changes the position of the cursor in window coordinates.

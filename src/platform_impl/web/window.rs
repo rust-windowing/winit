@@ -1,3 +1,4 @@
+use crate::cursor::CustomCursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -7,10 +8,10 @@ use crate::window::{
 };
 use crate::SendSyncWrapper;
 
-use web_sys::HtmlCanvasElement;
-
+use super::cursor::{CustomCursorInternal, SelectedCursor};
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
+use web_sys::HtmlCanvasElement;
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -24,7 +25,7 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    previous_pointer: RefCell<&'static str>,
+    selected_cursor: RefCell<SelectedCursor>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -53,7 +54,7 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            previous_pointer: RefCell::new("auto"),
+            selected_cursor: Default::default(),
             destroy_fn: Some(destroy_fn),
         };
 
@@ -195,8 +196,18 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        *self.previous_pointer.borrow_mut() = cursor.name();
+        *self.selected_cursor.borrow_mut() = SelectedCursor::Named(cursor);
         self.canvas.borrow().style().set("cursor", cursor.name());
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        let new_cursor = CustomCursorInternal::new(self.canvas.borrow().document(), &cursor.inner);
+        self.canvas
+            .borrow()
+            .style()
+            .set("cursor", new_cursor.style());
+        *self.selected_cursor.borrow_mut() = SelectedCursor::Custom(new_cursor);
     }
 
     #[inline]
@@ -225,10 +236,12 @@ impl Inner {
         if !visible {
             self.canvas.borrow().style().set("cursor", "none");
         } else {
-            self.canvas
-                .borrow()
-                .style()
-                .set("cursor", &self.previous_pointer.borrow());
+            let selected = &*self.selected_cursor.borrow();
+            let style = match selected {
+                SelectedCursor::Named(cursor) => cursor.name(),
+                SelectedCursor::Custom(cursor) => cursor.style(),
+            };
+            self.canvas.borrow().style().set("cursor", style);
         }
     }
 

@@ -15,6 +15,7 @@ use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
 
+use crate::cursor::CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
@@ -504,6 +505,11 @@ impl Window {
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window_state.lock().unwrap().set_cursor(cursor);
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        self.window_state.lock().unwrap().set_custom_cursor(cursor);
     }
 
     #[inline]

@@ -2,13 +2,14 @@ use once_cell::sync::Lazy;
 
 use icrate::ns_string;
 use icrate::Foundation::{
-    NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSString,
+    NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize, NSString,
 };
 use objc2::rc::{DefaultId, Id};
 use objc2::runtime::Sel;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, sel, ClassType};
 
-use super::NSImage;
+use super::{NSBitmapImageRep, NSImage};
+use crate::cursor::CursorImage;
 use crate::window::CursorIcon;
 
 extern_class!(
@@ -231,6 +232,23 @@ impl NSCursor {
             CursorIcon::Cell => Self::cellCursor(),
             _ => Default::default(),
         }
+    }
+
+    pub fn from_image(image: &CursorImage) -> Id<Self> {
+        let w = image.width;
+        let h = image.height;
+
+        let bitmap = NSBitmapImageRep::init_rgba(w as isize, h as isize);
+        let bitmap_data =
+            unsafe { std::slice::from_raw_parts_mut(bitmap.bitmap_data(), (w * h * 4) as usize) };
+        bitmap_data.copy_from_slice(&image.rgba);
+
+        let nsimage = NSImage::init_with_size(NSSize::new(w.into(), h.into()));
+        nsimage.add_representation(&bitmap);
+
+        let hotspot = NSPoint::new(image.hotspot_x as f64, image.hotspot_y as f64);
+
+        NSCursor::new(&nsimage, hotspot)
     }
 }
 

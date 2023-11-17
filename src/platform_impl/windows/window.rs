@@ -55,6 +55,7 @@ use windows_sys::Win32::{
 };
 
 use crate::{
+    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
@@ -66,13 +67,13 @@ use crate::{
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
+        icon::{self, IconType, WinCursor},
         ime::ImeContext,
         keyboard::KeyEventBuilder,
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -396,10 +397,20 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state_lock().mouse.cursor = cursor;
+        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(cursor);
         self.thread_executor.execute_in_thread(move || unsafe {
             let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
             SetCursor(cursor);
+        });
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        let new_cursor = WinCursor::new(&cursor.inner);
+        let handle = new_cursor.as_raw_handle();
+        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor);
+        self.thread_executor.execute_in_thread(move || unsafe {
+            SetCursor(handle);
         });
     }
 

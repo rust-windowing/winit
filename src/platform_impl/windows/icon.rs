@@ -1,18 +1,21 @@
-use std::{fmt, io, mem, path::Path, sync::Arc};
+use std::{ffi::c_void, fmt, io, mem, path::Path, sync::Arc};
 
+use cursor_icon::CursorIcon;
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
+        Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, ReleaseDC, SetBitmapBits},
         UI::WindowsAndMessaging::{
-            CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
-            IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
+            CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW,
+            HCURSOR, HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE,
+            LR_LOADFROMFILE, WM_SETICON,
         },
     },
 };
 
-use crate::dpi::PhysicalSize;
 use crate::icon::*;
+use crate::{cursor::CursorImage, dpi::PhysicalSize};
 
 use super::util;
 
@@ -158,5 +161,95 @@ impl fmt::Debug for WinIcon {
 pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     unsafe {
         SendMessageW(hwnd, WM_SETICON, icon_type as usize, 0);
+    }
+}
+
+#[derive(Debug)]
+struct RaiiCursor {
+    handle: HCURSOR,
+}
+
+#[derive(Clone, Debug)]
+pub struct WinCursor {
+    inner: Arc<RaiiCursor>,
+}
+
+impl WinCursor {
+    pub fn as_raw_handle(&self) -> HICON {
+        self.inner.handle
+    }
+
+    fn from_handle(handle: HCURSOR) -> Self {
+        Self {
+            inner: Arc::new(RaiiCursor { handle }),
+        }
+    }
+
+    pub fn new(image: &CursorImage) -> Self {
+        let mut bgra = image.rgba.clone();
+        bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+
+        let w = image.width as i32;
+        let h = image.height as i32;
+
+        let handle = unsafe {
+            let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
+            let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
+            if hbm_mask == 0 {
+                panic!("Failed to create mask bitmap");
+            }
+
+            let hdc_screen = GetDC(0);
+            if hdc_screen == 0 {
+                panic!("Failed to get screen DC");
+            }
+
+            let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
+            if hbm_color == 0 {
+                panic!("Failed to create color bitmap");
+            }
+
+            if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
+                panic!("Failed to set bitmap bits");
+            };
+
+            if ReleaseDC(0, hdc_screen) == 0 {
+                panic!("Failed to release screen DC");
+            }
+
+            let icon_info = ICONINFO {
+                fIcon: 0,
+                xHotspot: image.hotspot_x,
+                yHotspot: image.hotspot_y,
+                hbmMask: hbm_mask,
+                hbmColor: hbm_color,
+            };
+
+            CreateIconIndirect(&icon_info as *const _)
+        };
+
+        if handle == 0 {
+            panic!("Failed to create icon");
+        }
+
+        Self::from_handle(handle)
+    }
+}
+
+impl Drop for RaiiCursor {
+    fn drop(&mut self) {
+        unsafe { DestroyCursor(self.handle) };
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SelectedCursor {
+    Named(CursorIcon),
+    Custom(WinCursor),
+}
+
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        Self::Named(Default::default())
     }
 }

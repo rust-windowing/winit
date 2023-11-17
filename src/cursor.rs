@@ -1,0 +1,150 @@
+use core::fmt;
+use std::{error::Error, sync::Arc};
+
+use crate::{icon::PIXEL_SIZE, platform_impl::PlatformCustomCursor};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomCursor {
+    pub(crate) inner: Arc<PlatformCustomCursor>,
+}
+
+impl CustomCursor {
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadImage> {
+        Ok(Self {
+            inner: PlatformCustomCursor::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?
+                .into(),
+        })
+    }
+}
+
+/// Platforms that don't support cursors will export this as `PlatformCustomCursor`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NoCustomCursor;
+
+#[allow(dead_code)]
+impl NoCustomCursor {
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadImage> {
+        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
+        Ok(Self)
+    }
+}
+
+#[derive(Debug)]
+/// An error produced when using [`Icon::from_rgba`] with invalid arguments.
+pub enum BadImage {
+    /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
+    /// safely interpreted as 32bpp RGBA pixels.
+    ByteCountNotDivisibleBy4 { byte_count: usize },
+    /// Produced when the number of pixels (`rgba.len() / 4`) isn't equal to `width * height`.
+    /// At least one of your arguments is incorrect.
+    DimensionsVsPixelCount {
+        width: u32,
+        height: u32,
+        width_x_height: usize,
+        pixel_count: usize,
+    },
+    /// Produced when the hotspot is outside the image bounds
+    HotspotOutOfBounds {
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    },
+}
+
+impl fmt::Display for BadImage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BadImage::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
+                "The length of the `rgba` argument ({byte_count:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
+            ),
+            BadImage::DimensionsVsPixelCount {
+                width,
+                height,
+                width_x_height,
+                pixel_count,
+            } => write!(f,
+                "The specified dimensions ({width:?}x{height:?}) don't match the number of pixels supplied by the `rgba` argument ({pixel_count:?}). For those dimensions, the expected pixel count is {width_x_height:?}.",
+            ),
+            BadImage::HotspotOutOfBounds {
+                width,
+                height,
+                hotspot_x,
+                hotspot_y,
+            } => write!(f,
+                "The specified hotspot ({hotspot_x:?}, {hotspot_y:?}) is outside the image bounds ({width:?}x{height:?}).",
+            ),
+        }
+    }
+}
+
+impl Error for BadImage {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(self)
+    }
+}
+
+/// Platforms export this directly as `PlatformCustomCursor` if they need to only work with images.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CursorImage {
+    pub(crate) rgba: Vec<u8>,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) hotspot_x: u32,
+    pub(crate) hotspot_y: u32,
+}
+
+#[allow(dead_code)]
+impl CursorImage {
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u32,
+        height: u32,
+        hotspot_x: u32,
+        hotspot_y: u32,
+    ) -> Result<Self, BadImage> {
+        if rgba.len() % PIXEL_SIZE != 0 {
+            return Err(BadImage::ByteCountNotDivisibleBy4 {
+                byte_count: rgba.len(),
+            });
+        }
+        let pixel_count = rgba.len() / PIXEL_SIZE;
+        if pixel_count != (width * height) as usize {
+            return Err(BadImage::DimensionsVsPixelCount {
+                width,
+                height,
+                width_x_height: (width * height) as usize,
+                pixel_count,
+            });
+        }
+
+        if hotspot_x >= width || hotspot_y >= height {
+            return Err(BadImage::HotspotOutOfBounds {
+                width,
+                height,
+                hotspot_x,
+                hotspot_y,
+            });
+        }
+
+        Ok(CursorImage {
+            rgba,
+            width,
+            height,
+            hotspot_x,
+            hotspot_y,
+        })
+    }
+}

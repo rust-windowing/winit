@@ -168,6 +168,7 @@ wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optiona
 x11-dl = { version = "2.18.5", optional = true }
 x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
 xkbcommon-dl = "0.4.0"
+memfd = "0.6.4"
 
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.42", default-features = false }
@@ -218,7 +219,7 @@ web-time = "0.2"
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_log = "1"
-web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
+web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d', 'Url', 'ImageData'] }
 
 [workspace]
 members = [

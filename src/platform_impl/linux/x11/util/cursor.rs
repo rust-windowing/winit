@@ -1,11 +1,63 @@
-use std::ffi::CString;
-use std::iter;
+use core::slice;
+use std::{ffi::CString, iter};
 
 use x11rb::connection::Connection;
 
-use crate::window::CursorIcon;
+use crate::{cursor::CursorImage, window::CursorIcon};
 
 use super::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CustomCursorInternal(ffi::Cursor);
+
+impl CustomCursorInternal {
+    pub unsafe fn new(
+        xcursor: &ffi::Xcursor,
+        display: *mut ffi::Display,
+        image: &CursorImage,
+    ) -> Self {
+        unsafe {
+            let ximage = (xcursor.XcursorImageCreate)(image.width as i32, image.height as i32);
+            if ximage.is_null() {
+                panic!("failed to allocate cursor image");
+            }
+            (*ximage).xhot = image.hotspot_x;
+            (*ximage).yhot = image.hotspot_y;
+            (*ximage).delay = 0;
+
+            let dst =
+                slice::from_raw_parts_mut((*ximage).pixels, (image.width * image.height) as usize);
+            for (i, chunk) in image.rgba.chunks_exact(4).enumerate() {
+                dst[i] = (chunk[0] as u32) << 16
+                    | (chunk[1] as u32) << 8
+                    | (chunk[2] as u32)
+                    | (chunk[3] as u32) << 24;
+            }
+
+            let cursor = (xcursor.XcursorImageLoadCursor)(display, ximage);
+            (xcursor.XcursorImageDestroy)(ximage);
+            Self(cursor)
+        }
+    }
+
+    pub unsafe fn destroy(&self, xlib: &ffi::Xlib, display: *mut ffi::Display) {
+        unsafe {
+            (xlib.XFreeCursor)(display, self.0);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCursor {
+    Custom(CustomCursorInternal),
+    Named(CursorIcon),
+}
+
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        SelectedCursor::Named(Default::default())
+    }
+}
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
@@ -17,6 +69,11 @@ impl XConnection {
             .or_insert_with(|| self.get_cursor(cursor));
 
         self.update_cursor(window, cursor)
+            .expect("Failed to set cursor");
+    }
+
+    pub fn set_custom_cursor(&self, window: xproto::Window, cursor: CustomCursorInternal) {
+        self.update_cursor(window, cursor.0)
             .expect("Failed to set cursor");
     }
 
