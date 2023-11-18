@@ -61,28 +61,24 @@ impl CustomCursorInternal {
     }
 
     fn from_image(document: &Document, image: &CursorImage) -> Self {
-        let cursor_icon_canvas = document
-            .create_element("canvas")
-            .unwrap()
-            .dyn_into::<HtmlCanvasElement>()
-            .unwrap();
+        let cursor_icon_canvas: HtmlCanvasElement =
+            document.create_element("canvas").unwrap().unchecked_into();
 
         #[allow(clippy::disallowed_methods)]
         cursor_icon_canvas.set_width(image.width);
         #[allow(clippy::disallowed_methods)]
         cursor_icon_canvas.set_height(image.height);
 
-        let context = cursor_icon_canvas
+        let context: CanvasRenderingContext2d = cursor_icon_canvas
             .get_context("2d")
             .unwrap()
             .unwrap()
-            .dyn_into::<CanvasRenderingContext2d>()
-            .unwrap();
+            .unchecked_into();
 
+        // Can't create array directly when backed by SharedArrayBuffer.
+        // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
         #[cfg(target_feature = "atomics")]
         let image_data = {
-            // Can't create array directly when backed by SharedArrayBuffer.
-            // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
             use js_sys::{Uint8Array, Uint8ClampedArray};
             use wasm_bindgen::prelude::wasm_bindgen;
             use wasm_bindgen::JsValue;

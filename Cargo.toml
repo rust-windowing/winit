@@ -191,6 +191,7 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'ImageData',
     'IntersectionObserver',
     'IntersectionObserverEntry',
     'KeyboardEvent',
@@ -207,7 +208,8 @@ features = [
     'ResizeObserverSize',
     'VisibilityState',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'Url',
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -219,7 +221,7 @@ web-time = "0.2"
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_log = "1"
-web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d', 'Url', 'ImageData'] }
+web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 
 [workspace]
 members = [
