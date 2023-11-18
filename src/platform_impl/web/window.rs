@@ -8,7 +8,7 @@ use crate::window::{
 };
 use crate::SendSyncWrapper;
 
-use super::cursor::{CustomCursorInternal, SelectedCursor};
+use super::cursor::SelectedCursor;
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
@@ -202,12 +202,14 @@ impl Inner {
 
     #[inline]
     pub fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let new_cursor = CustomCursorInternal::new(self.canvas.borrow().document(), &cursor.inner);
-        self.canvas
-            .borrow()
-            .style()
-            .set("cursor", new_cursor.style());
-        *self.selected_cursor.borrow_mut() = SelectedCursor::Custom(new_cursor);
+        let canvas = self.canvas.borrow();
+        let new_cursor = cursor.inner.build(
+            canvas.window(),
+            canvas.document(),
+            canvas.style(),
+            self.selected_cursor.take(),
+        );
+        *self.selected_cursor.borrow_mut() = new_cursor;
     }
 
     #[inline]
@@ -236,12 +238,9 @@ impl Inner {
         if !visible {
             self.canvas.borrow().style().set("cursor", "none");
         } else {
-            let selected = &*self.selected_cursor.borrow();
-            let style = match selected {
-                SelectedCursor::Named(cursor) => cursor.name(),
-                SelectedCursor::Custom(cursor) => cursor.style(),
-            };
-            self.canvas.borrow().style().set("cursor", style);
+            self.selected_cursor
+                .borrow()
+                .set_style(self.canvas.borrow().style());
         }
     }
 
