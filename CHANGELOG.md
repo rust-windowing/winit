@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On macOS, add services menu.
 - On macOS, remove spurious error logging when handling `Fn`.
 
 # 0.29.4
