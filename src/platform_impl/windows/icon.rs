@@ -185,7 +185,7 @@ impl WinCursor {
         }
     }
 
-    pub fn new(image: &CursorImage) -> Self {
+    pub fn new(image: &CursorImage) -> Result<Self, io::Error> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
@@ -196,25 +196,25 @@ impl WinCursor {
             let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
             let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
             if hbm_mask == 0 {
-                panic!("Failed to create mask bitmap");
+                return Err(io::Error::last_os_error());
             }
 
             let hdc_screen = GetDC(0);
             if hdc_screen == 0 {
-                panic!("Failed to get screen DC");
+                return Err(io::Error::last_os_error());
             }
 
             let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
             if hbm_color == 0 {
-                panic!("Failed to create color bitmap");
+                return Err(io::Error::last_os_error());
             }
 
             if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
-                panic!("Failed to set bitmap bits");
+                return Err(io::Error::last_os_error());
             };
 
             if ReleaseDC(0, hdc_screen) == 0 {
-                panic!("Failed to release screen DC");
+                return Err(io::Error::last_os_error());
             }
 
             let icon_info = ICONINFO {
@@ -229,10 +229,10 @@ impl WinCursor {
         };
 
         if handle == 0 {
-            panic!("Failed to create icon");
+            return Err(io::Error::last_os_error());
         }
 
-        Self::from_handle(handle)
+        Ok(Self::from_handle(handle))
     }
 }
 

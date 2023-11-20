@@ -406,7 +406,13 @@ impl Window {
 
     #[inline]
     pub fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let new_cursor = WinCursor::new(&cursor.inner);
+        let new_cursor = match WinCursor::new(&cursor.inner) {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                warn!("Failed to create custom cursor: {err}");
+                return;
+            }
+        };
         let handle = new_cursor.as_raw_handle();
         self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor);
         self.thread_executor.execute_in_thread(move || unsafe {
