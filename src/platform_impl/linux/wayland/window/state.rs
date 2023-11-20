@@ -23,6 +23,7 @@ use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
+use sctk::shm::slot::SlotPool;
 use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
@@ -61,6 +62,7 @@ pub struct WindowState {
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
+    pool: SlotPool,
 
     /// The last received configure.
     pub last_configure: Option<WindowConfigure>,
@@ -198,6 +200,7 @@ impl WindowState {
             resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
+            pool: SlotPool::new(4, &winit_state.shm).unwrap(),
             size: initial_size.to_logical(1.),
             stateless_size: initial_size.to_logical(1.),
             initial_size: Some(initial_size),
@@ -696,10 +699,6 @@ impl WindowState {
     ///
     /// Providing `None` will hide the cursor.
     pub fn set_cursor(&mut self, cursor_icon: CursorIcon) {
-        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
-            cursor.destroy(&self.connection);
-        }
-
         self.selected_cursor = SelectedCursor::Named(cursor_icon);
 
         if !self.cursor_visible {
@@ -714,11 +713,7 @@ impl WindowState {
     }
 
     pub fn set_custom_cursor(&mut self, cursor: CustomCursor) {
-        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
-            cursor.destroy(&self.connection);
-        }
-
-        let cursor = CustomCursorInternal::new(&self.connection, &self.shm, &cursor.inner);
+        let cursor = CustomCursorInternal::new(&mut self.pool, &cursor.inner);
 
         if self.cursor_visible {
             self.apply_custom_cursor(&cursor);
@@ -737,7 +732,7 @@ impl WindowState {
                 .surface_data()
                 .scale_factor();
             surface.set_buffer_scale(scale);
-            surface.attach(Some(&cursor.buffer), 0, 0);
+            surface.attach(Some(cursor.buffer.wl_buffer()), 0, 0);
             surface.damage_buffer(0, 0, cursor.w, cursor.h);
             surface.commit();
 
@@ -749,7 +744,7 @@ impl WindowState {
 
             pointer
                 .pointer()
-                .set_cursor(serial, Some(surface), cursor.hot_x, cursor.hot_y);
+                .set_cursor(serial, Some(surface), cursor.hotspot_x, cursor.hotspot_y);
         });
     }
 
@@ -1079,10 +1074,6 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        if let SelectedCursor::Custom(cursor) = &self.selected_cursor {
-            cursor.destroy(&self.connection);
-        }
-
         if let Some(blur) = self.blur.take() {
             blur.release();
         }
