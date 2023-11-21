@@ -42,7 +42,7 @@ impl NoCustomCursor {
 }
 
 #[derive(Debug)]
-/// An error produced when using [`Icon::from_rgba`] with invalid arguments.
+/// An error produced when using [`CustomCursor::from_rgba`] with invalid arguments.
 pub enum BadImage {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.
