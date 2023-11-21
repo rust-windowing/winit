@@ -90,11 +90,7 @@ impl fmt::Display for BadImage {
     }
 }
 
-impl Error for BadImage {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(self)
-    }
-}
+impl Error for BadImage {}
 
 /// Platforms export this directly as `PlatformCustomCursor` if they need to only work with images.
 #[derive(Debug, Clone, PartialEq, Eq)]
