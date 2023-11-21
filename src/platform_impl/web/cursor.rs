@@ -121,7 +121,7 @@ impl From<SelectedCursor> for Previous {
         match value {
             SelectedCursor::Named(icon) => Self::Named(icon),
             SelectedCursor::Url(url) => Self::Url(url),
-            SelectedCursor::Image(image) => match Rc::into_inner(image).unwrap().into_inner() {
+            SelectedCursor::Image(image) => match Rc::try_unwrap(image).unwrap().into_inner() {
                 CursorImageState::Loading { previous, .. } => previous,
                 CursorImageState::Ready(internal) => Self::Image(internal),
             },
