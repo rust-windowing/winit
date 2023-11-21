@@ -35,7 +35,7 @@ extern_methods!(
         pub fn init_rgba(width: NSInteger, height: NSInteger) -> Id<Self> {
             unsafe {
                 msg_send_id![Self::alloc(),
-                    initWithBitmapDataPlanes: std::ptr::null_mut() as *mut *mut c_uchar,
+                    initWithBitmapDataPlanes: std::ptr::null_mut::<*mut c_uchar>(),
                     pixelsWide: width,
                     pixelsHigh: height,
                     bitsPerSample: 8 as NSInteger,
