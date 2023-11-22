@@ -1430,46 +1430,13 @@ impl<T: 'static> EventProcessor<T> {
                     .find(|prev_monitor| prev_monitor.name == new_monitor.name)
                     .map(|prev_monitor| prev_monitor.scale_factor);
                 if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
-                    for (window_id, window) in wt.windows.borrow().iter() {
+                    for (_, window) in wt.windows.borrow().iter() {
                         if let Some(window) = window.upgrade() {
-                            // Check if the window is on this monitor
-                            let monitor = window.shared_state_lock().last_monitor.clone();
-                            if monitor.name == new_monitor.name {
-                                let (width, height) = window.inner_size_physical();
-                                let (new_width, new_height) = window.adjust_for_dpi(
-                                    // If we couldn't determine the previous scale
-                                    // factor (e.g., because all monitors were closed
-                                    // before), just pick whatever the current monitor
-                                    // has set as a baseline.
-                                    maybe_prev_scale_factor.unwrap_or(monitor.scale_factor),
-                                    new_monitor.scale_factor,
-                                    width,
-                                    height,
-                                    &window.shared_state_lock(),
-                                );
-
-                                let window_id = crate::window::WindowId(*window_id);
-                                let old_inner_size = PhysicalSize::new(width, height);
-                                let inner_size =
-                                    Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::ScaleFactorChanged {
-                                        scale_factor: new_monitor.scale_factor,
-                                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                            &inner_size,
-                                        )),
-                                    },
-                                });
-
-                                let new_inner_size = *inner_size.lock().unwrap();
-                                drop(inner_size);
-
-                                if new_inner_size != old_inner_size {
-                                    let (new_width, new_height) = new_inner_size.into();
-                                    window.request_inner_size_physical(new_width, new_height);
-                                }
-                            }
+                            window.refresh_dpi_for_monitor(
+                                &new_monitor,
+                                maybe_prev_scale_factor,
+                                &mut *callback,
+                            )
                         }
                     }
                 }
