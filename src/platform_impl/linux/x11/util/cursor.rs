@@ -1,5 +1,4 @@
-use core::slice;
-use std::{ffi::CString, iter};
+use std::{ffi::CString, iter, slice};
 
 use x11rb::connection::Connection;
 
