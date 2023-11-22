@@ -1,7 +1,7 @@
 //! The state of the window, which is shared with the event-loop.
 
 use std::num::NonZeroU32;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use log::{info, warn};
@@ -62,7 +62,9 @@ pub struct WindowState {
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
-    pool: SlotPool,
+
+    // A shared pool where to allocate custom cursors.
+    custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
     /// The last received configure.
     pub last_configure: Option<WindowConfigure>,
@@ -200,7 +202,7 @@ impl WindowState {
             resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
-            pool: SlotPool::new(4, &winit_state.shm).unwrap(),
+            custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
             size: initial_size.to_logical(1.),
             stateless_size: initial_size.to_logical(1.),
             initial_size: Some(initial_size),
@@ -713,7 +715,10 @@ impl WindowState {
     }
 
     pub fn set_custom_cursor(&mut self, cursor: CustomCursor) {
-        let cursor = CustomCursorInternal::new(&mut self.pool, &cursor.inner);
+        let cursor = {
+            let mut pool = self.custom_cursor_pool.lock().unwrap();
+            CustomCursorInternal::new(&mut pool, &cursor.inner)
+        };
 
         if self.cursor_visible {
             self.apply_custom_cursor(&cursor);
@@ -724,6 +729,8 @@ impl WindowState {
 
     pub fn apply_custom_cursor(&self, cursor: &CustomCursorInternal) {
         self.apply_on_poiner(|pointer, _| {
+            // Adapted from https://github.com/Smithay/client-toolkit/blob/6e4b95c967b1e6893fcb596db8888b16962c302a/src/seat/pointer/mod.rs#L452-L496
+
             let surface = pointer.surface();
 
             let scale = surface
@@ -731,9 +738,14 @@ impl WindowState {
                 .unwrap()
                 .surface_data()
                 .scale_factor();
+
             surface.set_buffer_scale(scale);
             surface.attach(Some(cursor.buffer.wl_buffer()), 0, 0);
-            surface.damage_buffer(0, 0, cursor.w, cursor.h);
+            if surface.version() >= 4 {
+                surface.damage_buffer(0, 0, cursor.w, cursor.h);
+            } else {
+                surface.damage(0, 0, cursor.w / scale, cursor.h / scale);
+            }
             surface.commit();
 
             let serial = pointer
@@ -742,9 +754,12 @@ impl WindowState {
                 .and_then(|data| data.pointer_data().latest_enter_serial())
                 .unwrap();
 
-            pointer
-                .pointer()
-                .set_cursor(serial, Some(surface), cursor.hotspot_x, cursor.hotspot_y);
+            pointer.pointer().set_cursor(
+                serial,
+                Some(surface),
+                cursor.hotspot_x / scale,
+                cursor.hotspot_y / scale,
+            );
         });
     }
 

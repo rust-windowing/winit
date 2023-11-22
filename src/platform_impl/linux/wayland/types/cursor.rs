@@ -1,10 +1,6 @@
-use std::sync::Arc;
-
 use cursor_icon::CursorIcon;
-use rustix::fd::OwnedFd;
+use sctk::reexports::client::protocol::wl_shm::Format;
 use sctk::shm::slot::{Buffer, SlotPool};
-use wayland_backend::client::ObjectData;
-use wayland_client::protocol::wl_shm::Format;
 
 use crate::cursor::CursorImage;
 
@@ -56,17 +52,4 @@ impl Default for SelectedCursor {
     fn default() -> Self {
         Self::Named(Default::default())
     }
-}
-
-struct IgnoreObjectData;
-
-impl ObjectData for IgnoreObjectData {
-    fn event(
-        self: Arc<Self>,
-        _: &wayland_client::backend::Backend,
-        _: wayland_client::backend::protocol::Message<wayland_client::backend::ObjectId, OwnedFd>,
-    ) -> Option<Arc<dyn ObjectData>> {
-        None
-    }
-    fn destroyed(&self, _: wayland_client::backend::ObjectId) {}
 }
