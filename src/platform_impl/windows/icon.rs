@@ -5,7 +5,9 @@ use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
-        Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, ReleaseDC, SetBitmapBits},
+        Graphics::Gdi::{
+            CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
+        },
         UI::WindowsAndMessaging::{
             CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW,
             HCURSOR, HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE,
@@ -164,24 +166,19 @@ pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     }
 }
 
-#[derive(Debug)]
-struct RaiiCursor {
-    handle: HCURSOR,
-}
-
 #[derive(Clone, Debug)]
 pub struct WinCursor {
-    inner: Arc<RaiiCursor>,
+    handle: Arc<HCURSOR>,
 }
 
 impl WinCursor {
-    pub fn as_raw_handle(&self) -> HICON {
-        self.inner.handle
+    pub fn as_raw_handle(&self) -> HCURSOR {
+        *self.handle
     }
 
     fn from_handle(handle: HCURSOR) -> Self {
         Self {
-            inner: Arc::new(RaiiCursor { handle }),
+            handle: Arc::new(handle),
         }
     }
 
@@ -192,28 +189,26 @@ impl WinCursor {
         let w = image.width as i32;
         let h = image.height as i32;
 
-        let handle = unsafe {
-            let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
-            let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
-            if hbm_mask == 0 {
-                return Err(io::Error::last_os_error());
-            }
-
+        unsafe {
             let hdc_screen = GetDC(0);
             if hdc_screen == 0 {
                 return Err(io::Error::last_os_error());
             }
-
             let hbm_color = CreateCompatibleBitmap(hdc_screen, w, h);
+            ReleaseDC(0, hdc_screen);
             if hbm_color == 0 {
                 return Err(io::Error::last_os_error());
             }
-
             if SetBitmapBits(hbm_color, bgra.len() as u32, bgra.as_ptr() as *const c_void) == 0 {
+                DeleteObject(hbm_color);
                 return Err(io::Error::last_os_error());
             };
 
-            if ReleaseDC(0, hdc_screen) == 0 {
+            // Mask created according to https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createbitmap#parameters
+            let mask_bits: Vec<u8> = vec![0xff; ((((w + 15) >> 4) << 1) * h) as usize];
+            let hbm_mask = CreateBitmap(w, h, 1, 1, mask_bits.as_ptr() as *const _);
+            if hbm_mask == 0 {
+                DeleteObject(hbm_color);
                 return Err(io::Error::last_os_error());
             }
 
@@ -225,20 +220,21 @@ impl WinCursor {
                 hbmColor: hbm_color,
             };
 
-            CreateIconIndirect(&icon_info as *const _)
-        };
+            let handle = CreateIconIndirect(&icon_info as *const _);
+            DeleteObject(hbm_color);
+            DeleteObject(hbm_mask);
+            if handle == 0 {
+                return Err(io::Error::last_os_error());
+            }
 
-        if handle == 0 {
-            return Err(io::Error::last_os_error());
+            Ok(Self::from_handle(handle))
         }
-
-        Ok(Self::from_handle(handle))
     }
 }
 
-impl Drop for RaiiCursor {
+impl Drop for WinCursor {
     fn drop(&mut self) {
-        unsafe { DestroyCursor(self.handle) };
+        unsafe { DestroyCursor(self.as_raw_handle()) };
     }
 }
 
