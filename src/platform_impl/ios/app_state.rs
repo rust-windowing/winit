@@ -200,6 +200,10 @@ impl AppState {
         )
     }
 
+    fn has_terminated(&self) -> bool {
+        matches!(self.state(), AppStateImpl::Terminated)
+    }
+
     fn will_launch_transition(&mut self, queued_event_handler: Box<dyn EventHandler>) {
         let (queued_windows, queued_events, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::NotLaunched {
@@ -243,7 +247,7 @@ impl AppState {
     fn wakeup_transition(&mut self) -> Option<EventWrapper> {
         // before `AppState::did_finish_launching` is called, pretend there is no running
         // event loop.
-        if !self.has_launched() {
+        if !self.has_launched() || self.has_terminated() {
             return None;
         }
 
@@ -390,7 +394,7 @@ impl AppState {
     }
 
     fn events_cleared_transition(&mut self) {
-        if !self.has_launched() {
+        if !self.has_launched() || self.has_terminated() {
             return;
         }
         let (waiting_event_handler, old) = match self.take_state() {
@@ -586,6 +590,10 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
     events: I,
 ) {
     let mut this = AppState::get_mut(mtm);
+    if this.has_terminated() {
+        return;
+    }
+
     let (mut event_handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
             UserCallbackTransitionResult::ReentrancyPrevented { queued_events } => {
@@ -737,7 +745,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
 
 pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
-    if !this.has_launched() {
+    if !this.has_launched() || this.has_terminated() {
         return;
     }
     match this.state_mut() {
