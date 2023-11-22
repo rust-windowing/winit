@@ -289,7 +289,7 @@ fn setup_control_flow_observers() {
             #[allow(non_upper_case_globals)]
             match activity {
                 kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(mtm),
-                kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                kCFRunLoopExit => {} // may happen when running on macOS
                 _ => unreachable!(),
             }
         }
@@ -304,7 +304,7 @@ fn setup_control_flow_observers() {
             #[allow(non_upper_case_globals)]
             match activity {
                 kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(mtm),
-                kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                kCFRunLoopExit => {} // may happen when running on macOS
                 _ => unreachable!(),
             }
         }
