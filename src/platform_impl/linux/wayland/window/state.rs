@@ -729,8 +729,6 @@ impl WindowState {
 
     pub fn apply_custom_cursor(&self, cursor: &CustomCursorInternal) {
         self.apply_on_poiner(|pointer, _| {
-            // Adapted from https://github.com/Smithay/client-toolkit/blob/6e4b95c967b1e6893fcb596db8888b16962c302a/src/seat/pointer/mod.rs#L452-L496
-
             let surface = pointer.surface();
 
             let scale = surface
