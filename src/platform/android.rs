@@ -84,5 +84,10 @@ impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
 /// use winit::platform::android::activity::AndroidApp;
 /// ```
 pub mod activity {
+    // We enable the `"native-activity"` feature just so that we can build the
+    // docs, but it'll be very confusing for users to see the docs with that
+    // feature enabled, so we avoid inlining it so that they're forced to view
+    // it on the crate's own docs.rs page.
+    #[doc(no_inline)]
     pub use android_activity::*;
 }
