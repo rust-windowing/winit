@@ -1415,30 +1415,33 @@ impl<T: 'static> EventProcessor<T> {
         let wt = get_xtarget(&self.target);
 
         // In the future, it would be quite easy to emit monitor hotplug events.
-        let prev_list = wt.xconn.invalidate_cached_monitor_list();
-        if let Some(prev_list) = prev_list {
-            let new_list = wt
-                .xconn
-                .available_monitors()
-                .expect("Failed to get monitor list");
-            for new_monitor in new_list {
-                // Previous list may be empty, in case of disconnecting and
-                // reconnecting the only one monitor. We still need to emit events in
-                // this case.
-                let maybe_prev_scale_factor = prev_list
-                    .iter()
-                    .find(|prev_monitor| prev_monitor.name == new_monitor.name)
-                    .map(|prev_monitor| prev_monitor.scale_factor);
-                if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
-                    for (_, window) in wt.windows.borrow().iter() {
-                        if let Some(window) = window.upgrade() {
-                            window.refresh_dpi_for_monitor(
-                                &new_monitor,
-                                maybe_prev_scale_factor,
-                                &mut *callback,
-                            )
-                        }
-                    }
+        let prev_list = {
+            let prev_list = wt.xconn.invalidate_cached_monitor_list();
+            match prev_list {
+                Some(prev_list) => prev_list,
+                None => return,
+            }
+        };
+
+        let new_list = wt
+            .xconn
+            .available_monitors()
+            .expect("Failed to get monitor list");
+        for new_monitor in new_list {
+            // Previous list may be empty, in case of disconnecting and
+            // reconnecting the only one monitor. We still need to emit events in
+            // this case.
+            let maybe_prev_scale_factor = prev_list
+                .iter()
+                .find(|prev_monitor| prev_monitor.name == new_monitor.name)
+                .map(|prev_monitor| prev_monitor.scale_factor);
+            if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
+                for window in wt.windows.borrow().iter().filter_map(|(_, w)| w.upgrade()) {
+                    window.refresh_dpi_for_monitor(
+                        &new_monitor,
+                        maybe_prev_scale_factor,
+                        &mut *callback,
+                    )
                 }
             }
         }
