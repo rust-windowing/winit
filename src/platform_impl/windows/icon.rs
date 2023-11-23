@@ -166,19 +166,24 @@ pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     }
 }
 
+#[derive(Debug)]
+struct RaiiCursor {
+    handle: HCURSOR,
+}
+
 #[derive(Clone, Debug)]
 pub struct WinCursor {
-    handle: Arc<HCURSOR>,
+    inner: Arc<RaiiCursor>,
 }
 
 impl WinCursor {
-    pub fn as_raw_handle(&self) -> HCURSOR {
-        *self.handle
+    pub fn as_raw_handle(&self) -> HICON {
+        self.inner.handle
     }
 
     fn from_handle(handle: HCURSOR) -> Self {
         Self {
-            handle: Arc::new(handle),
+            inner: Arc::new(RaiiCursor { handle }),
         }
     }
 
@@ -232,9 +237,9 @@ impl WinCursor {
     }
 }
 
-impl Drop for WinCursor {
+impl Drop for RaiiCursor {
     fn drop(&mut self) {
-        unsafe { DestroyCursor(self.as_raw_handle()) };
+        unsafe { DestroyCursor(self.handle) };
     }
 }
 
