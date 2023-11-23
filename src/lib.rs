@@ -172,7 +172,7 @@ extern crate bitflags;
 pub mod dpi;
 #[macro_use]
 pub mod error;
-pub mod cursor;
+mod cursor;
 pub mod event;
 pub mod event_loop;
 mod icon;

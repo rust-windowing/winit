@@ -3,6 +3,30 @@ use std::{error::Error, sync::Arc};
 
 use crate::{icon::PIXEL_SIZE, platform_impl::PlatformCustomCursor};
 
+/// Use a custom image as a cursor (mouse pointer).
+///
+/// ## Platform-specific
+///
+/// - **Web** Data URLs are used with [`CustomCursor::from_rgba`]. These have limited maximum sizes
+///     in browsers. They are generated asynchronously, so there can be latency when setting a
+///     cursor. On Firefox, a bug causes the cursor to not change until the mouse is moved.
+///
+/// # Examples
+///
+/// ```
+/// use winit::window::CustomCursor;
+///
+/// let w = 10;
+/// let h = 10;
+/// let rgba = vec![0xff_u8; (w * h * 4) as usize];
+/// let custom_cursor = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
+///
+/// #[cfg(target_family = "wasm")]
+/// let custom_cursor_url = {
+///     use winit::platform::web::CustomCursorExtWebSys;
+///     CustomCursor::from_url("http://localhost:3000/cursor.png", 0, 0).unwrap()
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomCursor {
     pub(crate) inner: Arc<PlatformCustomCursor>,

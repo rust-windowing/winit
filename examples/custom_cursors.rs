@@ -3,11 +3,10 @@
 #[cfg(not(wasm_platform))]
 use simple_logger::SimpleLogger;
 use winit::{
-    cursor::CustomCursor,
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::Key,
-    window::WindowBuilder,
+    window::{CustomCursor, WindowBuilder},
 };
 
 fn decode_cursor(bytes: &[u8]) -> CustomCursor {

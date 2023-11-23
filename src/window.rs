@@ -2,7 +2,6 @@
 use std::fmt;
 
 use crate::{
-    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
@@ -10,6 +9,7 @@ use crate::{
     platform_impl, SendSyncWrapper,
 };
 
+pub use crate::cursor::{BadImage, CustomCursor};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
@@ -1337,6 +1337,7 @@ impl Window {
 /// Cursor functions.
 impl Window {
     /// Modifies the cursor icon of the window.
+    /// Overwrites cursors set in [`Window::set_custom_cursor`].
     ///
     /// ## Platform-specific
     ///
@@ -1347,6 +1348,12 @@ impl Window {
             .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
     }
 
+    /// Modifies the cursor icon of the window with a custom cursor.
+    /// Overwrites cursors set in [`Window::set_cursor_icon`].
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
         let cursor = cursor.clone();
