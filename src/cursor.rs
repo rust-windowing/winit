@@ -7,12 +7,7 @@ use crate::platform_impl::PlatformCustomCursor;
 ///
 /// ## Platform-specific
 ///
-/// - **Web**
-///     Browsers have limits on cursor sizes. On Chromium, Firefox, and Safari, the maximum
-///     size in 128x128.
-///
-///     On Firefox, [a bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1336764) causes
-///     the cursor to not change until the mouse is moved.
+/// **Web**: Some browsers have limits on cursor sizes typically at 128x128.
 ///
 ///
 /// # Examples
