@@ -7,7 +7,11 @@ use crate::platform_impl::PlatformCustomCursor;
 ///
 /// ## Platform-specific
 ///
-/// - **Web** On Firefox, [a bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1336764) causes
+/// - **Web**
+///     Browsers have limits on cursor sizes. On Chromium, Firefox, and Safari, the maximum
+///     size in 128x128.
+///
+///     On Firefox, [a bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1336764) causes
 ///     the cursor to not change until the mouse is moved.
 ///
 ///
@@ -37,8 +41,8 @@ impl CustomCursor {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web** Uses data URLs. They have limited maximum sizes in browsers. They are
-    ///     generated asynchronously, so there can be latency when setting a cursor.
+    /// - **Web** Uses data URLs. They are generated asynchronously, so there can be latency when
+    ///     setting a cursor.
     pub fn from_rgba(
         rgba: impl Into<Vec<u8>>,
         width: u32,
