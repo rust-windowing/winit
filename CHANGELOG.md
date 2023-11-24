@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.4
+
 - Fix crash when running iOS app on macOS.
 - On X11, check common alternative cursor names when loading cursor.
 - On X11, reload the DPI after a property change event.
