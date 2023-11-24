@@ -40,15 +40,21 @@ impl CustomCursor {
     /// - **Web** Uses data URLs. They have limited maximum sizes in browsers. They are
     ///     generated asynchronously, so there can be latency when setting a cursor.
     pub fn from_rgba(
-        rgba: Vec<u8>,
+        rgba: impl Into<Vec<u8>>,
         width: u32,
         height: u32,
         hotspot_x: u32,
         hotspot_y: u32,
     ) -> Result<Self, BadImage> {
         Ok(Self {
-            inner: PlatformCustomCursor::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?
-                .into(),
+            inner: PlatformCustomCursor::from_rgba(
+                rgba.into(),
+                width,
+                height,
+                hotspot_x,
+                hotspot_y,
+            )?
+            .into(),
         })
     }
 }
