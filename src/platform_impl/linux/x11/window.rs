@@ -1545,12 +1545,6 @@ impl UnownedWindow {
             SelectedCursor::Named(cursor),
         );
 
-        if let SelectedCursor::Custom(old_cursor) = old_cursor {
-            unsafe {
-                old_cursor.destroy(&self.xconn.xlib, self.xconn.display);
-            }
-        }
-
         #[allow(clippy::mutex_atomic)]
         if SelectedCursor::Named(cursor) != old_cursor && *self.cursor_visible.lock().unwrap() {
             self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
@@ -1559,23 +1553,14 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let new_cursor = unsafe {
-            CustomCursorInternal::new(&self.xconn.xcursor, self.xconn.display, &cursor.inner)
-        };
-        let old_cursor = replace(
-            &mut *self.selected_cursor.lock().unwrap(),
-            SelectedCursor::Custom(new_cursor),
-        );
-        if let SelectedCursor::Custom(old_cursor) = old_cursor {
-            unsafe {
-                old_cursor.destroy(&self.xconn.xlib, self.xconn.display);
-            }
-        }
+        let new_cursor = unsafe { CustomCursorInternal::new(&self.xconn, &cursor.inner) };
 
         #[allow(clippy::mutex_atomic)]
         if *self.cursor_visible.lock().unwrap() {
-            self.xconn.set_custom_cursor(self.xwindow, new_cursor);
+            self.xconn.set_custom_cursor(self.xwindow, &new_cursor);
         }
+
+        *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(new_cursor);
     }
 
     #[inline]
@@ -1664,7 +1649,7 @@ impl UnownedWindow {
             return;
         }
         let cursor = if visible {
-            Some(*self.selected_cursor.lock().unwrap())
+            Some((*self.selected_cursor.lock().unwrap()).clone())
         } else {
             None
         };
@@ -1672,7 +1657,7 @@ impl UnownedWindow {
         drop(visible_lock);
         match cursor {
             Some(SelectedCursor::Custom(cursor)) => {
-                self.xconn.set_custom_cursor(self.xwindow, cursor);
+                self.xconn.set_custom_cursor(self.xwindow, &cursor);
             }
             Some(SelectedCursor::Named(cursor)) => {
                 self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
@@ -1991,17 +1976,6 @@ impl UnownedWindow {
 
     pub fn title(&self) -> String {
         String::new()
-    }
-}
-
-impl Drop for UnownedWindow {
-    #[inline]
-    fn drop(&mut self) {
-        if let SelectedCursor::Custom(cursor) = *self.selected_cursor.lock().unwrap() {
-            unsafe {
-                cursor.destroy(&self.xconn.xlib, self.xconn.display);
-            }
-        }
     }
 }
 
