@@ -22,6 +22,7 @@ use x11rb::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
     platform_impl::{
         x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
@@ -276,7 +277,8 @@ impl UnownedWindow {
                 | EventMask::KEYMAP_STATE
                 | EventMask::BUTTON_PRESS
                 | EventMask::BUTTON_RELEASE
-                | EventMask::POINTER_MOTION;
+                | EventMask::POINTER_MOTION
+                | EventMask::PROPERTY_CHANGE;
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
@@ -921,6 +923,51 @@ impl UnownedWindow {
                 .any(|atom: &xproto::Atom| *atom as xproto::Atom == hidden_atom),
             _ => false,
         })
+    }
+
+    /// Refresh the API for the given monitor.
+    #[inline]
+    pub(super) fn refresh_dpi_for_monitor<T: 'static>(
+        &self,
+        new_monitor: &X11MonitorHandle,
+        maybe_prev_scale_factor: Option<f64>,
+        mut callback: impl FnMut(Event<T>),
+    ) {
+        // Check if the self is on this monitor
+        let monitor = self.shared_state_lock().last_monitor.clone();
+        if monitor.name == new_monitor.name {
+            let (width, height) = self.inner_size_physical();
+            let (new_width, new_height) = self.adjust_for_dpi(
+                // If we couldn't determine the previous scale
+                // factor (e.g., because all monitors were closed
+                // before), just pick whatever the current monitor
+                // has set as a baseline.
+                maybe_prev_scale_factor.unwrap_or(monitor.scale_factor),
+                new_monitor.scale_factor,
+                width,
+                height,
+                &self.shared_state_lock(),
+            );
+
+            let window_id = crate::window::WindowId(self.id());
+            let old_inner_size = PhysicalSize::new(width, height);
+            let inner_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
+            callback(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::ScaleFactorChanged {
+                    scale_factor: new_monitor.scale_factor,
+                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&inner_size)),
+                },
+            });
+
+            let new_inner_size = *inner_size.lock().unwrap();
+            drop(inner_size);
+
+            if new_inner_size != old_inner_size {
+                let (new_width, new_height) = new_inner_size.into();
+                self.request_inner_size_physical(new_width, new_height);
+            }
+        }
     }
 
     fn set_minimized_inner(&self, minimized: bool) -> Result<VoidCookie<'_>, X11Error> {
