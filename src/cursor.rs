@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{error::Error, sync::Arc};
 
-use crate::{icon::PIXEL_SIZE, platform_impl::PlatformCustomCursor};
+use crate::platform_impl::PlatformCustomCursor;
 
 /// Use a custom image as a cursor (mouse pointer).
 ///
@@ -82,8 +82,8 @@ pub enum BadImage {
     DimensionsVsPixelCount {
         width: u32,
         height: u32,
-        width_x_height: usize,
-        pixel_count: usize,
+        width_x_height: u64,
+        pixel_count: u64,
     },
     /// Produced when the hotspot is outside the image bounds
     HotspotOutOfBounds {
@@ -132,6 +132,8 @@ pub struct CursorImage {
     pub(crate) hotspot_y: u32,
 }
 
+pub const PIXEL_SIZE: usize = 4;
+
 #[allow(dead_code)]
 impl CursorImage {
     pub fn from_rgba(
@@ -146,12 +148,14 @@ impl CursorImage {
                 byte_count: rgba.len(),
             });
         }
-        let pixel_count = rgba.len() / PIXEL_SIZE;
-        if pixel_count != (width * height) as usize {
+
+        let pixel_count = (rgba.len() / PIXEL_SIZE) as u64;
+        let width_x_height = width as u64 * height as u64;
+        if pixel_count != width_x_height {
             return Err(BadImage::DimensionsVsPixelCount {
                 width,
                 height,
-                width_x_height: (width * height) as usize,
+                width_x_height,
                 pixel_count,
             });
         }
