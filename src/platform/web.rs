@@ -204,6 +204,9 @@ pub enum PollStrategy {
 }
 
 pub trait CustomCursorExtWebSys {
+    /// Creates a new cursor from a URL pointing to an image.
+    /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
+    /// so the same image formats and paths are supported.
     fn from_url(url: String, hotspot_x: u32, hotspot_y: u32) -> Self;
 }
 

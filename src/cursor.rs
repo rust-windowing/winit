@@ -7,9 +7,9 @@ use crate::{icon::PIXEL_SIZE, platform_impl::PlatformCustomCursor};
 ///
 /// ## Platform-specific
 ///
-/// - **Web** Data URLs are used with [`CustomCursor::from_rgba`]. These have limited maximum sizes
-///     in browsers. They are generated asynchronously, so there can be latency when setting a
-///     cursor. On Firefox, a bug causes the cursor to not change until the mouse is moved.
+/// - **Web** On Firefox, [a bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1336764) causes
+///     the cursor to not change until the mouse is moved.
+///
 ///
 /// # Examples
 ///
@@ -33,6 +33,12 @@ pub struct CustomCursor {
 }
 
 impl CustomCursor {
+    /// Creates a new cursor from an rgba buffer.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web** Uses data URLs. They have limited maximum sizes in browsers. They are
+    ///     generated asynchronously, so there can be latency when setting a cursor.
     pub fn from_rgba(
         rgba: Vec<u8>,
         width: u32,
