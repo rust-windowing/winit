@@ -145,7 +145,7 @@ pub struct ITaskbarList3Vtbl {
     pub RegisterTab: unsafe extern "system" fn(
         This: *mut ITaskbarList3,
         hwndTab: HWND,
-        hwndMdi: HWND,
+        hwndMDI: HWND,
     ) -> HRESULT,
     pub UnregisterTab:
         unsafe extern "system" fn(This: *mut ITaskbarList3, hwndTab: HWND) -> HRESULT,
@@ -157,7 +157,7 @@ pub struct ITaskbarList3Vtbl {
     pub SetTabActive: unsafe extern "system" fn(
         This: *mut ITaskbarList3,
         hwndTab: HWND,
-        hwndMdi: HWND,
+        hwndMDI: HWND,
     ) -> HRESULT,
     pub ThumbBarAddButtons: unsafe extern "system" fn(
         This: *mut ITaskbarList3,
@@ -174,7 +174,7 @@ pub struct ITaskbarList3Vtbl {
     pub ThumbBarSetImageList: unsafe extern "system" fn(
         This: *mut ITaskbarList3,
         hwnd: HWND,
-        hIml: HIMAGELIST,
+        himl: HIMAGELIST,
     ) -> HRESULT,
     pub SetOverlayIcon: unsafe extern "system" fn(
         This: *mut ITaskbarList3,
