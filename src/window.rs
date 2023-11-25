@@ -1078,8 +1078,7 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Does nothing without a [transient activation], but queues the request
-    ///   for the next activation.
+    /// - **Web:** Does nothing without a [transient activation].
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
