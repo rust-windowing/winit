@@ -206,6 +206,7 @@ Legend:
 |Cursor locking          |❌       |✔️      |❌       |✔️          |**N/A**|**N/A**|✔️        |❌      |
 |Cursor confining        |✔️       |❌      |✔️       |✔️          |**N/A**|**N/A**|❌       |❌      |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |**N/A** |
+|Cursor image            |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |**N/A** |
 |Cursor hittest          |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|❌        |❌      |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |**N/A** |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |

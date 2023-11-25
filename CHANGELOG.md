@@ -11,6 +11,11 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
+  - Add `Window::set_custom_cursor`
+  - Add `CustomCursor`
+  - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
+  - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
 - On macOS, add services menu.
 - On macOS, remove spurious error logging when handling `Fn`.
 - On X11, fix an issue where floating point data from the server is
