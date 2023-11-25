@@ -125,6 +125,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting a menu bar
 * `WS_EX_NOREDIRECTIONBITMAP` support
 * Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
+* Setting the taskbar progress
 
 ### macOS
 * Window activation policy
