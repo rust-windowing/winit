@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, add `WindowExt::set_taskbar_progress`.
+
 # 0.29.4
 
 - Fix crash when running iOS app on macOS.
