@@ -240,7 +240,7 @@ impl NSCursor {
 
         let bitmap = NSBitmapImageRep::init_rgba(w as isize, h as isize);
         let bitmap_data =
-            unsafe { std::slice::from_raw_parts_mut(bitmap.bitmap_data(), (w * h * 4) as usize) };
+            unsafe { std::slice::from_raw_parts_mut(bitmap.bitmap_data(), image.rgba.len()) };
         bitmap_data.copy_from_slice(&image.rgba);
 
         let nsimage = NSImage::init_with_size(NSSize::new(w.into(), h.into()));

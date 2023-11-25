@@ -9,7 +9,7 @@ use crate::{
     platform_impl, SendSyncWrapper,
 };
 
-pub use crate::cursor::{BadImage, CustomCursor};
+pub use crate::cursor::{BadImage, CustomCursor, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]

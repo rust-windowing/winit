@@ -19,7 +19,7 @@ impl CustomCursorInternal {
             .create_buffer(
                 image.width as i32,
                 image.height as i32,
-                4 * image.width as i32,
+                4 * (image.width as i32),
                 Format::Argb8888,
             )
             .unwrap();

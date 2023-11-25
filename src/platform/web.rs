@@ -209,11 +209,11 @@ pub trait CustomCursorExtWebSys {
     /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
     ///
     /// [PNG]: https://en.wikipedia.org/wiki/PNG
-    fn from_url(url: String, hotspot_x: u32, hotspot_y: u32) -> Self;
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Self;
 }
 
 impl CustomCursorExtWebSys for CustomCursor {
-    fn from_url(url: String, hotspot_x: u32, hotspot_y: u32) -> Self {
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Self {
         Self {
             inner: PlatformCustomCursor::Url {
                 url,

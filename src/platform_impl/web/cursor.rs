@@ -21,18 +21,18 @@ pub enum WebCustomCursor {
     Image(CursorImage),
     Url {
         url: String,
-        hotspot_x: u32,
-        hotspot_y: u32,
+        hotspot_x: u16,
+        hotspot_y: u16,
     },
 }
 
 impl WebCustomCursor {
     pub fn from_rgba(
         rgba: Vec<u8>,
-        width: u32,
-        height: u32,
-        hotspot_x: u32,
-        hotspot_y: u32,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
     ) -> Result<Self, BadImage> {
         Ok(Self::Image(CursorImage::from_rgba(
             rgba, width, height, hotspot_x, hotspot_y,
@@ -134,8 +134,8 @@ pub enum CursorImageState {
     Loading {
         style: Style,
         previous: Previous,
-        hotspot_x: u32,
-        hotspot_y: u32,
+        hotspot_x: u16,
+        hotspot_y: u16,
     },
     Ready(WebCursorImage),
 }
@@ -167,15 +167,17 @@ impl CursorImageState {
             let array = Uint8Array::new_with_length(image.rgba.len() as u32);
             array.copy_from(&image.rgba);
             let array = Uint8ClampedArray::new(&array);
-            ImageDataExt::new(array, image.width)
+            ImageDataExt::new(array, image.width as u32)
                 .map(JsValue::from)
                 .map(ImageData::unchecked_from_js)
                 .unwrap()
         };
         #[cfg(not(target_feature = "atomics"))]
-        let image_data =
-            ImageData::new_with_u8_clamped_array(wasm_bindgen::Clamped(&image.rgba), image.width)
-                .unwrap();
+        let image_data = ImageData::new_with_u8_clamped_array(
+            wasm_bindgen::Clamped(&image.rgba),
+            image.width as u32,
+        )
+        .unwrap();
 
         let mut options = ImageBitmapOptions::new();
         options.premultiply_alpha(PremultiplyAlpha::None);
@@ -209,9 +211,9 @@ impl CursorImageState {
                 let canvas: HtmlCanvasElement =
                     document.create_element("canvas").unwrap().unchecked_into();
                 #[allow(clippy::disallowed_methods)]
-                canvas.set_width(width);
+                canvas.set_width(width as u32);
                 #[allow(clippy::disallowed_methods)]
-                canvas.set_height(height);
+                canvas.set_height(height as u32);
 
                 let context: ImageBitmapRenderingContext = canvas
                     .get_context("bitmaprenderer")

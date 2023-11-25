@@ -219,8 +219,8 @@ impl WinCursor {
 
             let icon_info = ICONINFO {
                 fIcon: 0,
-                xHotspot: image.hotspot_x,
-                yHotspot: image.hotspot_y,
+                xHotspot: image.hotspot_x as u32,
+                yHotspot: image.hotspot_y as u32,
                 hbmMask: hbm_mask,
                 hbmColor: hbm_color,
             };

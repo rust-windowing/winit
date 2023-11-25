@@ -41,14 +41,13 @@ impl CustomCursorInternal {
             if ximage.is_null() {
                 panic!("failed to allocate cursor image");
             }
-            (*ximage).xhot = image.hotspot_x;
-            (*ximage).yhot = image.hotspot_y;
+            (*ximage).xhot = image.hotspot_x as u32;
+            (*ximage).yhot = image.hotspot_y as u32;
             (*ximage).delay = 0;
 
-            let dst =
-                slice::from_raw_parts_mut((*ximage).pixels, (image.width * image.height) as usize);
-            for (i, chunk) in image.rgba.chunks_exact(4).enumerate() {
-                dst[i] = (chunk[0] as u32) << 16
+            let dst = slice::from_raw_parts_mut((*ximage).pixels, image.rgba.len() / 4);
+            for (dst, chunk) in dst.iter_mut().zip(image.rgba.chunks_exact(4)) {
+                *dst = (chunk[0] as u32) << 16
                     | (chunk[1] as u32) << 8
                     | (chunk[2] as u32)
                     | (chunk[3] as u32) << 24;
