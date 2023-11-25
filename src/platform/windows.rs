@@ -136,6 +136,12 @@ pub trait WindowExtWindows {
     ///
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
+
+    /// Sets the progress shown in the taskbar.
+    ///
+    /// If the value is 0.0 the taskbar button will return to its normal state. Any value outside of
+    /// 0.0 and 1.0 will set the state to indeterminate.
+    fn set_taskbar_progress(&self, value: f32);
 }
 
 impl WindowExtWindows for Window {
@@ -157,6 +163,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
+    }
+
+    #[inline]
+    fn set_taskbar_progress(&self, value: f32) {
+        self.window.set_taskbar_progress(value)
     }
 }
 

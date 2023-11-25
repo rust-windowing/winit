@@ -61,7 +61,8 @@ use crate::{
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
-            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
+            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, IID_ITaskbarList3,
+            ITaskbarList, ITaskbarList2, ITaskbarList3,
         },
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
@@ -1033,6 +1034,13 @@ impl Window {
             );
         }
     }
+
+    #[inline]
+    pub fn set_taskbar_progress(&self, progress: f32) {
+        let window = self.window.clone();
+
+        unsafe { set_taskbar_progress(window.0, progress) };
+    }
 }
 
 impl Drop for Window {
@@ -1397,6 +1405,7 @@ thread_local! {
 
     static TASKBAR_LIST: Cell<*mut ITaskbarList> = Cell::new(ptr::null_mut());
     static TASKBAR_LIST2: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST3: Cell<*mut ITaskbarList3> = Cell::new(ptr::null_mut());
 }
 
 pub fn com_initialized() {
@@ -1446,8 +1455,9 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     })
 }
 
-pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
+pub(crate) unsafe fn set_skip_taskbar(handle: HWND, skip: bool) {
     com_initialized();
+
     TASKBAR_LIST.with(|task_bar_list_ptr| {
         let mut task_bar_list = task_bar_list_ptr.get();
 
@@ -1477,10 +1487,10 @@ pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
         task_bar_list = task_bar_list_ptr.get();
         if skip {
             let delete_tab = unsafe { (*(*task_bar_list).lpVtbl).DeleteTab };
-            unsafe { delete_tab(task_bar_list, hwnd) };
+            unsafe { delete_tab(task_bar_list, handle) };
         } else {
             let add_tab = unsafe { (*(*task_bar_list).lpVtbl).AddTab };
-            unsafe { add_tab(task_bar_list, hwnd) };
+            unsafe { add_tab(task_bar_list, handle) };
         }
     });
 }
@@ -1529,4 +1539,44 @@ unsafe fn force_window_active(handle: HWND) {
     };
 
     unsafe { SetForegroundWindow(handle) };
+}
+
+pub(crate) unsafe fn set_taskbar_progress(handle: HWND, value: f32) {
+    com_initialized();
+
+    TASKBAR_LIST3.with(|task_bar_list3_ptr| {
+        let mut task_bar_list3 = task_bar_list3_ptr.get();
+
+        if task_bar_list3.is_null() {
+            let hr = unsafe {
+                CoCreateInstance(
+                    &CLSID_TaskbarList,
+                    ptr::null_mut(),
+                    CLSCTX_ALL,
+                    &IID_ITaskbarList3,
+                    &mut task_bar_list3 as *mut _ as *mut _,
+                )
+            };
+            if hr != S_OK {
+                // In visual studio retrieving the taskbar list fails
+                return;
+            }
+
+            let hr_init = unsafe { (*(*task_bar_list3).lpVtbl).parent.parent.HrInit };
+            if unsafe { hr_init(task_bar_list3.cast()) } != S_OK {
+                // In some old windows, the taskbar object could not be created, we just ignore it
+                return;
+            }
+            task_bar_list3_ptr.set(task_bar_list3)
+        }
+
+        task_bar_list3 = task_bar_list3_ptr.get();
+        let set_progress_value = unsafe { (*(*task_bar_list3).lpVtbl).SetProgressValue };
+        let set_progress_state = unsafe { (*(*task_bar_list3).lpVtbl).SetProgressState };
+        if value >= 0.0 && value <= 1.0 {
+            unsafe { set_progress_value(task_bar_list3, handle, (value * 100.0) as u64, 100) };
+        } else {
+            unsafe { set_progress_state(task_bar_list3, handle, 0x00000001) };
+        }
+    })
 }
