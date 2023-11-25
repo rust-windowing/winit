@@ -1573,8 +1573,8 @@ pub(crate) unsafe fn set_taskbar_progress(handle: HWND, value: f32) {
         task_bar_list3 = task_bar_list3_ptr.get();
         let set_progress_value = unsafe { (*(*task_bar_list3).lpVtbl).SetProgressValue };
         let set_progress_state = unsafe { (*(*task_bar_list3).lpVtbl).SetProgressState };
-        if value >= 0.0 && value <= 1.0 {
-            unsafe { set_progress_value(task_bar_list3, handle, (value * 100.0) as u64, 100) };
+        if (0.0..=1.0).contains(&value) {
+            unsafe { set_progress_value(task_bar_list3, handle, (value * u16::MAX as f32) as u64, u16::MAX as u64) };
         } else {
             unsafe { set_progress_state(task_bar_list3, handle, 0x00000001) };
         }
