@@ -99,6 +99,7 @@ impl SelectedCursor {
                 let image = image.borrow();
                 let value = match image.deref().as_ref().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous.style(),
+                    CursorImageState::Failed(previous) => previous.style(),
                     CursorImageState::Ready { style, .. } => style,
                 };
                 return style.set("cursor", value);
@@ -174,6 +175,7 @@ impl From<SelectedCursor> for Previous {
             SelectedCursor::Image(image) => {
                 match Rc::try_unwrap(image).unwrap().into_inner().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous,
+                    CursorImageState::Failed(previous) => previous,
                     CursorImageState::Ready { style, current, .. } => Self::Image {
                         style,
                         image: current,
@@ -192,6 +194,7 @@ pub enum CursorImageState {
         hotspot_x: u16,
         hotspot_y: u16,
     },
+    Failed(Previous),
     Ready {
         style: String,
         current: WebCursorImage,
@@ -287,20 +290,21 @@ impl CursorImageState {
                     // `Closure` that doesn't need to be garbage-collected.
                     static CALLBACK: Closure<dyn Fn(Option<Blob>)> = Closure::new(|blob| {
                         CURRENT_STATE.with(|weak| {
-                            let Some(blob) = blob else {
-                                return;
-                            };
                             let Some(state) = weak.borrow_mut().take().and_then(|weak| weak.upgrade()) else {
                                 return;
                             };
                             let mut state = state.borrow_mut();
-
-                            let data_url = Url::create_object_url_with_blob(&blob).unwrap();
-
                             // Extract old state.
                             let CursorImageState::Loading { style, previous, hotspot_x, hotspot_y, .. } = state.take().unwrap() else {
                                 unreachable!("found invalid state")
                             };
+
+                            let Some(blob) = blob else {
+                                *state = Some(CursorImageState::Failed(previous));
+                                return;
+                            };
+                            let data_url = Url::create_object_url_with_blob(&blob).unwrap();
+
                             let value = if let Previous::Named { .. } = previous {
                                 format!("url({data_url}) {hotspot_x} {hotspot_y}, {}", previous.cursor() )
                             } else {
