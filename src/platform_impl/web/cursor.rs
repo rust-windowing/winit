@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     ops::Deref,
     rc::{Rc, Weak},
@@ -46,6 +45,8 @@ impl WebCustomCursor {
         style: &Style,
         previous: SelectedCursor,
     ) -> SelectedCursor {
+        let previous = previous.into();
+
         match self {
             WebCustomCursor::Image(image) => SelectedCursor::Image(CursorImageState::from_image(
                 window,
@@ -59,10 +60,11 @@ impl WebCustomCursor {
                 hotspot_x,
                 hotspot_y,
             } => {
-                let value = format!("url({}) {} {}, auto", url, hotspot_x, hotspot_y);
+                let value = previous.style_with_url(url, *hotspot_x, *hotspot_y);
                 style.set("cursor", &value);
                 SelectedCursor::Url {
                     style: value,
+                    previous,
                     url: url.clone(),
                     hotspot_x: *hotspot_x,
                     hotspot_y: *hotspot_y,
@@ -77,6 +79,7 @@ pub enum SelectedCursor {
     Named(CursorIcon),
     Url {
         style: String,
+        previous: Previous,
         url: String,
         hotspot_x: u16,
         hotspot_y: u16,
@@ -134,9 +137,9 @@ impl Previous {
         }
     }
 
-    fn cursor(&self) -> Cow<'_, str> {
+    fn style_with_url(&self, new_url: &str, new_hotspot_x: u16, new_hotspot_y: u16) -> String {
         match self {
-            Previous::Named(icon) => Cow::Borrowed(icon.name()),
+            Previous::Named(icon) => format!("url({new_url}) {new_hotspot_x} {new_hotspot_y}, {}", icon.name()),
             Previous::Url {
                 url,
                 hotspot_x,
@@ -152,7 +155,9 @@ impl Previous {
                         ..
                     },
                 ..
-            } => Cow::Owned(format!("url({url}) {hotspot_x} {hotspot_y}")),
+            } => format!(
+                "url({new_url}) {new_hotspot_x} {new_hotspot_y}, url({url}) {hotspot_x} {hotspot_y}, auto",
+            ),
         }
     }
 }
@@ -166,6 +171,7 @@ impl From<SelectedCursor> for Previous {
                 url,
                 hotspot_x,
                 hotspot_y,
+                ..
             } => Self::Url {
                 style,
                 url,
@@ -176,7 +182,11 @@ impl From<SelectedCursor> for Previous {
                 match Rc::try_unwrap(image).unwrap().into_inner().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous,
                     CursorImageState::Failed(previous) => previous,
-                    CursorImageState::Ready { style, current, .. } => Self::Image {
+                    CursorImageState::Ready {
+                        style,
+                        image: current,
+                        ..
+                    } => Self::Image {
                         style,
                         image: current,
                     },
@@ -197,7 +207,7 @@ pub enum CursorImageState {
     Failed(Previous),
     Ready {
         style: String,
-        current: WebCursorImage,
+        image: WebCursorImage,
         previous: Previous,
     },
 }
@@ -208,7 +218,7 @@ impl CursorImageState {
         document: Document,
         style: Style,
         image: &CursorImage,
-        previous: SelectedCursor,
+        previous: Previous,
     ) -> Rc<RefCell<Option<Self>>> {
         // Can't create array directly when backed by SharedArrayBuffer.
         // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
@@ -251,7 +261,7 @@ impl CursorImageState {
 
         let state = Rc::new(RefCell::new(Some(Self::Loading {
             style,
-            previous: previous.into(),
+            previous,
             hotspot_x: image.hotspot_x,
             hotspot_y: image.hotspot_y,
         })));
@@ -305,16 +315,12 @@ impl CursorImageState {
                             };
                             let data_url = Url::create_object_url_with_blob(&blob).unwrap();
 
-                            let value = if let Previous::Named { .. } = previous {
-                                format!("url({data_url}) {hotspot_x} {hotspot_y}, {}", previous.cursor() )
-                            } else {
-                                format!("url({data_url}) {hotspot_x} {hotspot_y}, {}, auto", previous.cursor() )
-                            };
+                            let value = previous.style_with_url(&data_url, hotspot_x, hotspot_y);
                             style.set("cursor", &value);
                             *state = Some(
                                 CursorImageState::Ready {
                                     style: value,
-                                    current: WebCursorImage{ data_url, hotspot_x, hotspot_y },
+                                    image: WebCursorImage{ data_url, hotspot_x, hotspot_y },
                                     previous,
                                 });
                         });
