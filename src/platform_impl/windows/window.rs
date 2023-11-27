@@ -413,10 +413,9 @@ impl Window {
                 return;
             }
         };
-        let handle = new_cursor.as_raw_handle();
-        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor);
+        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor.clone());
         self.thread_executor.execute_in_thread(move || unsafe {
-            SetCursor(handle);
+            SetCursor(new_cursor.as_raw_handle());
         });
     }
 
