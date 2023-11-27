@@ -242,7 +242,7 @@ impl CursorImageState {
 
                             let data_url = Url::create_object_url_with_blob(&blob).unwrap();
                             // Extract `Style`, which we couldn't do earlier without cloning it.
-                            let CursorImageState::Loading { style, .. } = mem::replace(state.deref_mut(), CursorImageState::Ready(WebCursorImage {
+                            let CursorImageState::Loading { style, previous: _previous, .. } = mem::replace(state.deref_mut(), CursorImageState::Ready(WebCursorImage {
                                 style: format!("url({}) {} {}, auto", data_url, hotspot_x, hotspot_y),
                                 data_url,
                             })) else {
