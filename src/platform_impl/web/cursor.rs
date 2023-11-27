@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     ops::Deref,
     rc::{Rc, Weak},
@@ -60,7 +61,12 @@ impl WebCustomCursor {
             } => {
                 let value = format!("url({}) {} {}, auto", url, hotspot_x, hotspot_y);
                 style.set("cursor", &value);
-                SelectedCursor::Url(value)
+                SelectedCursor::Url {
+                    style: value,
+                    url: url.clone(),
+                    hotspot_x: *hotspot_x,
+                    hotspot_y: *hotspot_y,
+                }
             }
         }
     }
@@ -69,7 +75,12 @@ impl WebCustomCursor {
 #[derive(Debug)]
 pub enum SelectedCursor {
     Named(CursorIcon),
-    Url(String),
+    Url {
+        style: String,
+        url: String,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    },
     Image(Rc<RefCell<Option<CursorImageState>>>),
 }
 
@@ -83,12 +94,12 @@ impl SelectedCursor {
     pub fn set_style(&self, style: &Style) {
         let value = match self {
             SelectedCursor::Named(icon) => icon.name(),
-            SelectedCursor::Url(url) => url,
+            SelectedCursor::Url { style, .. } => style,
             SelectedCursor::Image(image) => {
                 let image = image.borrow();
                 let value = match image.deref().as_ref().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous.style(),
-                    CursorImageState::Ready(WebCursorImage { style, .. }) => style,
+                    CursorImageState::Ready { style, .. } => style,
                 };
                 return style.set("cursor", value);
             }
@@ -101,16 +112,46 @@ impl SelectedCursor {
 #[derive(Debug)]
 pub enum Previous {
     Named(CursorIcon),
-    Url(String),
-    Image(WebCursorImage),
+    Url {
+        style: String,
+        url: String,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    },
+    Image {
+        style: String,
+        image: WebCursorImage,
+    },
 }
 
 impl Previous {
     fn style(&self) -> &str {
         match self {
             Previous::Named(icon) => icon.name(),
-            Previous::Url(url) => url,
-            Previous::Image(WebCursorImage { style, .. }) => style,
+            Previous::Url { style: url, .. } => url,
+            Previous::Image { style, .. } => style,
+        }
+    }
+
+    fn cursor(&self) -> Cow<'_, str> {
+        match self {
+            Previous::Named(icon) => Cow::Borrowed(icon.name()),
+            Previous::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+                ..
+            }
+            | Previous::Image {
+                image:
+                    WebCursorImage {
+                        data_url: url,
+                        hotspot_x,
+                        hotspot_y,
+                        ..
+                    },
+                ..
+            } => Cow::Owned(format!("url({url}) {hotspot_x} {hotspot_y}")),
         }
     }
 }
@@ -119,11 +160,24 @@ impl From<SelectedCursor> for Previous {
     fn from(value: SelectedCursor) -> Self {
         match value {
             SelectedCursor::Named(icon) => Self::Named(icon),
-            SelectedCursor::Url(url) => Self::Url(url),
+            SelectedCursor::Url {
+                style,
+                url,
+                hotspot_x,
+                hotspot_y,
+            } => Self::Url {
+                style,
+                url,
+                hotspot_x,
+                hotspot_y,
+            },
             SelectedCursor::Image(image) => {
                 match Rc::try_unwrap(image).unwrap().into_inner().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous,
-                    CursorImageState::Ready(internal) => Self::Image(internal),
+                    CursorImageState::Ready { style, current, .. } => Self::Image {
+                        style,
+                        image: current,
+                    },
                 }
             }
         }
@@ -138,7 +192,11 @@ pub enum CursorImageState {
         hotspot_x: u16,
         hotspot_y: u16,
     },
-    Ready(WebCursorImage),
+    Ready {
+        style: String,
+        current: WebCursorImage,
+        previous: Previous,
+    },
 }
 
 impl CursorImageState {
@@ -240,12 +298,21 @@ impl CursorImageState {
                             let data_url = Url::create_object_url_with_blob(&blob).unwrap();
 
                             // Extract old state.
-                            let CursorImageState::Loading { style, previous: _previous, hotspot_x, hotspot_y } = state.take().unwrap() else {
+                            let CursorImageState::Loading { style, previous, hotspot_x, hotspot_y, .. } = state.take().unwrap() else {
                                 unreachable!("found invalid state")
                             };
-                            let value = format!("url({}) {} {}, auto", data_url, hotspot_x, hotspot_y);
+                            let value = if let Previous::Named { .. } = previous {
+                                format!("url({data_url}) {hotspot_x} {hotspot_y}, {}", previous.cursor() )
+                            } else {
+                                format!("url({data_url}) {hotspot_x} {hotspot_y}, {}, auto", previous.cursor() )
+                            };
                             style.set("cursor", &value);
-                            *state = Some(CursorImageState::Ready(WebCursorImage { style: value, data_url }));
+                            *state = Some(
+                                CursorImageState::Ready {
+                                    style: value,
+                                    current: WebCursorImage{ data_url, hotspot_x, hotspot_y },
+                                    previous,
+                                });
                         });
                     });
                 }
@@ -262,8 +329,9 @@ impl CursorImageState {
 
 #[derive(Debug)]
 pub struct WebCursorImage {
-    style: String,
     data_url: String,
+    hotspot_x: u16,
+    hotspot_y: u16,
 }
 
 impl Drop for WebCursorImage {
