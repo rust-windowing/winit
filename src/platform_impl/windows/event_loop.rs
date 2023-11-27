@@ -2004,23 +2004,31 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_SETCURSOR => {
-            let window_state = userdata.window_state_lock();
-            // The return value for the preceding `WM_NCHITTEST` message is conveniently
-            // provided through the low-order word of lParam. We use that here since
-            // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
-            let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
-            if !in_client_area {
-                // No cursor
-                result = ProcResult::DefWindowProc(wparam);
-            } else {
-                let cursor = match &window_state.mouse.selected_cursor {
-                    SelectedCursor::Named(cursor_icon) => unsafe {
-                        LoadCursorW(0, util::to_windows_cursor(*cursor_icon))
-                    },
-                    SelectedCursor::Custom(icon) => icon.as_raw_handle(),
-                };
-                unsafe { SetCursor(cursor) };
-                result = ProcResult::Value(0);
+            let set_cursor_to = {
+                let window_state = userdata.window_state_lock();
+                // The return value for the preceding `WM_NCHITTEST` message is conveniently
+                // provided through the low-order word of lParam. We use that here since
+                // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
+                let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
+                if in_client_area {
+                    Some(window_state.mouse.selected_cursor.clone())
+                } else {
+                    None
+                }
+            };
+
+            match set_cursor_to {
+                Some(selected_cursor) => {
+                    let hcursor = match selected_cursor {
+                        SelectedCursor::Named(cursor_icon) => unsafe {
+                            LoadCursorW(0, util::to_windows_cursor(cursor_icon))
+                        },
+                        SelectedCursor::Custom(cursor) => cursor.as_raw_handle(),
+                    };
+                    unsafe { SetCursor(hcursor) };
+                    result = ProcResult::Value(0);
+                }
+                None => result = ProcResult::DefWindowProc(wparam),
             }
         }
 
