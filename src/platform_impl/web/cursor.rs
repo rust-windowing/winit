@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
-    mem,
-    ops::{Deref, DerefMut},
+    ops::Deref,
     rc::{Rc, Weak},
 };
 
@@ -71,7 +70,7 @@ impl WebCustomCursor {
 pub enum SelectedCursor {
     Named(CursorIcon),
     Url(String),
-    Image(Rc<RefCell<CursorImageState>>),
+    Image(Rc<RefCell<Option<CursorImageState>>>),
 }
 
 impl Default for SelectedCursor {
@@ -87,7 +86,7 @@ impl SelectedCursor {
             SelectedCursor::Url(url) => url,
             SelectedCursor::Image(image) => {
                 let image = image.borrow();
-                let value = match image.deref() {
+                let value = match image.deref().as_ref().unwrap() {
                     CursorImageState::Loading { previous, .. } => previous.style(),
                     CursorImageState::Ready(WebCursorImage { style, .. }) => style,
                 };
@@ -121,10 +120,12 @@ impl From<SelectedCursor> for Previous {
         match value {
             SelectedCursor::Named(icon) => Self::Named(icon),
             SelectedCursor::Url(url) => Self::Url(url),
-            SelectedCursor::Image(image) => match Rc::try_unwrap(image).unwrap().into_inner() {
-                CursorImageState::Loading { previous, .. } => previous,
-                CursorImageState::Ready(internal) => Self::Image(internal),
-            },
+            SelectedCursor::Image(image) => {
+                match Rc::try_unwrap(image).unwrap().into_inner().unwrap() {
+                    CursorImageState::Loading { previous, .. } => previous,
+                    CursorImageState::Ready(internal) => Self::Image(internal),
+                }
+            }
         }
     }
 }
@@ -147,7 +148,7 @@ impl CursorImageState {
         style: Style,
         image: &CursorImage,
         previous: SelectedCursor,
-    ) -> Rc<RefCell<Self>> {
+    ) -> Rc<RefCell<Option<Self>>> {
         // Can't create array directly when backed by SharedArrayBuffer.
         // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
         #[cfg(target_feature = "atomics")]
@@ -187,12 +188,12 @@ impl CursorImageState {
                 .unwrap(),
         );
 
-        let state = Rc::new(RefCell::new(Self::Loading {
+        let state = Rc::new(RefCell::new(Some(Self::Loading {
             style,
             previous: previous.into(),
             hotspot_x: image.hotspot_x,
             hotspot_y: image.hotspot_y,
-        }));
+        })));
 
         wasm_bindgen_futures::spawn_local({
             let weak = Rc::downgrade(&state);
@@ -223,7 +224,7 @@ impl CursorImageState {
                 context.transfer_from_image_bitmap(&bitmap);
 
                 thread_local! {
-                    static CURRENT_STATE: RefCell<Option<Weak<RefCell<CursorImageState>>>> = RefCell::new(None);
+                    static CURRENT_STATE: RefCell<Option<Weak<RefCell<Option<CursorImageState>>>>> = RefCell::new(None);
                     // `HTMLCanvasElement.toBlob()` can't be interrupted. So we have to use a
                     // `Closure` that doesn't need to be garbage-collected.
                     static CALLBACK: Closure<dyn Fn(Option<Blob>)> = Closure::new(|blob| {
@@ -235,24 +236,16 @@ impl CursorImageState {
                                 return;
                             };
                             let mut state = state.borrow_mut();
-                            // Extract the hotspots.
-                            let CursorImageState::Loading { hotspot_x, hotspot_y, .. } = *state else {
-                                unreachable!("found invalid state")
-                            };
 
                             let data_url = Url::create_object_url_with_blob(&blob).unwrap();
-                            // Extract `Style`, which we couldn't do earlier without cloning it.
-                            let CursorImageState::Loading { style, previous: _previous, .. } = mem::replace(state.deref_mut(), CursorImageState::Ready(WebCursorImage {
-                                style: format!("url({}) {} {}, auto", data_url, hotspot_x, hotspot_y),
-                                data_url,
-                            })) else {
+
+                            // Extract old state.
+                            let CursorImageState::Loading { style, previous: _previous, hotspot_x, hotspot_y } = state.take().unwrap() else {
                                 unreachable!("found invalid state")
                             };
-                            // Extract the `cursor` property value, which we couldn't cache earlier without cloning.
-                            let CursorImageState::Ready(WebCursorImage { style: value, .. }) = state.deref() else {
-                                unreachable!("found invalid state")
-                            };
-                            style.set("cursor", value);
+                            let value = format!("url({}) {} {}, auto", data_url, hotspot_x, hotspot_y);
+                            style.set("cursor", &value);
+                            *state = Some(CursorImageState::Ready(WebCursorImage { style: value, data_url }));
                         });
                     });
                 }
