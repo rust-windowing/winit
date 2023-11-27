@@ -754,7 +754,7 @@ impl Window {
     /// may not be generated.
     ///
     /// On platforms where resizing is disallowed by the windowing system, the current
-    /// inner size is returned immidiatelly, and the user one is ignored.
+    /// inner size is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::Resized`].
@@ -770,10 +770,10 @@ impl Window {
     /// # let mut event_loop = EventLoop::new().unwrap();
     /// # let window = Window::new(&event_loop).unwrap();
     /// // Specify the size in logical dimensions like this:
-    /// let _ = window.request_inner_size(LogicalSize::new(400.0, 200.0));
+    /// window.request_inner_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// let _ = window.request_inner_size(PhysicalSize::new(400, 200));
+    /// window.request_inner_size(PhysicalSize::new(400, 200));
     /// ```
     ///
     /// ## Platform-specific
@@ -783,7 +783,6 @@ impl Window {
     /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]
-    #[must_use]
     pub fn request_inner_size<S: Into<Size>>(&self, size: S) -> Option<PhysicalSize<u32>> {
         let size = size.into();
         self.window
