@@ -88,7 +88,9 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         return Key::Unidentified(NativeKey::MacOS(scancode));
     }
     if result_len == 0 {
-        log::error!("`UCKeyTranslate` was succesful but gave a string of 0 length.");
+        // This is fine - not all keys have text representation.
+        // For instance, users that have mapped the `Fn` key to toggle
+        // keyboard layouts will hit this code path.
         return Key::Unidentified(NativeKey::MacOS(scancode));
     }
     let chars = String::from_utf16_lossy(&string[0..result_len as usize]);
