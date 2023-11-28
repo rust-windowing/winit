@@ -25,7 +25,10 @@ use crate::{
     event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
     platform_impl::{
-        x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
+        x11::{
+            atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
+            X11Error,
+        },
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
@@ -1739,8 +1742,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window.x as u32 + pointer.win_x as u32),
-                    (window.y as u32 + pointer.win_y as u32),
+                    (window.x as u32 + xinput_fp1616_to_float(pointer.win_x) as u32),
+                    (window.y as u32 + xinput_fp1616_to_float(pointer.win_y) as u32),
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
