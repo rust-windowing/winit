@@ -25,7 +25,10 @@ use crate::{
     event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
     platform_impl::{
-        x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
+        x11::{
+            atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
+            X11Error,
+        },
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
@@ -1962,10 +1965,4 @@ fn cast_size_to_hint(size: Size, scale_factor: f64) -> (i32, i32) {
         Size::Physical(size) => cast_physical_size_to_hint(size),
         Size::Logical(size) => size.to_physical::<i32>(scale_factor).into(),
     }
-}
-
-/// Convert the raw X11 representation for a 32-bit floating point to a double.
-#[inline]
-fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
-    (fp as f64) / ((1 << 16) as f64)
 }
