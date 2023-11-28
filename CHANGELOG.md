@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On macOS, remove spurious error logging when handling `Fn`.
+
 # 0.29.4
 
 - Fix crash when running iOS app on macOS.
