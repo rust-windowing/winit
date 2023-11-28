@@ -3,7 +3,10 @@
 //! Example for focusing a window.
 
 use simple_logger::SimpleLogger;
-use std::time::{Duration, Instant};
+#[cfg(not(wasm_platform))]
+use std::time;
+#[cfg(wasm_platform)]
+use web_time as time;
 use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::EventLoop,
@@ -23,13 +26,13 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    let mut deadline = Instant::now() + Duration::from_secs(3);
+    let mut deadline = time::Instant::now() + time::Duration::from_secs(3);
     event_loop.run(move |event, elwt| {
         match event {
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 // Timeout reached; focus the window.
                 println!("Re-focusing the window.");
-                deadline += Duration::from_secs(3);
+                deadline += time::Duration::from_secs(3);
                 window.focus_window();
             }
             Event::WindowEvent { event, window_id } if window_id == window.id() => match event {

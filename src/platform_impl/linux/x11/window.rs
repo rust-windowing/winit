@@ -1780,8 +1780,6 @@ impl UnownedWindow {
 
     #[inline]
     pub fn focus_window(&self) {
-        const ICONIC_STATE: u32 = 3;
-
         let atoms = self.xconn.atoms();
         let state_atom = atoms[WM_STATE];
         let state_type_atom = atoms[CARD32];
@@ -1789,7 +1787,7 @@ impl UnownedWindow {
             self.xconn
                 .get_property::<u32>(self.xwindow, state_atom, state_type_atom)
         {
-            state.contains(&ICONIC_STATE)
+            state.contains(&super::ICONIC_STATE)
         } else {
             false
         };
