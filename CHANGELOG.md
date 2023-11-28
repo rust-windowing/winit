@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, fix `Window::focus_window` method crashing.
 - On macOS, add services menu.
 - On macOS, remove spurious error logging when handling `Fn`.
 
