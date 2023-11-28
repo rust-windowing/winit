@@ -116,6 +116,7 @@ impl<'a, C: Connection + ?Sized, T: Pod> PropIterator<'a, C, T> {
             1 => 8,
             2 => 16,
             4 => 32,
+            8 => 64,
             _ => unreachable!(),
         };
 
