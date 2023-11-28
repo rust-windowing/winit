@@ -1128,3 +1128,9 @@ impl Device {
         }
     }
 }
+
+/// Convert the raw X11 representation for a 32-bit floating point to a double.
+#[inline]
+fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
+    (fp as f64) / ((1 << 16) as f64)
+}
