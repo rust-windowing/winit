@@ -1739,8 +1739,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window.x as u32 + pointer.win_x as u32),
-                    (window.y as u32 + pointer.win_y as u32),
+                    (window.x as u32 + xinput_fp1616_to_float(pointer.win_x) as u32),
+                    (window.y as u32 + xinput_fp1616_to_float(pointer.win_y) as u32),
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
@@ -1962,4 +1962,10 @@ fn cast_size_to_hint(size: Size, scale_factor: f64) -> (i32, i32) {
         Size::Physical(size) => cast_physical_size_to_hint(size),
         Size::Logical(size) => size.to_physical::<i32>(scale_factor).into(),
     }
+}
+
+/// Convert the raw X11 representation for a 32-bit floating point to a double.
+#[inline]
+fn xinput_fp1616_to_float(fp: xinput::Fp1616) -> f64 {
+    (fp as f64) / ((1 << 16) as f64)
 }
