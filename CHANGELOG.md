@@ -11,7 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
-- Remove spurious error logging ("`UCKeyTranslate` was succesful but gave a string of 0 length.") on Mac
+- On macOS, remove spurious error logging when handling `Fn`.
 
 # 0.29.4
 
