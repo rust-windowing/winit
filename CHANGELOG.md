@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- Remove spurious error logging ("`UCKeyTranslate` was succesful but gave a string of 0 length.") on Mac
+
 # 0.29.4
 
 - Fix crash when running iOS app on macOS.
