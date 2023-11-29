@@ -81,6 +81,7 @@ use crate::{
 // Xinput constants not defined in x11rb
 const ALL_DEVICES: u16 = 0;
 const ALL_MASTER_DEVICES: u16 = 1;
+const ICONIC_STATE: u32 = 3;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
