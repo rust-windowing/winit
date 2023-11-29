@@ -1785,9 +1785,9 @@ impl UnownedWindow {
         let state_type_atom = atoms[CARD32];
         let is_minimized = if let Ok(state) =
             self.xconn
-                .get_property(self.xwindow, state_atom, state_type_atom)
+                .get_property::<u32>(self.xwindow, state_atom, state_type_atom)
         {
-            state.contains(&(ffi::IconicState as c_ulong))
+            state.contains(&super::ICONIC_STATE)
         } else {
             false
         };
