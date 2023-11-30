@@ -10,12 +10,12 @@
 //! let event_loop = EventLoop::new().unwrap();
 //! ```
 //!
-//! Once this is done there are two ways to create a [`Window`]:
+//! Once this is done, there are two ways to create a [`Window`]:
 //!
 //!  - Calling [`Window::new(&event_loop)`][window_new].
 //!  - Calling [`let builder = WindowBuilder::new()`][window_builder_new] then [`builder.build(&event_loop)`][window_builder_build].
 //!
-//! The first method is the simplest, and will give you default values for everything. The second
+//! The first method is the simplest and will give you default values for everything. The second
 //! method allows you to customize the way your [`Window`] will look and behave by modifying the
 //! fields of the [`WindowBuilder`] object before you create the [`Window`].
 //!
@@ -56,7 +56,7 @@
     doc = "`EventLoopExtPumpEvents::pump_events()`"
 )]
 //! [^1]. See that method's documentation for more reasons about why
-//! it's discouraged, beyond compatibility reasons.
+//! it's discouraged beyond compatibility reasons.
 //!
 //!
 //! ```no_run
@@ -92,9 +92,9 @@
 //!
 //!             // Queue a RedrawRequested event.
 //!             //
-//!             // You only need to call this if you've determined that you need to redraw, in
+//!             // You only need to call this if you've determined that you need to redraw in
 //!             // applications which do not always need to. Applications that redraw continuously
-//!             // can just render here instead.
+//!             // can render here instead.
 //!             window.request_redraw();
 //!         },
 //!         Event::WindowEvent {
@@ -118,7 +118,7 @@
 //!
 //! # Drawing on the window
 //!
-//! Winit doesn't directly provide any methods for drawing on a [`Window`]. However it allows you to
+//! Winit doesn't directly provide any methods for drawing on a [`Window`]. However, it allows you to
 //! retrieve the raw handle of the window and display (see the [`platform`] module and/or the
 //! [`raw_window_handle`] and [`raw_display_handle`] methods), which in turn allows
 //! you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
@@ -183,13 +183,13 @@ pub mod window;
 pub mod platform;
 
 /// Wrapper for objects which winit will access on the main thread so they are effectively `Send`
-/// and `Sync`, since they always excute on a single thread.
+/// and `Sync`, since they always execute on a single thread.
 ///
 /// # Safety
 ///
-/// Winit can run only one event loop at the time and the event loop itself is tied to some thread.
-/// The objects could be send across the threads, but once passed to winit, they execute on the
-/// mean thread if the platform demands it. Thus marking such objects as `Send + Sync` is safe.
+/// Winit can run only one event loop at a time, and the event loop itself is tied to some thread.
+/// The objects could be sent across the threads, but once passed to winit, they execute on the
+/// mean thread if the platform demands it. Thus, marking such objects as `Send + Sync` is safe.
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub(crate) struct SendSyncWrapper<T>(pub(crate) T);
