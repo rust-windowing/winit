@@ -189,7 +189,7 @@ pub mod platform;
 ///
 /// Winit can run only one event loop at a time, and the event loop itself is tied to some thread.
 /// The objects could be sent across the threads, but once passed to winit, they execute on the
-/// mean thread if the platform demands it. Thus, marking such objects as `Send + Sync` is safe.
+/// main thread if the platform demands it. Thus, marking such objects as `Send + Sync` is safe.
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub(crate) struct SendSyncWrapper<T>(pub(crate) T);
