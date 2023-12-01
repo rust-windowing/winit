@@ -7,7 +7,9 @@ use core_foundation::{
     base::{CFRelease, TCFType},
     string::CFString,
 };
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use core_graphics::display::{
+    CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
+};
 use objc2::rc::Id;
 
 use super::appkit::NSScreen;
@@ -216,6 +218,13 @@ impl MonitorHandle {
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
+            let current_display_mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.0) as _);
+            let refresh_rate =
+                ffi::CGDisplayModeGetRefreshRate(current_display_mode.0).round() as u32;
+            if refresh_rate > 0 {
+                return Some(refresh_rate * 1000);
+            }
+
             let mut display_link = std::ptr::null_mut();
             if ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link)
                 != ffi::kCVReturnSuccess
