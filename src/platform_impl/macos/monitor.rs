@@ -219,10 +219,9 @@ impl MonitorHandle {
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
             let current_display_mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.0) as _);
-            let refresh_rate =
-                ffi::CGDisplayModeGetRefreshRate(current_display_mode.0).round() as u32;
-            if refresh_rate > 0 {
-                return Some(refresh_rate * 1000);
+            let refresh_rate = ffi::CGDisplayModeGetRefreshRate(current_display_mode.0);
+            if refresh_rate > 0.0 {
+                return Some((refresh_rate * 1000.0).round() as u32);
             }
 
             let mut display_link = std::ptr::null_mut();
