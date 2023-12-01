@@ -16,6 +16,7 @@ Unreleased` header.
 - On X11, fix an issue where floating point data from the server is
   misinterpreted during a drag and drop operation.
 - On X11, fix a bug where focusing the window would panic.
+- On macOS, fix `refresh_rate_millihertz`.
 
 # 0.29.4
 
