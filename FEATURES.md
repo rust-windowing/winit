@@ -1,6 +1,6 @@
 # Winit Scope
 
-Winit aims to expose an interface that abstracts over window creation and input handling, and can
+Winit aims to expose an interface that abstracts over window creation and input handling and can
 be used to create both games and applications. It supports the following main graphical platforms:
 - Desktop
   - Windows 7+ (10+ is tested regularly)
@@ -45,10 +45,10 @@ be released and the library will enter maintenance mode. For the most part, new 
 be added past this point. New platform features may be accepted and exposed through point releases.
 
 ### Tier upgrades
-Some platform features could in theory be exposed across multiple platforms, but have not gone
+Some platform features could, in theory, be exposed across multiple platforms, but have not gone
 through the implementation work necessary to function on all platforms. When one of these features
 gets implemented across all platforms, a PR can be opened to upgrade the feature to a core feature.
-If that gets accepted, the platform-specific functions gets deprecated and become permanently
+If that gets accepted, the platform-specific functions get deprecated and become permanently
 exposed through the core, cross-platform API.
 
 # Features
@@ -88,7 +88,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
 - **Exclusive fullscreen**: Winit allows changing the video mode of the monitor
-  for fullscreen windows, and if applicable, captures the monitor for exclusive
+  for fullscreen windows and, if applicable, captures the monitor for exclusive
   use by this application.
 - **HiDPI support**: Winit assists developers in appropriately scaling HiDPI content.
 - **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
@@ -105,7 +105,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Mouse set location**: Forcibly changing the location of the pointer.
 - **Cursor locking**: Locking the cursor inside the window so it cannot move.
 - **Cursor confining**: Confining the cursor to the window bounds so it cannot leave them.
-- **Cursor icon**: Changing the cursor icon, or hiding the cursor.
+- **Cursor icon**: Changing the cursor icon or hiding the cursor.
 - **Cursor hittest**: Handle or ignore mouse events for a window.
 - **Touch events**: Single-touch events.
 - **Touch pressure**: Touch events contain information about the amount of force being applied.
@@ -151,12 +151,12 @@ If your PR makes notable changes to Winit's features, please update this section
 * Valid orientations
 * Home indicator visibility
 * Status bar visibility and style
-* Deferrring system gestures
+* Deferring system gestures
 * Getting the device idiom
 * Getting the preferred video mode
 
 ### Web
-* Get if systems preferred color scheme is "dark"
+* Get if the systems preferred color scheme is "dark"
 
 ## Usability
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
@@ -166,7 +166,7 @@ If your PR makes notable changes to Winit's features, please update this section
 Legend:
 
 - ✔️: Works as intended
-- ▢: Mostly works but some bugs are known
+- ▢: Mostly works, but some bugs are known
 - ❌: Missing feature or large bugs making it unusable
 - **N/A**: Not applicable for this platform
 - ❓: Unknown status
