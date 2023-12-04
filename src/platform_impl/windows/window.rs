@@ -4,7 +4,7 @@ use std::{
     cell::Cell,
     ffi::c_void,
     io,
-    mem::{self, MaybeUninit},
+    mem::{self, MaybeUninit,size_of},
     panic, ptr,
     sync::{mpsc::channel, Arc, Mutex, MutexGuard},
 };
@@ -14,7 +14,10 @@ use windows_sys::Win32::{
         HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
     },
     Graphics::{
-        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
+        Dwm::{
+            DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWM_BB_BLURREGION, DWM_BB_ENABLE,
+            DWM_BLURBEHIND, DWM_SYSTEMBACKDROP_TYPE, DWMWA_SYSTEMBACKDROP_TYPE
+        },
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
             RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
@@ -58,6 +61,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
+    platform::windows::BackdropType,
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -986,6 +990,17 @@ impl Window {
         });
     }
 
+    pub fn set_system_backdrop(&self, backdrop_type: BackdropType) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_SYSTEMBACKDROP_TYPE as _,
+                &(backdrop_type as i32) as *const _ as _,
+                size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
+            );
+        }
+    }
+
     #[inline]
     pub fn focus_window(&self) {
         let window = self.window.clone();
@@ -1249,6 +1264,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
+        win.set_system_backdrop(self.pl_attribs.backdrop_type);
     }
 }
 unsafe fn init<T>(

@@ -21,6 +21,7 @@ use crate::platform_impl::Fullscreen;
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
+use crate::platform::windows::BackdropType;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -32,6 +33,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub skip_taskbar: bool,
     pub class_name: String,
     pub decoration_shadow: bool,
+    pub backdrop_type: BackdropType
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -45,6 +47,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             skip_taskbar: false,
             class_name: "Window Class".to_string(),
             decoration_shadow: false,
+            backdrop_type: BackdropType::Auto
         }
     }
 }

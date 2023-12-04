@@ -18,6 +18,15 @@ pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
 
+#[derive(Clone, Copy)]
+pub enum BackdropType {
+    Auto = 0,
+    None = 1,
+    Acrylic = 3,
+    Mica = 2,
+    MicaAlt = 4
+}
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
     /// Whether to allow the event loop to be created off of the main thread.
@@ -136,6 +145,11 @@ pub trait WindowExtWindows {
     ///
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
+
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn set_system_backdrop(&self, backdrop_type: BackdropType);
 }
 
 impl WindowExtWindows for Window {
@@ -158,6 +172,9 @@ impl WindowExtWindows for Window {
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
     }
+
+    #[inline]
+    fn set_system_backdrop(&self, backdrop_type: BackdropType) { self.window.set_system_backdrop(backdrop_type) }
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
@@ -213,6 +230,11 @@ pub trait WindowBuilderExtWindows {
     /// The shadow is hidden by default.
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
+
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn with_system_backdrop(self, backdrop_type: BackdropType) -> Self;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -261,6 +283,11 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
+        self.platform_specific.backdrop_type = backdrop_type;
         self
     }
 }
