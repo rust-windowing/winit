@@ -124,7 +124,7 @@ impl ImeContext {
             left: x,
             top: y,
             right: x + width,
-            bottom: y - height,
+            bottom: y + height,
         };
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
