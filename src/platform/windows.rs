@@ -18,13 +18,36 @@ pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
 
-#[derive(Clone, Copy)]
+/// Describes a system-drawn backdrop material of a window.
+///
+/// For a detailed explanation, see [`DWM_SYSTEMBACKDROP_TYPE docs`].
+///
+/// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BackdropType {
+    /// Corresponds to `DWMSBT_AUTO`.
+    ///
+    /// Usually draws a default backdrop effect on the title bar.
+    #[default]
     Auto = 0,
+
+    /// Corresponds to `DWMSBT_NONE`.
     None = 1,
-    Acrylic = 3,
-    Mica = 2,
-    MicaAlt = 4
+
+    /// Corresponds to `DWMSBT_MAINWINDOW`.
+    ///
+    /// Draws the Mica backdrop material.
+    MainWindow = 2,
+
+    /// Corresponds to `DWMSBT_TRANSIENTWINDOW`.
+    ///
+    /// Draws the Background Acrylic backdrop material.
+    TransientWindow = 3,
+
+    /// Corresponds to `DWMSBT_TABBEDWINDOW`.
+    ///
+    /// Draws the Alt Mica backdrop material.
+    TabbedWindow = 4
 }
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -174,7 +197,9 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn set_system_backdrop(&self, backdrop_type: BackdropType) { self.window.set_system_backdrop(backdrop_type) }
+    fn set_system_backdrop(&self, backdrop_type: BackdropType) {
+        self.window.set_system_backdrop(backdrop_type)
+    }
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.

@@ -47,7 +47,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             skip_taskbar: false,
             class_name: "Window Class".to_string(),
             decoration_shadow: false,
-            backdrop_type: BackdropType::Auto
+            backdrop_type: BackdropType::default()
         }
     }
 }

@@ -4,7 +4,7 @@ use std::{
     cell::Cell,
     ffi::c_void,
     io,
-    mem::{self, MaybeUninit,size_of},
+    mem::{self, MaybeUninit},
     panic, ptr,
     sync::{mpsc::channel, Arc, Mutex, MutexGuard},
 };
@@ -996,7 +996,7 @@ impl Window {
                 self.hwnd(),
                 DWMWA_SYSTEMBACKDROP_TYPE as _,
                 &(backdrop_type as i32) as *const _ as _,
-                size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
+                mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
             );
         }
     }
