@@ -994,7 +994,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_SYSTEMBACKDROP_TYPE as _,
+                DWMWA_SYSTEMBACKDROP_TYPE,
                 &(backdrop_type as i32) as *const _ as _,
                 mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
             );
