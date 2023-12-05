@@ -1,8 +1,7 @@
+use icrate::AppKit::NSImage;
 use icrate::Foundation::{NSObject, NSPoint};
 use objc2::rc::Id;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
-
-use super::NSImage;
 
 extern_class!(
     /// <https://developer.apple.com/documentation/appkit/nscursor?language=objc>

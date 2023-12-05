@@ -1,4 +1,4 @@
-use icrate::AppKit::{NSBitmapImageRep, NSDeviceRGBColorSpace};
+use icrate::AppKit::{NSBitmapImageRep, NSDeviceRGBColorSpace, NSImage};
 use icrate::Foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
     NSString,
@@ -10,7 +10,7 @@ use once_cell::sync::Lazy;
 use std::ffi::c_uchar;
 use std::slice;
 
-use super::appkit::{NSCursor, NSImage};
+use super::appkit::NSCursor;
 use super::EventLoopWindowTarget;
 use crate::cursor::CursorImage;
 use crate::cursor::OnlyCursorImageBuilder;
@@ -50,8 +50,10 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Id<NSCursor> {
     let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.rgba.len()) };
     bitmap_data.copy_from_slice(&cursor.rgba);
 
-    let image = NSImage::init_with_size(NSSize::new(width.into(), height.into()));
-    image.add_representation(&bitmap);
+    let image = unsafe {
+        NSImage::initWithSize(NSImage::alloc(), NSSize::new(width.into(), height.into()))
+    };
+    unsafe { image.addRepresentation(&bitmap) };
 
     let hotspot = NSPoint::new(cursor.hotspot_x as f64, cursor.hotspot_y as f64);
 
@@ -119,7 +121,7 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
     let cursor_path = root.stringByAppendingPathComponent(name);
 
     let pdf_path = cursor_path.stringByAppendingPathComponent(ns_string!("cursor.pdf"));
-    let image = NSImage::new_by_referencing_file(&pdf_path);
+    let image = NSImage::initByReferencingFile(NSImage::alloc(), &pdf_path).unwrap();
 
     // TODO: Handle PLists better
     let info_path = cursor_path.stringByAppendingPathComponent(ns_string!("info.plist"));
@@ -179,7 +181,7 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
     static CURSOR: Lazy<Wrapper> = Lazy::new(|| {
         // TODO: Consider using `dataWithBytesNoCopy:`
         let data = NSData::with_bytes(CURSOR_BYTES);
-        let image = NSImage::new_with_data(&data);
+        let image = NSImage::initWithData(NSImage::alloc(), &data).unwrap();
         let hotspot = NSPoint::new(0.0, 0.0);
         Wrapper(NSCursor::new(&image, hotspot))
     });

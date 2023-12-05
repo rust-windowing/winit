@@ -18,7 +18,6 @@ mod color;
 mod control;
 mod cursor;
 mod event;
-mod image;
 mod menu;
 mod menu_item;
 mod pasteboard;
@@ -44,7 +43,6 @@ pub(crate) use self::cursor::NSCursor;
 pub(crate) use self::event::{
     NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
 };
-pub(crate) use self::image::NSImage;
 pub(crate) use self::menu::NSMenu;
 pub(crate) use self::menu_item::NSMenuItem;
 pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboard, NSPasteboardType};
