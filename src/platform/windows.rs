@@ -47,7 +47,7 @@ pub enum BackdropType {
     /// Corresponds to `DWMSBT_TABBEDWINDOW`.
     ///
     /// Draws the Alt Mica backdrop material.
-    TabbedWindow = 4
+    TabbedWindow = 4,
 }
 
 /// Additional methods on `EventLoop` that are specific to Windows.
