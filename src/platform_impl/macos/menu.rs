@@ -1,5 +1,4 @@
-use icrate::ns_string;
-use icrate::Foundation::{NSProcessInfo, NSString};
+use icrate::Foundation::{ns_string, NSProcessInfo, NSString};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::sel;

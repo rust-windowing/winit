@@ -1,12 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::Cell;
-use std::ptr::NonNull;
 
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
-use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
-use objc2::{declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
+use objc2::{
+    declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType, DeclaredClass,
+};
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
@@ -36,6 +36,8 @@ declare_class!(
         type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIView";
     }
+
+    impl DeclaredClass for WinitView {}
 
     unsafe impl WinitView {
         #[method(drawRect:)]
@@ -274,11 +276,7 @@ pub struct ViewControllerState {
 }
 
 declare_class!(
-    pub(crate) struct WinitViewController {
-        state: IvarDrop<Box<ViewControllerState>, "_state">,
-    }
-
-    mod view_controller_ivars;
+    pub(crate) struct WinitViewController;
 
     unsafe impl ClassType for WinitViewController {
         #[inherits(UIResponder, NSObject)]
@@ -287,28 +285,8 @@ declare_class!(
         const NAME: &'static str = "WinitUIViewController";
     }
 
-    unsafe impl WinitViewController {
-        #[method(init)]
-        unsafe fn init(this: *mut Self) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = msg_send![super(this), init];
-            this.map(|this| {
-                // These are set in WinitViewController::new, it's just to set them
-                // to _something_.
-                Ivar::write(
-                    &mut this.state,
-                    Box::new(ViewControllerState {
-                        prefers_status_bar_hidden: Cell::new(false),
-                        preferred_status_bar_style: Cell::new(UIStatusBarStyle::Default),
-                        prefers_home_indicator_auto_hidden: Cell::new(false),
-                        supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
-                        preferred_screen_edges_deferring_system_gestures: Cell::new(
-                            UIRectEdge::NONE,
-                        ),
-                    }),
-                );
-                NonNull::from(this)
-            })
-        }
+    impl DeclaredClass for WinitViewController {
+        type Ivars = ViewControllerState;
     }
 
     unsafe impl WinitViewController {
@@ -319,27 +297,27 @@ declare_class!(
 
         #[method(prefersStatusBarHidden)]
         fn prefers_status_bar_hidden(&self) -> bool {
-            self.state.prefers_status_bar_hidden.get()
+            self.ivars().prefers_status_bar_hidden.get()
         }
 
         #[method(preferredStatusBarStyle)]
         fn preferred_status_bar_style(&self) -> UIStatusBarStyle {
-            self.state.preferred_status_bar_style.get()
+            self.ivars().preferred_status_bar_style.get()
         }
 
         #[method(prefersHomeIndicatorAutoHidden)]
         fn prefers_home_indicator_auto_hidden(&self) -> bool {
-            self.state.prefers_home_indicator_auto_hidden.get()
+            self.ivars().prefers_home_indicator_auto_hidden.get()
         }
 
         #[method(supportedInterfaceOrientations)]
         fn supported_orientations(&self) -> UIInterfaceOrientationMask {
-            self.state.supported_orientations.get()
+            self.ivars().supported_orientations.get()
         }
 
         #[method(preferredScreenEdgesDeferringSystemGestures)]
         fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
-            self.state
+            self.ivars()
                 .preferred_screen_edges_deferring_system_gestures
                 .get()
         }
@@ -348,17 +326,17 @@ declare_class!(
 
 impl WinitViewController {
     pub(crate) fn set_prefers_status_bar_hidden(&self, val: bool) {
-        self.state.prefers_status_bar_hidden.set(val);
+        self.ivars().prefers_status_bar_hidden.set(val);
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
     pub(crate) fn set_preferred_status_bar_style(&self, val: UIStatusBarStyle) {
-        self.state.preferred_status_bar_style.set(val);
+        self.ivars().preferred_status_bar_style.set(val);
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
     pub(crate) fn set_prefers_home_indicator_auto_hidden(&self, val: bool) {
-        self.state.prefers_home_indicator_auto_hidden.set(val);
+        self.ivars().prefers_home_indicator_auto_hidden.set(val);
         let os_capabilities = app_state::os_capabilities();
         if os_capabilities.home_indicator_hidden {
             self.setNeedsUpdateOfHomeIndicatorAutoHidden();
@@ -368,7 +346,7 @@ impl WinitViewController {
     }
 
     pub(crate) fn set_preferred_screen_edges_deferring_system_gestures(&self, val: UIRectEdge) {
-        self.state
+        self.ivars()
             .preferred_screen_edges_deferring_system_gestures
             .set(val);
         let os_capabilities = app_state::os_capabilities();
@@ -401,7 +379,7 @@ impl WinitViewController {
                     | UIInterfaceOrientationMask::PortraitUpsideDown
             }
         };
-        self.state.supported_orientations.set(mask);
+        self.ivars().supported_orientations.set(mask);
         UIViewController::attemptRotationToDeviceOrientation();
     }
 
@@ -411,7 +389,15 @@ impl WinitViewController {
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         view: &UIView,
     ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), init] };
+        // These are set properly below, we just to set them to something in the meantime.
+        let this = Self::alloc().set_ivars(ViewControllerState {
+            prefers_status_bar_hidden: Cell::new(false),
+            preferred_status_bar_style: Cell::new(UIStatusBarStyle::Default),
+            prefers_home_indicator_auto_hidden: Cell::new(false),
+            supported_orientations: Cell::new(UIInterfaceOrientationMask::All),
+            preferred_screen_edges_deferring_system_gestures: Cell::new(UIRectEdge::NONE),
+        });
+        let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
 
@@ -445,6 +431,8 @@ declare_class!(
         type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUIWindow";
     }
+
+    impl DeclaredClass for WinitUIWindow {}
 
     unsafe impl WinitUIWindow {
         #[method(becomeKeyWindow)]
@@ -517,6 +505,8 @@ declare_class!(
         type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitApplicationDelegate";
     }
+
+    impl DeclaredClass for WinitApplicationDelegate {}
 
     // UIApplicationDelegate protocol
     unsafe impl WinitApplicationDelegate {

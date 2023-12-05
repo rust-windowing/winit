@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 
-use icrate::ns_string;
 use icrate::Foundation::{
-    NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize, NSString,
+    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
+    NSString,
 };
 use objc2::rc::{DefaultId, Id};
 use objc2::runtime::Sel;

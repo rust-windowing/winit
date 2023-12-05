@@ -3,8 +3,6 @@
 use std::collections::VecDeque;
 use std::f64;
 use std::ops;
-use std::os::raw::c_void;
-use std::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::{
@@ -36,9 +34,8 @@ use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
 };
-use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::{autoreleasepool, Id};
-use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
@@ -58,7 +55,7 @@ pub(crate) struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.window
-            .get_on_main(|window, _| autoreleasepool(|_| window.close()))
+            .get_on_main(|window| autoreleasepool(|_| window.close()))
     }
 }
 
@@ -86,7 +83,7 @@ impl Window {
         &self,
         f: impl FnOnce(&WinitWindow) -> R + Send,
     ) -> R {
-        self.window.get_on_main(|window, _mtm| f(window))
+        self.window.get_on_main(|window| f(window))
     }
 
     #[cfg(feature = "rwh_06")]
@@ -159,12 +156,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 
 declare_class!(
     #[derive(Debug)]
-    pub struct WinitWindow {
-        // TODO: Fix unnecessary boxing here
-        shared_state: IvarDrop<Box<Mutex<SharedState>>, "_shared_state">,
-    }
-
-    mod ivars;
+    pub struct WinitWindow;
 
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
@@ -173,38 +165,8 @@ declare_class!(
         const NAME: &'static str = "WinitWindow";
     }
 
-    unsafe impl WinitWindow {
-        #[method(initWithContentRect:styleMask:state:)]
-        unsafe fn init(
-            this: *mut Self,
-            frame: NSRect,
-            mask: NSWindowStyleMask,
-            state: *mut c_void,
-        ) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = unsafe {
-                msg_send![
-                    super(this),
-                    initWithContentRect: frame,
-                    styleMask: mask,
-                    backing: NSBackingStoreType::NSBackingStoreBuffered,
-                    defer: false,
-                ]
-            };
-
-            this.map(|this| {
-                // SAFETY: The pointer originally came from `Box::into_raw`.
-                Ivar::write(&mut this.shared_state, unsafe {
-                    Box::from_raw(state as *mut Mutex<SharedState>)
-                });
-
-                // It is imperative to correct memory management that we
-                // disable the extra release that would otherwise happen when
-                // calling `clone` on the window.
-                this.setReleasedWhenClosed(false);
-
-                NonNull::from(this)
-            })
-        }
+    impl DeclaredClass for WinitWindow {
+        type Ivars = Mutex<SharedState>;
     }
 
     unsafe impl WinitWindow {
@@ -384,17 +346,22 @@ impl WinitWindow {
                 ..Default::default()
             };
 
-            // Pass the state through FFI to the method declared on the class
-            let state_ptr: *mut c_void = Box::into_raw(Box::new(Mutex::new(state))).cast();
+            let this = WinitWindow::alloc().set_ivars(Mutex::new(state));
             let this: Option<Id<Self>> = unsafe {
                 msg_send_id![
-                    WinitWindow::alloc(),
+                    super(this),
                     initWithContentRect: frame,
                     styleMask: masks,
-                    state: state_ptr,
+                    backing: NSBackingStoreType::NSBackingStoreBuffered,
+                    defer: false,
                 ]
             };
             let this = this?;
+
+            // It is very important for correct memory management that we
+            // disable the extra release that would otherwise happen when
+            // calling `close` on the window.
+            this.setReleasedWhenClosed(false);
 
             let resize_increments = match attrs
                 .resize_increments
@@ -576,7 +543,7 @@ impl WinitWindow {
         &self,
         called_from_fn: &'static str,
     ) -> SharedStateMutexGuard<'_> {
-        SharedStateMutexGuard::new(self.shared_state.lock().unwrap(), called_from_fn)
+        SharedStateMutexGuard::new(self.ivars().lock().unwrap(), called_from_fn)
     }
 
     fn set_style_mask(&self, mask: NSWindowStyleMask) {
