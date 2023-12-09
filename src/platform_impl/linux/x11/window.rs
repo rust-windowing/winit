@@ -1377,7 +1377,8 @@ impl UnownedWindow {
             self.xwindow as xproto::Window,
             xproto::AtomEnum::WM_NORMAL_HINTS,
         )?
-        .reply()?;
+        .reply()?
+        .unwrap_or_default();
         callback(&mut normal_hints);
         normal_hints
             .set(
@@ -1430,6 +1431,7 @@ impl UnownedWindow {
         )
         .ok()
         .and_then(|cookie| cookie.reply().ok())
+        .flatten()
         .and_then(|hints| hints.size_increment)
         .map(|(width, height)| (width as u32, height as u32).into())
     }
@@ -1824,6 +1826,7 @@ impl UnownedWindow {
             WmHints::get(self.xconn.xcb_connection(), self.xwindow as xproto::Window)
                 .ok()
                 .and_then(|cookie| cookie.reply().ok())
+                .flatten()
                 .unwrap_or_default();
 
         wm_hints.urgent = request_type.is_some();
