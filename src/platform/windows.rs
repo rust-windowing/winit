@@ -213,6 +213,9 @@ pub trait WindowBuilderExtWindows {
     /// The shadow is hidden by default.
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
+
+    /// This sets or removes `WS_CLIPCHILDREN` style.
+    fn with_clip_children(self, flag: bool) -> Self;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -261,6 +264,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_clip_children(mut self, flag: bool) -> Self {
+        self.platform_specific.clip_children = flag;
         self
     }
 }
