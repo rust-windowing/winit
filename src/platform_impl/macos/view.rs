@@ -74,8 +74,8 @@ enum ImeState {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq)]
     struct ModLocationMask: u8 {
-        const LEFT = 1;
-        const RIGHT = 2;
+        const LEFT     = 0b0001;
+        const RIGHT    = 0b0010;
     }
 }
 impl ModLocationMask {
@@ -88,13 +88,13 @@ impl ModLocationMask {
     }
 }
 
-fn key_to_modifier(key: &Key) -> ModifiersState {
+fn key_to_modifier(key: &Key) -> Option<ModifiersState> {
     match key {
-        Key::Named(NamedKey::Alt) => ModifiersState::ALT,
-        Key::Named(NamedKey::Control) => ModifiersState::CONTROL,
-        Key::Named(NamedKey::Super) => ModifiersState::SUPER,
-        Key::Named(NamedKey::Shift) => ModifiersState::SHIFT,
-        _ => unreachable!(),
+        Key::Named(NamedKey::Alt) => Some(ModifiersState::ALT),
+        Key::Named(NamedKey::Control) => Some(ModifiersState::CONTROL),
+        Key::Named(NamedKey::Super) => Some(ModifiersState::SUPER),
+        Key::Named(NamedKey::Shift) => Some(ModifiersState::SHIFT),
+        _ => None,
     }
 }
 
@@ -924,91 +924,96 @@ impl WinitView {
         // event, thus we can't generate regular presses based on that. The `ModifiersChanged`
         // later will work though, since the flags are attached to the event and contain valid
         // information.
-        if is_flags_changed_event && ns_event.key_code() != 0 {
-            let scancode = ns_event.key_code();
-            let physical_key = PhysicalKey::from_scancode(scancode as u32);
+        'send_event: {
+            if is_flags_changed_event && ns_event.key_code() != 0 {
+                let scancode = ns_event.key_code();
+                let physical_key = PhysicalKey::from_scancode(scancode as u32);
 
-            // We'll correct the `is_press` later.
-            let mut event = create_key_event(ns_event, false, false, Some(physical_key));
+                // We'll correct the `is_press` later.
+                let mut event = create_key_event(ns_event, false, false, Some(physical_key));
 
-            let key = code_to_key(physical_key, scancode);
-            let event_modifier = key_to_modifier(&key);
-            event.physical_key = physical_key;
-            event.logical_key = key.clone();
-            event.location = code_to_location(physical_key);
-            let location_mask = ModLocationMask::from_location(event.location);
+                let key = code_to_key(physical_key, scancode);
+                // Ignore processing of unkown modifiers because we can't determine whether
+                // it was pressed or release reliably.
+                let Some(event_modifier) = key_to_modifier(&key) else {
+                    break 'send_event;
+                };
+                event.physical_key = physical_key;
+                event.logical_key = key.clone();
+                event.location = code_to_location(physical_key);
+                let location_mask = ModLocationMask::from_location(event.location);
 
-            let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
-            let phys_mod = phys_mod_state
-                .entry(key)
-                .or_insert(ModLocationMask::empty());
+                let mut phys_mod_state = self.state.phys_modifiers.borrow_mut();
+                let phys_mod = phys_mod_state
+                    .entry(key)
+                    .or_insert(ModLocationMask::empty());
 
-            let is_active = current_modifiers.state().contains(event_modifier);
-            let mut events = VecDeque::with_capacity(2);
+                let is_active = current_modifiers.state().contains(event_modifier);
+                let mut events = VecDeque::with_capacity(2);
 
-            // There is no API for getting whether the button was pressed or released
-            // during this event. For this reason we have to do a bit of magic below
-            // to come up with a good guess whether this key was pressed or released.
-            // (This is not trivial because there are multiple buttons that may affect
-            // the same modifier)
-            if !is_active {
-                event.state = Released;
-                if phys_mod.contains(ModLocationMask::LEFT) {
-                    let mut event = event.clone();
-                    event.location = KeyLocation::Left;
-                    event.physical_key = get_left_modifier_code(&event.logical_key).into();
-                    events.push_back(WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        event,
-                        is_synthetic: false,
-                    });
-                }
-                if phys_mod.contains(ModLocationMask::RIGHT) {
-                    event.location = KeyLocation::Right;
-                    event.physical_key = get_right_modifier_code(&event.logical_key).into();
-                    events.push_back(WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        event,
-                        is_synthetic: false,
-                    });
-                }
-                *phys_mod = ModLocationMask::empty();
-            } else {
-                // is_active
-                if *phys_mod == location_mask {
-                    // Here we hit a contradiction:
-                    // The modifier state was "changed" to active,
-                    // yet the only pressed modifier key was the one that we
-                    // just got a change event for.
-                    // This seemingly means that the only pressed modifier is now released,
-                    // but at the same time the modifier became active.
-                    //
-                    // But this scenario is possible if we released modifiers
-                    // while the application was not in focus. (Because we don't
-                    // get informed of modifier key events while the application
-                    // is not focused)
-
-                    // In this case we prioritize the information
-                    // about the current modifier state which means
-                    // that the button was pressed.
-                    event.state = Pressed;
+                // There is no API for getting whether the button was pressed or released
+                // during this event. For this reason we have to do a bit of magic below
+                // to come up with a good guess whether this key was pressed or released.
+                // (This is not trivial because there are multiple buttons that may affect
+                // the same modifier)
+                if !is_active {
+                    event.state = Released;
+                    if phys_mod.contains(ModLocationMask::LEFT) {
+                        let mut event = event.clone();
+                        event.location = KeyLocation::Left;
+                        event.physical_key = get_left_modifier_code(&event.logical_key).into();
+                        events.push_back(WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event,
+                            is_synthetic: false,
+                        });
+                    }
+                    if phys_mod.contains(ModLocationMask::RIGHT) {
+                        event.location = KeyLocation::Right;
+                        event.physical_key = get_right_modifier_code(&event.logical_key).into();
+                        events.push_back(WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event,
+                            is_synthetic: false,
+                        });
+                    }
+                    *phys_mod = ModLocationMask::empty();
                 } else {
-                    phys_mod.toggle(location_mask);
-                    let is_pressed = phys_mod.contains(location_mask);
-                    event.state = if is_pressed { Pressed } else { Released };
+                    if *phys_mod == location_mask {
+                        // Here we hit a contradiction:
+                        // The modifier state was "changed" to active,
+                        // yet the only pressed modifier key was the one that we
+                        // just got a change event for.
+                        // This seemingly means that the only pressed modifier is now released,
+                        // but at the same time the modifier became active.
+                        //
+                        // But this scenario is possible if we released modifiers
+                        // while the application was not in focus. (Because we don't
+                        // get informed of modifier key events while the application
+                        // is not focused)
+
+                        // In this case we prioritize the information
+                        // about the current modifier state which means
+                        // that the button was pressed.
+                        event.state = Pressed;
+                    } else {
+                        phys_mod.toggle(location_mask);
+                        let is_pressed = phys_mod.contains(location_mask);
+                        event.state = if is_pressed { Pressed } else { Released };
+                    }
+
+                    events.push_back(WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        event,
+                        is_synthetic: false,
+                    });
                 }
 
-                events.push_back(WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    event,
-                    is_synthetic: false,
-                });
-            }
+                drop(phys_mod_state);
 
-            drop(phys_mod_state);
-
-            for event in events {
-                self.queue_event(event);
+                for event in events {
+                    self.queue_event(event);
+                }
             }
         }
 

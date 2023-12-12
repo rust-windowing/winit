@@ -80,6 +80,9 @@ extern_methods!(
         #[method(setMainMenu:)]
         pub fn setMainMenu(&self, menu: &NSMenu);
 
+        #[method(setServicesMenu:)]
+        pub fn setServicesMenu(&self, menu: &NSMenu);
+
         #[method_id(effectiveAppearance)]
         pub fn effectiveAppearance(&self) -> Id<NSAppearance>;
 

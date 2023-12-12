@@ -230,37 +230,45 @@ impl MonitorHandle {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
-        let mut modes = BTreeSet::new();
-        let mut i = 0;
+        let mut modes = BTreeSet::<RootVideoMode>::new();
+        let mod_map = |mode: RootVideoMode| mode.video_mode;
 
-        loop {
-            unsafe {
-                let monitor_info = get_monitor_info(self.0).unwrap();
-                let device_name = monitor_info.szDevice.as_ptr();
-                let mut mode: DEVMODEW = mem::zeroed();
-                mode.dmSize = mem::size_of_val(&mode) as u16;
-                if EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == false.into() {
-                    break;
-                }
-                i += 1;
-
-                const REQUIRED_FIELDS: u32 =
-                    DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-                assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
-
-                // Use Ord impl of RootVideoMode
-                modes.insert(RootVideoMode {
-                    video_mode: VideoMode {
-                        size: (mode.dmPelsWidth, mode.dmPelsHeight),
-                        bit_depth: mode.dmBitsPerPel as u16,
-                        refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
-                        monitor: self.clone(),
-                        native_video_mode: Box::new(mode),
-                    },
-                });
+        let monitor_info = match get_monitor_info(self.0) {
+            Ok(monitor_info) => monitor_info,
+            Err(error) => {
+                log::warn!("Error from get_monitor_info: {error}");
+                return modes.into_iter().map(mod_map);
             }
+        };
+
+        let device_name = monitor_info.szDevice.as_ptr();
+
+        let mut i = 0;
+        loop {
+            let mut mode: DEVMODEW = unsafe { mem::zeroed() };
+            mode.dmSize = mem::size_of_val(&mode) as u16;
+            if unsafe { EnumDisplaySettingsExW(device_name, i, &mut mode, 0) } == false.into() {
+                break;
+            }
+
+            const REQUIRED_FIELDS: u32 =
+                DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+            assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
+
+            // Use Ord impl of RootVideoMode
+            modes.insert(RootVideoMode {
+                video_mode: VideoMode {
+                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
+                    bit_depth: mode.dmBitsPerPel as u16,
+                    refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,
+                    monitor: self.clone(),
+                    native_video_mode: Box::new(mode),
+                },
+            });
+
+            i += 1;
         }
 
-        modes.into_iter().map(|mode| mode.video_mode)
+        modes.into_iter().map(mod_map)
     }
 }

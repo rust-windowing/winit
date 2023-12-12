@@ -196,7 +196,7 @@ impl Inner {
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         *self.previous_pointer.borrow_mut() = cursor.name();
-        backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", cursor.name());
+        self.canvas.borrow().style().set("cursor", cursor.name());
     }
 
     #[inline]
@@ -223,13 +223,12 @@ impl Inner {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         if !visible {
-            backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", "none");
+            self.canvas.borrow().style().set("cursor", "none");
         } else {
-            backend::set_canvas_style_property(
-                self.canvas.borrow().raw(),
-                "cursor",
-                &self.previous_pointer.borrow(),
-            );
+            self.canvas
+                .borrow()
+                .style()
+                .set("cursor", &self.previous_pointer.borrow());
         }
     }
 

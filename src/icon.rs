@@ -49,11 +49,7 @@ impl fmt::Display for BadIcon {
     }
 }
 
-impl Error for BadIcon {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(self)
-    }
-}
+impl Error for BadIcon {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RgbaIcon {

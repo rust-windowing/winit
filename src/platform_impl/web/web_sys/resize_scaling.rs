@@ -2,14 +2,14 @@ use js_sys::{Array, Object};
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    CssStyleDeclaration, Document, HtmlCanvasElement, MediaQueryList, ResizeObserver,
-    ResizeObserverBoxOptions, ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize,
-    Window,
+    Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
+    ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
 };
 
 use crate::dpi::{LogicalSize, PhysicalSize};
 
 use super::super::backend;
+use super::canvas::Style;
 use super::media_query_handle::MediaQueryListHandle;
 
 use std::cell::{Cell, RefCell};
@@ -22,7 +22,7 @@ impl ResizeScaleHandle {
         window: Window,
         document: Document,
         canvas: HtmlCanvasElement,
-        style: CssStyleDeclaration,
+        style: Style,
         scale_handler: S,
         resize_handler: R,
     ) -> Self
@@ -51,7 +51,7 @@ struct ResizeScaleInternal {
     window: Window,
     document: Document,
     canvas: HtmlCanvasElement,
-    style: CssStyleDeclaration,
+    style: Style,
     mql: MediaQueryListHandle,
     observer: ResizeObserver,
     _observer_closure: Closure<dyn FnMut(Array, ResizeObserver)>,
@@ -65,7 +65,7 @@ impl ResizeScaleInternal {
         window: Window,
         document: Document,
         canvas: HtmlCanvasElement,
-        style: CssStyleDeclaration,
+        style: Style,
         scale_handler: S,
         resize_handler: R,
     ) -> Rc<RefCell<Self>>
@@ -152,9 +152,7 @@ impl ResizeScaleInternal {
     }
 
     fn notify(&mut self) {
-        if !self.document.contains(Some(&self.canvas))
-            || self.style.get_property_value("display").unwrap() == "none"
-        {
+        if !self.document.contains(Some(&self.canvas)) || self.style.get("display") == "none" {
             let size = PhysicalSize::new(0, 0);
 
             if self.notify_scale.replace(false) {
@@ -180,7 +178,7 @@ impl ResizeScaleInternal {
             backend::style_size_property(&self.style, "height"),
         );
 
-        if self.style.get_property_value("box-sizing").unwrap() == "border-box" {
+        if self.style.get("box-sizing") == "border-box" {
             size.width -= backend::style_size_property(&self.style, "border-left-width")
                 + backend::style_size_property(&self.style, "border-right-width")
                 + backend::style_size_property(&self.style, "padding-left")
@@ -246,10 +244,7 @@ impl ResizeScaleInternal {
             .get(0)
             .unchecked_into();
 
-        let writing_mode = self
-            .style
-            .get_property_value("writing-mode")
-            .expect("`writing-mode` is a valid CSS property");
+        let writing_mode = self.style.get("writing-mode");
 
         // means the canvas is not inserted into the DOM
         if writing_mode.is_empty() {
