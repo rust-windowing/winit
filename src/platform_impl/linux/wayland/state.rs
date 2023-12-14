@@ -50,7 +50,7 @@ pub struct WinitState {
     pub compositor_state: Arc<CompositorState>,
 
     /// The state of the subcompositor.
-    pub subcompositor_state: Arc<SubcompositorState>,
+    pub subcompositor_state: Option<Arc<SubcompositorState>>,
 
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
@@ -124,12 +124,17 @@ impl WinitState {
         let registry_state = RegistryState::new(globals);
         let compositor_state =
             CompositorState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
-        let subcompositor_state = SubcompositorState::bind(
+        let subcompositor_state = match SubcompositorState::bind(
             compositor_state.wl_compositor().clone(),
             globals,
             queue_handle,
-        )
-        .map_err(WaylandError::Bind)?;
+        ) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                warn!("Subcompositor protocol not available, ignoring CSD: {e:?}");
+                None
+            }
+        };
 
         let output_state = OutputState::new(globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
@@ -151,7 +156,7 @@ impl WinitState {
         Ok(Self {
             registry_state,
             compositor_state: Arc::new(compositor_state),
-            subcompositor_state: Arc::new(subcompositor_state),
+            subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
             seat_state,
             shm: Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
