@@ -254,7 +254,7 @@ impl WindowState {
         &mut self,
         configure: WindowConfigure,
         shm: &Shm,
-        subcompositor: &Arc<SubcompositorState>,
+        subcompositor: &Option<Arc<SubcompositorState>>,
         event_sink: &mut EventSink,
     ) -> LogicalSize<u32> {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
@@ -265,10 +265,11 @@ impl WindowState {
             self.stateless_size = self.size;
         }
 
-        if configure.decoration_mode == DecorationMode::Client
-            && self.frame.is_none()
-            && !self.csd_fails
-        {
+        if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
+            configure.decoration_mode == DecorationMode::Client
+                && self.frame.is_none()
+                && !self.csd_fails
+        }) {
             match WinitFrame::new(
                 &self.window,
                 shm,
