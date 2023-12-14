@@ -16,6 +16,7 @@ Unreleased` header.
   misinterpreted during a drag and drop operation.
 - On X11, fix a bug where focusing the window would panic.
 - On macOS, fix `refresh_rate_millihertz`.
+- On Wayland, disable Client Side Decorations when `wl_subcompositor` is not supported.
 
 # 0.29.4
 
