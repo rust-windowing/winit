@@ -688,7 +688,7 @@ impl Window {
         let old_fullscreen = window_state_lock.fullscreen.clone();
 
         match (&old_fullscreen, &fullscreen) {
-            // Return if we already in the same fullscreen mode
+            // Return if we already are in the same fullscreen mode
             _ if old_fullscreen == fullscreen => return,
             // Return if saved Borderless(monitor) is the same as current monitor when requested fullscreen is Borderless(None)
             (Some(Fullscreen::Borderless(Some(monitor))), Some(Fullscreen::Borderless(None)))
