@@ -38,7 +38,7 @@ impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub fn get_xft_dpi(&self) -> Option<f64> {
         self.database()
-            .get_string("Xfi.dpi", "")
+            .get_string("Xft.dpi", "")
             .and_then(|s| f64::from_str(s).ok())
     }
     pub fn get_output_info(
