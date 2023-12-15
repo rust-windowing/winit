@@ -17,6 +17,8 @@ Unreleased` header.
   misinterpreted during a drag and drop operation.
 - On X11, fix a bug where focusing the window would panic.
 - On macOS, fix `refresh_rate_millihertz`.
+- On Wayland, disable Client Side Decorations when `wl_subcompositor` is not supported.
+- On X11, fix `Xft.dpi` detection from Xresources.
 - On Windows, fix consecutive calls to `window.set_fullscreen(Some(Fullscreen::Borderless(None)))` resulting in losing previous window state when eventually exiting fullscreen using `window.set_fullscreen(None)`.
 
 # 0.29.4
