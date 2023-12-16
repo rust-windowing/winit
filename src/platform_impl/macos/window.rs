@@ -7,6 +7,7 @@ use std::os::raw::c_void;
 use std::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
+use crate::cursor::CustomCursor;
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -831,6 +832,13 @@ impl WinitWindow {
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
         let view = self.view();
         view.set_cursor_icon(NSCursor::from_icon(icon));
+        self.invalidateCursorRectsForView(&view);
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        let view = self.view();
+        view.set_cursor_icon(NSCursor::from_image(&cursor.inner));
         self.invalidateCursorRectsForView(&view);
     }
 

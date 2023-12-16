@@ -19,6 +19,7 @@ use sctk::seat::SeatState;
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shell::xdg::XdgShell;
 use sctk::shell::WaylandSurface;
+use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
@@ -57,6 +58,9 @@ pub struct WinitState {
 
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
+
+    /// The pool where custom cursors are allocated.
+    pub custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
     /// The XDG shell that is used for widnows.
     pub xdg_shell: XdgShell,
@@ -153,13 +157,17 @@ impl WinitState {
                 (None, None)
             };
 
+        let shm = Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
+        let custom_cursor_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
+
         Ok(Self {
             registry_state,
             compositor_state: Arc::new(compositor_state),
             subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
             seat_state,
-            shm: Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
+            shm,
+            custom_cursor_pool,
 
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),

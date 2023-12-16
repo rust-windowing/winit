@@ -101,7 +101,7 @@ use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 use self::runner::RunnerState;
 
-use super::window::set_skip_taskbar;
+use super::{window::set_skip_taskbar, SelectedCursor};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: u32,
@@ -2011,16 +2011,21 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
                 let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
                 if in_client_area {
-                    Some(window_state.mouse.cursor)
+                    Some(window_state.mouse.selected_cursor.clone())
                 } else {
                     None
                 }
             };
 
             match set_cursor_to {
-                Some(cursor) => {
-                    let cursor = unsafe { LoadCursorW(0, util::to_windows_cursor(cursor)) };
-                    unsafe { SetCursor(cursor) };
+                Some(selected_cursor) => {
+                    let hcursor = match selected_cursor {
+                        SelectedCursor::Named(cursor_icon) => unsafe {
+                            LoadCursorW(0, util::to_windows_cursor(cursor_icon))
+                        },
+                        SelectedCursor::Custom(cursor) => cursor.as_raw_handle(),
+                    };
+                    unsafe { SetCursor(hcursor) };
                     result = ProcResult::Value(0);
                 }
                 None => result = ProcResult::DefWindowProc(wparam),

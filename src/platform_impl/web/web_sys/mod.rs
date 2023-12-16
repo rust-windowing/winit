@@ -10,7 +10,7 @@ mod resize_scaling;
 mod schedule;
 
 pub use self::canvas::Canvas;
-use self::canvas::Style;
+pub use self::canvas::Style;
 pub use self::event::ButtonsState;
 pub use self::event_handle::EventListenerHandle;
 pub use self::resize_scaling::ResizeScaleHandle;

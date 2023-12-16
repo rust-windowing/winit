@@ -55,7 +55,7 @@ pub struct Common {
     fullscreen_handler: Rc<FullscreenHandler>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Style {
     read: CssStyleDeclaration,
     write: CssStyleDeclaration,

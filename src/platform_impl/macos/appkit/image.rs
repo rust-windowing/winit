@@ -1,6 +1,8 @@
-use icrate::Foundation::{NSData, NSObject, NSString};
+use icrate::Foundation::{NSData, NSObject, NSSize, NSString};
 use objc2::rc::Id;
-use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
+use objc2::{extern_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
+
+use super::NSBitmapImageRep;
 
 extern_class!(
     // TODO: Can this be mutable?
@@ -31,6 +33,14 @@ extern_methods!(
 
         pub fn new_with_data(data: &NSData) -> Id<Self> {
             unsafe { msg_send_id![Self::alloc(), initWithData: data] }
+        }
+
+        pub fn init_with_size(size: NSSize) -> Id<Self> {
+            unsafe { msg_send_id![Self::alloc(), initWithSize: size] }
+        }
+
+        pub fn add_representation(&self, representation: &NSBitmapImageRep) {
+            unsafe { msg_send![self, addRepresentation: representation] }
         }
     }
 );

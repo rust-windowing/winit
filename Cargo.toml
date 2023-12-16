@@ -179,6 +179,7 @@ version = "0.3.64"
 features = [
     'AbortController',
     'AbortSignal',
+    'Blob',
     'console',
     'CssStyleDeclaration',
     'Document',
@@ -190,6 +191,10 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'ImageBitmap',
+    'ImageBitmapOptions',
+    'ImageBitmapRenderingContext',
+    'ImageData',
     'IntersectionObserver',
     'IntersectionObserverEntry',
     'KeyboardEvent',
@@ -199,6 +204,7 @@ features = [
     'Node',
     'PageTransitionEvent',
     'PointerEvent',
+    'PremultiplyAlpha',
     'ResizeObserver',
     'ResizeObserverBoxOptions',
     'ResizeObserverEntry',
@@ -206,7 +212,8 @@ features = [
     'ResizeObserverSize',
     'VisibilityState',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'Url',
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
