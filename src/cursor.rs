@@ -40,8 +40,8 @@ impl CustomCursor {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web:** Setting cursor could be delayed due to use of data URLs, which are async by
-    ///     nature.
+    /// - **Web:** Setting cursor could be delayed due to the creation of `Blob` objects,
+    ///   which are async by nature.
     pub fn from_rgba(
         rgba: impl Into<Vec<u8>>,
         width: u16,
