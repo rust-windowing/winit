@@ -273,6 +273,8 @@ impl WindowState {
             match WinitFrame::new(
                 &self.window,
                 shm,
+                #[cfg(feature = "sctk-adwaita")]
+                self.compositor.clone(),
                 subcompositor.clone(),
                 self.queue_handle.clone(),
                 #[cfg(feature = "sctk-adwaita")]
