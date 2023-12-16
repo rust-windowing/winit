@@ -234,21 +234,21 @@ impl NSCursor {
         }
     }
 
-    pub fn from_image(image: &CursorImage) -> Id<Self> {
-        let w = image.width;
-        let h = image.height;
+    pub fn from_image(cursor: &CursorImage) -> Id<Self> {
+        let width = cursor.width;
+        let height = cursor.height;
 
-        let bitmap = NSBitmapImageRep::init_rgba(w as isize, h as isize);
+        let bitmap = NSBitmapImageRep::init_rgba(width as isize, height as isize);
         let bitmap_data =
-            unsafe { std::slice::from_raw_parts_mut(bitmap.bitmap_data(), image.rgba.len()) };
-        bitmap_data.copy_from_slice(&image.rgba);
+            unsafe { std::slice::from_raw_parts_mut(bitmap.bitmap_data(), cursor.rgba.len()) };
+        bitmap_data.copy_from_slice(&cursor.rgba);
 
-        let nsimage = NSImage::init_with_size(NSSize::new(w.into(), h.into()));
-        nsimage.add_representation(&bitmap);
+        let image = NSImage::init_with_size(NSSize::new(width.into(), height.into()));
+        image.add_representation(&bitmap);
 
-        let hotspot = NSPoint::new(image.hotspot_x as f64, image.hotspot_y as f64);
+        let hotspot = NSPoint::new(cursor.hotspot_x as f64, cursor.hotspot_y as f64);
 
-        NSCursor::new(&nsimage, hotspot)
+        NSCursor::new(&image, hotspot)
     }
 }
 

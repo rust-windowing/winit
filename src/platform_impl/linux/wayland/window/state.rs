@@ -28,13 +28,13 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::cursor::CustomCursor;
+use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::make_wid;
-use crate::platform_impl::wayland::types::cursor::{CustomCursorInternal, SelectedCursor};
+use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::WindowId;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
@@ -698,8 +698,6 @@ impl WindowState {
     }
 
     /// Set the cursor icon.
-    ///
-    /// Providing `None` will hide the cursor.
     pub fn set_cursor(&mut self, cursor_icon: CursorIcon) {
         self.selected_cursor = SelectedCursor::Named(cursor_icon);
 
@@ -714,10 +712,11 @@ impl WindowState {
         })
     }
 
-    pub fn set_custom_cursor(&mut self, cursor: CustomCursor) {
+    /// Set the custom cursor icon.
+    pub fn set_custom_cursor(&mut self, cursor: RootCustomCursor) {
         let cursor = {
             let mut pool = self.custom_cursor_pool.lock().unwrap();
-            CustomCursorInternal::new(&mut pool, &cursor.inner)
+            CustomCursor::new(&mut pool, &cursor.inner)
         };
 
         if self.cursor_visible {
@@ -727,7 +726,7 @@ impl WindowState {
         self.selected_cursor = SelectedCursor::Custom(cursor);
     }
 
-    pub fn apply_custom_cursor(&self, cursor: &CustomCursorInternal) {
+    fn apply_custom_cursor(&self, cursor: &CustomCursor) {
         self.apply_on_poiner(|pointer, _| {
             let surface = pointer.surface();
 

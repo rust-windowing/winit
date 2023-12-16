@@ -166,9 +166,16 @@ pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     }
 }
 
-#[derive(Debug)]
-struct RaiiCursor {
-    handle: HCURSOR,
+#[derive(Debug, Clone)]
+pub enum SelectedCursor {
+    Named(CursorIcon),
+    Custom(WinCursor),
+}
+
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        Self::Named(Default::default())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -237,20 +244,13 @@ impl WinCursor {
     }
 }
 
+#[derive(Debug)]
+struct RaiiCursor {
+    handle: HCURSOR,
+}
+
 impl Drop for RaiiCursor {
     fn drop(&mut self) {
         unsafe { DestroyCursor(self.handle) };
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum SelectedCursor {
-    Named(CursorIcon),
-    Custom(WinCursor),
-}
-
-impl Default for SelectedCursor {
-    fn default() -> Self {
-        Self::Named(Default::default())
     }
 }

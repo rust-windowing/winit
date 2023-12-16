@@ -6,77 +6,6 @@ use crate::{cursor::CursorImage, window::CursorIcon};
 
 use super::*;
 
-#[derive(Debug)]
-struct RaiiCursor {
-    xconn: Arc<XConnection>,
-    cursor: ffi::Cursor,
-}
-
-impl Drop for RaiiCursor {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeCursor)(self.xconn.display, self.cursor);
-        }
-    }
-}
-
-impl PartialEq for RaiiCursor {
-    fn eq(&self, other: &Self) -> bool {
-        self.cursor == other.cursor
-    }
-}
-
-impl Eq for RaiiCursor {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CustomCursorInternal {
-    inner: Arc<RaiiCursor>,
-}
-
-impl CustomCursorInternal {
-    pub(crate) unsafe fn new(xconn: &Arc<XConnection>, image: &CursorImage) -> Self {
-        unsafe {
-            let ximage =
-                (xconn.xcursor.XcursorImageCreate)(image.width as i32, image.height as i32);
-            if ximage.is_null() {
-                panic!("failed to allocate cursor image");
-            }
-            (*ximage).xhot = image.hotspot_x as u32;
-            (*ximage).yhot = image.hotspot_y as u32;
-            (*ximage).delay = 0;
-
-            let dst = slice::from_raw_parts_mut((*ximage).pixels, image.rgba.len() / 4);
-            for (dst, chunk) in dst.iter_mut().zip(image.rgba.chunks_exact(4)) {
-                *dst = (chunk[0] as u32) << 16
-                    | (chunk[1] as u32) << 8
-                    | (chunk[2] as u32)
-                    | (chunk[3] as u32) << 24;
-            }
-
-            let cursor = (xconn.xcursor.XcursorImageLoadCursor)(xconn.display, ximage);
-            (xconn.xcursor.XcursorImageDestroy)(ximage);
-            Self {
-                inner: Arc::new(RaiiCursor {
-                    xconn: xconn.clone(),
-                    cursor,
-                }),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SelectedCursor {
-    Custom(CustomCursorInternal),
-    Named(CursorIcon),
-}
-
-impl Default for SelectedCursor {
-    fn default() -> Self {
-        SelectedCursor::Named(Default::default())
-    }
-}
-
 impl XConnection {
     pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
         let cursor = *self
@@ -90,7 +19,7 @@ impl XConnection {
             .expect("Failed to set cursor");
     }
 
-    pub fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursorInternal) {
+    pub fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
         self.update_cursor(window, cursor.inner.cursor)
             .expect("Failed to set cursor");
     }
@@ -160,5 +89,76 @@ impl XConnection {
 
         self.xcb_connection().flush()?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectedCursor {
+    Custom(CustomCursor),
+    Named(CursorIcon),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomCursor {
+    inner: Arc<CustomCursorInner>,
+}
+
+impl CustomCursor {
+    pub(crate) unsafe fn new(xconn: &Arc<XConnection>, image: &CursorImage) -> Self {
+        unsafe {
+            let ximage =
+                (xconn.xcursor.XcursorImageCreate)(image.width as i32, image.height as i32);
+            if ximage.is_null() {
+                panic!("failed to allocate cursor image");
+            }
+            (*ximage).xhot = image.hotspot_x as u32;
+            (*ximage).yhot = image.hotspot_y as u32;
+            (*ximage).delay = 0;
+
+            let dst = slice::from_raw_parts_mut((*ximage).pixels, image.rgba.len() / 4);
+            for (dst, chunk) in dst.iter_mut().zip(image.rgba.chunks_exact(4)) {
+                *dst = (chunk[0] as u32) << 16
+                    | (chunk[1] as u32) << 8
+                    | (chunk[2] as u32)
+                    | (chunk[3] as u32) << 24;
+            }
+
+            let cursor = (xconn.xcursor.XcursorImageLoadCursor)(xconn.display, ximage);
+            (xconn.xcursor.XcursorImageDestroy)(ximage);
+            Self {
+                inner: Arc::new(CustomCursorInner {
+                    xconn: xconn.clone(),
+                    cursor,
+                }),
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CustomCursorInner {
+    xconn: Arc<XConnection>,
+    cursor: ffi::Cursor,
+}
+
+impl Drop for CustomCursorInner {
+    fn drop(&mut self) {
+        unsafe {
+            (self.xconn.xlib.XFreeCursor)(self.xconn.display, self.cursor);
+        }
+    }
+}
+
+impl PartialEq for CustomCursorInner {
+    fn eq(&self, other: &Self) -> bool {
+        self.cursor == other.cursor
+    }
+}
+
+impl Eq for CustomCursorInner {}
+
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        SelectedCursor::Named(Default::default())
     }
 }

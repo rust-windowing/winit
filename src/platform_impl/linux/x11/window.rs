@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use crate::cursor::CustomCursor;
+use crate::cursor::CustomCursor as RootCustomCursor;
 
 use cursor_icon::CursorIcon;
 use x11rb::{
@@ -43,7 +43,7 @@ use crate::{
 
 use super::{
     ffi,
-    util::{self, CustomCursorInternal, SelectedCursor},
+    util::{self, CustomCursor, SelectedCursor},
     CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
@@ -1552,8 +1552,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let new_cursor = unsafe { CustomCursorInternal::new(&self.xconn, &cursor.inner) };
+    pub fn set_custom_cursor(&self, cursor: RootCustomCursor) {
+        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.inner) };
 
         #[allow(clippy::mutex_atomic)]
         if *self.cursor_visible.lock().unwrap() {

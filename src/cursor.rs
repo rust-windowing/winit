@@ -3,21 +3,25 @@ use std::{error::Error, sync::Arc};
 
 use crate::platform_impl::PlatformCustomCursor;
 
+/// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
+pub const MAX_CURSOR_SIZE: u16 = 2048;
+
+const PIXEL_SIZE: usize = 4;
+
 /// Use a custom image as a cursor (mouse pointer).
 ///
 /// ## Platform-specific
 ///
-/// **Web**: Some browsers have limits on cursor sizes typically at 128x128.
+/// **Web**: Some browsers have limits on cursor sizes usually at 128x128.
 ///
-///
-/// # Examples
+/// # Example
 ///
 /// ```
 /// use winit::window::CustomCursor;
 ///
 /// let w = 10;
 /// let h = 10;
-/// let rgba = vec![0xff_u8; (w * h * 4) as usize];
+/// let rgba = vec![255; (w * h * 4) as usize];
 /// let custom_cursor = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
 ///
 /// #[cfg(target_family = "wasm")]
@@ -36,8 +40,8 @@ impl CustomCursor {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web** Uses data URLs. They are generated asynchronously, so there can be latency when
-    ///     setting a cursor.
+    /// - **Web:** Setting cursor could be delayed due to use of data URLs, which are async by
+    ///     nature.
     pub fn from_rgba(
         rgba: impl Into<Vec<u8>>,
         width: u16,
@@ -58,29 +62,8 @@ impl CustomCursor {
     }
 }
 
-/// Platforms that don't support cursors will export this as `PlatformCustomCursor`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NoCustomCursor;
-
-#[allow(dead_code)]
-impl NoCustomCursor {
-    pub fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
-        Ok(Self)
-    }
-}
-
-/// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
-pub const MAX_CURSOR_SIZE: u16 = 2048;
-
-#[derive(Debug)]
 /// An error produced when using [`CustomCursor::from_rgba`] with invalid arguments.
+#[derive(Debug, Clone)]
 pub enum BadImage {
     /// Produced when the image dimensions are larger than [`MAX_CURSOR_SIZE`]. This doesn't
     /// guarantee that the cursor will work, but should avoid many platform and device specific
@@ -147,8 +130,6 @@ pub struct CursorImage {
     pub(crate) hotspot_y: u16,
 }
 
-pub const PIXEL_SIZE: usize = 4;
-
 #[allow(dead_code)]
 impl CursorImage {
     pub fn from_rgba(
@@ -195,5 +176,23 @@ impl CursorImage {
             hotspot_x,
             hotspot_y,
         })
+    }
+}
+
+// Platforms that don't support cursors will export this as `PlatformCustomCursor`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NoCustomCursor;
+
+#[allow(dead_code)]
+impl NoCustomCursor {
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
+        Ok(Self)
     }
 }
