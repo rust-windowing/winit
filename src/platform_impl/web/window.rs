@@ -381,8 +381,11 @@ impl Inner {
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let window_handle = rwh_06::WebWindowHandle::new(self.id.0);
-        Ok(rwh_06::RawWindowHandle::Web(window_handle))
+        let canvas = self.canvas.borrow();
+        let canvas: &wasm_bindgen::JsValue = canvas.raw();
+        let window_handle =
+            rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
+        Ok(rwh_06::RawWindowHandle::WebCanvas(window_handle))
     }
 
     #[cfg(feature = "rwh_06")]
