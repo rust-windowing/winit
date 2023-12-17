@@ -13,7 +13,7 @@ use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -26,6 +26,7 @@ pub struct Inner {
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
     selected_cursor: RefCell<SelectedCursor>,
+    cursor_visible: Rc<Cell<bool>>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -55,6 +56,7 @@ impl Window {
             window: window.clone(),
             canvas,
             selected_cursor: Default::default(),
+            cursor_visible: Rc::new(Cell::new(true)),
             destroy_fn: Some(destroy_fn),
         };
 
@@ -197,7 +199,10 @@ impl Inner {
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         *self.selected_cursor.borrow_mut() = SelectedCursor::Named(cursor);
-        self.canvas.borrow().style().set("cursor", cursor.name());
+
+        if self.cursor_visible.get() {
+            self.canvas.borrow().style().set("cursor", cursor.name());
+        }
     }
 
     #[inline]
@@ -208,6 +213,7 @@ impl Inner {
             canvas.document(),
             canvas.style(),
             self.selected_cursor.take(),
+            self.cursor_visible.clone(),
         );
         *self.selected_cursor.borrow_mut() = new_cursor;
     }
@@ -235,12 +241,14 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        if !visible {
+        if !visible && self.cursor_visible.get() {
             self.canvas.borrow().style().set("cursor", "none");
-        } else {
+            self.cursor_visible.set(false);
+        } else if visible && !self.cursor_visible.get() {
             self.selected_cursor
                 .borrow()
                 .set_style(self.canvas.borrow().style());
+            self.cursor_visible.set(true);
         }
     }
 

@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     ops::Deref,
     rc::{Rc, Weak},
 };
@@ -44,6 +44,7 @@ impl WebCustomCursor {
         document: &Document,
         style: &Style,
         previous: SelectedCursor,
+        cursor_visible: Rc<Cell<bool>>,
     ) -> SelectedCursor {
         let previous = previous.into();
 
@@ -54,6 +55,7 @@ impl WebCustomCursor {
                 style.clone(),
                 image,
                 previous,
+                cursor_visible,
             )),
             WebCustomCursor::Url {
                 url,
@@ -61,7 +63,11 @@ impl WebCustomCursor {
                 hotspot_y,
             } => {
                 let value = previous.style_with_url(url, *hotspot_x, *hotspot_y);
-                style.set("cursor", &value);
+
+                if cursor_visible.get() {
+                    style.set("cursor", &value);
+                }
+
                 SelectedCursor::Url {
                     style: value,
                     previous,
@@ -200,6 +206,7 @@ impl From<SelectedCursor> for Previous {
 pub enum CursorImageState {
     Loading {
         style: Style,
+        cursor_visible: Rc<Cell<bool>>,
         previous: Previous,
         hotspot_x: u16,
         hotspot_y: u16,
@@ -219,6 +226,7 @@ impl CursorImageState {
         style: Style,
         image: &CursorImage,
         previous: Previous,
+        cursor_visible: Rc<Cell<bool>>,
     ) -> Rc<RefCell<Option<Self>>> {
         // Can't create array directly when backed by SharedArrayBuffer.
         // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
@@ -261,6 +269,7 @@ impl CursorImageState {
 
         let state = Rc::new(RefCell::new(Some(Self::Loading {
             style,
+            cursor_visible,
             previous,
             hotspot_x: image.hotspot_x,
             hotspot_y: image.hotspot_y,
@@ -305,7 +314,7 @@ impl CursorImageState {
                             };
                             let mut state = state.borrow_mut();
                             // Extract old state.
-                            let CursorImageState::Loading { style, previous, hotspot_x, hotspot_y, .. } = state.take().unwrap() else {
+                            let CursorImageState::Loading { style, cursor_visible, previous, hotspot_x, hotspot_y, .. } = state.take().unwrap() else {
                                 unreachable!("found invalid state")
                             };
 
@@ -316,7 +325,11 @@ impl CursorImageState {
                             let data_url = Url::create_object_url_with_blob(&blob).unwrap();
 
                             let value = previous.style_with_url(&data_url, hotspot_x, hotspot_y);
-                            style.set("cursor", &value);
+
+                            if cursor_visible.get() {
+                                style.set("cursor", &value);
+                            }
+
                             *state = Some(
                                 CursorImageState::Ready {
                                     style: value,
