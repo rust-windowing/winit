@@ -93,6 +93,7 @@ impl Window {
             .value()
             .map(|inner| {
                 let canvas = inner.canvas.borrow();
+                // SAFETY: This will only work if the reference to `HtmlCanvasElement` stays valid.
                 let canvas: &wasm_bindgen::JsValue = canvas.raw();
                 let window_handle =
                     rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
