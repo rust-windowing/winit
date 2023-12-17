@@ -67,7 +67,6 @@ pub struct Execution {
     on_key_press: OnEventHandle<KeyboardEvent>,
     on_key_release: OnEventHandle<KeyboardEvent>,
     on_visibility_change: OnEventHandle<web_sys::Event>,
-    on_touch_end: OnEventHandle<web_sys::Event>,
 }
 
 enum RunnerEnum {
@@ -181,7 +180,6 @@ impl Shared {
                 on_key_press: RefCell::new(None),
                 on_key_release: RefCell::new(None),
                 on_visibility_change: RefCell::new(None),
-                on_touch_end: RefCell::new(None),
             }
         }))
     }
@@ -342,8 +340,6 @@ impl Shared {
             self.window().clone(),
             "pointerdown",
             Closure::new(move |event: PointerEvent| {
-                runner.transient_activation();
-
                 if !runner.device_events() {
                     return;
                 }
@@ -367,8 +363,6 @@ impl Shared {
             self.window().clone(),
             "pointerup",
             Closure::new(move |event: PointerEvent| {
-                runner.transient_activation();
-
                 if !runner.device_events() {
                     return;
                 }
@@ -392,8 +386,6 @@ impl Shared {
             self.window().clone(),
             "keydown",
             Closure::new(move |event: KeyboardEvent| {
-                runner.transient_activation();
-
                 if !runner.device_events() {
                     return;
                 }
@@ -450,14 +442,6 @@ impl Shared {
                         }
                     }
                 }
-            }),
-        ));
-        let runner = self.clone();
-        *self.0.on_touch_end.borrow_mut() = Some(EventListenerHandle::new(
-            self.window().clone(),
-            "touchend",
-            Closure::new(move |_| {
-                runner.transient_activation();
             }),
         ));
     }
@@ -786,18 +770,6 @@ impl Shared {
             }
             DeviceEvents::Never => false,
         }
-    }
-
-    fn transient_activation(&self) {
-        self.0
-            .all_canvases
-            .borrow()
-            .iter()
-            .for_each(|(_, canvas, _)| {
-                if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().transient_activation();
-                }
-            });
     }
 
     pub fn event_loop_recreation(&self, allow: bool) {
