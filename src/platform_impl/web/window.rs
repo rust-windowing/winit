@@ -85,6 +85,21 @@ impl Window {
             .value()
             .map(|inner| inner.canvas.borrow().raw().clone())
     }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        self.inner
+            .value()
+            .map(|inner| {
+                let canvas = inner.canvas.borrow();
+                let canvas: &wasm_bindgen::JsValue = canvas.raw();
+                let window_handle =
+                    rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
+                rwh_06::RawWindowHandle::WebCanvas(window_handle)
+            })
+            .ok_or(rwh_06::HandleError::Unavailable)
+    }
 }
 
 impl Inner {
@@ -376,16 +391,6 @@ impl Inner {
     #[inline]
     pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
         rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let canvas = self.canvas.borrow();
-        let canvas: &wasm_bindgen::JsValue = canvas.raw();
-        let window_handle =
-            rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
-        Ok(rwh_06::RawWindowHandle::WebCanvas(window_handle))
     }
 
     #[cfg(feature = "rwh_06")]

@@ -89,6 +89,16 @@ impl Window {
     ) -> R {
         self.window.get_on_main(|window, _mtm| f(window))
     }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_window_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        Ok(self
+            .maybe_wait_on_main(|w| crate::SendSyncWrapper(w.raw_window_handle_rwh_06()))
+            .0)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1386,12 +1396,12 @@ impl WinitWindow {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
             let ptr = Id::as_ptr(&self.contentView()) as *mut _;
             std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
         });
-        Ok(rwh_06::RawWindowHandle::AppKit(window_handle))
+        rwh_06::RawWindowHandle::AppKit(window_handle)
     }
 
     #[cfg(feature = "rwh_06")]

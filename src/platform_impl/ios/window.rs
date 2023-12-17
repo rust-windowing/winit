@@ -360,14 +360,14 @@ impl Inner {
     }
 
     #[cfg(feature = "rwh_06")]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
             let ui_view = Id::as_ptr(&self.view) as _;
             std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
         });
         window_handle.ui_view_controller =
             std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
-        Ok(rwh_06::RawWindowHandle::UiKit(window_handle))
+        rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 
     #[cfg(feature = "rwh_06")]
@@ -522,6 +522,16 @@ impl Window {
 
     pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
         self.inner.get_on_main(|inner, _mtm| f(inner))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_window_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        Ok(self
+            .maybe_wait_on_main(|w| crate::SendSyncWrapper(w.raw_window_handle_rwh_06()))
+            .0)
     }
 }
 
