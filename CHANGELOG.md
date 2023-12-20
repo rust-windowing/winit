@@ -19,6 +19,7 @@ Unreleased` header.
 - On Wayland, disable Client Side Decorations when `wl_subcompositor` is not supported.
 - On X11, fix `Xft.dpi` detection from Xresources.
 - On Windows, fix consecutive calls to `window.set_fullscreen(Some(Fullscreen::Borderless(None)))` resulting in losing previous window state when eventually exiting fullscreen using `window.set_fullscreen(None)`.
+- On Wayland, fix resize being sent on focus change.
 
 # 0.29.4
 

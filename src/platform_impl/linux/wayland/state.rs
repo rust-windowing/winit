@@ -299,7 +299,11 @@ impl WindowHandler for WinitState {
                 &mut self.events_sink,
             );
 
-        self.window_compositor_updates[pos].size = Some(new_size);
+        // NOTE: Only update when the value is `Some` to not override consequent configures with
+        // the same sizes.
+        if new_size.is_some() {
+            self.window_compositor_updates[pos].size = new_size;
+        }
     }
 }
 
