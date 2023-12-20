@@ -2,6 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     ops::Deref,
     rc::{Rc, Weak},
+    sync::Arc,
 };
 
 use crate::cursor::{BadImage, CursorImage};
@@ -13,9 +14,36 @@ use web_sys::{
     ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
 
-use super::backend::Style;
+use super::{backend::Style, EventLoopWindowTarget};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
+pub enum WebCustomCursorBuilder {
+    Image(CursorImage),
+    Url {
+        url: String,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    },
+}
+
+impl WebCustomCursorBuilder {
+    pub fn build<T>(self, _window_target: &EventLoopWindowTarget<T>) -> Arc<WebCustomCursor> {
+        Arc::new(match self {
+            Self::Image(image) => WebCustomCursor::Image(image),
+            Self::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            } => WebCustomCursor::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            },
+        })
+    }
+}
+
+#[derive(Debug)]
 pub enum WebCustomCursor {
     Image(CursorImage),
     Url {
@@ -32,8 +60,8 @@ impl WebCustomCursor {
         height: u16,
         hotspot_x: u16,
         hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        Ok(Self::Image(CursorImage::from_rgba(
+    ) -> Result<WebCustomCursorBuilder, BadImage> {
+        Ok(WebCustomCursorBuilder::Image(CursorImage::from_rgba(
             rgba, width, height, hotspot_x, hotspot_y,
         )?))
     }
@@ -49,7 +77,7 @@ impl WebCustomCursor {
         let previous = previous.into();
 
         match self {
-            WebCustomCursor::Image(image) => SelectedCursor::Image(CursorImageState::from_image(
+            Self::Image(image) => SelectedCursor::Image(CursorImageState::from_image(
                 window,
                 document.clone(),
                 style.clone(),
@@ -57,7 +85,7 @@ impl WebCustomCursor {
                 previous,
                 cursor_visible,
             )),
-            WebCustomCursor::Url {
+            Self::Url {
                 url,
                 hotspot_x,
                 hotspot_y,

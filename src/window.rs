@@ -1,5 +1,5 @@
 //! The [`Window`] struct and associated types.
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -9,7 +9,7 @@ use crate::{
     platform_impl, SendSyncWrapper,
 };
 
-pub use crate::cursor::{BadImage, CustomCursor, MAX_CURSOR_SIZE};
+pub use crate::cursor::{BadImage, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
@@ -1355,7 +1355,7 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
-        let cursor = cursor.clone();
+        let cursor = Arc::clone(&cursor.inner);
         self.window
             .maybe_queue_on_main(move |w| w.set_custom_cursor(cursor))
     }

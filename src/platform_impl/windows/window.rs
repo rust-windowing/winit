@@ -55,7 +55,6 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
@@ -73,7 +72,8 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
+        Fullscreen, PlatformCustomCursor, PlatformSpecificWindowBuilderAttributes, SelectedCursor,
+        WindowId,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -405,8 +405,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let new_cursor = match WinCursor::new(&cursor.inner) {
+    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
+        let new_cursor = match WinCursor::new(&cursor) {
             Ok(cursor) => cursor,
             Err(err) => {
                 warn!("Failed to create custom cursor: {err}");

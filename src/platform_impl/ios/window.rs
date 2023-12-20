@@ -1,6 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
 use objc2::rc::Id;
@@ -11,14 +12,13 @@ use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
-    cursor::CustomCursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
-        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
+        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle, PlatformCustomCursor,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -178,7 +178,7 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_custom_cursor(&self, _: CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, _: Arc<PlatformCustomCursor>) {
         debug!("`Window::set_custom_cursor` ignored on iOS")
     }
 

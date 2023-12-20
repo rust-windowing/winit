@@ -1,4 +1,3 @@
-use crate::cursor::CustomCursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -10,12 +9,14 @@ use crate::SendSyncWrapper;
 
 use super::cursor::SelectedCursor;
 use super::r#async::Dispatcher;
+use super::PlatformCustomCursor;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -206,9 +207,9 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
         let canvas = self.canvas.borrow();
-        let new_cursor = cursor.inner.build(
+        let new_cursor = cursor.build(
             canvas.window(),
             canvas.document(),
             canvas.style(),
