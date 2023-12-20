@@ -232,3 +232,6 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 members = [
     "run-wasm",
 ]
+
+[patch.crates-io]
+xim = { git = "https://github.com/forkgull/xim-rs", branch = "x11rb-13" }

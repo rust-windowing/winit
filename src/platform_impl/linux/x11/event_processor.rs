@@ -529,11 +529,9 @@ impl<T: 'static> EventProcessor<T> {
                     event: WindowEvent::Destroyed,
                 });
             }
-            ffi::PropertyNotify => {
-                let xev: &ffi::XPropertyEvent = xev.as_ref();
-                let atom = xev.atom as xproto::Atom;
 
-                if atom == xproto::Atom::from(xproto::AtomEnum::RESOURCE_MANAGER) {
+            X11Event::PropertyNotify(xev) => {
+                if xev.atom == xproto::Atom::from(xproto::AtomEnum::RESOURCE_MANAGER) {
                     self.process_dpi_change(&mut callback);
                 }
             }

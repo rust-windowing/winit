@@ -43,9 +43,9 @@ use crate::{
 
 use super::{
     ffi,
+    ime::ImeRequest,
     util::{self, CustomCursor, SelectedCursor},
-    CookieResultExt, EventLoopWindowTarget, ime::ImeRequest, VoidCookie, WindowId,
-    XConnection,
+    CookieResultExt, EventLoopWindowTarget, VoidCookie, WindowId, XConnection,
 };
 
 #[derive(Debug)]
