@@ -40,5 +40,5 @@ pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
-pub(crate) use cursor::WebCustomCursor as PlatformCustomCursor;
-pub(crate) use cursor::WebCustomCursorBuilder as PlatformCustomCursorBuilder;
+pub(crate) use cursor::CustomCursor as PlatformCustomCursor;
+pub(crate) use cursor::CustomCursorBuilder as PlatformCustomCursorBuilder;
