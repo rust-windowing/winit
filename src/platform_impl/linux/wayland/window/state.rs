@@ -357,13 +357,17 @@ impl WindowState {
         let old_state = self
             .last_configure
             .as_ref()
-            .map(|configure| configure.state)
-            .unwrap_or(XdgWindowState::empty());
+            .map(|configure| configure.state);
 
-        let state_change_requires_resize = !new_state
-            .symmetric_difference(old_state)
-            .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
-            .is_empty();
+        let state_change_requires_resize = old_state
+            .map(|old_state| {
+                !old_state
+                    .symmetric_difference(new_state)
+                    .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
+                    .is_empty()
+            })
+            // NOTE: `None` is present for the initial configure, thus we must always resize.
+            .unwrap_or(true);
 
         // NOTE: Set the configure before doing a resize, since we query it during it.
         self.last_configure = Some(configure);
