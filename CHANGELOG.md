@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
+
 # 0.29.5
 
 - On macOS, remove spurious error logging when handling `Fn`.
