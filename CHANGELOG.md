@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.5
+
 - On macOS, remove spurious error logging when handling `Fn`.
 - On X11, fix an issue where floating point data from the server is
   misinterpreted during a drag and drop operation.
