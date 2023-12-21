@@ -11,6 +11,7 @@ use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
+    cursor::CustomCursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
@@ -175,6 +176,10 @@ impl Inner {
 
     pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
         debug!("`Window::set_cursor_icon` ignored on iOS")
+    }
+
+    pub fn set_custom_cursor(&self, _: CustomCursor) {
+        debug!("`Window::set_custom_cursor` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {

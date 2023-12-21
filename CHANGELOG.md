@@ -11,12 +11,23 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
+  - Add `Window::set_custom_cursor`
+  - Add `CustomCursor`
+  - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
+  - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
 - On macOS, add services menu.
 - On macOS, remove spurious error logging when handling `Fn`.
 - On X11, fix an issue where floating point data from the server is
   misinterpreted during a drag and drop operation.
 - On X11, fix a bug where focusing the window would panic.
 - On macOS, fix `refresh_rate_millihertz`.
+- On Wayland, disable Client Side Decorations when `wl_subcompositor` is not supported.
+- On X11, fix `Xft.dpi` detection from Xresources.
+- On Windows, fix consecutive calls to `window.set_fullscreen(Some(Fullscreen::Borderless(None)))` resulting in losing previous window state when eventually exiting fullscreen using `window.set_fullscreen(None)`.
+- On Web, remove queuing fullscreen request in absence of transient activation.
+- On Web, fix setting cursor icon overriding cursor visibility.
+- On Wayland, fix resize being sent on focus change.
 - On Windows, fix `set_ime_cursor_area`.
 
 # 0.29.4

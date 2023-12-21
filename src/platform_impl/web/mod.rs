@@ -18,6 +18,7 @@
 // compliant way.
 
 mod r#async;
+mod cursor;
 mod device;
 mod error;
 mod event_loop;
@@ -39,3 +40,4 @@ pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
+pub(crate) use cursor::WebCustomCursor as PlatformCustomCursor;

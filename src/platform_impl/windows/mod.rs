@@ -10,12 +10,13 @@ pub(crate) use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
-    icon::WinIcon,
+    icon::{SelectedCursor, WinIcon},
     monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 
 pub use self::icon::WinIcon as PlatformIcon;
+pub(crate) use crate::cursor::CursorImage as PlatformCustomCursor;
 use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
