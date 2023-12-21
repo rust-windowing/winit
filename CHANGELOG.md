@@ -28,6 +28,7 @@ Unreleased` header.
 - On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - On Wayland, fix resize being sent on focus change.
+- On Windows, fix `set_ime_cursor_area`.
 
 # 0.29.4
 
