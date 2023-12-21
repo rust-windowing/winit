@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex};
 use smol_str::SmolStr;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, WheelEvent,
+    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    PointerEvent, WheelEvent,
 };
 
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
@@ -42,6 +43,7 @@ pub struct Canvas {
     on_intersect: Option<IntersectionObserverHandle>,
     animation_frame_handler: AnimationFrameHandler,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
+    on_context_menu: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
 }
 
 pub struct Common {
@@ -152,6 +154,7 @@ impl Canvas {
             on_intersect: None,
             animation_frame_handler: AnimationFrameHandler::new(window),
             on_touch_end: None,
+            on_context_menu: None,
         })
     }
 
@@ -446,6 +449,17 @@ impl Canvas {
         self.on_touch_end = Some(self.common.add_transient_event("touchend", |_| {}));
     }
 
+    pub(crate) fn on_context_menu(&mut self, prevent_default: bool) {
+        self.on_context_menu = Some(self.common.add_event(
+            "contextmenu",
+            move |event: PointerEvent| {
+                if prevent_default {
+                    event.prevent_default();
+                }
+            },
+        ));
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.fullscreen_handler.request_fullscreen()
     }
@@ -524,6 +538,7 @@ impl Canvas {
         self.animation_frame_handler.cancel();
         self.on_touch_end = None;
         self.common.fullscreen_handler.cancel();
+        self.on_context_menu = None;
     }
 }
 
