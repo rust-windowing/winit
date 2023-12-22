@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On Web, fix context menu not being disabled by `with_prevent_default(true)`.
+- On Wayland, fix `WindowEvent::Destroyed` not being delivered after destroying window.
 
 # 0.29.5
 
