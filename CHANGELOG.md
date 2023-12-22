@@ -19,6 +19,7 @@ Unreleased` header.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
+- On Windows, add `WindowExt::set_taskbar_progress`.
 
 # 0.29.5
 

@@ -4,12 +4,13 @@
 use std::ffi::c_void;
 
 use windows_sys::{
-    core::{IUnknown, GUID, HRESULT},
+    core::{IUnknown, GUID, HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, POINTL},
+        Foundation::{BOOL, HWND, POINTL, RECT},
         System::Com::{
             IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
         },
+        UI::{Controls::HIMAGELIST, WindowsAndMessaging::HICON},
     },
 };
 
@@ -130,6 +131,71 @@ pub struct ITaskbarList2 {
     pub lpVtbl: *const ITaskbarList2Vtbl,
 }
 
+#[repr(C)]
+pub struct ITaskbarList3Vtbl {
+    pub parent: ITaskbarList2Vtbl,
+    pub SetProgressValue: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        ullCompleted: u64,
+        ullTotal: u64,
+    ) -> HRESULT,
+    pub SetProgressState:
+        unsafe extern "system" fn(This: *mut ITaskbarList3, hwnd: HWND, tbpFlags: u32) -> HRESULT,
+    pub RegisterTab: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwndTab: HWND,
+        hwndMDI: HWND,
+    ) -> HRESULT,
+    pub UnregisterTab:
+        unsafe extern "system" fn(This: *mut ITaskbarList3, hwndTab: HWND) -> HRESULT,
+    pub SetTabOrder: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwndTab: HWND,
+        hwndInsertBefore: HWND,
+    ) -> HRESULT,
+    pub SetTabActive: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwndTab: HWND,
+        hwndMDI: HWND,
+    ) -> HRESULT,
+    pub ThumbBarAddButtons: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        cButtons: u32,
+        pButton: *const c_void,
+    ) -> HRESULT,
+    pub ThumbBarUpdateButtons: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        cButtons: u32,
+        pButton: *const c_void,
+    ) -> HRESULT,
+    pub ThumbBarSetImageList: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        himl: HIMAGELIST,
+    ) -> HRESULT,
+    pub SetOverlayIcon: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        hIcon: HICON,
+        pszDescription: PCWSTR,
+    ) -> HRESULT,
+    pub SetThumbnailTooltip:
+        unsafe extern "system" fn(This: *mut ITaskbarList3, hwnd: HWND, pszTip: PCWSTR) -> HRESULT,
+    pub SetThumbnailClip: unsafe extern "system" fn(
+        This: *mut ITaskbarList3,
+        hwnd: HWND,
+        prcClip: *const RECT,
+    ) -> HRESULT,
+}
+
+#[repr(C)]
+pub struct ITaskbarList3 {
+    pub lpVtbl: *const ITaskbarList3Vtbl,
+}
+
 pub const CLSID_TaskbarList: GUID = GUID {
     data1: 0x56fdf344,
     data2: 0xfd6d,
@@ -149,4 +215,11 @@ pub const IID_ITaskbarList2: GUID = GUID {
     data2: 0xb13a,
     data3: 0x429b,
     data4: [0xa6, 0x6e, 0x19, 0x35, 0xe4, 0x4f, 0x43, 0x17],
+};
+
+pub const IID_ITaskbarList3: GUID = GUID {
+    data1: 0xea1afb91,
+    data2: 0x9e28,
+    data3: 0x4b86,
+    data4: [0x90, 0xe9, 0x9e, 0x9f, 0x8a, 0x5e, 0xef, 0xaf],
 };
