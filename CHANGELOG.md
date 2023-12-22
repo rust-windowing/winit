@@ -21,6 +21,7 @@ Unreleased` header.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
+- **Breaking:** Bump MSRV from `1.65` to `1.70`.
 
 # 0.29.5
 
