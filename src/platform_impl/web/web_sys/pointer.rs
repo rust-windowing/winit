@@ -117,7 +117,7 @@ impl PointerHandler {
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
         let window = canvas_common.window.clone();
-        let canvas = canvas_common.raw.clone();
+        let canvas = canvas_common.raw().clone();
         self.on_pointer_press = Some(canvas_common.add_event(
             "pointerdown",
             move |event: PointerEvent| {
@@ -174,7 +174,7 @@ impl PointerHandler {
         B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
         let window = canvas_common.window.clone();
-        let canvas = canvas_common.raw.clone();
+        let canvas = canvas_common.raw().clone();
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {

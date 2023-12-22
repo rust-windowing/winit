@@ -1530,10 +1530,7 @@ impl Window {
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let raw = self
-            .window
-            .maybe_wait_on_main(|w| w.raw_window_handle_rwh_06().map(SendSyncWrapper))?
-            .0;
+        let raw = self.window.raw_window_handle_rwh_06()?;
 
         // SAFETY: The window handle will never be deallocated while the window is alive.
         Ok(unsafe { rwh_06::WindowHandle::borrow_raw(raw) })

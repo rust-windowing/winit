@@ -83,6 +83,7 @@ impl<T> EventLoopWindowTarget<T> {
     ) {
         let canvas_clone = canvas.clone();
         let mut canvas = canvas.borrow_mut();
+        #[cfg(any(feature = "rwh_04", feature = "rwh_05"))]
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
         canvas.on_touch_start(prevent_default);
