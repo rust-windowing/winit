@@ -1489,10 +1489,6 @@ impl Window {
     /// Returns the monitor on which the window currently resides.
     ///
     /// Returns `None` if current monitor can't be detected.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window
@@ -1502,10 +1498,6 @@ impl Window {
     /// Returns the list of all the monitors available on the system.
     ///
     /// This is the same as [`EventLoopWindowTarget::available_monitors`], and is provided for convenience.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **iOS:** Can only be called on the main thread.
     ///
     /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
@@ -1525,8 +1517,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **iOS:** Can only be called on the main thread.
-    /// **Wayland:** Always returns `None`.
+    /// **Wayland / Web:** Always returns `None`.
     ///
     /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
