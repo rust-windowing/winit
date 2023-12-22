@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
-    Foundation::{BOOL, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
+    Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, RedrawWindow, ScreenToClient,
         ValidateRect, MONITORINFO, MONITOR_DEFAULTTONULL, RDW_INTERNALPAINT, SC_SCREENSAVE,
@@ -35,13 +35,9 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                MapVirtualKeyW, ReleaseCapture, SetCapture, TrackMouseEvent, MAPVK_VK_TO_VSC_EX,
-                TME_LEAVE, TRACKMOUSEEVENT, VK_NUMLOCK, VK_SHIFT,
+                ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
             },
-            Pointer::{
-                POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
-                POINTER_PEN_INFO, POINTER_TOUCH_INFO,
-            },
+            Pointer::{POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE},
             Touch::{
                 CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
                 TOUCHEVENTF_UP, TOUCHINPUT,
@@ -54,20 +50,19 @@ use windows_sys::Win32::{
             RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
-            PT_TOUCH, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE,
-            SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-            WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY,
-            WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
-            WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
-            WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
-            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
-            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
-            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-            WS_VISIBLE,
+            PT_TOUCH, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
+            WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
+            WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+            WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE,
+            WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+            WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE,
+            WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
+            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
+            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
+            WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP,
+            WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+            WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
         },
     },
 };
@@ -80,8 +75,8 @@ use crate::{
         WindowEvent,
     },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    keyboard::{KeyCode, ModifiersState, PhysicalKey},
-    platform::{pump_events::PumpStatus, scancode::PhysicalKeyExtScancode},
+    keyboard::ModifiersState,
+    platform::pump_events::PumpStatus,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -102,37 +97,6 @@ use runner::{EventLoopRunner, EventLoopRunnerShared};
 use self::runner::RunnerState;
 
 use super::window::set_skip_taskbar;
-
-type GetPointerFrameInfoHistory = unsafe extern "system" fn(
-    pointerId: u32,
-    entriesCount: *mut u32,
-    pointerCount: *mut u32,
-    pointerInfo: *mut POINTER_INFO,
-) -> BOOL;
-
-type SkipPointerFrameMessages = unsafe extern "system" fn(pointerId: u32) -> BOOL;
-type GetPointerDeviceRects = unsafe extern "system" fn(
-    device: HANDLE,
-    pointerDeviceRect: *mut RECT,
-    displayRect: *mut RECT,
-) -> BOOL;
-
-type GetPointerTouchInfo =
-    unsafe extern "system" fn(pointerId: u32, touchInfo: *mut POINTER_TOUCH_INFO) -> BOOL;
-
-type GetPointerPenInfo =
-    unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
-
-static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
-static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
-    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
-static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
-static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
-static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
 
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -1831,9 +1795,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 Some(SkipPointerFrameMessages),
                 Some(GetPointerDeviceRects),
             ) = (
-                *GET_POINTER_FRAME_INFO_HISTORY,
-                *SKIP_POINTER_FRAME_MESSAGES,
-                *GET_POINTER_DEVICE_RECTS,
+                *util::GET_POINTER_FRAME_INFO_HISTORY,
+                *util::SKIP_POINTER_FRAME_MESSAGES,
+                *util::GET_POINTER_DEVICE_RECTS,
             ) {
                 let pointer_id = super::loword(wparam as u32) as u32;
                 let mut entries_count = 0u32;
@@ -1915,7 +1879,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     let force = match pointer_info.pointerType {
                         PT_TOUCH => {
                             let mut touch_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
+                            util::GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
                                 match unsafe {
                                     GetPointerTouchInfo(
                                         pointer_info.pointerId,
@@ -1931,7 +1895,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         }
                         PT_PEN => {
                             let mut pen_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
+                            util::GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
                                 match unsafe {
                                     GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
                                 } {
@@ -2493,105 +2457,17 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             return;
         }
 
-        let state = if pressed { Pressed } else { Released };
-        let extension = {
-            if util::has_flag(keyboard.Flags, RI_KEY_E0 as _) {
-                0xE000
-            } else if util::has_flag(keyboard.Flags, RI_KEY_E1 as _) {
-                0xE100
-            } else {
-                0x0000
-            }
-        };
-        let scancode = if keyboard.MakeCode == 0 {
-            // In some cases (often with media keys) the device reports a scancode of 0 but a
-            // valid virtual key. In these cases we obtain the scancode from the virtual key.
-            unsafe { MapVirtualKeyW(keyboard.VKey as u32, MAPVK_VK_TO_VSC_EX) as u16 }
-        } else {
-            keyboard.MakeCode | extension
-        };
-        if scancode == 0xE11D || scancode == 0xE02A {
-            // At the hardware (or driver?) level, pressing the Pause key is equivalent to pressing
-            // Ctrl+NumLock.
-            // This equvalence means that if the user presses Pause, the keyboard will emit two
-            // subsequent keypresses:
-            // 1, 0xE11D - Which is a left Ctrl (0x1D) with an extension flag (0xE100)
-            // 2, 0x0045 - Which on its own can be interpreted as Pause
-            //
-            // There's another combination which isn't quite an equivalence:
-            // PrtSc used to be Shift+Asterisk. This means that on some keyboards, presssing
-            // PrtSc (print screen) produces the following sequence:
-            // 1, 0xE02A - Which is a left shift (0x2A) with an extension flag (0xE000)
-            // 2, 0xE037 - Which is a numpad multiply (0x37) with an exteion flag (0xE000). This on
-            //             its own it can be interpreted as PrtSc
-            //
-            // For this reason, if we encounter the first keypress, we simply ignore it, trusting
-            // that there's going to be another event coming, from which we can extract the
-            // appropriate key.
-            // For more on this, read the article by Raymond Chen, titled:
-            // "Why does Ctrl+ScrollLock cancel dialogs?"
-            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            return;
+        if let Some(physical_key) = raw_input::get_keyboard_physical_key(keyboard) {
+            let state = if pressed { Pressed } else { Released };
+
+            userdata.send_event(Event::DeviceEvent {
+                device_id,
+                event: Key(RawKeyEvent {
+                    physical_key,
+                    state,
+                }),
+            });
         }
-        let physical_key = if keyboard.VKey == VK_NUMLOCK {
-            // Historically, the NumLock and the Pause key were one and the same physical key.
-            // The user could trigger Pause by pressing Ctrl+NumLock.
-            // Now these are often physically separate and the two keys can be differentiated by
-            // checking the extension flag of the scancode. NumLock is 0xE045, Pause is 0x0045.
-            //
-            // However in this event, both keys are reported as 0x0045 even on modern hardware.
-            // Therefore we use the virtual key instead to determine whether it's a NumLock and
-            // set the KeyCode accordingly.
-            //
-            // For more on this, read the article by Raymond Chen, titled:
-            // "Why does Ctrl+ScrollLock cancel dialogs?"
-            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            PhysicalKey::Code(KeyCode::NumLock)
-        } else {
-            PhysicalKey::from_scancode(scancode as u32)
-        };
-        if keyboard.VKey == VK_SHIFT {
-            if let PhysicalKey::Code(code) = physical_key {
-                match code {
-                    KeyCode::NumpadDecimal
-                    | KeyCode::Numpad0
-                    | KeyCode::Numpad1
-                    | KeyCode::Numpad2
-                    | KeyCode::Numpad3
-                    | KeyCode::Numpad4
-                    | KeyCode::Numpad5
-                    | KeyCode::Numpad6
-                    | KeyCode::Numpad7
-                    | KeyCode::Numpad8
-                    | KeyCode::Numpad9 => {
-                        // On Windows, holding the Shift key makes numpad keys behave as if NumLock
-                        // wasn't active. The way this is exposed to applications by the system is that
-                        // the application receives a fake key release event for the shift key at the
-                        // moment when the numpad key is pressed, just before receiving the numpad key
-                        // as well.
-                        //
-                        // The issue is that in the raw device event (here), the fake shift release
-                        // event reports the numpad key as the scancode. Unfortunately, the event doesn't
-                        // have any information to tell whether it's the left shift or the right shift
-                        // that needs to get the fake release (or press) event so we don't forward this
-                        // event to the application at all.
-                        //
-                        // For more on this, read the article by Raymond Chen, titled:
-                        // "The shift key overrides NumLock"
-                        // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
-                        return;
-                    }
-                    _ => (),
-                }
-            }
-        }
-        userdata.send_event(Event::DeviceEvent {
-            device_id,
-            event: Key(RawKeyEvent {
-                physical_key,
-                state,
-            }),
-        });
     }
 }
 
