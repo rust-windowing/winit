@@ -530,6 +530,10 @@ impl<T> EventLoopWindowTarget<T> {
         self.runner_shared.exit_code().is_some()
     }
 
+    pub(crate) fn clear_exit(&self) {
+        self.runner_shared.clear_exit();
+    }
+
     fn exit_code(&self) -> Option<i32> {
         self.runner_shared.exit_code()
     }

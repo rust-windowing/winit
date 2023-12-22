@@ -629,6 +629,34 @@ pub struct EventLoopWindowTarget<T> {
 }
 
 impl<T> EventLoopWindowTarget<T> {
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(None)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    pub(crate) fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub(crate) fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
+    }
+
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
