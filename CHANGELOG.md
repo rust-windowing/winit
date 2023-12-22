@@ -19,6 +19,7 @@ Unreleased` header.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
+- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
 - **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
@@ -35,7 +36,6 @@ Unreleased` header.
 - On Windows, fix consecutive calls to `window.set_fullscreen(Some(Fullscreen::Borderless(None)))` resulting in losing previous window state when eventually exiting fullscreen using `window.set_fullscreen(None)`.
 - On Wayland, fix resize being sent on focus change.
 - On Windows, fix `set_ime_cursor_area`.
-- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
 
 # 0.29.4
 
