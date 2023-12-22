@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly, '1.65.0']
+        toolchain: [stable, nightly, '1.70.0']
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { name: 'Windows 64bit MSVC', target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -43,10 +43,10 @@ jobs:
           - { name: 'web',                target: wasm32-unknown-unknown,   os: ubuntu-latest,   }
         exclude:
           # Android is tested on stable-3
-          - toolchain: '1.65.0'
+          - toolchain: '1.70.0'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
         include:
-          - toolchain: '1.69.0'
+          - toolchain: '1.70.0'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
 
     env:
@@ -120,7 +120,7 @@ jobs:
     - name: Build tests
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.65.0'
+        matrix.toolchain != '1.70.0'
       run: cargo $CMD test --no-run $OPTIONS
 
     - name: Run tests
@@ -129,7 +129,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.65.0'
+        matrix.toolchain != '1.70.0'
       run: cargo $CMD test $OPTIONS
 
     - name: Lint with clippy
@@ -139,7 +139,7 @@ jobs:
     - name: Build tests with serde enabled
       if: >
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.65.0'
+        matrix.toolchain != '1.70.0'
       run: cargo $CMD test --no-run $OPTIONS --features serde
 
     - name: Run tests with serde enabled
@@ -148,7 +148,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'redox') &&
-        matrix.toolchain != '1.65.0'
+        matrix.toolchain != '1.70.0'
       run: cargo $CMD test $OPTIONS --features serde
 
     # See restore step above
