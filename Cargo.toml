@@ -191,6 +191,7 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'HtmlImageElement',
     'ImageBitmap',
     'ImageBitmapOptions',
     'ImageBitmapRenderingContext',

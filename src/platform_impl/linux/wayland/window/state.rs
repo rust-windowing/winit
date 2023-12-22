@@ -28,7 +28,7 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::cursor::CustomCursor as RootCustomCursor;
+use crate::cursor::CursorImage;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
@@ -726,10 +726,10 @@ impl WindowState {
     }
 
     /// Set the custom cursor icon.
-    pub fn set_custom_cursor(&mut self, cursor: RootCustomCursor) {
+    pub fn set_custom_cursor(&mut self, cursor: &CursorImage) {
         let cursor = {
             let mut pool = self.custom_cursor_pool.lock().unwrap();
-            CustomCursor::new(&mut pool, &cursor.inner)
+            CustomCursor::new(&mut pool, cursor)
         };
 
         if self.cursor_visible {

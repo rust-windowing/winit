@@ -1,7 +1,10 @@
 use core::fmt;
-use std::{error::Error, sync::Arc};
+use std::hash::Hasher;
+use std::sync::Arc;
+use std::{error::Error, hash::Hash};
 
-use crate::platform_impl::PlatformCustomCursor;
+use crate::event_loop::EventLoopWindowTarget;
+use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
 
 /// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
@@ -16,24 +19,51 @@ const PIXEL_SIZE: usize = 4;
 ///
 /// # Example
 ///
-/// ```
-/// use winit::window::CustomCursor;
+/// ```no_run
+/// use winit::{
+///     event::{Event, WindowEvent},
+///     event_loop::{ControlFlow, EventLoop},
+///     window::{CustomCursor, Window},
+/// };
+///
+/// let mut event_loop = EventLoop::new().unwrap();
 ///
 /// let w = 10;
 /// let h = 10;
 /// let rgba = vec![255; (w * h * 4) as usize];
-/// let custom_cursor = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
+///
+/// #[cfg(not(target_family = "wasm"))]
+/// let builder = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
 ///
 /// #[cfg(target_family = "wasm")]
-/// let custom_cursor_url = {
+/// let builder = {
 ///     use winit::platform::web::CustomCursorExtWebSys;
-///     CustomCursor::from_url("http://localhost:3000/cursor.png", 0, 0).unwrap()
+///     CustomCursor::from_url(String::from("http://localhost:3000/cursor.png"), 0, 0)
 /// };
+///
+/// let custom_cursor = builder.build(&event_loop);
+///
+/// let window = Window::new(&event_loop).unwrap();
+/// window.set_custom_cursor(&custom_cursor);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct CustomCursor {
     pub(crate) inner: Arc<PlatformCustomCursor>,
 }
+
+impl Hash for CustomCursor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.inner).hash(state);
+    }
+}
+
+impl PartialEq for CustomCursor {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl Eq for CustomCursor {}
 
 impl CustomCursor {
     /// Creates a new cursor from an rgba buffer.
@@ -48,17 +78,32 @@ impl CustomCursor {
         height: u16,
         hotspot_x: u16,
         hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        Ok(Self {
+    ) -> Result<CustomCursorBuilder, BadImage> {
+        Ok(CustomCursorBuilder {
             inner: PlatformCustomCursor::from_rgba(
                 rgba.into(),
                 width,
                 height,
                 hotspot_x,
                 hotspot_y,
-            )?
-            .into(),
+            )?,
         })
+    }
+}
+
+/// Builds a [`CustomCursor`].
+///
+/// See [`CustomCursor`] for more details.
+#[derive(Debug)]
+pub struct CustomCursorBuilder {
+    pub(crate) inner: PlatformCustomCursorBuilder,
+}
+
+impl CustomCursorBuilder {
+    pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
+        CustomCursor {
+            inner: self.inner.build(&window_target.p),
+        }
     }
 }
 
@@ -177,6 +222,10 @@ impl CursorImage {
             hotspot_y,
         })
     }
+
+    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> Arc<CursorImage> {
+        Arc::new(self)
+    }
 }
 
 // Platforms that don't support cursors will export this as `PlatformCustomCursor`.
@@ -194,5 +243,9 @@ impl NoCustomCursor {
     ) -> Result<Self, BadImage> {
         CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
         Ok(Self)
+    }
+
+    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> Arc<NoCustomCursor> {
+        Arc::new(self)
     }
 }

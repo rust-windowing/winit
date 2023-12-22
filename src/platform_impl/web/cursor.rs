@@ -1,22 +1,31 @@
 use std::{
-    cell::{Cell, RefCell},
-    ops::Deref,
-    rc::{Rc, Weak},
+    cell::RefCell,
+    future, mem,
+    ops::DerefMut,
+    rc::{self, Rc},
+    sync::{self, Arc},
+    task::{Poll, Waker},
 };
 
-use crate::cursor::{BadImage, CursorImage};
+use crate::{
+    cursor::{BadImage, CursorImage},
+    platform_impl::platform::r#async,
+};
 use cursor_icon::CursorIcon;
+use once_cell::sync::Lazy;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Blob, Document, HtmlCanvasElement, ImageBitmap, ImageBitmapOptions,
+    Blob, Document, HtmlCanvasElement, HtmlImageElement, ImageBitmap, ImageBitmapOptions,
     ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
 
-use super::backend::Style;
+use self::thread_safe::ThreadSafe;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WebCustomCursor {
+use super::{backend::Style, r#async::AsyncSender, EventLoopWindowTarget};
+
+#[derive(Debug)]
+pub enum CustomCursorBuilder {
     Image(CursorImage),
     Url {
         url: String,
@@ -25,72 +34,163 @@ pub enum WebCustomCursor {
     },
 }
 
-impl WebCustomCursor {
+impl CustomCursorBuilder {
+    pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> Arc<CustomCursor> {
+        Lazy::force(&DROP_HANDLER);
+
+        match self {
+            Self::Image(image) => ImageState::from_rgba(
+                window_target.runner.window(),
+                window_target.runner.document().clone(),
+                &image,
+            ),
+            Self::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            } => ImageState::from_url(url, hotspot_x, hotspot_y),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CustomCursor(Option<ThreadSafe<RefCell<ImageState>>>);
+
+static DROP_HANDLER: Lazy<AsyncSender<ThreadSafe<RefCell<ImageState>>>> = Lazy::new(|| {
+    let (sender, receiver) = r#async::channel();
+    wasm_bindgen_futures::spawn_local(async move { while receiver.next().await.is_ok() {} });
+
+    sender
+});
+
+impl CustomCursor {
     pub fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
         hotspot_x: u16,
         hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
-        Ok(Self::Image(CursorImage::from_rgba(
+    ) -> Result<CustomCursorBuilder, BadImage> {
+        Ok(CustomCursorBuilder::Image(CursorImage::from_rgba(
             rgba, width, height, hotspot_x, hotspot_y,
         )?))
     }
 
-    pub(super) fn build(
-        &self,
-        window: &Window,
-        document: &Document,
-        style: &Style,
-        previous: SelectedCursor,
-        cursor_visible: Rc<Cell<bool>>,
-    ) -> SelectedCursor {
-        let previous = previous.into();
+    fn new() -> Arc<Self> {
+        Arc::new(Self(Some(ThreadSafe::new(RefCell::new(
+            ImageState::Loading(None),
+        )))))
+    }
 
-        match self {
-            WebCustomCursor::Image(image) => SelectedCursor::Image(CursorImageState::from_image(
-                window,
-                document.clone(),
-                style.clone(),
-                image,
-                previous,
-                cursor_visible,
-            )),
-            WebCustomCursor::Url {
-                url,
-                hotspot_x,
-                hotspot_y,
-            } => {
-                let value = previous.style_with_url(url, *hotspot_x, *hotspot_y);
+    fn get(&self) -> &RefCell<ImageState> {
+        self.0
+            .as_ref()
+            .expect("value has accidently already been dropped")
+            .get()
+    }
+}
 
-                if cursor_visible.get() {
-                    style.set("cursor", &value);
-                }
+impl Drop for CustomCursor {
+    fn drop(&mut self) {
+        let value = self
+            .0
+            .take()
+            .expect("value has accidently already been dropped");
 
-                SelectedCursor::Url {
-                    style: value,
-                    previous,
-                    url: url.clone(),
-                    hotspot_x: *hotspot_x,
-                    hotspot_y: *hotspot_y,
-                }
-            }
+        if !value.in_origin_thread() {
+            DROP_HANDLER
+                .send(value)
+                .expect("sender dropped in main thread")
         }
     }
 }
 
 #[derive(Debug)]
-pub enum SelectedCursor {
+pub struct CursorState(Rc<RefCell<State>>);
+
+impl CursorState {
+    pub fn new(style: Style) -> Self {
+        Self(Rc::new(RefCell::new(State {
+            style,
+            visible: true,
+            cursor: SelectedCursor::default(),
+        })))
+    }
+
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        let mut this = self.0.borrow_mut();
+
+        if let SelectedCursor::ImageLoading { state, .. } = &this.cursor {
+            if let ImageState::Loading(state) = state.get().borrow_mut().deref_mut() {
+                state.take();
+            }
+        }
+
+        this.cursor = SelectedCursor::Named(cursor);
+        this.set_style();
+    }
+
+    pub fn set_custom_cursor(&self, cursor: Arc<CustomCursor>) {
+        let mut this = self.0.borrow_mut();
+
+        match cursor.get().borrow_mut().deref_mut() {
+            ImageState::Loading(state) => {
+                this.cursor = SelectedCursor::ImageLoading {
+                    state: cursor.clone(),
+                    previous: mem::take(&mut this.cursor).into(),
+                };
+                *state = Some(Rc::downgrade(&self.0));
+            }
+            ImageState::Failed => log::error!("tried to load invalid cursor"),
+            ImageState::Ready(image) => {
+                this.cursor = SelectedCursor::ImageReady(image.clone());
+                this.set_style();
+            }
+        }
+    }
+
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut state = self.0.borrow_mut();
+
+        if !visible && state.visible {
+            state.visible = false;
+            state.style.set("cursor", "none");
+        } else if visible && !state.visible {
+            state.visible = true;
+            state.set_style();
+        }
+    }
+}
+
+#[derive(Debug)]
+struct State {
+    style: Style,
+    visible: bool,
+    cursor: SelectedCursor,
+}
+
+impl State {
+    pub fn set_style(&self) {
+        if self.visible {
+            let value = match &self.cursor {
+                SelectedCursor::Named(icon) => icon.name(),
+                SelectedCursor::ImageLoading { previous, .. } => previous.style(),
+                SelectedCursor::ImageReady(image) => &image.style,
+            };
+
+            self.style.set("cursor", value);
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SelectedCursor {
     Named(CursorIcon),
-    Url {
-        style: String,
+    ImageLoading {
+        state: Arc<CustomCursor>,
         previous: Previous,
-        url: String,
-        hotspot_x: u16,
-        hotspot_y: u16,
     },
-    Image(Rc<RefCell<Option<CursorImageState>>>),
+    ImageReady(Rc<Image>),
 }
 
 impl Default for SelectedCursor {
@@ -99,71 +199,26 @@ impl Default for SelectedCursor {
     }
 }
 
-impl SelectedCursor {
-    pub fn set_style(&self, style: &Style) {
-        let value = match self {
-            SelectedCursor::Named(icon) => icon.name(),
-            SelectedCursor::Url { style, .. } => style,
-            SelectedCursor::Image(image) => {
-                let image = image.borrow();
-                let value = match image.deref().as_ref().unwrap() {
-                    CursorImageState::Loading { previous, .. } => previous.style(),
-                    CursorImageState::Failed(previous) => previous.style(),
-                    CursorImageState::Ready { style, .. } => style,
-                };
-                return style.set("cursor", value);
-            }
-        };
-
-        style.set("cursor", value);
+impl From<Previous> for SelectedCursor {
+    fn from(previous: Previous) -> Self {
+        match previous {
+            Previous::Named(icon) => Self::Named(icon),
+            Previous::Image(image) => Self::ImageReady(image),
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum Previous {
     Named(CursorIcon),
-    Url {
-        style: String,
-        url: String,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    },
-    Image {
-        style: String,
-        image: WebCursorImage,
-    },
+    Image(Rc<Image>),
 }
 
 impl Previous {
     fn style(&self) -> &str {
         match self {
             Previous::Named(icon) => icon.name(),
-            Previous::Url { style: url, .. } => url,
-            Previous::Image { style, .. } => style,
-        }
-    }
-
-    fn style_with_url(&self, new_url: &str, new_hotspot_x: u16, new_hotspot_y: u16) -> String {
-        match self {
-            Previous::Named(icon) => format!("url({new_url}) {new_hotspot_x} {new_hotspot_y}, {}", icon.name()),
-            Previous::Url {
-                url,
-                hotspot_x,
-                hotspot_y,
-                ..
-            }
-            | Previous::Image {
-                image:
-                    WebCursorImage {
-                        data_url: url,
-                        hotspot_x,
-                        hotspot_y,
-                        ..
-                    },
-                ..
-            } => format!(
-                "url({new_url}) {new_hotspot_x} {new_hotspot_y}, url({url}) {hotspot_x} {hotspot_y}, auto",
-            ),
+            Previous::Image(image) => &image.style,
         }
     }
 }
@@ -172,66 +227,34 @@ impl From<SelectedCursor> for Previous {
     fn from(value: SelectedCursor) -> Self {
         match value {
             SelectedCursor::Named(icon) => Self::Named(icon),
-            SelectedCursor::Url {
-                style,
-                url,
-                hotspot_x,
-                hotspot_y,
-                ..
-            } => Self::Url {
-                style,
-                url,
-                hotspot_x,
-                hotspot_y,
-            },
-            SelectedCursor::Image(image) => {
-                match Rc::try_unwrap(image).unwrap().into_inner().unwrap() {
-                    CursorImageState::Loading { previous, .. } => previous,
-                    CursorImageState::Failed(previous) => previous,
-                    CursorImageState::Ready {
-                        style,
-                        image: current,
-                        ..
-                    } => Self::Image {
-                        style,
-                        image: current,
-                    },
-                }
-            }
+            SelectedCursor::ImageLoading { previous, .. } => previous,
+            SelectedCursor::ImageReady(image) => Self::Image(image),
         }
     }
 }
 
 #[derive(Debug)]
-pub enum CursorImageState {
-    Loading {
-        style: Style,
-        cursor_visible: Rc<Cell<bool>>,
-        previous: Previous,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    },
-    Failed(Previous),
-    Ready {
-        style: String,
-        image: WebCursorImage,
-        previous: Previous,
-    },
+enum ImageState {
+    Loading(Option<rc::Weak<RefCell<State>>>),
+    Failed,
+    Ready(Rc<Image>),
 }
 
-impl CursorImageState {
-    fn from_image(
-        window: &Window,
-        document: Document,
-        style: Style,
-        image: &CursorImage,
-        previous: Previous,
-        cursor_visible: Rc<Cell<bool>>,
-    ) -> Rc<RefCell<Option<Self>>> {
-        // Can't create array directly when backed by SharedArrayBuffer.
+impl ImageState {
+    fn from_rgba(window: &Window, document: Document, image: &CursorImage) -> Arc<CustomCursor> {
+        // 1. Create an `ImageData` from the RGBA data.
+        // 2. Create an `ImageBitmap` from the `ImageData`.
+        // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
+        // 4. Create a `Blob` from the `HTMLCanvasElement`.
+        // 5. Create an object URL from the `Blob`.
+        // 6. Decode the image on an `HTMLImageElement` from the URL.
+        // 7. Change the `CursorState` if queued.
+
+        // 1. Create an `ImageData` from the RGBA data.
         // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
         #[cfg(target_feature = "atomics")]
-        let image_data = {
+        // Can't share `SharedArrayBuffer` with `ImageData`.
+        let result = {
             use js_sys::{Uint8Array, Uint8ClampedArray};
             use wasm_bindgen::prelude::wasm_bindgen;
             use wasm_bindgen::JsValue;
@@ -250,115 +273,283 @@ impl CursorImageState {
             ImageDataExt::new(array, image.width as u32)
                 .map(JsValue::from)
                 .map(ImageData::unchecked_from_js)
-                .unwrap()
         };
         #[cfg(not(target_feature = "atomics"))]
-        let image_data = ImageData::new_with_u8_clamped_array(
+        let result = ImageData::new_with_u8_clamped_array(
             wasm_bindgen::Clamped(&image.rgba),
             image.width as u32,
-        )
-        .unwrap();
+        );
+        let image_data = result.expect("found wrong image size");
 
+        // 2. Create an `ImageBitmap` from the `ImageData`.
+        //
+        // We call `createImageBitmap()` before spawning the future,
+        // to not have to clone the image buffer.
         let mut options = ImageBitmapOptions::new();
         options.premultiply_alpha(PremultiplyAlpha::None);
         let bitmap = JsFuture::from(
             window
                 .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)
-                .unwrap(),
+                .expect("unexpected exception in `createImageBitmap()`"),
         );
 
-        let state = Rc::new(RefCell::new(Some(Self::Loading {
-            style,
-            cursor_visible,
-            previous,
-            hotspot_x: image.hotspot_x,
-            hotspot_y: image.hotspot_y,
-        })));
+        let this = CustomCursor::new();
 
         wasm_bindgen_futures::spawn_local({
-            let weak = Rc::downgrade(&state);
-            let CursorImage { width, height, .. } = *image;
+            let weak = Arc::downgrade(&this);
+            let CursorImage {
+                width,
+                height,
+                hotspot_x,
+                hotspot_y,
+                ..
+            } = *image;
             async move {
+                // Keep checking if all references are dropped between every `await` call.
                 if weak.strong_count() == 0 {
                     return;
                 }
 
-                let bitmap: ImageBitmap = bitmap.await.unwrap().unchecked_into();
+                let bitmap: ImageBitmap = bitmap
+                    .await
+                    .expect("found invalid state in `ImageData`")
+                    .unchecked_into();
 
                 if weak.strong_count() == 0 {
                     return;
                 }
 
-                let canvas: HtmlCanvasElement =
-                    document.create_element("canvas").unwrap().unchecked_into();
+                let canvas: HtmlCanvasElement = document
+                    .create_element("canvas")
+                    .expect("invalid tag name")
+                    .unchecked_into();
                 #[allow(clippy::disallowed_methods)]
                 canvas.set_width(width as u32);
                 #[allow(clippy::disallowed_methods)]
                 canvas.set_height(height as u32);
 
+                // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
                 let context: ImageBitmapRenderingContext = canvas
                     .get_context("bitmaprenderer")
-                    .unwrap()
-                    .unwrap()
+                    .expect("unexpected exception in `HTMLCanvasElement.getContext()`")
+                    .expect("`bitmaprenderer` context unsupported")
                     .unchecked_into();
                 context.transfer_from_image_bitmap(&bitmap);
 
-                thread_local! {
-                    static CURRENT_STATE: RefCell<Option<Weak<RefCell<Option<CursorImageState>>>>> = RefCell::new(None);
-                    // `HTMLCanvasElement.toBlob()` can't be interrupted. So we have to use a
-                    // `Closure` that doesn't need to be garbage-collected.
-                    static CALLBACK: Closure<dyn Fn(Option<Blob>)> = Closure::new(|blob| {
-                        CURRENT_STATE.with(|weak| {
-                            let Some(state) = weak.borrow_mut().take().and_then(|weak| weak.upgrade()) else {
-                                return;
-                            };
+                // 4. Create a `Blob` from the `HTMLCanvasElement`.
+                //
+                // To keep the `Closure` alive until `HTMLCanvasElement.toBlob()` is done,
+                // we do the whole `Waker` strategy. Commonly on `Drop` the callback is aborted,
+                // but it would increase complexity and isn't possible in this case.
+                // Keep in mind that `HTMLCanvasElement.toBlob()` can call the callback immediately.
+                let value = Rc::new(RefCell::new(None));
+                let waker = Rc::new(RefCell::<Option<Waker>>::new(None));
+                let callback = Closure::once({
+                    let value = value.clone();
+                    let waker = waker.clone();
+                    move |blob: Option<Blob>| {
+                        *value.borrow_mut() = Some(blob);
+                        if let Some(waker) = waker.borrow_mut().take() {
+                            waker.wake();
+                        }
+                    }
+                });
+                canvas
+                    .to_blob(callback.as_ref().unchecked_ref())
+                    .expect("failed with `SecurityError` despite only source coming from memory");
+                let blob = future::poll_fn(|cx| {
+                    if let Some(blob) = value.borrow_mut().take() {
+                        Poll::Ready(blob)
+                    } else {
+                        *waker.borrow_mut() = Some(cx.waker().clone());
+                        Poll::Pending
+                    }
+                })
+                .await;
+
+                let url = {
+                    let Some(this) = weak.upgrade() else {
+                        return;
+                    };
+                    let mut this = this.get().borrow_mut();
+
+                    let Some(blob) = blob else {
+                        log::error!("creating custom cursor failed");
+                        let ImageState::Loading(state) = this.deref_mut() else {
+                            unreachable!("found invalid state");
+                        };
+                        let state = state.take();
+                        *this = ImageState::Failed;
+
+                        if let Some(state) = state.and_then(|weak| weak.upgrade()) {
                             let mut state = state.borrow_mut();
-                            // Extract old state.
-                            let CursorImageState::Loading { style, cursor_visible, previous, hotspot_x, hotspot_y, .. } = state.take().unwrap() else {
-                                unreachable!("found invalid state")
+                            let SelectedCursor::ImageLoading { previous, .. } =
+                                mem::take(&mut state.cursor)
+                            else {
+                                unreachable!("found invalid state");
                             };
+                            state.cursor = previous.into();
+                        }
 
-                            let Some(blob) = blob else {
-                                *state = Some(CursorImageState::Failed(previous));
-                                return;
-                            };
-                            let data_url = Url::create_object_url_with_blob(&blob).unwrap();
+                        return;
+                    };
 
-                            let value = previous.style_with_url(&data_url, hotspot_x, hotspot_y);
+                    // 5. Create an object URL from the `Blob`.
+                    Url::create_object_url_with_blob(&blob)
+                        .expect("unexpected exception in `URL.createObjectURL()`")
+                };
 
-                            if cursor_visible.get() {
-                                style.set("cursor", &value);
-                            }
-
-                            *state = Some(
-                                CursorImageState::Ready {
-                                    style: value,
-                                    image: WebCursorImage{ data_url, hotspot_x, hotspot_y },
-                                    previous,
-                                });
-                        });
-                    });
-                }
-
-                CURRENT_STATE.with(|state| *state.borrow_mut() = Some(weak));
-                CALLBACK
-                    .with(|callback| canvas.to_blob(callback.as_ref().unchecked_ref()).unwrap());
+                Self::decode(weak, url, true, hotspot_x, hotspot_y).await;
             }
         });
 
-        state
+        this
+    }
+
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Arc<CustomCursor> {
+        let this = CustomCursor::new();
+        wasm_bindgen_futures::spawn_local(Self::decode(
+            Arc::downgrade(&this),
+            url,
+            false,
+            hotspot_x,
+            hotspot_y,
+        ));
+
+        this
+    }
+
+    async fn decode(
+        weak: sync::Weak<CustomCursor>,
+        url: String,
+        object: bool,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) {
+        if weak.strong_count() == 0 {
+            return;
+        }
+
+        // 6. Decode the image on an `HTMLImageElement` from the URL.
+        let image =
+            HtmlImageElement::new().expect("unexpected exception in `new HtmlImageElement`");
+        image.set_src(&url);
+        let result = JsFuture::from(image.decode()).await;
+
+        let Some(this) = weak.upgrade() else {
+            return;
+        };
+        let mut this = this.get().borrow_mut();
+
+        let ImageState::Loading(state) = this.deref_mut() else {
+            unreachable!("found invalid state");
+        };
+        let state = state.take();
+
+        if let Err(error) = result {
+            log::error!("creating custom cursor failed: {error:?}");
+            *this = ImageState::Failed;
+
+            if let Some(state) = state.and_then(|weak| weak.upgrade()) {
+                let mut state = state.borrow_mut();
+                let SelectedCursor::ImageLoading { previous, .. } = mem::take(&mut state.cursor)
+                else {
+                    unreachable!("found invalid state");
+                };
+                state.cursor = previous.into();
+            }
+
+            return;
+        }
+
+        let image = Image::new(url, object, image, hotspot_x, hotspot_y);
+
+        // 7. Change the `CursorState` if queued.
+        if let Some(state) = state.and_then(|weak| weak.upgrade()) {
+            let mut state = state.borrow_mut();
+            state.cursor = SelectedCursor::ImageReady(image.clone());
+            state.set_style();
+        }
+
+        *this = ImageState::Ready(image);
     }
 }
 
 #[derive(Debug)]
-pub struct WebCursorImage {
-    data_url: String,
-    hotspot_x: u16,
-    hotspot_y: u16,
+pub struct Image {
+    style: String,
+    url: String,
+    object: bool,
+    _image: HtmlImageElement,
 }
 
-impl Drop for WebCursorImage {
+impl Drop for Image {
     fn drop(&mut self) {
-        Url::revoke_object_url(&self.data_url).unwrap();
+        if self.object {
+            Url::revoke_object_url(&self.url)
+                .expect("unexpected exception in `URL.revokeObjectURL()`");
+        }
     }
+}
+
+impl Image {
+    fn new(
+        url: String,
+        object: bool,
+        image: HtmlImageElement,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Rc<Self> {
+        let style = format!("url({url}) {hotspot_x} {hotspot_y}, auto");
+
+        Rc::new(Self {
+            style,
+            url,
+            object,
+            _image: image,
+        })
+    }
+}
+
+mod thread_safe {
+    use std::mem;
+    use std::thread::{self, ThreadId};
+
+    #[derive(Debug)]
+    pub struct ThreadSafe<T> {
+        origin_thread: ThreadId,
+        value: T,
+    }
+
+    impl<T> ThreadSafe<T> {
+        pub fn new(value: T) -> Self {
+            Self {
+                origin_thread: thread::current().id(),
+                value,
+            }
+        }
+
+        pub fn get(&self) -> &T {
+            if self.origin_thread == thread::current().id() {
+                &self.value
+            } else {
+                panic!("value not accessible outside its origin thread")
+            }
+        }
+
+        pub fn in_origin_thread(&self) -> bool {
+            self.origin_thread == thread::current().id()
+        }
+    }
+
+    impl<T> Drop for ThreadSafe<T> {
+        fn drop(&mut self) {
+            if mem::needs_drop::<T>() && self.origin_thread != thread::current().id() {
+                panic!("value can't be dropped outside its origin thread")
+            }
+        }
+    }
+
+    unsafe impl<T> Send for ThreadSafe<T> {}
+    unsafe impl<T> Sync for ThreadSafe<T> {}
 }

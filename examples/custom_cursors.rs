@@ -4,17 +4,19 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     keyboard::Key,
     window::{CustomCursor, WindowBuilder},
 };
 
-fn decode_cursor(bytes: &[u8]) -> CustomCursor {
+fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
-    CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
+    let builder = CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap();
+
+    builder.build(window_target)
 }
 
 #[cfg(not(wasm_platform))]
@@ -43,8 +45,8 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut cursor_visible = true;
 
     let custom_cursors = [
-        decode_cursor(include_bytes!("data/cross.png")),
-        decode_cursor(include_bytes!("data/cross2.png")),
+        decode_cursor(include_bytes!("data/cross.png"), &event_loop),
+        decode_cursor(include_bytes!("data/cross2.png"), &event_loop),
     ];
 
     event_loop.run(move |event, _elwt| match event {

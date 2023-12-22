@@ -6,65 +6,67 @@ use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
-// NOTE: This channel doesn't wake up when all senders or receivers are
-// dropped. This is acceptable as long as it's only used in `Dispatcher`, which
-// has it's own `Drop` behavior.
-
 pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     let (sender, receiver) = mpsc::channel();
-    let sender = Arc::new(Mutex::new(sender));
-    let inner = Arc::new(Inner {
+    let shared = Arc::new(Shared {
         closed: AtomicBool::new(false),
         waker: AtomicWaker::new(),
     });
 
-    let sender = AsyncSender {
-        sender,
-        inner: Arc::clone(&inner),
-    };
+    let sender = AsyncSender(Arc::new(SenderInner {
+        sender: Mutex::new(sender),
+        shared: Arc::clone(&shared),
+    }));
     let receiver = AsyncReceiver {
         receiver: Rc::new(receiver),
-        inner,
+        shared,
     };
 
     (sender, receiver)
 }
 
-pub struct AsyncSender<T> {
+pub struct AsyncSender<T>(Arc<SenderInner<T>>);
+
+struct SenderInner<T> {
     // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
     // be accessed on the main thread, as it could block. Additionally we need
-    // to wrap it in an `Arc` to make it clonable on the main thread without
+    // to wrap `Sender` in an `Arc` to make it clonable on the main thread without
     // having to block.
-    sender: Arc<Mutex<Sender<T>>>,
-    inner: Arc<Inner>,
+    sender: Mutex<Sender<T>>,
+    shared: Arc<Shared>,
 }
 
 impl<T> AsyncSender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
-        self.sender.lock().unwrap().send(event)?;
-        self.inner.waker.wake();
+        self.0.sender.lock().unwrap().send(event)?;
+        self.0.shared.waker.wake();
 
         Ok(())
     }
+}
 
-    pub fn close(&self) {
-        self.inner.closed.store(true, Ordering::Relaxed);
-        self.inner.waker.wake()
+impl<T> SenderInner<T> {
+    fn close(&self) {
+        self.shared.closed.store(true, Ordering::Relaxed);
+        self.shared.waker.wake();
     }
 }
 
 impl<T> Clone for AsyncSender<T> {
     fn clone(&self) -> Self {
-        Self {
-            sender: Arc::clone(&self.sender),
-            inner: Arc::clone(&self.inner),
-        }
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<T> Drop for SenderInner<T> {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
 pub struct AsyncReceiver<T> {
     receiver: Rc<Receiver<T>>,
-    inner: Arc<Inner>,
+    shared: Arc<Shared>,
 }
 
 impl<T> AsyncReceiver<T> {
@@ -72,12 +74,12 @@ impl<T> AsyncReceiver<T> {
         future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
             Err(TryRecvError::Empty) => {
-                self.inner.waker.register(cx.waker());
+                self.shared.waker.register(cx.waker());
 
                 match self.receiver.try_recv() {
                     Ok(event) => Poll::Ready(Ok(event)),
                     Err(TryRecvError::Empty) => {
-                        if self.inner.closed.load(Ordering::Relaxed) {
+                        if self.shared.closed.load(Ordering::Relaxed) {
                             Poll::Ready(Err(RecvError))
                         } else {
                             Poll::Pending
@@ -104,12 +106,18 @@ impl<T> Clone for AsyncReceiver<T> {
     fn clone(&self) -> Self {
         Self {
             receiver: Rc::clone(&self.receiver),
-            inner: Arc::clone(&self.inner),
+            shared: Arc::clone(&self.shared),
         }
     }
 }
 
-struct Inner {
+impl<T> Drop for AsyncReceiver<T> {
+    fn drop(&mut self) {
+        self.shared.closed.store(true, Ordering::Relaxed);
+    }
+}
+
+struct Shared {
     closed: AtomicBool,
     waker: AtomicWaker,
 }

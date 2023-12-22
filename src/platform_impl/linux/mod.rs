@@ -14,7 +14,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 use once_cell::sync::Lazy;
 use smol_str::SmolStr;
 
-use crate::cursor::CustomCursor;
 #[cfg(x11_platform)]
 use crate::platform::x11::XlibErrorHook;
 use crate::{
@@ -41,6 +40,7 @@ pub use x11::XNotSupported;
 #[cfg(x11_platform)]
 use x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 
+pub(crate) use crate::cursor::CursorImage as PlatformCustomCursorBuilder;
 pub(crate) use crate::cursor::CursorImage as PlatformCustomCursor;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -427,7 +427,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
         x11_or_wayland!(match self; Window(w) => w.set_custom_cursor(cursor))
     }
 

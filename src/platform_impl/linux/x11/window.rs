@@ -7,8 +7,6 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use crate::cursor::CustomCursor as RootCustomCursor;
-
 use cursor_icon::CursorIcon;
 use x11rb::{
     connection::Connection,
@@ -32,8 +30,8 @@ use crate::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
             X11Error,
         },
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
+        PlatformIcon, PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -1552,8 +1550,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: RootCustomCursor) {
-        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.inner) };
+    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
+        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor) };
 
         #[allow(clippy::mutex_atomic)]
         if *self.cursor_visible.lock().unwrap() {

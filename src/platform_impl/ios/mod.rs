@@ -78,6 +78,7 @@ pub(crate) use self::{
 
 use self::uikit::UIScreen;
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

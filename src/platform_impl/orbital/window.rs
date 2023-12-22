@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::{
-    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     platform_impl::Fullscreen,
@@ -13,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    EventLoopWindowTarget, MonitorHandle, PlatformSpecificWindowBuilderAttributes, RedoxSocket,
-    TimeSocket, WindowId, WindowProperties,
+    EventLoopWindowTarget, MonitorHandle, PlatformCustomCursor,
+    PlatformSpecificWindowBuilderAttributes, RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -353,7 +352,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
-    pub fn set_custom_cursor(&self, _: CustomCursor) {}
+    pub(crate) fn set_custom_cursor(&self, _: Arc<PlatformCustomCursor>) {}
 
     #[inline]
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {

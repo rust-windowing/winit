@@ -5,9 +5,9 @@ use std::f64;
 use std::ops;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
+use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
-use crate::cursor::CustomCursor;
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -25,7 +25,7 @@ use crate::{
         util,
         view::WinitView,
         window_delegate::WinitWindowDelegate,
-        Fullscreen, OsError,
+        Fullscreen, OsError, PlatformCustomCursor,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -836,9 +836,9 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
         let view = self.view();
-        view.set_cursor_icon(NSCursor::from_image(&cursor.inner));
+        view.set_cursor_icon(NSCursor::from_image(&cursor));
         self.invalidateCursorRectsForView(&view);
     }
 
