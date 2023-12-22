@@ -122,6 +122,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         AppState::exit()
     }
 
+    pub(crate) fn clear_exit(&self) {
+        AppState::clear_exit()
+    }
+
     pub(crate) fn exiting(&self) -> bool {
         AppState::exiting()
     }

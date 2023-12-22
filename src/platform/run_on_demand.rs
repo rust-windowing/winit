@@ -76,6 +76,14 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
     where
         F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
     {
+        self.event_loop.window_target().clear_exit();
         self.event_loop.run_on_demand(event_handler)
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    /// Clear exit status.
+    pub(crate) fn clear_exit(&self) {
+        self.p.clear_exit()
     }
 }

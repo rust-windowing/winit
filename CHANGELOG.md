@@ -24,6 +24,7 @@ Unreleased` header.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
 - On Wayland, fix `WindowEvent::Destroyed` not being delivered after destroying window.
+- Fix `EventLoopExtRunOnDemand::run_on_demand` not working for consequent invocation
 
 # 0.29.5
 
