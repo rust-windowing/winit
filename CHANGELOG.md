@@ -20,6 +20,7 @@ Unreleased` header.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
+- **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 
 # 0.29.5
 
