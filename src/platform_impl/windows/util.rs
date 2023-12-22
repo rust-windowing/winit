@@ -195,7 +195,7 @@ pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
 }
 
 // Helper function to dynamically load function pointer as some functions
-// may not be available on all Windows platforms supported be winit.
+// may not be available on all Windows platforms supported by winit.
 //
 // `library` and `function` must be zero-terminated.
 pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const c_void> {
