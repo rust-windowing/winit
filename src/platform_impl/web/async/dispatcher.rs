@@ -82,12 +82,6 @@ impl<T> Dispatcher<T> {
     }
 }
 
-impl<T> Drop for Dispatcher<T> {
-    fn drop(&mut self) {
-        self.0.with_sender_data(|sender| sender.close())
-    }
-}
-
 pub struct DispatchRunner<T: 'static> {
     wrapper: Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>,
     receiver: AsyncReceiver<Closure<T>>,

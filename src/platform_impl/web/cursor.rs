@@ -2,13 +2,17 @@ use std::{
     cell::RefCell,
     future, mem,
     ops::DerefMut,
-    rc::Rc,
-    sync::{Arc, Weak},
+    rc::{self, Rc},
+    sync::{self, Arc},
     task::{Poll, Waker},
 };
 
-use crate::cursor::{BadImage, CursorImage};
+use crate::{
+    cursor::{BadImage, CursorImage},
+    platform_impl::platform::r#async,
+};
 use cursor_icon::CursorIcon;
+use once_cell::sync::Lazy;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
@@ -16,7 +20,9 @@ use web_sys::{
     ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
 
-use super::{backend::Style, EventLoopWindowTarget};
+use self::thread_safe::ThreadSafe;
+
+use super::{backend::Style, r#async::AsyncSender, EventLoopWindowTarget};
 
 #[derive(Debug)]
 pub enum CustomCursorBuilder {
@@ -30,6 +36,8 @@ pub enum CustomCursorBuilder {
 
 impl CustomCursorBuilder {
     pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> Arc<CustomCursor> {
+        Lazy::force(&DROP_HANDLER);
+
         match self {
             Self::Image(image) => ImageState::from_rgba(
                 window_target.runner.window(),
@@ -46,7 +54,14 @@ impl CustomCursorBuilder {
 }
 
 #[derive(Debug)]
-pub struct CustomCursor(RefCell<ImageState>);
+pub struct CustomCursor(Option<ThreadSafe<RefCell<ImageState>>>);
+
+static DROP_HANDLER: Lazy<AsyncSender<ThreadSafe<RefCell<ImageState>>>> = Lazy::new(|| {
+    let (sender, receiver) = r#async::channel();
+    wasm_bindgen_futures::spawn_local(async move { while receiver.next().await.is_ok() {} });
+
+    sender
+});
 
 impl CustomCursor {
     pub fn from_rgba(
@@ -60,22 +75,42 @@ impl CustomCursor {
             rgba, width, height, hotspot_x, hotspot_y,
         )?))
     }
+
+    fn new() -> Arc<Self> {
+        Arc::new(Self(Some(ThreadSafe::new(RefCell::new(
+            ImageState::Loading(None),
+        )))))
+    }
+
+    fn get(&self) -> &RefCell<ImageState> {
+        self.0
+            .as_ref()
+            .expect("value has accidently already been dropped")
+            .get()
+    }
 }
 
-// SAFETY: `ImageState` is only accessed on the main thread or on `Drop`, which
-// is not an issue as it is wrapped in an `Arc`, so dropping only happens once.
-// It's important that dropping behavior is thread-safe, currently only a call
-// to `URL.revokeObjectURL()`.
-unsafe impl Send for CustomCursor {}
-unsafe impl Sync for CustomCursor {}
+impl Drop for CustomCursor {
+    fn drop(&mut self) {
+        let value = self
+            .0
+            .take()
+            .expect("value has accidently already been dropped");
+
+        if !value.in_origin_thread() {
+            DROP_HANDLER
+                .send(value)
+                .expect("sender dropped in main thread")
+        }
+    }
+}
 
 #[derive(Debug)]
-pub struct CursorState(Arc<RefCell<State>>);
+pub struct CursorState(Rc<RefCell<State>>);
 
 impl CursorState {
     pub fn new(style: Style) -> Self {
-        #[allow(clippy::arc_with_non_send_sync)]
-        Self(Arc::new(RefCell::new(State {
+        Self(Rc::new(RefCell::new(State {
             style,
             visible: true,
             cursor: SelectedCursor::default(),
@@ -86,7 +121,7 @@ impl CursorState {
         let mut this = self.0.borrow_mut();
 
         if let SelectedCursor::ImageLoading { state, .. } = &this.cursor {
-            if let ImageState::Loading(state) = state.0.borrow_mut().deref_mut() {
+            if let ImageState::Loading(state) = state.get().borrow_mut().deref_mut() {
                 state.take();
             }
         }
@@ -98,13 +133,13 @@ impl CursorState {
     pub fn set_custom_cursor(&self, cursor: Arc<CustomCursor>) {
         let mut this = self.0.borrow_mut();
 
-        match cursor.0.borrow_mut().deref_mut() {
+        match cursor.get().borrow_mut().deref_mut() {
             ImageState::Loading(state) => {
                 this.cursor = SelectedCursor::ImageLoading {
                     state: cursor.clone(),
                     previous: mem::take(&mut this.cursor).into(),
                 };
-                *state = Some(Arc::downgrade(&self.0));
+                *state = Some(Rc::downgrade(&self.0));
             }
             ImageState::Failed => log::error!("tried to load invalid cursor"),
             ImageState::Ready(image) => {
@@ -155,7 +190,7 @@ enum SelectedCursor {
         state: Arc<CustomCursor>,
         previous: Previous,
     },
-    ImageReady(Arc<Image>),
+    ImageReady(Rc<Image>),
 }
 
 impl Default for SelectedCursor {
@@ -176,7 +211,7 @@ impl From<Previous> for SelectedCursor {
 #[derive(Debug)]
 pub enum Previous {
     Named(CursorIcon),
-    Image(Arc<Image>),
+    Image(Rc<Image>),
 }
 
 impl Previous {
@@ -200,9 +235,9 @@ impl From<SelectedCursor> for Previous {
 
 #[derive(Debug)]
 enum ImageState {
-    Loading(Option<Weak<RefCell<State>>>),
+    Loading(Option<rc::Weak<RefCell<State>>>),
     Failed,
-    Ready(Arc<Image>),
+    Ready(Rc<Image>),
 }
 
 impl ImageState {
@@ -258,7 +293,7 @@ impl ImageState {
                 .expect("unexpected exception in `createImageBitmap()`"),
         );
 
-        let this = Arc::new(CustomCursor(RefCell::new(Self::Loading(None))));
+        let this = CustomCursor::new();
 
         wasm_bindgen_futures::spawn_local({
             let weak = Arc::downgrade(&this);
@@ -336,7 +371,7 @@ impl ImageState {
                     let Some(this) = weak.upgrade() else {
                         return;
                     };
-                    let mut this = this.0.borrow_mut();
+                    let mut this = this.get().borrow_mut();
 
                     let Some(blob) = blob else {
                         log::error!("creating custom cursor failed");
@@ -372,7 +407,7 @@ impl ImageState {
     }
 
     fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Arc<CustomCursor> {
-        let this = Arc::new(CustomCursor(RefCell::new(Self::Loading(None))));
+        let this = CustomCursor::new();
         wasm_bindgen_futures::spawn_local(Self::decode(
             Arc::downgrade(&this),
             url,
@@ -385,7 +420,7 @@ impl ImageState {
     }
 
     async fn decode(
-        weak: Weak<CustomCursor>,
+        weak: sync::Weak<CustomCursor>,
         url: String,
         object: bool,
         hotspot_x: u16,
@@ -404,7 +439,7 @@ impl ImageState {
         let Some(this) = weak.upgrade() else {
             return;
         };
-        let mut this = this.0.borrow_mut();
+        let mut this = this.get().borrow_mut();
 
         let ImageState::Loading(state) = this.deref_mut() else {
             unreachable!("found invalid state");
@@ -427,7 +462,7 @@ impl ImageState {
             return;
         }
 
-        let image = Image::new(url, object, hotspot_x, hotspot_y);
+        let image = Image::new(url, object, image, hotspot_x, hotspot_y);
 
         // 7. Change the `CursorState` if queued.
         if let Some(state) = state.and_then(|weak| weak.upgrade()) {
@@ -445,6 +480,7 @@ pub struct Image {
     style: String,
     url: String,
     object: bool,
+    _image: HtmlImageElement,
 }
 
 impl Drop for Image {
@@ -457,9 +493,63 @@ impl Drop for Image {
 }
 
 impl Image {
-    fn new(url: String, object: bool, hotspot_x: u16, hotspot_y: u16) -> Arc<Self> {
+    fn new(
+        url: String,
+        object: bool,
+        image: HtmlImageElement,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Rc<Self> {
         let style = format!("url({url}) {hotspot_x} {hotspot_y}, auto");
 
-        Arc::new(Self { style, url, object })
+        Rc::new(Self {
+            style,
+            url,
+            object,
+            _image: image,
+        })
     }
+}
+
+mod thread_safe {
+    use std::mem;
+    use std::thread::{self, ThreadId};
+
+    #[derive(Debug)]
+    pub struct ThreadSafe<T> {
+        origin_thread: ThreadId,
+        value: T,
+    }
+
+    impl<T> ThreadSafe<T> {
+        pub fn new(value: T) -> Self {
+            Self {
+                origin_thread: thread::current().id(),
+                value,
+            }
+        }
+
+        pub fn get(&self) -> &T {
+            if self.origin_thread == thread::current().id() {
+                &self.value
+            } else {
+                panic!("value not accessible outside its origin thread")
+            }
+        }
+
+        pub fn in_origin_thread(&self) -> bool {
+            self.origin_thread == thread::current().id()
+        }
+    }
+
+    impl<T> Drop for ThreadSafe<T> {
+        fn drop(&mut self) {
+            if mem::needs_drop::<T>() && self.origin_thread != thread::current().id() {
+                panic!("value can't be dropped outside its origin thread")
+            }
+        }
+    }
+
+    unsafe impl<T> Send for ThreadSafe<T> {}
+    unsafe impl<T> Sync for ThreadSafe<T> {}
 }
