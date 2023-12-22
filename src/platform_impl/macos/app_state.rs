@@ -210,6 +210,10 @@ impl Handler {
         self.exit.store(true, Ordering::Relaxed)
     }
 
+    pub fn clear_exit(&self) {
+        self.exit.store(false, Ordering::Relaxed)
+    }
+
     pub fn exiting(&self) -> bool {
         self.exit.load(Ordering::Relaxed)
     }
@@ -433,6 +437,10 @@ impl AppState {
 
     pub fn exit() {
         HANDLER.exit()
+    }
+
+    pub fn clear_exit() {
+        HANDLER.clear_exit()
     }
 
     pub fn exiting() -> bool {

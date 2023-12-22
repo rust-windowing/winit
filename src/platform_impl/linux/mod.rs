@@ -925,6 +925,10 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.control_flow())
     }
 
+    pub(crate) fn clear_exit(&self) {
+        x11_or_wayland!(match self; Self(evlp) => evlp.clear_exit())
+    }
+
     pub(crate) fn exit(&self) {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit())
     }

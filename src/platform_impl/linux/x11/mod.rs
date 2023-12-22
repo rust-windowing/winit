@@ -752,6 +752,10 @@ impl<T> EventLoopWindowTarget<T> {
         self.exit.set(Some(0))
     }
 
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(None)
+    }
+
     pub(crate) fn exiting(&self) -> bool {
         self.exit.get().is_some()
     }
