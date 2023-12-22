@@ -529,9 +529,11 @@ impl Window {
     pub(crate) fn raw_window_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        Ok(self
-            .maybe_wait_on_main(|w| crate::SendSyncWrapper(w.raw_window_handle_rwh_06()))
-            .0)
+        if let Some(mtm) = MainThreadMarker::new() {
+            Ok(self.inner.get(mtm).raw_window_handle_rwh_06())
+        } else {
+            Err(rwh_06::HandleError::Unavailable)
+        }
     }
 }
 

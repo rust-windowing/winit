@@ -1532,7 +1532,8 @@ impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         let raw = self.window.raw_window_handle_rwh_06()?;
 
-        // SAFETY: The window handle will never be deallocated while the window is alive.
+        // SAFETY: The window handle will never be deallocated while the window is alive,
+        // and the main thread safety requirements are upheld internally by each platform.
         Ok(unsafe { rwh_06::WindowHandle::borrow_raw(raw) })
     }
 }
