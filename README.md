@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.29.4"
+winit = "0.29.5"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -26,7 +26,7 @@ Join us in any of these:
 
 Winit is a window creation and management library. It can create windows and lets you handle
 events (for example: the window being resized, a key being pressed, a mouse movement, etc.)
-produced by window.
+produced by the window.
 
 Winit is designed to be a low-level brick in a hierarchy of libraries. Consequently, in order to
 show something on the window you need to use the platform-specific getters provided by winit, or
@@ -42,7 +42,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ## MSRV Policy
 
-The Minimum Supported Rust Version (MSRV) of this crate is **1.65**. Changes to
+This crate's Minimum Supported Rust Version (MSRV) is **1.65**. Changes to
 the MSRV will be accompanied by a minor version bump.
 
 As a **tentative** policy, the upper bound of the MSRV is given by the following
@@ -53,12 +53,11 @@ min(sid, stable - 3)
 ```
 
 Where `sid` is the current version of `rustc` provided by [Debian Sid], and
-`stable` is the latest stable version of Rust. This bound may be broken in the
-event of a major ecosystem shift or a security vulnerability.
+`stable` is the latest stable version of Rust. This bound may be broken in case of a major ecosystem shift or a security vulnerability.
 
 [Debian Sid]: https://packages.debian.org/sid/rustc
 
-The exception to this is for the Android platform, where a higher Rust version
+The exception is for the Android platform, where a higher Rust version
 must be used for certain Android features. In this case, the MSRV will be
 capped at the latest stable version of Rust minus three. This inconsistency is
 not reflected in Cargo metadata, as it is not powerful enough to expose this
@@ -86,7 +85,7 @@ either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit
 create a `<canvas>` element which you can then retrieve][web canvas getter] and
 insert it into the DOM yourself.
 
-For example code using Winit with WebAssembly, check out the [web example]. For
+For the example code using Winit with WebAssembly, check out the [web example]. For
 information on using Rust on WebAssembly, check out the [Rust and WebAssembly
 book].
 
@@ -109,7 +108,7 @@ glue crate (prior to `0.28` it used
 
 The version of the glue crate that your application depends on _must_ match the
 version that Winit depends on because the glue crate is responsible for your
-application's main entrypoint. If Cargo resolves multiple versions they will
+application's main entry point. If Cargo resolves multiple versions, they will
 clash.
 
 `winit` glue compatibility table:
@@ -127,7 +126,7 @@ The recommended way to avoid a conflict with the glue version is to avoid explic
 depending on the `android-activity` crate, and instead consume the API that
 is re-exported by Winit under `winit::platform::android::activity::*`
 
-Running on an Android device needs a dynamic system library, add this to Cargo.toml:
+Running on an Android device needs a dynamic system library. Add this to Cargo.toml:
 
 ```toml
 [lib]
@@ -135,14 +134,14 @@ name = "main"
 crate-type = ["cdylib"]
 ```
 
-All Android applications are based on an `Activity` subclass and the
+All Android applications are based on an `Activity` subclass, and the
 `android-activity` crate is designed to support different choices for this base
 class. Your application _must_ specify the base class it needs via a feature flag:
 
 | Base Class       | Feature Flag      |  Notes  |
 | :--------------: | :---------------: | :-----: |
 | `NativeActivity` | `android-native-activity` | Built-in to Android - it is possible to use without compiling any Java or Kotlin code. Java or Kotlin code may be needed to subclass `NativeActivity` to access some platform features. It does not derive from the [`AndroidAppCompat`] base class.|
-| [`GameActivity`] | `android-game-activity`   | Derives from [`AndroidAppCompat`] which is a defacto standard `Activity` base class that helps support a wider range of Android versions. Requires a build system that can compile Java or Kotlin and fetch Android dependencies from a [Maven repository][agdk_jetpack] (or link with an embedded [release][agdk_releases] of [`GameActivity`]) |
+| [`GameActivity`] | `android-game-activity`   | Derives from [`AndroidAppCompat`], a defacto standard `Activity` base class that helps support a wider range of Android versions. Requires a build system that can compile Java or Kotlin and fetch Android dependencies from a [Maven repository][agdk_jetpack] (or link with an embedded [release][agdk_releases] of [`GameActivity`]) |
 
 [`GameActivity`]: https://developer.android.com/games/agdk/game-activity
 [`GameTextInput`]: https://developer.android.com/games/agdk/add-support-for-text-input
@@ -155,9 +154,9 @@ For more details, refer to these `android-activity` [example applications](https
 
 ##### Converting from `ndk-glue` to `android-activity`
 
-If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk` then the minimal changes would be:
+If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk`, then the minimal changes would be:
 1. Remove `ndk-glue` from your `Cargo.toml`
-2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.4", features = [ "android-native-activity" ] }`
+2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.5", features = [ "android-native-activity" ] }`
 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize logging as above).
 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your event loop (as shown above).
 
@@ -173,7 +172,7 @@ If you encounter problems, you should try doing your initialization inside
 #### iOS
 
 Similar to macOS, iOS's main `UIApplicationMain` does some init work that's required
-by all UI related code, see issue [#1705]. You should consider creating your windows
+by all UI-related code (see issue [#1705]). It would be best to consider creating your windows
 inside `Event::Resumed`.
 
 
@@ -184,5 +183,5 @@ inside `Event::Resumed`.
 
 #### Redox OS
 
-Redox OS has some functionality not present yet, that will be implemented when
+Redox OS has some functionality not yet present that will be implemented when
 its orbital display server provides it.

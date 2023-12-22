@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{
+    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     platform_impl::Fullscreen,
@@ -351,6 +352,8 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
+
+    pub fn set_custom_cursor(&self, _: CustomCursor) {}
 
     #[inline]
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {

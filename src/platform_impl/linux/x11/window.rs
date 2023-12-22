@@ -7,6 +7,9 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use crate::cursor::CustomCursor as RootCustomCursor;
+
+use cursor_icon::CursorIcon;
 use x11rb::{
     connection::Connection,
     properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
@@ -25,18 +28,23 @@ use crate::{
     event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
     platform_impl::{
-        x11::{atoms::*, MonitorHandle as X11MonitorHandle, WakeSender, X11Error},
+        x11::{
+            atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
+            X11Error,
+        },
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
 use super::{
-    ffi, util, CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
+    ffi,
+    util::{self, CustomCursor, SelectedCursor},
+    CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
 
@@ -123,7 +131,7 @@ pub(crate) struct UnownedWindow {
     root: xproto::Window,               // never changes
     #[allow(dead_code)]
     screen_id: i32, // never changes
-    cursor: Mutex<CursorIcon>,
+    selected_cursor: Mutex<SelectedCursor>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
     cursor_visible: Mutex<bool>,
@@ -352,7 +360,7 @@ impl UnownedWindow {
             visual,
             root,
             screen_id,
-            cursor: Default::default(),
+            selected_cursor: Default::default(),
             cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
@@ -1374,7 +1382,8 @@ impl UnownedWindow {
             self.xwindow as xproto::Window,
             xproto::AtomEnum::WM_NORMAL_HINTS,
         )?
-        .reply()?;
+        .reply()?
+        .unwrap_or_default();
         callback(&mut normal_hints);
         normal_hints
             .set(
@@ -1427,6 +1436,7 @@ impl UnownedWindow {
         )
         .ok()
         .and_then(|cookie| cookie.reply().ok())
+        .flatten()
         .and_then(|hints| hints.size_increment)
         .map(|(width, height)| (width as u32, height as u32).into())
     }
@@ -1530,11 +1540,27 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let old_cursor = replace(&mut *self.cursor.lock().unwrap(), cursor);
+        let old_cursor = replace(
+            &mut *self.selected_cursor.lock().unwrap(),
+            SelectedCursor::Named(cursor),
+        );
+
         #[allow(clippy::mutex_atomic)]
-        if cursor != old_cursor && *self.cursor_visible.lock().unwrap() {
+        if SelectedCursor::Named(cursor) != old_cursor && *self.cursor_visible.lock().unwrap() {
             self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
         }
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: RootCustomCursor) {
+        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.inner) };
+
+        #[allow(clippy::mutex_atomic)]
+        if *self.cursor_visible.lock().unwrap() {
+            self.xconn.set_custom_cursor(self.xwindow, &new_cursor);
+        }
+
+        *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(new_cursor);
     }
 
     #[inline]
@@ -1623,13 +1649,23 @@ impl UnownedWindow {
             return;
         }
         let cursor = if visible {
-            Some(*self.cursor.lock().unwrap())
+            Some((*self.selected_cursor.lock().unwrap()).clone())
         } else {
             None
         };
         *visible_lock = visible;
         drop(visible_lock);
-        self.xconn.set_cursor_icon(self.xwindow, cursor);
+        match cursor {
+            Some(SelectedCursor::Custom(cursor)) => {
+                self.xconn.set_custom_cursor(self.xwindow, &cursor);
+            }
+            Some(SelectedCursor::Named(cursor)) => {
+                self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+            }
+            None => {
+                self.xconn.set_cursor_icon(self.xwindow, None);
+            }
+        }
     }
 
     #[inline]
@@ -1739,8 +1775,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window.x as u32 + pointer.win_x as u32),
-                    (window.y as u32 + pointer.win_y as u32),
+                    (window.x as u32 + xinput_fp1616_to_float(pointer.win_x) as u32),
+                    (window.y as u32 + xinput_fp1616_to_float(pointer.win_y) as u32),
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
@@ -1782,9 +1818,9 @@ impl UnownedWindow {
         let state_type_atom = atoms[CARD32];
         let is_minimized = if let Ok(state) =
             self.xconn
-                .get_property(self.xwindow, state_atom, state_type_atom)
+                .get_property::<u32>(self.xwindow, state_atom, state_type_atom)
         {
-            state.contains(&(ffi::IconicState as c_ulong))
+            state.contains(&super::ICONIC_STATE)
         } else {
             false
         };
@@ -1821,6 +1857,7 @@ impl UnownedWindow {
             WmHints::get(self.xconn.xcb_connection(), self.xwindow as xproto::Window)
                 .ok()
                 .and_then(|cookie| cookie.reply().ok())
+                .flatten()
                 .unwrap_or_default();
 
         wm_hints.urgent = request_type.is_some();

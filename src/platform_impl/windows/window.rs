@@ -55,6 +55,7 @@ use windows_sys::Win32::{
 };
 
 use crate::{
+    cursor::CustomCursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
@@ -67,13 +68,13 @@ use crate::{
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
+        icon::{self, IconType, WinCursor},
         ime::ImeContext,
         keyboard::KeyEventBuilder,
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
     },
     window::{
         CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -397,10 +398,25 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state_lock().mouse.cursor = cursor;
+        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(cursor);
         self.thread_executor.execute_in_thread(move || unsafe {
             let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
             SetCursor(cursor);
+        });
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        let new_cursor = match WinCursor::new(&cursor.inner) {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                warn!("Failed to create custom cursor: {err}");
+                return;
+            }
+        };
+        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor.clone());
+        self.thread_executor.execute_in_thread(move || unsafe {
+            SetCursor(new_cursor.as_raw_handle());
         });
     }
 
@@ -687,9 +703,19 @@ impl Window {
 
         let mut window_state_lock = window_state.lock().unwrap();
         let old_fullscreen = window_state_lock.fullscreen.clone();
-        if window_state_lock.fullscreen == fullscreen {
-            return;
+
+        match (&old_fullscreen, &fullscreen) {
+            // Return if we already are in the same fullscreen mode
+            _ if old_fullscreen == fullscreen => return,
+            // Return if saved Borderless(monitor) is the same as current monitor when requested fullscreen is Borderless(None)
+            (Some(Fullscreen::Borderless(Some(monitor))), Some(Fullscreen::Borderless(None)))
+                if *monitor == monitor::current_monitor(window.0) =>
+            {
+                return
+            }
+            _ => {}
         }
+
         window_state_lock.fullscreen = fullscreen.clone();
         drop(window_state_lock);
 

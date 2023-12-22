@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.29.4"
+version = "0.29.5"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -160,13 +160,13 @@ memmap2 = { version = "0.9.0", optional = true }
 percent-encoding = { version = "2.0", optional = true }
 rustix = { version = "0.38.4", default-features = false, features = ["std", "system", "thread", "process"] }
 sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = ["calloop"], optional = true }
-sctk-adwaita = { version = "0.7.0", default_features = false, optional = true }
+sctk-adwaita = { version = "0.8.0", default_features = false, optional = true }
 wayland-backend = { version = "0.3.0", default_features = false, features = ["client_system"], optional = true }
 wayland-client = { version = "0.31.1", optional = true }
 wayland-protocols = { version = "0.31.0", features = [ "staging"], optional = true }
 wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-x11rb = { version = "0.12.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
+x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
 xkbcommon-dl = "0.4.0"
 
 [target.'cfg(target_os = "redox")'.dependencies]
@@ -179,6 +179,7 @@ version = "0.3.64"
 features = [
     'AbortController',
     'AbortSignal',
+    'Blob',
     'console',
     'CssStyleDeclaration',
     'Document',
@@ -190,6 +191,10 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'ImageBitmap',
+    'ImageBitmapOptions',
+    'ImageBitmapRenderingContext',
+    'ImageData',
     'IntersectionObserver',
     'IntersectionObserverEntry',
     'KeyboardEvent',
@@ -199,6 +204,7 @@ features = [
     'Node',
     'PageTransitionEvent',
     'PointerEvent',
+    'PremultiplyAlpha',
     'ResizeObserver',
     'ResizeObserverBoxOptions',
     'ResizeObserverEntry',
@@ -206,7 +212,8 @@ features = [
     'ResizeObserverSize',
     'VisibilityState',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'Url',
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]

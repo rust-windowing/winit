@@ -1,3 +1,4 @@
+use crate::cursor::CustomCursor;
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
@@ -7,12 +8,12 @@ use crate::window::{
 };
 use crate::SendSyncWrapper;
 
-use web_sys::HtmlCanvasElement;
-
+use super::cursor::SelectedCursor;
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
+use web_sys::HtmlCanvasElement;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -24,7 +25,8 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    previous_pointer: RefCell<&'static str>,
+    selected_cursor: RefCell<SelectedCursor>,
+    cursor_visible: Rc<Cell<bool>>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -53,7 +55,8 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            previous_pointer: RefCell::new("auto"),
+            selected_cursor: Default::default(),
+            cursor_visible: Rc::new(Cell::new(true)),
             destroy_fn: Some(destroy_fn),
         };
 
@@ -195,8 +198,24 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        *self.previous_pointer.borrow_mut() = cursor.name();
-        self.canvas.borrow().style().set("cursor", cursor.name());
+        *self.selected_cursor.borrow_mut() = SelectedCursor::Named(cursor);
+
+        if self.cursor_visible.get() {
+            self.canvas.borrow().style().set("cursor", cursor.name());
+        }
+    }
+
+    #[inline]
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+        let canvas = self.canvas.borrow();
+        let new_cursor = cursor.inner.build(
+            canvas.window(),
+            canvas.document(),
+            canvas.style(),
+            self.selected_cursor.take(),
+            self.cursor_visible.clone(),
+        );
+        *self.selected_cursor.borrow_mut() = new_cursor;
     }
 
     #[inline]
@@ -222,13 +241,14 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        if !visible {
+        if !visible && self.cursor_visible.get() {
             self.canvas.borrow().style().set("cursor", "none");
-        } else {
-            self.canvas
+            self.cursor_visible.set(false);
+        } else if visible && !self.cursor_visible.get() {
+            self.selected_cursor
                 .borrow()
-                .style()
-                .set("cursor", &self.previous_pointer.borrow());
+                .set_style(self.canvas.borrow().style());
+            self.cursor_visible.set(true);
         }
     }
 
