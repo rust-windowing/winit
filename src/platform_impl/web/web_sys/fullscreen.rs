@@ -1,5 +1,6 @@
+use std::cell::OnceCell;
+
 use js_sys::Promise;
-use once_cell::unsync::OnceCell;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
