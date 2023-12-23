@@ -2,15 +2,18 @@
 use std::cell::Cell;
 use std::ptr;
 
-use icrate::AppKit::{NSFilenamesPboardType, NSPasteboard};
-use icrate::Foundation::{NSArray, NSObject, NSSize, NSString};
+use icrate::AppKit::{
+    NSApplicationPresentationFullScreen, NSApplicationPresentationHideDock,
+    NSApplicationPresentationHideMenuBar, NSApplicationPresentationOptions, NSDraggingDestination,
+    NSFilenamesPboardType, NSPasteboard, NSWindowDelegate, NSWindowOcclusionStateVisible,
+};
+use icrate::Foundation::{MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
-use objc2::runtime::AnyObject;
+use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
-use super::appkit::{NSApplicationPresentationOptions, NSWindowOcclusionState};
 use super::{
     app_state::AppState,
     util,
@@ -43,7 +46,7 @@ declare_class!(
 
     unsafe impl ClassType for WinitWindowDelegate {
         type Super = NSObject;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitWindowDelegate";
     }
 
@@ -51,8 +54,9 @@ declare_class!(
         type Ivars = State;
     }
 
-    // NSWindowDelegate + NSDraggingDestination protocols
-    unsafe impl WinitWindowDelegate {
+    unsafe impl NSObjectProtocol for WinitWindowDelegate {}
+
+    unsafe impl NSWindowDelegate for WinitWindowDelegate {
         #[method(windowShouldClose:)]
         fn window_should_close(&self, _: Option<&AnyObject>) -> bool {
             trace_scope!("windowShouldClose:");
@@ -135,64 +139,6 @@ declare_class!(
             self.queue_event(WindowEvent::Focused(false));
         }
 
-        /// Invoked when the dragged image enters destination bounds or frame
-        #[method(draggingEntered:)]
-        fn dragging_entered(&self, sender: &NSObject) -> bool {
-            trace_scope!("draggingEntered:");
-
-            use std::path::PathBuf;
-
-            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
-
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::HoveredFile(path));
-            });
-
-            true
-        }
-
-        /// Invoked when the image is released
-        #[method(prepareForDragOperation:)]
-        fn prepare_for_drag_operation(&self, _sender: &NSObject) -> bool {
-            trace_scope!("prepareForDragOperation:");
-            true
-        }
-
-        /// Invoked after the released image has been removed from the screen
-        #[method(performDragOperation:)]
-        fn perform_drag_operation(&self, sender: &NSObject) -> bool {
-            trace_scope!("performDragOperation:");
-
-            use std::path::PathBuf;
-
-            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
-
-            filenames.into_iter().for_each(|file| {
-                let path = PathBuf::from(file.to_string());
-                self.queue_event(WindowEvent::DroppedFile(path));
-            });
-
-            true
-        }
-
-        /// Invoked when the dragging operation is complete
-        #[method(concludeDragOperation:)]
-        fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
-            trace_scope!("concludeDragOperation:");
-        }
-
-        /// Invoked when the dragging operation is cancelled
-        #[method(draggingExited:)]
-        fn dragging_exited(&self, _sender: Option<&NSObject>) {
-            trace_scope!("draggingExited:");
-            self.queue_event(WindowEvent::HoveredFileCancelled);
-        }
-
         /// Invoked when before enter fullscreen
         #[method(windowWillEnterFullScreen:)]
         fn window_will_enter_fullscreen(&self, _: Option<&AnyObject>) {
@@ -256,9 +202,9 @@ declare_class!(
                 .window
                 .lock_shared_state("window_will_use_fullscreen_presentation_options");
             if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
-                options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                options = NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationHideDock
+                    | NSApplicationPresentationHideMenuBar;
             }
 
             options
@@ -343,42 +289,9 @@ declare_class!(
         #[method(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
-            self.queue_event(WindowEvent::Occluded(
-                !self
-                    .ivars()
-                    .window
-                    .occlusionState()
-                    .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
-            ))
-        }
-
-        // Observe theme change
-        #[method(effectiveAppearanceDidChange:)]
-        fn effective_appearance_did_change(&self, sender: Option<&AnyObject>) {
-            trace_scope!("Triggered `effectiveAppearanceDidChange:`");
-            unsafe {
-                msg_send![
-                    self,
-                    performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:),
-                    withObject: sender,
-                    waitUntilDone: false,
-                ]
-            }
-        }
-
-        #[method(effectiveAppearanceDidChangedOnMainThread:)]
-        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
-            let theme = get_ns_theme();
-            let mut shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("effective_appearance_did_change");
-            let current_theme = shared_state.current_theme;
-            shared_state.current_theme = Some(theme);
-            drop(shared_state);
-            if current_theme != Some(theme) {
-                self.queue_event(WindowEvent::ThemeChanged(theme));
-            }
+            let visible = self.ivars().window.occlusionState() & NSWindowOcclusionStateVisible
+                == NSWindowOcclusionStateVisible;
+            self.queue_event(WindowEvent::Occluded(!visible));
         }
 
         #[method(windowDidChangeScreen:)]
@@ -396,12 +309,109 @@ declare_class!(
             }
         }
     }
+
+    unsafe impl NSDraggingDestination for WinitWindowDelegate {
+        /// Invoked when the dragged image enters destination bounds or frame
+        #[method(draggingEntered:)]
+        fn dragging_entered(&self, sender: &NSObject) -> bool {
+            trace_scope!("draggingEntered:");
+
+            use std::path::PathBuf;
+
+            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap();
+            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
+
+            filenames.into_iter().for_each(|file| {
+                let path = PathBuf::from(file.to_string());
+                self.queue_event(WindowEvent::HoveredFile(path));
+            });
+
+            true
+        }
+
+        /// Invoked when the image is released
+        #[method(prepareForDragOperation:)]
+        fn prepare_for_drag_operation(&self, _sender: &NSObject) -> bool {
+            trace_scope!("prepareForDragOperation:");
+            true
+        }
+
+        /// Invoked after the released image has been removed from the screen
+        #[method(performDragOperation:)]
+        fn perform_drag_operation(&self, sender: &NSObject) -> bool {
+            trace_scope!("performDragOperation:");
+
+            use std::path::PathBuf;
+
+            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap();
+            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
+
+            filenames.into_iter().for_each(|file| {
+                let path = PathBuf::from(file.to_string());
+                self.queue_event(WindowEvent::DroppedFile(path));
+            });
+
+            true
+        }
+
+        /// Invoked when the dragging operation is complete
+        #[method(concludeDragOperation:)]
+        fn conclude_drag_operation(&self, _sender: Option<&NSObject>) {
+            trace_scope!("concludeDragOperation:");
+        }
+
+        /// Invoked when the dragging operation is cancelled
+        #[method(draggingExited:)]
+        fn dragging_exited(&self, _sender: Option<&NSObject>) {
+            trace_scope!("draggingExited:");
+            self.queue_event(WindowEvent::HoveredFileCancelled);
+        }
+    }
+
+    unsafe impl WinitWindowDelegate {
+        // Observe theme change
+        #[method(effectiveAppearanceDidChange:)]
+        fn effective_appearance_did_change(&self, sender: Option<&AnyObject>) {
+            trace_scope!("Triggered `effectiveAppearanceDidChange:`");
+            unsafe {
+                msg_send![
+                    self,
+                    performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:),
+                    withObject: sender,
+                    waitUntilDone: false,
+                ]
+            }
+        }
+
+        #[method(effectiveAppearanceDidChangedOnMainThread:)]
+        fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
+            let mtm = MainThreadMarker::from(self);
+            let theme = get_ns_theme(mtm);
+            let mut shared_state = self
+                .ivars()
+                .window
+                .lock_shared_state("effective_appearance_did_change");
+            let current_theme = shared_state.current_theme;
+            shared_state.current_theme = Some(theme);
+            drop(shared_state);
+            if current_theme != Some(theme) {
+                self.queue_event(WindowEvent::ThemeChanged(theme));
+            }
+        }
+    }
 );
 
 impl WinitWindowDelegate {
     pub fn new(window: &WinitWindow, initial_fullscreen: bool) -> Id<Self> {
+        let mtm = MainThreadMarker::from(window);
         let scale_factor = window.scale_factor();
-        let this = Self::alloc().set_ivars(State {
+        let this = mtm.alloc().set_ivars(State {
             window: window.retain(),
             initial_fullscreen: Cell::new(initial_fullscreen),
             previous_position: Cell::new(None),
@@ -412,7 +422,7 @@ impl WinitWindowDelegate {
         if scale_factor != 1.0 {
             this.queue_static_scale_factor_changed_event();
         }
-        this.ivars().window.setDelegate(Some(&this));
+        window.setDelegate(Some(ProtocolObject::from_ref(&*this)));
 
         // Enable theme change event
         let notification_center: Id<AnyObject> =
@@ -467,7 +477,7 @@ impl WinitWindowDelegate {
     }
 
     fn view_size(&self) -> LogicalSize<f64> {
-        let size = self.ivars().window.contentView().frame().size;
+        let size = self.ivars().window.contentView().unwrap().frame().size;
         LogicalSize::new(size.width as f64, size.height as f64)
     }
 }

@@ -1,10 +1,10 @@
-use icrate::Foundation::NSObject;
+use icrate::AppKit::{NSApplicationActivationPolicy, NSApplicationDelegate};
+use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::AppState;
-use super::appkit::NSApplicationActivationPolicy;
 
 #[derive(Debug)]
 pub(super) struct State {
@@ -18,7 +18,7 @@ declare_class!(
 
     unsafe impl ClassType for ApplicationDelegate {
         type Super = NSObject;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitApplicationDelegate";
     }
 
@@ -26,7 +26,9 @@ declare_class!(
         type Ivars = State;
     }
 
-    unsafe impl ApplicationDelegate {
+    unsafe impl NSObjectProtocol for ApplicationDelegate {}
+
+    unsafe impl NSApplicationDelegate for ApplicationDelegate {
         #[method(applicationDidFinishLaunching:)]
         fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationDidFinishLaunching:");
@@ -48,11 +50,12 @@ declare_class!(
 
 impl ApplicationDelegate {
     pub(super) fn new(
+        mtm: MainThreadMarker,
         activation_policy: NSApplicationActivationPolicy,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Id<Self> {
-        let this = Self::alloc().set_ivars(State {
+        let this = mtm.alloc().set_ivars(State {
             activation_policy,
             default_menu,
             activate_ignoring_other_apps,

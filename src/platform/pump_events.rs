@@ -155,19 +155,19 @@ pub trait EventLoopExtPumpEvents {
     /// - **Windows**: The implementation will use `PeekMessage` when checking for
     ///   window messages to avoid blocking your external event loop.
     ///
-    /// - **MacOS**: The implementation works in terms of stopping the global `NSApp`
+    /// - **MacOS**: The implementation works in terms of stopping the global application
     ///   whenever the application `RunLoop` indicates that it is preparing to block
     ///   and wait for new events.
     ///
     ///   This is very different to the polling APIs that are available on other
     ///   platforms (the lower level polling primitives on MacOS are private
-    ///   implementation details for `NSApp` which aren't accessible to application
-    ///   developers)
+    ///   implementation details for `NSApplication` which aren't accessible to
+    ///   application developers)
     ///
     ///   It's likely this will be less efficient than polling on other OSs and
-    ///   it also means the `NSApp` is stopped while outside of the Winit
+    ///   it also means the `NSApplication` is stopped while outside of the Winit
     ///   event loop - and that's observable (for example to crates like `rfd`)
-    ///   because the `NSApp` is global state.
+    ///   because the `NSApplication` is global state.
     ///
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`

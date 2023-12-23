@@ -4,9 +4,9 @@ use std::collections::{HashMap, VecDeque};
 use std::ptr;
 
 use icrate::AppKit::{
-    NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled, NSEventPhaseChanged,
-    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient, NSTrackingRectTag,
-    NSView,
+    NSApplication, NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled,
+    NSEventPhaseChanged, NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
+    NSTrackingRectTag, NSView,
 };
 use icrate::Foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
@@ -20,11 +20,8 @@ use objc2::{
 };
 
 use super::cursor::{default_cursor, invisible_cursor};
+use super::event::{code_to_key, code_to_location};
 use super::event::{lalt_pressed, ralt_pressed};
-use super::{
-    appkit::NSApp,
-    event::{code_to_key, code_to_location},
-};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -537,9 +534,10 @@ declare_class!(
         // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
         #[method(cancelOperation:)]
         fn cancel_operation(&self, _sender: Option<&AnyObject>) {
+            let mtm = MainThreadMarker::from(self);
             trace_scope!("cancelOperation:");
 
-            let event = NSApp()
+            let event = NSApplication::sharedApplication(mtm)
                 .currentEvent()
                 .expect("could not find current event");
 

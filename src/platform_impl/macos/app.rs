@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use icrate::AppKit::{
-    NSEvent, NSEventModifierFlagCommand, NSEventTypeKeyUp, NSEventTypeLeftMouseDown,
+    NSApplication, NSEvent, NSEventModifierFlagCommand, NSEventTypeKeyUp, NSEventTypeLeftMouseDown,
     NSEventTypeLeftMouseDragged, NSEventTypeLeftMouseUp, NSEventTypeMouseMoved,
     NSEventTypeOtherMouseDown, NSEventTypeOtherMouseDragged, NSEventTypeOtherMouseUp,
     NSEventTypeRightMouseDown, NSEventTypeRightMouseDragged, NSEventTypeRightMouseUp, NSResponder,
@@ -9,7 +9,6 @@ use icrate::AppKit::{
 use icrate::Foundation::NSObject;
 use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 
-use super::appkit::NSApplication;
 use super::event::flags_contains;
 use super::{app_state::AppState, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
@@ -41,7 +40,7 @@ declare_class!(
                 && flags_contains(modifier_flags, NSEventModifierFlagCommand)
             {
                 if let Some(key_window) = self.keyWindow() {
-                    unsafe { key_window.sendEvent(event) };
+                    key_window.sendEvent(event);
                 }
             } else {
                 maybe_dispatch_device_event(event);
