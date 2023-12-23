@@ -1,10 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
+use std::ptr;
 
 use icrate::AppKit::{
     NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled, NSEventPhaseChanged,
-    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
+    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient, NSTrackingRectTag,
+    NSView,
 };
 use icrate::Foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
@@ -20,7 +22,7 @@ use objc2::{
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{lalt_pressed, ralt_pressed};
 use super::{
-    appkit::{NSApp, NSTrackingRectTag, NSView},
+    appkit::NSApp,
     event::{code_to_key, code_to_location},
 };
 use crate::{
@@ -171,7 +173,8 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = self.add_tracking_rect(rect, false);
+            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
 
@@ -183,7 +186,8 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = self.add_tracking_rect(rect, false);
+            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
 
             // Emit resize event here rather than from windowDidResize because:
@@ -231,9 +235,9 @@ declare_class!(
             let cursor_state = self.ivars().cursor_state.borrow();
             // We correctly invoke `addCursorRect` only from inside `resetCursorRects`
             if cursor_state.visible {
-                self.addCursorRect(bounds, &cursor_state.cursor);
+                self.addCursorRect_cursor(bounds, &cursor_state.cursor);
             } else {
-                self.addCursorRect(bounds, &invisible_cursor());
+                self.addCursorRect_cursor(bounds, &invisible_cursor());
             }
         }
     }

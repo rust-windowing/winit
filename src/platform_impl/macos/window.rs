@@ -15,7 +15,6 @@ use crate::{
     platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
-        appkit::NSWindowOrderingMode,
         event_loop::EventLoopWindowTarget,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
@@ -30,9 +29,10 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
+use icrate::AppKit::NSWindowAbove;
 use icrate::AppKit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSColor,
-    NSFilenamesPboardType, NSResponder, NSScreen,
+    NSFilenamesPboardType, NSResponder, NSScreen, NSView,
 };
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
@@ -43,7 +43,7 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 
 use super::appkit::{
     NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSRequestUserAttentionType,
-    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use super::cursor::cursor_from_icon;
@@ -449,9 +449,11 @@ impl WinitWindow {
                     ))
                 })?;
 
+                // TODO(madsmtm): Remove this
+                let window: Id<icrate::AppKit::NSWindow> = unsafe { Id::cast(this.clone()) };
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
-                unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
+                unsafe { parent.addChildWindow_ordered(&window, NSWindowAbove) };
             }
             Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
             None => (),
@@ -462,6 +464,7 @@ impl WinitWindow {
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
+        #[allow(deprecated)]
         view.setWantsBestResolutionOpenGLSurface(!pl_attrs.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to

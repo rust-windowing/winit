@@ -13,7 +13,6 @@
 
 mod application;
 mod tab_group;
-mod view;
 mod window;
 
 pub(crate) use self::application::{
@@ -21,11 +20,9 @@ pub(crate) use self::application::{
     NSRequestUserAttentionType,
 };
 pub(crate) use self::tab_group::NSWindowTabGroup;
-pub(crate) use self::view::{NSTrackingRectTag, NSView};
 pub(crate) use self::window::{
     NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
-    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
-    NSWindowTitleVisibility,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 
 #[link(name = "AppKit", kind = "framework")]
