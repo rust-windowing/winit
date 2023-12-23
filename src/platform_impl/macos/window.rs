@@ -30,7 +30,7 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
-use icrate::AppKit::{NSAppearance, NSScreen};
+use icrate::AppKit::{NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSScreen};
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
@@ -39,10 +39,9 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
-    NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
-    NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSView, NSWindow,
-    NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
-    NSWindowTitleVisibility,
+    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSColor, NSFilenamesPboardType,
+    NSRequestUserAttentionType, NSResponder, NSView, NSWindow, NSWindowButton, NSWindowLevel,
+    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
@@ -467,7 +466,7 @@ impl WinitWindow {
         // the view and its associated OpenGL context. To work around this, on Mojave we
         // explicitly make the view layer-backed up front so that AppKit doesn't do it
         // itself and break the association with its context.
-        if NSAppKitVersion::current().floor() > NSAppKitVersion::NSAppKitVersionNumber10_12 {
+        if unsafe { NSAppKitVersionNumber }.floor() > NSAppKitVersionNumber10_12 {
             view.setWantsLayer(true);
         }
 
