@@ -1,14 +1,13 @@
 #![allow(clippy::unnecessary_cast)]
 
 use icrate::Foundation::NSObject;
-use objc2::{declare_class, msg_send, mutability, ClassType};
+use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 
 use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
 use super::{app_state::AppState, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 declare_class!(
-    #[derive(Debug, PartialEq, Eq, Hash)]
     pub(super) struct WinitApplication;
 
     unsafe impl ClassType for WinitApplication {
@@ -17,6 +16,8 @@ declare_class!(
         type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitApplication";
     }
+
+    impl DeclaredClass for WinitApplication {}
 
     unsafe impl WinitApplication {
         // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.

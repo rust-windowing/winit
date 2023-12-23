@@ -520,7 +520,7 @@ impl Window {
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
-        self.inner.get_on_main(|inner, _mtm| f(inner))
+        self.inner.get_on_main(|inner| f(inner))
     }
 
     #[cfg(feature = "rwh_06")]
