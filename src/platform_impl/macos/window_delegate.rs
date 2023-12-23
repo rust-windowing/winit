@@ -3,8 +3,9 @@ use std::cell::Cell;
 use std::ptr;
 
 use icrate::AppKit::{
-    NSDraggingDestination, NSFilenamesPboardType, NSPasteboard, NSWindowDelegate,
-    NSWindowOcclusionStateVisible,
+    NSApplicationPresentationFullScreen, NSApplicationPresentationHideDock,
+    NSApplicationPresentationHideMenuBar, NSApplicationPresentationOptions, NSDraggingDestination,
+    NSFilenamesPboardType, NSPasteboard, NSWindowDelegate, NSWindowOcclusionStateVisible,
 };
 use icrate::Foundation::{MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
@@ -13,7 +14,6 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
-use super::appkit::NSApplicationPresentationOptions;
 use super::{
     app_state::AppState,
     util,
@@ -202,9 +202,9 @@ declare_class!(
                 .window
                 .lock_shared_state("window_will_use_fullscreen_presentation_options");
             if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
-                options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                options = NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationHideDock
+                    | NSApplicationPresentationHideMenuBar;
             }
 
             options
@@ -391,7 +391,8 @@ declare_class!(
 
         #[method(effectiveAppearanceDidChangedOnMainThread:)]
         fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
-            let theme = get_ns_theme();
+            let mtm = MainThreadMarker::from(self);
+            let theme = get_ns_theme(mtm);
             let mut shared_state = self
                 .ivars()
                 .window

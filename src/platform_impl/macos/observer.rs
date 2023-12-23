@@ -21,6 +21,7 @@ use core_foundation::runloop::{
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
     CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
+use icrate::Foundation::MainThreadMarker;
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
@@ -36,7 +37,8 @@ where
     // However we want to keep that weak reference around after the function.
     std::mem::forget(info_from_raw);
 
-    stop_app_on_panic(Weak::clone(&panic_info), move || {
+    let mtm = MainThreadMarker::new().unwrap();
+    stop_app_on_panic(mtm, Weak::clone(&panic_info), move || {
         let _ = &panic_info;
         f(panic_info.0)
     });

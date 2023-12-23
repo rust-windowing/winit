@@ -1,19 +1,19 @@
 use icrate::AppKit::{
-    NSEventModifierFlagCommand, NSEventModifierFlagOption, NSEventModifierFlags, NSMenu, NSMenuItem,
+    NSApplication, NSEventModifierFlagCommand, NSEventModifierFlagOption, NSEventModifierFlags,
+    NSMenu, NSMenuItem,
 };
 use icrate::Foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::sel;
 
-use super::appkit::NSApp;
-
 struct KeyEquivalent<'a> {
     key: &'a NSString,
     masks: Option<NSEventModifierFlags>,
 }
 
-pub fn initialize(mtm: MainThreadMarker) {
+pub fn initialize(app: &NSApplication) {
+    let mtm = MainThreadMarker::from(app);
     let menubar = NSMenu::new(mtm);
     let app_menu_item = NSMenuItem::new(mtm);
     menubar.addItem(&app_menu_item);
@@ -96,9 +96,8 @@ pub fn initialize(mtm: MainThreadMarker) {
     app_menu.addItem(&quit_item);
     app_menu_item.setSubmenu(Some(&app_menu));
 
-    let app = NSApp();
-    app.setServicesMenu(&services_menu);
-    app.setMainMenu(&menubar);
+    unsafe { app.setServicesMenu(Some(&services_menu)) };
+    app.setMainMenu(Some(&menubar));
 }
 
 fn menu_item(

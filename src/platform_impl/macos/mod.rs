@@ -4,7 +4,6 @@ mod util;
 mod app;
 mod app_delegate;
 mod app_state;
-mod appkit;
 mod cursor;
 mod event;
 mod event_loop;

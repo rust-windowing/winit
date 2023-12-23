@@ -1,11 +1,10 @@
-use icrate::AppKit::NSApplicationDelegate;
+use icrate::AppKit::{NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::AppState;
-use super::appkit::NSApplicationActivationPolicy;
 
 #[derive(Debug)]
 pub(super) struct State {

@@ -12,11 +12,11 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
+use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy};
 use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
-use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy};
 use super::{
     event::dummy_event, event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never,
     window::WinitWindow,
@@ -58,14 +58,14 @@ impl<T> EventLoopHandler<T> {
     where
         F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget<T>)>),
     {
-        // The `NSApp` and our `HANDLER` are global state and so it's possible that
-        // we could get a delegate callback after the application has exit an
+        // `NSApplication` and our `HANDLER` are global state and so it's possible
+        // that we could get a delegate callback after the application has exit an
         // `EventLoop`. If the loop has been exit then our weak `self.callback`
         // will fail to upgrade.
         //
         // We don't want to panic or output any verbose logging if we fail to
         // upgrade the weak reference since it might be valid that the application
-        // re-starts the `NSApp` after exiting a Winit `EventLoop`
+        // re-starts the `NSApplication` after exiting a Winit `EventLoop`
         if let Some(callback) = self.callback.upgrade() {
             let callback = callback.borrow_mut();
             (f)(self, callback);
@@ -145,9 +145,9 @@ impl Handler {
 
     /// `true` after `ApplicationDelegate::applicationDidFinishLaunching` called
     ///
-    /// NB: This is global / `NSApp` state and since the app will only be launched
-    /// once but an `EventLoop` may be run more than once then only the first
-    /// `EventLoop` will observe the `NSApp` before it is launched.
+    /// NB: This is global / `NSApplication` state and since the app will only
+    /// be launched once but an `EventLoop` may be run more than once then only
+    /// the first `EventLoop` will observe the application before it is launched.
     fn is_launched(&self) -> bool {
         self.launched.load(Ordering::Acquire)
     }
@@ -159,8 +159,8 @@ impl Handler {
 
     /// `true` if an `EventLoop` is currently running
     ///
-    /// NB: This is global / `NSApp` state and may persist beyond the lifetime of
-    /// a running `EventLoop`.
+    /// NB: This is global / `NSApplication` state and may persist beyond the
+    /// lifetime of a running `EventLoop`.
     ///
     /// # Caveat
     /// This is only intended to be called from the main thread
@@ -168,7 +168,7 @@ impl Handler {
         self.running.load(Ordering::Relaxed)
     }
 
-    /// Set when an `EventLoop` starts running, after the `NSApp` is launched
+    /// Set when an `EventLoop` starts running, after the `NSApplication` is launched
     ///
     /// # Caveat
     /// This is only intended to be called from the main thread
@@ -181,8 +181,8 @@ impl Handler {
     /// Since an `EventLoop` may be run more than once we need make sure to reset the
     /// `control_flow` state back to `Poll` each time the loop exits.
     ///
-    /// Note: that if the `NSApp` has been launched then that state is preserved, and we won't
-    /// need to re-launch the app if subsequent EventLoops are run.
+    /// Note: that if the `NSApplication` has been launched then that state is preserved,
+    /// and we won't need to re-launch the app if subsequent EventLoops are run.
     ///
     /// # Caveat
     /// This is only intended to be called from the main thread
@@ -393,7 +393,7 @@ impl AppState {
     }
 
     // If `pump_events` is called to progress the event loop then we bootstrap the event
-    // loop via `[NSApp run]` but will use `CFRunLoopRunInMode` for subsequent calls to
+    // loop via `-[NSAppplication run]` but will use `CFRunLoopRunInMode` for subsequent calls to
     // `pump_events`
     pub fn request_stop_on_launch() {
         HANDLER.request_stop_app_on_launch();
@@ -461,13 +461,14 @@ impl AppState {
         activate_ignoring_other_apps: bool,
     ) {
         let mtm = MainThreadMarker::new().unwrap();
-        let app = NSApp();
+        let app = NSApplication::sharedApplication(mtm);
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
         app.setActivationPolicy(activation_policy);
 
         window_activation_hack(&app);
+        #[allow(deprecated)]
         app.activateIgnoringOtherApps(activate_ignoring_other_apps);
 
         HANDLER.set_launched();
@@ -475,21 +476,22 @@ impl AppState {
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
-            menu::initialize(mtm);
+            menu::initialize(&app);
         }
 
         Self::start_running();
 
-        // If the `NSApp` is being launched via `EventLoop::pump_events()` then we'll
+        // If the application is being launched via `EventLoop::pump_events()` then we'll
         // want to stop the app once it is launched (and return to the external loop)
         //
         // In this case we still want to consider Winit's `EventLoop` to be "running",
         // so we call `start_running()` above.
         if HANDLER.should_stop_app_on_launch() {
             // Note: the original idea had been to only stop the underlying `RunLoop`
-            // for the app but that didn't work as expected (`[NSApp run]` effectively
-            // ignored the attempt to stop the RunLoop and re-started it.). So we
-            // return from `pump_events` by stopping the `NSApp`
+            // for the app but that didn't work as expected (`-[NSApplication run]`
+            // effectively ignored the attempt to stop the RunLoop and re-started it).
+            //
+            // So we return from `pump_events` by stopping the application.
             Self::stop();
         }
     }
@@ -591,7 +593,8 @@ impl AppState {
     }
 
     pub fn stop() {
-        let app = NSApp();
+        let mtm = MainThreadMarker::new().unwrap();
+        let app = NSApplication::sharedApplication(mtm);
         autoreleasepool(|_| {
             app.stop(None);
             // To stop event loop immediately, we need to post some event here.

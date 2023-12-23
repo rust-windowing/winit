@@ -30,13 +30,17 @@ use crate::{
 };
 use core_graphics::display::{CGDisplay, CGPoint};
 use icrate::AppKit::{
-    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSBackingStoreBuffered,
-    NSColor, NSFilenamesPboardType, NSResponder, NSScreen, NSView, NSWindow, NSWindowAbove,
-    NSWindowCloseButton, NSWindowFullScreenButton, NSWindowLevel, NSWindowMiniaturizeButton,
-    NSWindowSharingNone, NSWindowSharingReadOnly, NSWindowStyleMask, NSWindowStyleMaskBorderless,
-    NSWindowStyleMaskClosable, NSWindowStyleMaskFullSizeContentView,
-    NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled,
-    NSWindowTabbingModePreferred, NSWindowTitleHidden, NSWindowZoomButton,
+    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
+    NSApplicationPresentationAutoHideDock, NSApplicationPresentationAutoHideMenuBar,
+    NSApplicationPresentationFullScreen, NSApplicationPresentationHideDock,
+    NSApplicationPresentationHideMenuBar, NSApplicationPresentationOptions, NSBackingStoreBuffered,
+    NSColor, NSCriticalRequest, NSFilenamesPboardType, NSInformationalRequest, NSResponder,
+    NSScreen, NSView, NSWindow, NSWindowAbove, NSWindowCloseButton, NSWindowFullScreenButton,
+    NSWindowLevel, NSWindowMiniaturizeButton, NSWindowSharingNone, NSWindowSharingReadOnly,
+    NSWindowStyleMask, NSWindowStyleMaskBorderless, NSWindowStyleMaskClosable,
+    NSWindowStyleMaskFullSizeContentView, NSWindowStyleMaskMiniaturizable,
+    NSWindowStyleMaskResizable, NSWindowStyleMaskTitled, NSWindowTabbingModePreferred,
+    NSWindowTitleHidden, NSWindowZoomButton,
 };
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSObject, NSPoint, NSRect,
@@ -45,7 +49,6 @@ use icrate::Foundation::{
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
-use super::appkit::{NSApp, NSApplicationPresentationOptions, NSRequestUserAttentionType};
 use super::cursor::cursor_from_icon;
 use super::ffi::kCGFloatingWindowLevel;
 use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
@@ -503,13 +506,13 @@ impl WinitWindow {
 
         match attrs.preferred_theme {
             Some(theme) => {
-                set_ns_theme(Some(theme));
+                set_ns_theme(Some(theme), mtm);
                 let mut state = this.lock_shared_state("WinitWindow::new");
                 state.current_theme = Some(theme);
             }
             None => {
                 let mut state = this.lock_shared_state("WinitWindow::new");
-                state.current_theme = Some(get_ns_theme());
+                state.current_theme = Some(get_ns_theme(mtm));
             }
         }
 
@@ -878,7 +881,10 @@ impl WinitWindow {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        let event = NSApp().currentEvent().unwrap();
+        let mtm = MainThreadMarker::from(self);
+        let event = NSApplication::sharedApplication(mtm)
+            .currentEvent()
+            .unwrap();
         self.performWindowDragWithEvent(&event);
         Ok(())
     }
@@ -1018,6 +1024,8 @@ impl WinitWindow {
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -1080,7 +1088,6 @@ impl WinitWindow {
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
             if matches!(old_fullscreen, Some(Fullscreen::Borderless(_))) {
-                let app = NSApp();
                 let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
                 shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
             }
@@ -1178,14 +1185,12 @@ impl WinitWindow {
                 // of the menu bar, and this looks broken, so we must make sure
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
-                let app = NSApp();
                 self.lock_shared_state("set_fullscreen")
                     .save_presentation_opts = Some(app.presentationOptions());
 
-                let presentation_options =
-                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                let presentation_options = NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationHideDock
+                    | NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
                 let window_level = unsafe { ffi::CGShieldingWindowLevel() } as NSWindowLevel + 1;
@@ -1195,12 +1200,12 @@ impl WinitWindow {
                 let presentation_options = self
                     .lock_shared_state("set_fullscreen")
                     .save_presentation_opts
-                    .unwrap_or_else(|| {
-                        NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
-                    });
-                NSApp().setPresentationOptions(presentation_options);
+                    .unwrap_or(
+                        NSApplicationPresentationFullScreen
+                            | NSApplicationPresentationAutoHideDock
+                            | NSApplicationPresentationAutoHideMenuBar,
+                    );
+                app.setPresentationOptions(presentation_options);
 
                 unsafe {
                     ffi::CGRestorePermanentDisplayConfiguration();
@@ -1300,23 +1305,26 @@ impl WinitWindow {
 
     #[inline]
     pub fn focus_window(&self) {
+        let mtm = MainThreadMarker::from(self);
         let is_minimized = self.isMiniaturized();
         let is_visible = self.isVisible();
 
         if !is_minimized && is_visible {
-            NSApp().activateIgnoringOtherApps(true);
+            #[allow(deprecated)]
+            NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
             self.makeKeyAndOrderFront(None);
         }
     }
 
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let mtm = MainThreadMarker::from(self);
         let ns_request_type = request_type.map(|ty| match ty {
-            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
+            UserAttentionType::Critical => NSCriticalRequest,
+            UserAttentionType::Informational => NSInformationalRequest,
         });
         if let Some(ty) = ns_request_type {
-            NSApp().requestUserAttention(ty);
+            NSApplication::sharedApplication(mtm).requestUserAttention(ty);
         }
     }
 
@@ -1407,8 +1415,10 @@ impl WinitWindow {
     }
 
     pub fn set_theme(&self, theme: Option<Theme>) {
-        set_ns_theme(theme);
-        self.lock_shared_state("set_theme").current_theme = theme.or_else(|| Some(get_ns_theme()));
+        let mtm = MainThreadMarker::from(self);
+        set_ns_theme(theme, mtm);
+        self.lock_shared_state("set_theme").current_theme =
+            theme.or_else(|| Some(get_ns_theme(mtm)));
     }
 
     #[inline]
@@ -1439,9 +1449,10 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
+        let mtm = MainThreadMarker::from(self);
         let mut shared_state_lock = self.lock_shared_state("set_simple_fullscreen");
 
-        let app = NSApp();
+        let app = NSApplication::sharedApplication(mtm);
         let is_native_fullscreen = shared_state_lock.fullscreen.is_some();
         let is_simple_fullscreen = shared_state_lock.is_simple_fullscreen;
 
@@ -1469,8 +1480,7 @@ impl WindowExtMacOS for WinitWindow {
 
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
             let presentation_options =
-                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+                NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar;
             app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
@@ -1580,8 +1590,8 @@ fn mask_contains(mask: NSWindowStyleMask, value: NSWindowStyleMask) -> bool {
     mask & value == value
 }
 
-pub(super) fn get_ns_theme() -> Theme {
-    let app = NSApp();
+pub(super) fn get_ns_theme(mtm: MainThreadMarker) -> Theme {
+    let app = NSApplication::sharedApplication(mtm);
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if !has_theme {
         return Theme::Light;
@@ -1599,8 +1609,8 @@ pub(super) fn get_ns_theme() -> Theme {
     }
 }
 
-fn set_ns_theme(theme: Option<Theme>) {
-    let app = NSApp();
+fn set_ns_theme(theme: Option<Theme>, mtm: MainThreadMarker) {
+    let app = NSApplication::sharedApplication(mtm);
     let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
     if has_theme {
         let appearance = theme.map(|t| {
