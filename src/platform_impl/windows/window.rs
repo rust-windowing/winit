@@ -407,10 +407,10 @@ impl Window {
                 });
             }
             Cursor::Custom(cursor) => {
-                let new_cursor = match WinCursor::new(&cursor.inner.0) {
-                    Ok(cursor) => cursor,
-                    Err(err) => {
-                        warn!("Failed to create custom cursor: {err}");
+                let new_cursor = match cursor.inner {
+                    WinCursor::Cursor(cursor) => cursor,
+                    WinCursor::Failed => {
+                        warn!("Requested to apply failed cursor");
                         return;
                     }
                 };
