@@ -1,8 +1,7 @@
+use icrate::AppKit::NSBitmapImageRep;
 use icrate::Foundation::{NSData, NSObject, NSSize, NSString};
 use objc2::rc::Id;
 use objc2::{extern_class, extern_methods, msg_send, msg_send_id, mutability, ClassType};
-
-use super::NSBitmapImageRep;
 
 extern_class!(
     // TODO: Can this be mutable?

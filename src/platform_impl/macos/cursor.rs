@@ -1,3 +1,4 @@
+use icrate::AppKit::{NSBitmapImageRep, NSDeviceRGBColorSpace};
 use icrate::Foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
     NSString,
@@ -6,9 +7,10 @@ use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::{msg_send_id, sel, ClassType};
 use once_cell::sync::Lazy;
+use std::ffi::c_uchar;
 use std::slice;
 
-use super::appkit::{NSBitmapImageRep, NSCursor, NSImage};
+use super::appkit::{NSCursor, NSImage};
 use super::EventLoopWindowTarget;
 use crate::cursor::CursorImage;
 use crate::cursor::OnlyCursorImageBuilder;
@@ -30,8 +32,22 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Id<NSCursor> {
     let width = cursor.width;
     let height = cursor.height;
 
-    let bitmap = NSBitmapImageRep::init_rgba(width as isize, height as isize);
-    let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmap_data(), cursor.rgba.len()) };
+    let bitmap = unsafe {
+        NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+            NSBitmapImageRep::alloc(),
+            std::ptr::null_mut::<*mut c_uchar>(),
+            width as isize,
+            height as isize,
+            8,
+            4,
+            true,
+            false,
+            NSDeviceRGBColorSpace,
+            width as isize * 4,
+            32,
+        ).unwrap()
+    };
+    let bitmap_data = unsafe { slice::from_raw_parts_mut(bitmap.bitmapData(), cursor.rgba.len()) };
     bitmap_data.copy_from_slice(&cursor.rgba);
 
     let image = NSImage::init_with_size(NSSize::new(width.into(), height.into()));

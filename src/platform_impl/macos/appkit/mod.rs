@@ -13,7 +13,6 @@
 
 mod appearance;
 mod application;
-mod bitmap_image_rep;
 mod button;
 mod color;
 mod control;
@@ -37,7 +36,6 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::bitmap_image_rep::NSBitmapImageRep;
 pub(crate) use self::button::NSButton;
 pub(crate) use self::color::NSColor;
 pub(crate) use self::control::NSControl;
