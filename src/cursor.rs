@@ -154,11 +154,11 @@ impl Error for BadImage {}
 
 /// Platforms export this directly as `PlatformCustomCursorBuilder` if they need to only work with images.
 #[derive(Debug)]
-pub struct OnlyCursorImageBuilder(pub CursorImage);
+pub(crate) struct OnlyCursorImageBuilder(pub(crate) CursorImage);
 
 #[allow(dead_code)]
 impl OnlyCursorImageBuilder {
-    pub fn from_rgba(
+    pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
@@ -171,7 +171,7 @@ impl OnlyCursorImageBuilder {
 
 /// Platforms export this directly as `PlatformCustomCursor` if they don't implement caching.
 #[derive(Debug, Clone)]
-pub struct OnlyCursorImage(pub Arc<CursorImage>);
+pub(crate) struct OnlyCursorImage(pub(crate) Arc<CursorImage>);
 
 impl Hash for OnlyCursorImage {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -199,7 +199,7 @@ impl OnlyCursorImage {
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct CursorImage {
+pub(crate) struct CursorImage {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u16,
     pub(crate) height: u16,
@@ -208,7 +208,7 @@ pub struct CursorImage {
 }
 
 impl CursorImage {
-    pub fn from_rgba(
+    pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
@@ -261,7 +261,7 @@ pub(crate) struct NoCustomCursor;
 
 #[allow(dead_code)]
 impl NoCustomCursor {
-    pub fn from_rgba(
+    pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,

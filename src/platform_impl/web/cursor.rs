@@ -27,7 +27,7 @@ use self::thread_safe::ThreadSafe;
 use super::{backend::Style, r#async::AsyncSender, EventLoopWindowTarget};
 
 #[derive(Debug)]
-pub enum CustomCursorBuilder {
+pub(crate) enum CustomCursorBuilder {
     Image(CursorImage),
     Url {
         url: String,
@@ -68,7 +68,7 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub fn build<T>(
+    pub(crate) fn build<T>(
         builder: CustomCursorBuilder,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Self {
@@ -154,7 +154,7 @@ impl CursorState {
         this.set_style();
     }
 
-    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, cursor: CustomCursor) {
         let mut this = self.0.borrow_mut();
 
         match cursor.0.get().borrow_mut().deref_mut() {

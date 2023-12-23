@@ -726,7 +726,7 @@ impl WindowState {
     }
 
     /// Set the custom cursor icon.
-    pub fn set_custom_cursor(&mut self, cursor: &CursorImage) {
+    pub(crate) fn set_custom_cursor(&mut self, cursor: &CursorImage) {
         let cursor = {
             let mut pool = self.custom_cursor_pool.lock().unwrap();
             CustomCursor::new(&mut pool, cursor)
