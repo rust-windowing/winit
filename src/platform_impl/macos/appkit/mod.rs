@@ -11,7 +11,6 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(non_upper_case_globals)]
 
-mod appearance;
 mod application;
 mod button;
 mod color;
@@ -29,7 +28,6 @@ mod version;
 mod view;
 mod window;
 
-pub(crate) use self::appearance::NSAppearance;
 pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,

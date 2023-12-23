@@ -30,6 +30,7 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
+use icrate::AppKit::NSAppearance;
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
@@ -38,10 +39,10 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
-    NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSView,
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
-    NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
+    NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSView, NSWindow,
+    NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility,
 };
 use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
@@ -1583,10 +1584,12 @@ pub(super) fn get_ns_theme() -> Theme {
         return Theme::Light;
     }
     let appearance = app.effectiveAppearance();
-    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
-        NSString::from_str("NSAppearanceNameAqua"),
-        NSString::from_str("NSAppearanceNameDarkAqua"),
-    ]));
+    let name = appearance
+        .bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
+            NSString::from_str("NSAppearanceNameAqua"),
+            NSString::from_str("NSAppearanceNameDarkAqua"),
+        ]))
+        .unwrap();
     match &*name.to_string() {
         "NSAppearanceNameDarkAqua" => Theme::Dark,
         _ => Theme::Light,
@@ -1602,7 +1605,7 @@ fn set_ns_theme(theme: Option<Theme>) {
                 Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
                 Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
             };
-            NSAppearance::appearanceNamed(&name)
+            NSAppearance::appearanceNamed(&name).unwrap()
         });
         app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }
