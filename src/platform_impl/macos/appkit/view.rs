@@ -45,9 +45,6 @@ extern_methods!(
             // _mtm: MainThreadMarker,
         ) -> Option<Id<NSTextInputContext>>;
 
-        #[method(hasMarkedText)]
-        pub fn hasMarkedText(&self) -> bool;
-
         #[method(convertPoint:fromView:)]
         pub fn convertPoint_fromView(&self, point: NSPoint, view: Option<&NSView>) -> NSPoint;
 

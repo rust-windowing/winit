@@ -4,7 +4,7 @@ use std::collections::{HashMap, VecDeque};
 
 use icrate::AppKit::{
     NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled, NSEventPhaseChanged,
-    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder,
+    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
 };
 use icrate::Foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
@@ -20,7 +20,7 @@ use objc2::{
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{lalt_pressed, ralt_pressed};
 use super::{
-    appkit::{NSApp, NSTextInputClient, NSTrackingRectTag, NSView},
+    appkit::{NSApp, NSTrackingRectTag, NSView},
     event::{code_to_key, code_to_location},
 };
 use crate::{
@@ -299,7 +299,7 @@ declare_class!(
                 self.queue_event(WindowEvent::Ime(Ime::Enabled));
             }
 
-            if self.hasMarkedText() {
+            if unsafe { self.hasMarkedText() } {
                 self.ivars().ime_state.set(ImeState::Preedit);
             } else {
                 // In case the preedit was cleared, set IME into the Ground state.
@@ -392,7 +392,7 @@ declare_class!(
             let is_control = string.chars().next().map_or(false, |c| c.is_control());
 
             // Commit only if we have marked text.
-            if self.hasMarkedText() && self.is_ime_enabled() && !is_control {
+            if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
                 self.ivars().ime_state.set(ImeState::Commited);
@@ -413,7 +413,7 @@ declare_class!(
 
             self.ivars().forward_key_to_app.set(true);
 
-            if self.hasMarkedText() && self.ivars().ime_state.get() == ImeState::Preedit {
+            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit {
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
