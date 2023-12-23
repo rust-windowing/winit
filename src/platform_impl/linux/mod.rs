@@ -40,8 +40,8 @@ pub use x11::XNotSupported;
 #[cfg(x11_platform)]
 use x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursorBuilder;
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursor;
+pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
+pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
@@ -427,7 +427,7 @@ impl Window {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
         x11_or_wayland!(match self; Window(w) => w.set_custom_cursor(cursor))
     }
 

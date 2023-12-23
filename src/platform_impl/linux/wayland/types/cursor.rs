@@ -27,7 +27,7 @@ pub struct CustomCursor {
 }
 
 impl CustomCursor {
-    pub fn new(pool: &mut SlotPool, image: &CursorImage) -> Self {
+    pub(crate) fn new(pool: &mut SlotPool, image: &CursorImage) -> Self {
         let (buffer, canvas) = pool
             .create_buffer(
                 image.width as i32,

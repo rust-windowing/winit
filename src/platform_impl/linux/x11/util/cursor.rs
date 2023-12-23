@@ -19,7 +19,7 @@ impl XConnection {
             .expect("Failed to set cursor");
     }
 
-    pub fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
+    pub(crate) fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
         self.update_cursor(window, cursor.inner.cursor)
             .expect("Failed to set cursor");
     }

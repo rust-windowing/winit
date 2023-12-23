@@ -5,6 +5,7 @@ mod app;
 mod app_delegate;
 mod app_state;
 mod appkit;
+mod cursor;
 mod event;
 mod event_loop;
 mod ffi;
@@ -27,9 +28,9 @@ pub(crate) use self::{
 };
 use crate::event::DeviceId as RootDeviceId;
 
+pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::window::Window;
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursor;
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

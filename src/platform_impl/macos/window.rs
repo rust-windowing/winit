@@ -5,7 +5,6 @@ use std::f64;
 use std::ops;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
-use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::{
@@ -848,9 +847,9 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
         let view = self.view();
-        view.set_cursor_icon(NSCursor::from_image(&cursor));
+        view.set_cursor_icon(cursor.0.clone());
         self.invalidateCursorRectsForView(&view);
     }
 

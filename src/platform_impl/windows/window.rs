@@ -404,8 +404,8 @@ impl Window {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
-        let new_cursor = match WinCursor::new(&cursor) {
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
+        let new_cursor = match WinCursor::new(&cursor.0) {
             Ok(cursor) => cursor,
             Err(err) => {
                 warn!("Failed to create custom cursor: {err}");
