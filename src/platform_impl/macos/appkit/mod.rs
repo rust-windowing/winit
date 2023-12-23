@@ -12,9 +12,7 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod button;
 mod color;
-mod control;
 mod event;
 mod menu;
 mod menu_item;
@@ -31,9 +29,7 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::button::NSButton;
 pub(crate) use self::color::NSColor;
-pub(crate) use self::control::NSControl;
 #[allow(unused_imports)]
 pub(crate) use self::event::{
     NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
