@@ -1,11 +1,9 @@
-use icrate::AppKit::{NSAppearance, NSEvent, NSMenu, NSResponder};
+use icrate::AppKit::{NSAppearance, NSEvent, NSMenu, NSResponder, NSWindow};
 use icrate::Foundation::{MainThreadMarker, NSArray, NSInteger, NSObject, NSUInteger};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 use objc2::{Encode, Encoding};
-
-use super::NSWindow;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

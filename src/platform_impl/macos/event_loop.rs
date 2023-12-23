@@ -17,13 +17,14 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
+use icrate::AppKit::NSWindow;
 use icrate::Foundation::MainThreadMarker;
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::NSObjectProtocol;
 use objc2::{msg_send_id, ClassType};
 
 use super::{
-    appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow},
+    appkit::{NSApp, NSApplication, NSApplicationActivationPolicy},
     event::dummy_event,
 };
 use crate::{
@@ -134,11 +135,11 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub(crate) fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        NSWindow::setAllowsAutomaticWindowTabbing(enabled)
+        NSWindow::setAllowsAutomaticWindowTabbing(enabled, self.mtm)
     }
 
     pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
-        NSWindow::allowsAutomaticWindowTabbing()
+        NSWindow::allowsAutomaticWindowTabbing(self.mtm)
     }
 }
 

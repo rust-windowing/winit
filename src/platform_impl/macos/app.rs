@@ -41,7 +41,7 @@ declare_class!(
                 && flags_contains(modifier_flags, NSEventModifierFlagCommand)
             {
                 if let Some(key_window) = self.keyWindow() {
-                    unsafe { key_window.sendEvent(event) };
+                    key_window.sendEvent(event);
                 }
             } else {
                 maybe_dispatch_device_event(event);

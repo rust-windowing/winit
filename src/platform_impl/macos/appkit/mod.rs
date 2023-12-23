@@ -12,15 +12,11 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod tab_group;
-mod window;
 
 pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::tab_group::NSWindowTabGroup;
-pub(crate) use self::window::NSWindow;
 
 #[link(name = "AppKit", kind = "framework")]
 extern "C" {}

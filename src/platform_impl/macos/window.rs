@@ -31,7 +31,7 @@ use crate::{
 use core_graphics::display::{CGDisplay, CGPoint};
 use icrate::AppKit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSBackingStoreBuffered,
-    NSColor, NSFilenamesPboardType, NSResponder, NSScreen, NSView, NSWindowAbove,
+    NSColor, NSFilenamesPboardType, NSResponder, NSScreen, NSView, NSWindow, NSWindowAbove,
     NSWindowCloseButton, NSWindowFullScreenButton, NSWindowLevel, NSWindowMiniaturizeButton,
     NSWindowSharingNone, NSWindowSharingReadOnly, NSWindowStyleMask, NSWindowStyleMaskBorderless,
     NSWindowStyleMaskClosable, NSWindowStyleMaskFullSizeContentView,
@@ -45,9 +45,7 @@ use icrate::Foundation::{
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
-use super::appkit::{
-    NSApp, NSApplicationPresentationOptions, NSRequestUserAttentionType, NSWindow,
-};
+use super::appkit::{NSApp, NSApplicationPresentationOptions, NSRequestUserAttentionType};
 use super::cursor::cursor_from_icon;
 use super::ffi::kCGFloatingWindowLevel;
 use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
@@ -370,7 +368,7 @@ impl WinitWindow {
             // It is very important for correct memory management that we
             // disable the extra release that would otherwise happen when
             // calling `close` on the window.
-            this.setReleasedWhenClosed(false);
+            unsafe { this.setReleasedWhenClosed(false) };
 
             let resize_increments = match attrs
                 .resize_increments
@@ -451,11 +449,9 @@ impl WinitWindow {
                     ))
                 })?;
 
-                // TODO(madsmtm): Remove this
-                let window: Id<icrate::AppKit::NSWindow> = unsafe { Id::cast(this.clone()) };
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
-                unsafe { parent.addChildWindow_ordered(&window, NSWindowAbove) };
+                unsafe { parent.addChildWindow_ordered(&this, NSWindowAbove) };
             }
             Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
             None => (),
@@ -479,12 +475,12 @@ impl WinitWindow {
         }
 
         // Configure the new view as the "key view" for the window
-        this.setContentView(&view);
-        this.setInitialFirstResponder(&view);
+        this.setContentView(Some(&view));
+        this.setInitialFirstResponder(Some(&view));
 
         if attrs.transparent {
             this.setOpaque(false);
-            this.setBackgroundColor(unsafe { &NSColor::clearColor() });
+            this.setBackgroundColor(Some(unsafe { &NSColor::clearColor() }));
         }
 
         if attrs.blur {
@@ -545,9 +541,10 @@ impl WinitWindow {
         Ok((this, delegate))
     }
 
+    #[track_caller]
     pub(super) fn view(&self) -> Id<WinitView> {
         // SAFETY: The view inside WinitWindow is always `WinitView`
-        unsafe { Id::cast(self.contentView()) }
+        unsafe { Id::cast(self.contentView().unwrap()) }
     }
 
     #[track_caller]
@@ -562,7 +559,7 @@ impl WinitWindow {
         self.setStyleMask(mask);
         // If we don't do this, key handling will break
         // (at least until the window is clicked again/etc.)
-        let _ = self.makeFirstResponder(Some(&self.contentView()));
+        let _ = self.makeFirstResponder(Some(&self.contentView().unwrap()));
     }
 }
 
@@ -583,7 +580,7 @@ impl WinitWindow {
         // NOTE: in general we want to specify the blur radius, but the choice of 80
         // should be a reasonable default.
         let radius = if blur { 80 } else { 0 };
-        let window_number = self.windowNumber();
+        let window_number = unsafe { self.windowNumber() };
         unsafe {
             CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window_number, radius);
         }
@@ -636,7 +633,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let frame = self.contentView().frame();
+        let frame = self.contentView().unwrap().frame();
         let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
         let scale_factor = self.scale_factor();
         logical.to_physical(scale_factor)
@@ -881,8 +878,8 @@ impl WinitWindow {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        let event = NSApp().currentEvent();
-        self.performWindowDragWithEvent(event.as_deref());
+        let event = NSApp().currentEvent().unwrap();
+        self.performWindowDragWithEvent(&event);
         Ok(())
     }
 
@@ -960,7 +957,7 @@ impl WinitWindow {
         if minimized {
             self.miniaturize(Some(self));
         } else {
-            self.deminiaturize(Some(self));
+            unsafe { self.deminiaturize(Some(self)) };
         }
     }
 
@@ -1351,7 +1348,7 @@ impl WinitWindow {
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
         let mut window_handle = rwh_04::AppKitHandle::empty();
         window_handle.ns_window = self as *const Self as *mut _;
-        window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
+        window_handle.ns_view = Id::as_ptr(&self.contentView().unwrap()) as *mut _;
         rwh_04::RawWindowHandle::AppKit(window_handle)
     }
 
@@ -1360,7 +1357,7 @@ impl WinitWindow {
     pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
         let mut window_handle = rwh_05::AppKitWindowHandle::empty();
         window_handle.ns_window = self as *const Self as *mut _;
-        window_handle.ns_view = Id::as_ptr(&self.contentView()) as *mut _;
+        window_handle.ns_view = Id::as_ptr(&self.contentView().unwrap()) as *mut _;
         rwh_05::RawWindowHandle::AppKit(window_handle)
     }
 
@@ -1374,7 +1371,7 @@ impl WinitWindow {
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
-            let ptr = Id::as_ptr(&self.contentView()) as *mut _;
+            let ptr = Id::as_ptr(&self.contentView().unwrap()) as *mut _;
             std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
         });
         rwh_06::RawWindowHandle::AppKit(window_handle)
@@ -1424,7 +1421,8 @@ impl WinitWindow {
     }
 
     pub fn title(&self) -> String {
-        self.title_().to_string()
+        let window: &NSWindow = self;
+        window.title().to_string()
     }
 
     pub fn reset_dead_keys(&self) {
@@ -1533,24 +1531,20 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn select_next_tab(&self) {
-        if let Some(group) = self.tabGroup() {
-            group.selectNextTab();
-        }
+        self.selectNextTab(None)
     }
 
     #[inline]
     fn select_previous_tab(&self) {
-        if let Some(group) = self.tabGroup() {
-            group.selectPreviousTab()
-        }
+        unsafe { self.selectPreviousTab(None) }
     }
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
         if let Some(group) = self.tabGroup() {
-            if let Some(windows) = group.tabbedWindows() {
+            if let Some(windows) = unsafe { self.tabbedWindows() } {
                 if index < windows.len() {
-                    group.setSelectedWindow(&windows[index]);
+                    group.setSelectedWindow(Some(&windows[index]));
                 }
             }
         }
@@ -1558,8 +1552,7 @@ impl WindowExtMacOS for WinitWindow {
 
     #[inline]
     fn num_tabs(&self) -> usize {
-        self.tabGroup()
-            .and_then(|group| group.tabbedWindows())
+        unsafe { self.tabbedWindows() }
             .map(|windows| windows.len())
             .unwrap_or(1)
     }

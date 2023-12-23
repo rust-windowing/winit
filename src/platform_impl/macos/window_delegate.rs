@@ -8,7 +8,7 @@ use icrate::AppKit::{
 };
 use icrate::Foundation::{MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
-use objc2::runtime::AnyObject;
+use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
@@ -421,7 +421,7 @@ impl WinitWindowDelegate {
         if scale_factor != 1.0 {
             this.queue_static_scale_factor_changed_event();
         }
-        this.ivars().window.setDelegate(Some(&this));
+        window.setDelegate(Some(ProtocolObject::from_ref(&*this)));
 
         // Enable theme change event
         let notification_center: Id<AnyObject> =
@@ -476,7 +476,7 @@ impl WinitWindowDelegate {
     }
 
     fn view_size(&self) -> LogicalSize<f64> {
-        let size = self.ivars().window.contentView().frame().size;
+        let size = self.ivars().window.contentView().unwrap().frame().size;
         LogicalSize::new(size.width as f64, size.height as f64)
     }
 }
