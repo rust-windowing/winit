@@ -35,21 +35,16 @@ pub enum CustomCursorBuilder {
 }
 
 impl CustomCursorBuilder {
-    pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> Arc<CustomCursor> {
-        Lazy::force(&DROP_HANDLER);
-
-        match self {
-            Self::Image(image) => ImageState::from_rgba(
-                window_target.runner.window(),
-                window_target.runner.document().clone(),
-                &image,
-            ),
-            Self::Url {
-                url,
-                hotspot_x,
-                hotspot_y,
-            } => ImageState::from_url(url, hotspot_x, hotspot_y),
-        }
+    pub fn from_rgba(
+        rgba: Vec<u8>,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<CustomCursorBuilder, BadImage> {
+        Ok(CustomCursorBuilder::Image(CursorImage::from_rgba(
+            rgba, width, height, hotspot_x, hotspot_y,
+        )?))
     }
 }
 
@@ -64,18 +59,6 @@ static DROP_HANDLER: Lazy<AsyncSender<ThreadSafe<RefCell<ImageState>>>> = Lazy::
 });
 
 impl CustomCursor {
-    pub fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<CustomCursorBuilder, BadImage> {
-        Ok(CustomCursorBuilder::Image(CursorImage::from_rgba(
-            rgba, width, height, hotspot_x, hotspot_y,
-        )?))
-    }
-
     fn new() -> Arc<Self> {
         Arc::new(Self(Some(ThreadSafe::new(RefCell::new(
             ImageState::Loading(None),
@@ -87,6 +70,26 @@ impl CustomCursor {
             .as_ref()
             .expect("value has accidently already been dropped")
             .get()
+    }
+
+    pub fn build<T>(
+        builder: CustomCursorBuilder,
+        window_target: &EventLoopWindowTarget<T>,
+    ) -> Arc<CustomCursor> {
+        Lazy::force(&DROP_HANDLER);
+
+        match builder {
+            CustomCursorBuilder::Image(image) => ImageState::from_rgba(
+                window_target.runner.window(),
+                window_target.runner.document().clone(),
+                &image,
+            ),
+            CustomCursorBuilder::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            } => ImageState::from_url(url, hotspot_x, hotspot_y),
+        }
     }
 }
 

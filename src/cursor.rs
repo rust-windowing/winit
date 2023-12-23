@@ -80,7 +80,7 @@ impl CustomCursor {
         hotspot_y: u16,
     ) -> Result<CustomCursorBuilder, BadImage> {
         Ok(CustomCursorBuilder {
-            inner: PlatformCustomCursor::from_rgba(
+            inner: PlatformCustomCursorBuilder::from_rgba(
                 rgba.into(),
                 width,
                 height,
@@ -102,7 +102,7 @@ pub struct CustomCursorBuilder {
 impl CustomCursorBuilder {
     pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
         CustomCursor {
-            inner: self.inner.build(&window_target.p),
+            inner: PlatformCustomCursor::build(self.inner, &window_target.p),
         }
     }
 }
