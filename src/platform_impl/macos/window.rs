@@ -39,10 +39,11 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSColor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSView,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
+use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
 use super::ffi::CGSSetWindowBackgroundBlurRadius;
 
@@ -809,7 +810,7 @@ impl WinitWindow {
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
         let view = self.view();
-        view.set_cursor_icon(NSCursor::from_icon(icon));
+        view.set_cursor_icon(cursor_from_icon(icon));
         self.invalidateCursorRectsForView(&view);
     }
 

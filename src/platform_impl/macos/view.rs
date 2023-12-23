@@ -12,6 +12,7 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
+use super::cursor::{default_cursor, invisible_cursor};
 use super::{
     appkit::{
         NSApp, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag,
@@ -48,7 +49,7 @@ impl Default for CursorState {
     fn default() -> Self {
         Self {
             visible: true,
-            cursor: Default::default(),
+            cursor: default_cursor(),
         }
     }
 }
@@ -229,7 +230,7 @@ declare_class!(
             if cursor_state.visible {
                 self.addCursorRect(bounds, &cursor_state.cursor);
             } else {
-                self.addCursorRect(bounds, &NSCursor::invisible());
+                self.addCursorRect(bounds, &invisible_cursor());
             }
         }
     }
