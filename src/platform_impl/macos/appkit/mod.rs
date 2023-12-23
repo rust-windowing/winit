@@ -12,7 +12,6 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod responder;
 mod tab_group;
 mod text_input_client;
 mod view;
@@ -22,7 +21,6 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::responder::NSResponder;
 pub(crate) use self::tab_group::NSWindowTabGroup;
 pub(crate) use self::text_input_client::NSTextInputClient;
 pub(crate) use self::view::{NSTrackingRectTag, NSView};

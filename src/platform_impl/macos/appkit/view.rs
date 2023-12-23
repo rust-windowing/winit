@@ -2,13 +2,13 @@ use std::ffi::c_void;
 use std::num::NonZeroIsize;
 use std::ptr;
 
-use icrate::AppKit::{NSCursor, NSTextInputContext};
+use icrate::AppKit::{NSCursor, NSResponder, NSTextInputContext};
 use icrate::Foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
-use super::{NSResponder, NSWindow};
+use super::NSWindow;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -17,7 +17,7 @@ extern_class!(
     unsafe impl ClassType for NSView {
         #[inherits(NSObject)]
         type Super = NSResponder;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
     }
 );
 

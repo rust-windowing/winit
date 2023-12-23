@@ -4,12 +4,12 @@ use icrate::AppKit::{
     NSEvent, NSEventModifierFlagCommand, NSEventTypeKeyUp, NSEventTypeLeftMouseDown,
     NSEventTypeLeftMouseDragged, NSEventTypeLeftMouseUp, NSEventTypeMouseMoved,
     NSEventTypeOtherMouseDown, NSEventTypeOtherMouseDragged, NSEventTypeOtherMouseUp,
-    NSEventTypeRightMouseDown, NSEventTypeRightMouseDragged, NSEventTypeRightMouseUp,
+    NSEventTypeRightMouseDown, NSEventTypeRightMouseDragged, NSEventTypeRightMouseUp, NSResponder,
 };
 use icrate::Foundation::NSObject;
 use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 
-use super::appkit::{NSApplication, NSResponder};
+use super::appkit::NSApplication;
 use super::event::flags_contains;
 use super::{app_state::AppState, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
@@ -20,7 +20,7 @@ declare_class!(
     unsafe impl ClassType for WinitApplication {
         #[inherits(NSResponder, NSObject)]
         type Super = NSApplication;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitApplication";
     }
 

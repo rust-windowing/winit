@@ -1,4 +1,4 @@
-use icrate::AppKit::{NSButton, NSColor, NSEvent, NSPasteboardType, NSScreen};
+use icrate::AppKit::{NSButton, NSColor, NSEvent, NSPasteboardType, NSResponder, NSScreen};
 use icrate::Foundation::{
     CGFloat, NSArray, NSInteger, NSObject, NSPoint, NSRect, NSSize, NSString, NSUInteger,
 };
@@ -7,7 +7,7 @@ use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
-use super::{NSResponder, NSView, NSWindowTabGroup};
+use super::{NSView, NSWindowTabGroup};
 
 extern_class!(
     /// Main-Thread-Only!
@@ -17,7 +17,7 @@ extern_class!(
     unsafe impl ClassType for NSWindow {
         #[inherits(NSObject)]
         type Super = NSResponder;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
     }
 );
 

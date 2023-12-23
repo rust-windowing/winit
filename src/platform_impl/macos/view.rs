@@ -4,11 +4,12 @@ use std::collections::{HashMap, VecDeque};
 
 use icrate::AppKit::{
     NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled, NSEventPhaseChanged,
-    NSEventPhaseEnded, NSEventPhaseMayBegin,
+    NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder,
 };
 use icrate::Foundation::{
-    NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
-    NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
+    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
+    NSString, NSUInteger,
 };
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
@@ -19,7 +20,7 @@ use objc2::{
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{lalt_pressed, ralt_pressed};
 use super::{
-    appkit::{NSApp, NSResponder, NSTextInputClient, NSTrackingRectTag, NSView},
+    appkit::{NSApp, NSTextInputClient, NSTrackingRectTag, NSView},
     event::{code_to_key, code_to_location},
 };
 use crate::{
@@ -153,7 +154,7 @@ declare_class!(
     unsafe impl ClassType for WinitView {
         #[inherits(NSResponder, NSObject)]
         type Super = NSView;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitView";
     }
 
@@ -759,7 +760,8 @@ declare_class!(
 
 impl WinitView {
     pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self> {
-        let this = Self::alloc().set_ivars(ViewState {
+        let mtm = MainThreadMarker::from(window);
+        let this = mtm.alloc().set_ivars(ViewState {
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
             ..Default::default()
