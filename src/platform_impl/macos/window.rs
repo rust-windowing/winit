@@ -30,7 +30,7 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
-use icrate::AppKit::NSAppearance;
+use icrate::AppKit::{NSAppearance, NSScreen};
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
@@ -40,13 +40,14 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
-    NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSView, NSWindow,
+    NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSView, NSWindow,
     NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
     NSWindowTitleVisibility,
 };
 use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
 use super::ffi::CGSSetWindowBackgroundBlurRadius;
+use super::monitor::get_display_id;
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -69,7 +70,8 @@ impl Window {
     ) -> Result<Self, RootOsError> {
         let mtm = MainThreadMarker::new()
             .expect("windows can only be created on the main thread on macOS");
-        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) =
+            autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs, mtm))?;
         Ok(Window {
             window: MainThreadBound::new(window, mtm),
             _delegate: MainThreadBound::new(_delegate, mtm),
@@ -163,7 +165,7 @@ declare_class!(
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
         type Super = NSWindow;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitWindow";
     }
 
@@ -269,6 +271,7 @@ impl WinitWindow {
     fn new(
         attrs: WindowAttributes,
         pl_attrs: PlatformSpecificWindowBuilderAttributes,
+        mtm: MainThreadMarker,
     ) -> Result<(Id<Self>, Id<WinitWindowDelegate>), RootOsError> {
         trace_scope!("WinitWindow::new");
 
@@ -276,15 +279,15 @@ impl WinitWindow {
             let screen = match attrs.fullscreen.0.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
-                    monitor.ns_screen().or_else(NSScreen::main)
+                    monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
                 }
-                Some(Fullscreen::Borderless(None)) => NSScreen::main(),
+                Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
                 None => None,
             };
             let frame = match &screen {
                 Some(screen) => screen.frame(),
                 None => {
-                    let scale_factor = NSScreen::main()
+                    let scale_factor = NSScreen::mainScreen(mtm)
                         .map(|screen| screen.backingScaleFactor() as f64)
                         .unwrap_or(1.0);
                     let (width, height) = match attrs.inner_size {
@@ -348,7 +351,7 @@ impl WinitWindow {
                 ..Default::default()
             };
 
-            let this = WinitWindow::alloc().set_ivars(Mutex::new(state));
+            let this = mtm.alloc().set_ivars(Mutex::new(state));
             let this: Option<Id<Self>> = unsafe {
                 msg_send_id![
                     super(this),
@@ -962,6 +965,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
+        let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
             return;
@@ -990,7 +994,7 @@ impl WinitWindow {
         } else {
             // if it's not resizable, we set the frame directly
             let new_rect = if maximized {
-                let screen = NSScreen::main().expect("no screen found");
+                let screen = NSScreen::mainScreen(mtm).expect("no screen found");
                 screen.visibleFrame()
             } else {
                 shared_state.saved_standard_frame()
@@ -1013,6 +1017,7 @@ impl WinitWindow {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let mtm = MainThreadMarker::from(self);
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -1044,7 +1049,7 @@ impl WinitWindow {
                 }
                 Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
-            .ns_screen()
+            .ns_screen(mtm)
             .unwrap();
 
             let old_screen = self.screen().unwrap();
@@ -1320,7 +1325,7 @@ impl WinitWindow {
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
-        let display_id = self.screen()?.display_id();
+        let display_id = get_display_id(&*self.screen()?);
         Some(MonitorHandle::new(display_id))
     }
 
