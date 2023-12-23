@@ -2,6 +2,7 @@
 use std::cell::Cell;
 use std::ptr;
 
+use icrate::AppKit::{NSFilenamesPboardType, NSPasteboard};
 use icrate::Foundation::{NSArray, NSObject, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::AnyObject;
@@ -9,9 +10,7 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
-use super::appkit::{
-    NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,
-};
+use super::appkit::{NSApplicationPresentationOptions, NSWindowOcclusionState};
 use super::{
     app_state::AppState,
     util,
@@ -144,7 +143,7 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType });
+            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -170,7 +169,7 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType });
+            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {

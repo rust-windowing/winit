@@ -12,13 +12,14 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use icrate::Foundation::{is_main_thread, NSSize};
+use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
-use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent};
+use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy};
 use super::{
-    event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never, window::WinitWindow,
+    event::dummy_event, event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never,
+    window::WinitWindow,
 };
 use crate::{
     dpi::PhysicalSize,
@@ -459,6 +460,7 @@ impl AppState {
         create_default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) {
+        let mtm = MainThreadMarker::new().unwrap();
         let app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -473,7 +475,7 @@ impl AppState {
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
-            menu::initialize();
+            menu::initialize(mtm);
         }
 
         Self::start_running();
@@ -593,7 +595,7 @@ impl AppState {
         autoreleasepool(|_| {
             app.stop(None);
             // To stop event loop immediately, we need to post some event here.
-            app.postEvent_atStart(&NSEvent::dummy(), true);
+            app.postEvent_atStart(&dummy_event().unwrap(), true);
         });
     }
 

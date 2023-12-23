@@ -10,9 +10,10 @@ use core_foundation::{
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
-use objc2::rc::Id;
+use icrate::AppKit::NSScreen;
+use icrate::Foundation::{ns_string, MainThreadMarker, NSNumber};
+use objc2::{rc::Id, runtime::AnyObject};
 
-use super::appkit::NSScreen;
 use super::ffi;
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
@@ -210,10 +211,12 @@ impl MonitorHandle {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        match self.ns_screen() {
-            Some(screen) => screen.backingScaleFactor() as f64,
-            None => 1.0, // default to 1.0 when we can't find the screen
-        }
+        MainThreadMarker::run_on_main(|mtm| {
+            match self.ns_screen(mtm) {
+                Some(screen) => screen.backingScaleFactor() as f64,
+                None => 1.0, // default to 1.0 when we can't find the screen
+            }
+        })
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
@@ -303,14 +306,36 @@ impl MonitorHandle {
         }
     }
 
-    pub(crate) fn ns_screen(&self) -> Option<Id<NSScreen>> {
+    pub(crate) fn ns_screen(&self, mtm: MainThreadMarker) -> Option<Id<NSScreen>> {
         let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
-        NSScreen::screens().into_iter().find(|screen| {
-            let other_native_id = screen.display_id();
+        NSScreen::screens(mtm).into_iter().find(|screen| {
+            let other_native_id = get_display_id(screen);
             let other_uuid = unsafe {
                 ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
             };
             uuid == other_uuid
         })
     }
+}
+
+pub(crate) fn get_display_id(screen: &NSScreen) -> u32 {
+    let key = ns_string!("NSScreenNumber");
+
+    objc2::rc::autoreleasepool(|_| {
+        let device_description = screen.deviceDescription();
+
+        // Retrieve the CGDirectDisplayID associated with this screen
+        //
+        // SAFETY: The value from @"NSScreenNumber" in deviceDescription is guaranteed
+        // to be an NSNumber. See documentation for `deviceDescription` for details:
+        // <https://developer.apple.com/documentation/appkit/nsscreen/1388360-devicedescription?language=objc>
+        let obj = device_description
+            .get(key)
+            .expect("failed getting screen display id from device description");
+        let obj: *const AnyObject = obj;
+        let obj: *const NSNumber = obj.cast();
+        let obj: &NSNumber = unsafe { &*obj };
+
+        obj.as_u32()
+    })
 }

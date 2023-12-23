@@ -15,7 +15,6 @@ use crate::{
     platform::macos::{OptionAsAlt, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
-        appkit::NSWindowOrderingMode,
         event_loop::EventLoopWindowTarget,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
@@ -30,6 +29,11 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
+use icrate::AppKit::NSWindowAbove;
+use icrate::AppKit::{
+    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSColor,
+    NSFilenamesPboardType, NSResponder, NSScreen, NSView,
+};
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
@@ -38,13 +42,14 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
-    NSApp, NSAppKitVersion, NSAppearance, NSApplicationPresentationOptions, NSBackingStoreType,
-    NSColor, NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen,
-    NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
+    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSRequestUserAttentionType,
+    NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType, NSWindowStyleMask,
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
+use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
 use super::ffi::CGSSetWindowBackgroundBlurRadius;
+use super::monitor::get_display_id;
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -67,7 +72,8 @@ impl Window {
     ) -> Result<Self, RootOsError> {
         let mtm = MainThreadMarker::new()
             .expect("windows can only be created on the main thread on macOS");
-        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) =
+            autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs, mtm))?;
         Ok(Window {
             window: MainThreadBound::new(window, mtm),
             _delegate: MainThreadBound::new(_delegate, mtm),
@@ -161,7 +167,7 @@ declare_class!(
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
         type Super = NSWindow;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitWindow";
     }
 
@@ -267,6 +273,7 @@ impl WinitWindow {
     fn new(
         attrs: WindowAttributes,
         pl_attrs: PlatformSpecificWindowBuilderAttributes,
+        mtm: MainThreadMarker,
     ) -> Result<(Id<Self>, Id<WinitWindowDelegate>), RootOsError> {
         trace_scope!("WinitWindow::new");
 
@@ -274,15 +281,15 @@ impl WinitWindow {
             let screen = match attrs.fullscreen.0.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
-                    monitor.ns_screen().or_else(NSScreen::main)
+                    monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
                 }
-                Some(Fullscreen::Borderless(None)) => NSScreen::main(),
+                Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),
                 None => None,
             };
             let frame = match &screen {
                 Some(screen) => screen.frame(),
                 None => {
-                    let scale_factor = NSScreen::main()
+                    let scale_factor = NSScreen::mainScreen(mtm)
                         .map(|screen| screen.backingScaleFactor() as f64)
                         .unwrap_or(1.0);
                     let (width, height) = match attrs.inner_size {
@@ -346,7 +353,7 @@ impl WinitWindow {
                 ..Default::default()
             };
 
-            let this = WinitWindow::alloc().set_ivars(Mutex::new(state));
+            let this = mtm.alloc().set_ivars(Mutex::new(state));
             let this: Option<Id<Self>> = unsafe {
                 msg_send_id![
                     super(this),
@@ -442,9 +449,11 @@ impl WinitWindow {
                     ))
                 })?;
 
+                // TODO(madsmtm): Remove this
+                let window: Id<icrate::AppKit::NSWindow> = unsafe { Id::cast(this.clone()) };
                 // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
                 // where we allow making a window a child window is right here, just after it's been created.
-                unsafe { parent.addChildWindow(&this, NSWindowOrderingMode::NSWindowAbove) };
+                unsafe { parent.addChildWindow_ordered(&window, NSWindowAbove) };
             }
             Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
             None => (),
@@ -455,6 +464,7 @@ impl WinitWindow {
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
+        #[allow(deprecated)]
         view.setWantsBestResolutionOpenGLSurface(!pl_attrs.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
@@ -462,7 +472,7 @@ impl WinitWindow {
         // the view and its associated OpenGL context. To work around this, on Mojave we
         // explicitly make the view layer-backed up front so that AppKit doesn't do it
         // itself and break the association with its context.
-        if NSAppKitVersion::current().floor() > NSAppKitVersion::NSAppKitVersionNumber10_12 {
+        if unsafe { NSAppKitVersionNumber }.floor() > NSAppKitVersionNumber10_12 {
             view.setWantsLayer(true);
         }
 
@@ -472,7 +482,7 @@ impl WinitWindow {
 
         if attrs.transparent {
             this.setOpaque(false);
-            this.setBackgroundColor(&NSColor::clear());
+            this.setBackgroundColor(unsafe { &NSColor::clearColor() });
         }
 
         if attrs.blur {
@@ -809,7 +819,7 @@ impl WinitWindow {
 
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
         let view = self.view();
-        view.set_cursor_icon(NSCursor::from_icon(icon));
+        view.set_cursor_icon(cursor_from_icon(icon));
         self.invalidateCursorRectsForView(&view);
     }
 
@@ -960,6 +970,7 @@ impl WinitWindow {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
+        let mtm = MainThreadMarker::from(self);
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
             return;
@@ -988,7 +999,7 @@ impl WinitWindow {
         } else {
             // if it's not resizable, we set the frame directly
             let new_rect = if maximized {
-                let screen = NSScreen::main().expect("no screen found");
+                let screen = NSScreen::mainScreen(mtm).expect("no screen found");
                 screen.visibleFrame()
             } else {
                 shared_state.saved_standard_frame()
@@ -1011,6 +1022,7 @@ impl WinitWindow {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        let mtm = MainThreadMarker::from(self);
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -1042,7 +1054,7 @@ impl WinitWindow {
                 }
                 Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
-            .ns_screen()
+            .ns_screen(mtm)
             .unwrap();
 
             let old_screen = self.screen().unwrap();
@@ -1318,7 +1330,7 @@ impl WinitWindow {
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> Option<MonitorHandle> {
-        let display_id = self.screen()?.display_id();
+        let display_id = get_display_id(&*self.screen()?);
         Some(MonitorHandle::new(display_id))
     }
 
@@ -1582,10 +1594,12 @@ pub(super) fn get_ns_theme() -> Theme {
         return Theme::Light;
     }
     let appearance = app.effectiveAppearance();
-    let name = appearance.bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
-        NSString::from_str("NSAppearanceNameAqua"),
-        NSString::from_str("NSAppearanceNameDarkAqua"),
-    ]));
+    let name = appearance
+        .bestMatchFromAppearancesWithNames(&NSArray::from_id_slice(&[
+            NSString::from_str("NSAppearanceNameAqua"),
+            NSString::from_str("NSAppearanceNameDarkAqua"),
+        ]))
+        .unwrap();
     match &*name.to_string() {
         "NSAppearanceNameDarkAqua" => Theme::Dark,
         _ => Theme::Light,
@@ -1601,7 +1615,7 @@ fn set_ns_theme(theme: Option<Theme>) {
                 Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
                 Theme::Light => NSString::from_str("NSAppearanceNameAqua"),
             };
-            NSAppearance::appearanceNamed(&name)
+            NSAppearance::appearanceNamed(&name).unwrap()
         });
         app.setAppearance(appearance.as_ref().map(|a| a.as_ref()));
     }

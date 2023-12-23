@@ -1,9 +1,16 @@
 #![allow(clippy::unnecessary_cast)]
 
+use icrate::AppKit::{
+    NSEvent, NSEventModifierFlagCommand, NSEventTypeKeyUp, NSEventTypeLeftMouseDown,
+    NSEventTypeLeftMouseDragged, NSEventTypeLeftMouseUp, NSEventTypeMouseMoved,
+    NSEventTypeOtherMouseDown, NSEventTypeOtherMouseDragged, NSEventTypeOtherMouseUp,
+    NSEventTypeRightMouseDown, NSEventTypeRightMouseDragged, NSEventTypeRightMouseUp, NSResponder,
+};
 use icrate::Foundation::NSObject;
 use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 
-use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
+use super::appkit::NSApplication;
+use super::event::flags_contains;
 use super::{app_state::AppState, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
@@ -13,7 +20,7 @@ declare_class!(
     unsafe impl ClassType for WinitApplication {
         #[inherits(NSResponder, NSObject)]
         type Super = NSApplication;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitApplication";
     }
 
@@ -28,10 +35,10 @@ declare_class!(
             // For posterity, there are some undocumented event types
             // (https://github.com/servo/cocoa-rs/issues/155)
             // but that doesn't really matter here.
-            let event_type = event.type_();
-            let modifier_flags = event.modifierFlags();
-            if event_type == NSEventType::NSKeyUp
-                && modifier_flags.contains(NSEventModifierFlags::NSCommandKeyMask)
+            let event_type = unsafe { event.r#type() };
+            let modifier_flags = unsafe { event.modifierFlags() };
+            if event_type == NSEventTypeKeyUp
+                && flags_contains(modifier_flags, NSEventModifierFlagCommand)
             {
                 if let Some(key_window) = self.keyWindow() {
                     unsafe { key_window.sendEvent(event) };
@@ -45,14 +52,15 @@ declare_class!(
 );
 
 fn maybe_dispatch_device_event(event: &NSEvent) {
-    let event_type = event.type_();
+    let event_type = unsafe { event.r#type() };
+    #[allow(non_upper_case_globals)]
     match event_type {
-        NSEventType::NSMouseMoved
-        | NSEventType::NSLeftMouseDragged
-        | NSEventType::NSOtherMouseDragged
-        | NSEventType::NSRightMouseDragged => {
-            let delta_x = event.deltaX() as f64;
-            let delta_y = event.deltaY() as f64;
+        NSEventTypeMouseMoved
+        | NSEventTypeLeftMouseDragged
+        | NSEventTypeOtherMouseDragged
+        | NSEventTypeRightMouseDragged => {
+            let delta_x = unsafe { event.deltaX() } as f64;
+            let delta_y = unsafe { event.deltaY() } as f64;
 
             if delta_x != 0.0 {
                 queue_device_event(DeviceEvent::Motion {
@@ -74,17 +82,15 @@ fn maybe_dispatch_device_event(event: &NSEvent) {
                 });
             }
         }
-        NSEventType::NSLeftMouseDown
-        | NSEventType::NSRightMouseDown
-        | NSEventType::NSOtherMouseDown => {
+        NSEventTypeLeftMouseDown | NSEventTypeRightMouseDown | NSEventTypeOtherMouseDown => {
             queue_device_event(DeviceEvent::Button {
-                button: event.buttonNumber() as u32,
+                button: unsafe { event.buttonNumber() } as u32,
                 state: ElementState::Pressed,
             });
         }
-        NSEventType::NSLeftMouseUp | NSEventType::NSRightMouseUp | NSEventType::NSOtherMouseUp => {
+        NSEventTypeLeftMouseUp | NSEventTypeRightMouseUp | NSEventTypeOtherMouseUp => {
             queue_device_event(DeviceEvent::Button {
-                button: event.buttonNumber() as u32,
+                button: unsafe { event.buttonNumber() } as u32,
                 state: ElementState::Released,
             });
         }

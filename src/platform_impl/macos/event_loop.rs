@@ -22,7 +22,10 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::NSObjectProtocol;
 use objc2::{msg_send_id, ClassType};
 
-use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent, NSWindow};
+use super::{
+    appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow},
+    event::dummy_event,
+};
 use crate::{
     error::EventLoopError,
     event::Event,
@@ -477,7 +480,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             app.stop(None);
             // Posting a dummy event to get `stop` to take effect immediately.
             // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-            app.postEvent_atStart(&NSEvent::dummy(), true);
+            app.postEvent_atStart(&dummy_event().unwrap(), true);
             None
         }
     }
