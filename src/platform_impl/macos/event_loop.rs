@@ -206,6 +206,7 @@ impl<T> EventLoop<T> {
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
         let delegate = ApplicationDelegate::new(
+            mtm,
             activation_policy,
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
