@@ -30,7 +30,9 @@ use crate::{
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
-use icrate::AppKit::{NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSScreen};
+use icrate::AppKit::{
+    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSColor, NSScreen,
+};
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
     NSRect, NSSize, NSString,
@@ -39,7 +41,7 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
-    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSColor, NSFilenamesPboardType,
+    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSFilenamesPboardType,
     NSRequestUserAttentionType, NSResponder, NSView, NSWindow, NSWindowButton, NSWindowLevel,
     NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
@@ -476,7 +478,7 @@ impl WinitWindow {
 
         if attrs.transparent {
             this.setOpaque(false);
-            this.setBackgroundColor(&NSColor::clear());
+            this.setBackgroundColor(unsafe { &NSColor::clearColor() });
         }
 
         if attrs.blur {

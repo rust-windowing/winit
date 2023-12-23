@@ -12,7 +12,6 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod color;
 mod event;
 mod menu;
 mod menu_item;
@@ -27,7 +26,6 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::color::NSColor;
 #[allow(unused_imports)]
 pub(crate) use self::event::{
     NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
