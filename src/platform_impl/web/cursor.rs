@@ -1,6 +1,8 @@
 use std::{
     cell::RefCell,
-    future, mem,
+    future,
+    hash::{Hash, Hasher},
+    mem,
     ops::DerefMut,
     rc::{self, Rc},
     sync::{self, Arc},
@@ -48,37 +50,31 @@ impl CustomCursorBuilder {
     }
 }
 
-#[derive(Debug)]
-pub struct CustomCursor(Option<ThreadSafe<RefCell<ImageState>>>);
+#[derive(Clone, Debug)]
+pub struct CustomCursor(Arc<Inner>);
 
-static DROP_HANDLER: Lazy<AsyncSender<ThreadSafe<RefCell<ImageState>>>> = Lazy::new(|| {
-    let (sender, receiver) = r#async::channel();
-    wasm_bindgen_futures::spawn_local(async move { while receiver.next().await.is_ok() {} });
+impl Hash for CustomCursor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
 
-    sender
-});
+impl PartialEq for CustomCursor {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    fn new() -> Arc<Self> {
-        Arc::new(Self(Some(ThreadSafe::new(RefCell::new(
-            ImageState::Loading(None),
-        )))))
-    }
-
-    fn get(&self) -> &RefCell<ImageState> {
-        self.0
-            .as_ref()
-            .expect("value has accidently already been dropped")
-            .get()
-    }
-
     pub fn build<T>(
         builder: CustomCursorBuilder,
         window_target: &EventLoopWindowTarget<T>,
-    ) -> Arc<CustomCursor> {
+    ) -> Self {
         Lazy::force(&DROP_HANDLER);
 
-        match builder {
+        Self(match builder {
             CustomCursorBuilder::Image(image) => ImageState::from_rgba(
                 window_target.runner.window(),
                 window_target.runner.document().clone(),
@@ -89,11 +85,36 @@ impl CustomCursor {
                 hotspot_x,
                 hotspot_y,
             } => ImageState::from_url(url, hotspot_x, hotspot_y),
-        }
+        })
     }
 }
 
-impl Drop for CustomCursor {
+#[derive(Debug)]
+struct Inner(Option<ThreadSafe<RefCell<ImageState>>>);
+
+static DROP_HANDLER: Lazy<AsyncSender<ThreadSafe<RefCell<ImageState>>>> = Lazy::new(|| {
+    let (sender, receiver) = r#async::channel();
+    wasm_bindgen_futures::spawn_local(async move { while receiver.next().await.is_ok() {} });
+
+    sender
+});
+
+impl Inner {
+    fn new() -> Arc<Self> {
+        Arc::new(Inner(Some(ThreadSafe::new(RefCell::new(
+            ImageState::Loading(None),
+        )))))
+    }
+
+    fn get(&self) -> &RefCell<ImageState> {
+        self.0
+            .as_ref()
+            .expect("value has accidently already been dropped")
+            .get()
+    }
+}
+
+impl Drop for Inner {
     fn drop(&mut self) {
         let value = self
             .0
@@ -133,13 +154,13 @@ impl CursorState {
         this.set_style();
     }
 
-    pub fn set_custom_cursor(&self, cursor: Arc<CustomCursor>) {
+    pub fn set_custom_cursor(&self, cursor: CustomCursor) {
         let mut this = self.0.borrow_mut();
 
-        match cursor.get().borrow_mut().deref_mut() {
+        match cursor.0.get().borrow_mut().deref_mut() {
             ImageState::Loading(state) => {
                 this.cursor = SelectedCursor::ImageLoading {
-                    state: cursor.clone(),
+                    state: cursor.0.clone(),
                     previous: mem::take(&mut this.cursor).into(),
                 };
                 *state = Some(Rc::downgrade(&self.0));
@@ -190,7 +211,7 @@ impl State {
 enum SelectedCursor {
     Named(CursorIcon),
     ImageLoading {
-        state: Arc<CustomCursor>,
+        state: Arc<Inner>,
         previous: Previous,
     },
     ImageReady(Rc<Image>),
@@ -244,7 +265,7 @@ enum ImageState {
 }
 
 impl ImageState {
-    fn from_rgba(window: &Window, document: Document, image: &CursorImage) -> Arc<CustomCursor> {
+    fn from_rgba(window: &Window, document: Document, image: &CursorImage) -> Arc<Inner> {
         // 1. Create an `ImageData` from the RGBA data.
         // 2. Create an `ImageBitmap` from the `ImageData`.
         // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
@@ -296,7 +317,7 @@ impl ImageState {
                 .expect("unexpected exception in `createImageBitmap()`"),
         );
 
-        let this = CustomCursor::new();
+        let this = Inner::new();
 
         wasm_bindgen_futures::spawn_local({
             let weak = Arc::downgrade(&this);
@@ -409,8 +430,8 @@ impl ImageState {
         this
     }
 
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Arc<CustomCursor> {
-        let this = CustomCursor::new();
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> Arc<Inner> {
+        let this = Inner::new();
         wasm_bindgen_futures::spawn_local(Self::decode(
             Arc::downgrade(&this),
             url,
@@ -423,7 +444,7 @@ impl ImageState {
     }
 
     async fn decode(
-        weak: sync::Weak<CustomCursor>,
+        weak: sync::Weak<Inner>,
         url: String,
         object: bool,
         hotspot_x: u16,

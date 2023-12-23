@@ -906,7 +906,7 @@ impl Window {
 
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
-    pub(crate) fn set_custom_cursor(&self, _: Arc<PlatformCustomCursor>) {}
+    pub(crate) fn set_custom_cursor(&self, _: PlatformCustomCursor) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
