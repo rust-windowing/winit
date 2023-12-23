@@ -2,7 +2,7 @@
 use std::cell::Cell;
 use std::ptr;
 
-use icrate::AppKit::{NSFilenamesPboardType, NSPasteboard};
+use icrate::AppKit::{NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionStateVisible};
 use icrate::Foundation::{NSArray, NSObject, NSSize, NSString};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::AnyObject;
@@ -10,7 +10,7 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
-use super::appkit::{NSApplicationPresentationOptions, NSWindowOcclusionState};
+use super::appkit::NSApplicationPresentationOptions;
 use super::{
     app_state::AppState,
     util,
@@ -143,7 +143,9 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -169,7 +171,9 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
+            let filenames = pb
+                .propertyListForType(unsafe { NSFilenamesPboardType })
+                .unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -343,13 +347,9 @@ declare_class!(
         #[method(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
-            self.queue_event(WindowEvent::Occluded(
-                !self
-                    .ivars()
-                    .window
-                    .occlusionState()
-                    .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
-            ))
+            let visible = self.ivars().window.occlusionState() & NSWindowOcclusionStateVisible
+                == NSWindowOcclusionStateVisible;
+            self.queue_event(WindowEvent::Occluded(!visible));
         }
 
         // Observe theme change

@@ -20,10 +20,7 @@ pub(crate) use self::application::{
     NSRequestUserAttentionType,
 };
 pub(crate) use self::tab_group::NSWindowTabGroup;
-pub(crate) use self::window::{
-    NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
-};
+pub(crate) use self::window::NSWindow;
 
 #[link(name = "AppKit", kind = "framework")]
 extern "C" {}
