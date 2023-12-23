@@ -12,7 +12,6 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod pasteboard;
 mod responder;
 mod tab_group;
 mod text_input_client;
@@ -23,7 +22,6 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboard, NSPasteboardType};
 pub(crate) use self::responder::NSResponder;
 pub(crate) use self::tab_group::NSWindowTabGroup;
 pub(crate) use self::text_input_client::NSTextInputClient;

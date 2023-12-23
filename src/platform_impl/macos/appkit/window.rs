@@ -1,4 +1,4 @@
-use icrate::AppKit::{NSButton, NSColor, NSEvent, NSScreen};
+use icrate::AppKit::{NSButton, NSColor, NSEvent, NSPasteboardType, NSScreen};
 use icrate::Foundation::{
     CGFloat, NSArray, NSInteger, NSObject, NSPoint, NSRect, NSSize, NSString, NSUInteger,
 };
@@ -7,7 +7,7 @@ use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
-use super::{NSPasteboardType, NSResponder, NSView, NSWindowTabGroup};
+use super::{NSResponder, NSView, NSWindowTabGroup};
 
 extern_class!(
     /// Main-Thread-Only!

@@ -31,7 +31,8 @@ use crate::{
 };
 use core_graphics::display::{CGDisplay, CGPoint};
 use icrate::AppKit::{
-    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSColor, NSScreen,
+    NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSColor,
+    NSFilenamesPboardType, NSScreen,
 };
 use icrate::Foundation::{
     CGFloat, MainThreadBound, MainThreadMarker, NSArray, NSCopying, NSInteger, NSObject, NSPoint,
@@ -41,9 +42,9 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use super::appkit::{
-    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSFilenamesPboardType,
-    NSRequestUserAttentionType, NSResponder, NSView, NSWindow, NSWindowButton, NSWindowLevel,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSApp, NSApplicationPresentationOptions, NSBackingStoreType, NSRequestUserAttentionType,
+    NSResponder, NSView, NSWindow, NSWindowButton, NSWindowLevel, NSWindowSharingType,
+    NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use super::cursor::cursor_from_icon;
 use super::ffi::CGSMainConnectionID;
