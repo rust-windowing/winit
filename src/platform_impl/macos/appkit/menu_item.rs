@@ -1,9 +1,10 @@
+use icrate::AppKit::NSEventModifierFlags;
 use icrate::Foundation::{NSObject, NSString};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
-use super::{NSEventModifierFlags, NSMenu};
+use super::NSMenu;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

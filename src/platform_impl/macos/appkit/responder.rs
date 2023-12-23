@@ -1,7 +1,6 @@
+use icrate::AppKit::NSEvent;
 use icrate::Foundation::{NSArray, NSObject};
 use objc2::{extern_class, extern_methods, mutability, ClassType};
-
-use super::NSEvent;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

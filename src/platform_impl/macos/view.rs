@@ -2,7 +2,10 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 
-use icrate::AppKit::NSCursor;
+use icrate::AppKit::{
+    NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled, NSEventPhaseChanged,
+    NSEventPhaseEnded, NSEventPhaseMayBegin,
+};
 use icrate::Foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
@@ -14,10 +17,9 @@ use objc2::{
 };
 
 use super::cursor::{default_cursor, invisible_cursor};
+use super::event::{lalt_pressed, ralt_pressed};
 use super::{
-    appkit::{
-        NSApp, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag, NSView,
-    },
+    appkit::{NSApp, NSResponder, NSTextInputClient, NSTrackingRectTag, NSView},
     event::{code_to_key, code_to_location},
 };
 use crate::{
@@ -468,7 +470,7 @@ declare_class!(
             };
 
             if !had_ime_input || self.ivars().forward_key_to_app.get() {
-                let key_event = create_key_event(&event, true, event.is_a_repeat(), None);
+                let key_event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
                 self.queue_event(WindowEvent::KeyboardInput {
                     device_id: DEVICE_ID,
                     event: key_event,
@@ -537,7 +539,7 @@ declare_class!(
                 .expect("could not find current event");
 
             self.update_modifiers(&event, false);
-            let event = create_key_event(&event, true, event.is_a_repeat(), None);
+            let event = create_key_event(&event, true, unsafe { event.isARepeat() }, None);
 
             self.queue_event(WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
@@ -634,8 +636,8 @@ declare_class!(
             self.mouse_motion(event);
 
             let delta = {
-                let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
-                if event.hasPreciseScrollingDeltas() {
+                let (x, y) = unsafe { (event.scrollingDeltaX(), event.scrollingDeltaY()) };
+                if unsafe { event.hasPreciseScrollingDeltas() } {
                     let delta = LogicalPosition::new(x, y).to_physical(self.scale_factor());
                     MouseScrollDelta::PixelDelta(delta)
                 } else {
@@ -647,18 +649,19 @@ declare_class!(
             // be mutually exclusive anyhow, which is why the API is rather incoherent). If no momentum
             // phase is recorded (or rather, the started/ended cases of the momentum phase) then we
             // report the touch phase.
-            let phase = match event.momentumPhase() {
-                NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
+            #[allow(non_upper_case_globals)]
+            let phase = match unsafe { event.momentumPhase() } {
+                NSEventPhaseMayBegin | NSEventPhaseBegan => {
                     TouchPhase::Started
                 }
-                NSEventPhase::NSEventPhaseEnded | NSEventPhase::NSEventPhaseCancelled => {
+                NSEventPhaseEnded | NSEventPhaseCancelled => {
                     TouchPhase::Ended
                 }
-                _ => match event.phase() {
-                    NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
+                _ => match unsafe { event.phase() } {
+                    NSEventPhaseMayBegin | NSEventPhaseBegan => {
                         TouchPhase::Started
                     }
-                    NSEventPhase::NSEventPhaseEnded | NSEventPhase::NSEventPhaseCancelled => {
+                    NSEventPhaseEnded | NSEventPhaseCancelled => {
                         TouchPhase::Ended
                     }
                     _ => TouchPhase::Moved,
@@ -679,17 +682,18 @@ declare_class!(
         fn magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("magnifyWithEvent:");
 
-            let phase = match event.phase() {
-                NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
+            #[allow(non_upper_case_globals)]
+            let phase = match unsafe { event.phase() } {
+                NSEventPhaseBegan => TouchPhase::Started,
+                NSEventPhaseChanged => TouchPhase::Moved,
+                NSEventPhaseCancelled => TouchPhase::Cancelled,
+                NSEventPhaseEnded => TouchPhase::Ended,
                 _ => return,
             };
 
             self.queue_event(WindowEvent::TouchpadMagnify {
                 device_id: DEVICE_ID,
-                delta: event.magnification(),
+                delta: unsafe { event.magnification() },
                 phase,
             });
         }
@@ -707,17 +711,18 @@ declare_class!(
         fn rotate_with_event(&self, event: &NSEvent) {
             trace_scope!("rotateWithEvent:");
 
-            let phase = match event.phase() {
-                NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
+            #[allow(non_upper_case_globals)]
+            let phase = match unsafe { event.phase() } {
+                NSEventPhaseBegan => TouchPhase::Started,
+                NSEventPhaseChanged => TouchPhase::Moved,
+                NSEventPhaseCancelled => TouchPhase::Cancelled,
+                NSEventPhaseEnded => TouchPhase::Ended,
                 _ => return,
             };
 
             self.queue_event(WindowEvent::TouchpadRotate {
                 device_id: DEVICE_ID,
-                delta: event.rotation(),
+                delta: unsafe { event.rotation() },
                 phase,
             });
         }
@@ -730,8 +735,8 @@ declare_class!(
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: DEVICE_ID,
-                pressure: event.pressure(),
-                stage: event.stage() as i64,
+                pressure: unsafe { event.pressure() },
+                stage: unsafe { event.stage() } as i64,
             });
         }
 
@@ -903,8 +908,8 @@ impl WinitView {
         // later will work though, since the flags are attached to the event and contain valid
         // information.
         'send_event: {
-            if is_flags_changed_event && ns_event.key_code() != 0 {
-                let scancode = ns_event.key_code();
+            if is_flags_changed_event && unsafe { ns_event.keyCode() } != 0 {
+                let scancode = unsafe { ns_event.keyCode() };
                 let physical_key = PhysicalKey::from_scancode(scancode as u32);
 
                 // We'll correct the `is_press` later.
@@ -1015,7 +1020,7 @@ impl WinitView {
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
-        let window_point = event.locationInWindow();
+        let window_point = unsafe { event.locationInWindow() };
         let view_point = self.convertPoint_fromView(window_point, None);
         let view_rect = self.frame();
 
@@ -1024,7 +1029,7 @@ impl WinitView {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            let mouse_buttons_down = NSEvent::pressedMouseButtons();
+            let mouse_buttons_down = unsafe { NSEvent::pressedMouseButtons() };
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
                 return;
@@ -1051,7 +1056,7 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
     // For the other events, it's always set to 0.
     // MacOS only defines the left, right and middle buttons, 3..=31 are left as generic buttons,
     // but 3 and 4 are very commonly used as Back and Forward by hardware vendors and applications.
-    match event.buttonNumber() {
+    match unsafe { event.buttonNumber() } {
         0 => MouseButton::Left,
         1 => MouseButton::Right,
         2 => MouseButton::Middle,
@@ -1067,30 +1072,35 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
 fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
     let ev_mods = event_mods(event).state;
     let ignore_alt_characters = match option_as_alt {
-        OptionAsAlt::OnlyLeft if event.lalt_pressed() => true,
-        OptionAsAlt::OnlyRight if event.ralt_pressed() => true,
+        OptionAsAlt::OnlyLeft if lalt_pressed(event) => true,
+        OptionAsAlt::OnlyRight if ralt_pressed(event) => true,
         OptionAsAlt::Both if ev_mods.alt_key() => true,
         _ => false,
     } && !ev_mods.control_key()
         && !ev_mods.super_key();
 
     if ignore_alt_characters {
-        let ns_chars = event
-            .charactersIgnoringModifiers()
-            .expect("expected characters to be non-null");
+        let ns_chars = unsafe {
+            event
+                .charactersIgnoringModifiers()
+                .expect("expected characters to be non-null")
+        };
 
-        NSEvent::keyEventWithType(
-            event.type_(),
-            event.locationInWindow(),
-            event.modifierFlags(),
-            event.timestamp(),
-            event.window_number(),
-            None,
-            &ns_chars,
-            &ns_chars,
-            event.is_a_repeat(),
-            event.key_code(),
-        )
+        unsafe {
+            NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(
+                event.r#type(),
+                event.locationInWindow(),
+                event.modifierFlags(),
+                event.timestamp(),
+                event.windowNumber(),
+                None,
+                &ns_chars,
+                &ns_chars,
+                event.isARepeat(),
+                event.keyCode(),
+            )
+            .unwrap()
+        }
     } else {
         event.copy()
     }

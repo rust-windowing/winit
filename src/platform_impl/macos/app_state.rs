@@ -16,9 +16,10 @@ use icrate::Foundation::{is_main_thread, NSSize};
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
-use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent};
+use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy};
 use super::{
-    event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never, window::WinitWindow,
+    event::dummy_event, event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never,
+    window::WinitWindow,
 };
 use crate::{
     dpi::PhysicalSize,
@@ -593,7 +594,7 @@ impl AppState {
         autoreleasepool(|_| {
             app.stop(None);
             // To stop event loop immediately, we need to post some event here.
-            app.postEvent_atStart(&NSEvent::dummy(), true);
+            app.postEvent_atStart(&dummy_event().unwrap(), true);
         });
     }
 

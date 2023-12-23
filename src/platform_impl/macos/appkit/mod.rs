@@ -12,7 +12,6 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod event;
 mod menu;
 mod menu_item;
 mod pasteboard;
@@ -25,10 +24,6 @@ mod window;
 pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
-};
-#[allow(unused_imports)]
-pub(crate) use self::event::{
-    NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
 };
 pub(crate) use self::menu::NSMenu;
 pub(crate) use self::menu_item::NSMenuItem;
