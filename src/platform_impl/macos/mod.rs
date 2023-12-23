@@ -28,8 +28,8 @@ pub(crate) use self::{
 use crate::event::DeviceId as RootDeviceId;
 
 pub(crate) use self::window::Window;
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursor;
-pub(crate) use crate::cursor::CursorImage as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
+pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

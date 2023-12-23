@@ -1,5 +1,5 @@
 //! The [`Window`] struct and associated types.
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -1355,7 +1355,7 @@ impl Window {
     /// - **iOS / Android / Orbital:** Unsupported.
     #[inline]
     pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
-        let cursor = Arc::clone(&cursor.inner);
+        let cursor = cursor.inner.clone();
         self.window
             .maybe_queue_on_main(move |w| w.set_custom_cursor(cursor))
     }

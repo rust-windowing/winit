@@ -194,7 +194,7 @@ impl WinCursor {
         }
     }
 
-    pub fn new(image: &CursorImage) -> Result<Self, io::Error> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, io::Error> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 

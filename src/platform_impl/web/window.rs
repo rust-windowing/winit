@@ -16,7 +16,6 @@ use web_sys::HtmlCanvasElement;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -218,7 +217,7 @@ impl Inner {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
         self.cursor.set_custom_cursor(cursor)
     }
 

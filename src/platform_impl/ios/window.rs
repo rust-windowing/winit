@@ -1,7 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
 use objc2::rc::Id;
@@ -178,7 +177,7 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub(crate) fn set_custom_cursor(&self, _: Arc<PlatformCustomCursor>) {
+    pub(crate) fn set_custom_cursor(&self, _: PlatformCustomCursor) {
         debug!("`Window::set_custom_cursor` ignored on iOS")
     }
 

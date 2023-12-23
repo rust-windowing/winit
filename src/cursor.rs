@@ -46,24 +46,11 @@ const PIXEL_SIZE: usize = 4;
 /// let window = Window::new(&event_loop).unwrap();
 /// window.set_custom_cursor(&custom_cursor);
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CustomCursor {
-    pub(crate) inner: Arc<PlatformCustomCursor>,
+    /// Platforms should make sure this is cheap to clone.
+    pub(crate) inner: PlatformCustomCursor,
 }
-
-impl Hash for CustomCursor {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.inner).hash(state);
-    }
-}
-
-impl PartialEq for CustomCursor {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inner, &other.inner)
-    }
-}
-
-impl Eq for CustomCursor {}
 
 impl CustomCursor {
     /// Creates a new cursor from an rgba buffer.
@@ -80,7 +67,7 @@ impl CustomCursor {
         hotspot_y: u16,
     ) -> Result<CustomCursorBuilder, BadImage> {
         Ok(CustomCursorBuilder {
-            inner: PlatformCustomCursor::from_rgba(
+            inner: PlatformCustomCursorBuilder::from_rgba(
                 rgba.into(),
                 width,
                 height,
@@ -102,7 +89,7 @@ pub struct CustomCursorBuilder {
 impl CustomCursorBuilder {
     pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
         CustomCursor {
-            inner: self.inner.build(&window_target.p),
+            inner: PlatformCustomCursor::build(self.inner, &window_target.p),
         }
     }
 }
@@ -165,9 +152,54 @@ impl fmt::Display for BadImage {
 
 impl Error for BadImage {}
 
-/// Platforms export this directly as `PlatformCustomCursor` if they need to only work with images.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CursorImage {
+/// Platforms export this directly as `PlatformCustomCursorBuilder` if they need to only work with images.
+#[derive(Debug)]
+pub(crate) struct OnlyCursorImageBuilder(pub(crate) CursorImage);
+
+#[allow(dead_code)]
+impl OnlyCursorImageBuilder {
+    pub(crate) fn from_rgba(
+        rgba: Vec<u8>,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+    ) -> Result<Self, BadImage> {
+        CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y).map(Self)
+    }
+}
+
+/// Platforms export this directly as `PlatformCustomCursor` if they don't implement caching.
+#[derive(Debug, Clone)]
+pub(crate) struct OnlyCursorImage(pub(crate) Arc<CursorImage>);
+
+impl Hash for OnlyCursorImage {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+impl PartialEq for OnlyCursorImage {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for OnlyCursorImage {}
+
+#[allow(dead_code)]
+impl OnlyCursorImage {
+    fn build<T>(
+        builder: OnlyCursorImageBuilder,
+        _: &platform_impl::EventLoopWindowTarget<T>,
+    ) -> Self {
+        Self(Arc::new(builder.0))
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub(crate) struct CursorImage {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u16,
     pub(crate) height: u16,
@@ -175,9 +207,8 @@ pub struct CursorImage {
     pub(crate) hotspot_y: u16,
 }
 
-#[allow(dead_code)]
 impl CursorImage {
-    pub fn from_rgba(
+    pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
@@ -222,19 +253,15 @@ impl CursorImage {
             hotspot_y,
         })
     }
-
-    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> Arc<CursorImage> {
-        Arc::new(self)
-    }
 }
 
 // Platforms that don't support cursors will export this as `PlatformCustomCursor`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct NoCustomCursor;
 
 #[allow(dead_code)]
 impl NoCustomCursor {
-    pub fn from_rgba(
+    pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
@@ -245,7 +272,7 @@ impl NoCustomCursor {
         Ok(Self)
     }
 
-    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> Arc<NoCustomCursor> {
-        Arc::new(self)
+    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> NoCustomCursor {
+        self
     }
 }

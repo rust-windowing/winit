@@ -1550,8 +1550,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
-        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor) };
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
+        let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.0) };
 
         #[allow(clippy::mutex_atomic)]
         if *self.cursor_visible.lock().unwrap() {

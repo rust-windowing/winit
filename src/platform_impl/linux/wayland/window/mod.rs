@@ -507,8 +507,11 @@ impl Window {
     }
 
     #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: Arc<PlatformCustomCursor>) {
-        self.window_state.lock().unwrap().set_custom_cursor(&cursor);
+    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
+        self.window_state
+            .lock()
+            .unwrap()
+            .set_custom_cursor(&cursor.0);
     }
 
     #[inline]
