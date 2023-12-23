@@ -12,7 +12,7 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use icrate::Foundation::{is_main_thread, NSSize};
+use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
@@ -460,6 +460,7 @@ impl AppState {
         create_default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) {
+        let mtm = MainThreadMarker::new().unwrap();
         let app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
@@ -474,7 +475,7 @@ impl AppState {
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
-            menu::initialize();
+            menu::initialize(mtm);
         }
 
         Self::start_running();

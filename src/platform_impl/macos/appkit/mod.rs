@@ -12,8 +12,6 @@
 #![allow(non_upper_case_globals)]
 
 mod application;
-mod menu;
-mod menu_item;
 mod pasteboard;
 mod responder;
 mod tab_group;
@@ -25,8 +23,6 @@ pub(crate) use self::application::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
     NSRequestUserAttentionType,
 };
-pub(crate) use self::menu::NSMenu;
-pub(crate) use self::menu_item::NSMenuItem;
 pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboard, NSPasteboardType};
 pub(crate) use self::responder::NSResponder;
 pub(crate) use self::tab_group::NSWindowTabGroup;
