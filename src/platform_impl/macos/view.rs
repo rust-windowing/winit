@@ -2,6 +2,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 
+use icrate::AppKit::NSCursor;
 use icrate::Foundation::{
     NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString,
     NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
@@ -15,8 +16,7 @@ use objc2::{
 use super::cursor::{default_cursor, invisible_cursor};
 use super::{
     appkit::{
-        NSApp, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag,
-        NSView,
+        NSApp, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag, NSView,
     },
     event::{code_to_key, code_to_location},
 };

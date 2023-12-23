@@ -1,4 +1,4 @@
-use icrate::AppKit::{NSBitmapImageRep, NSDeviceRGBColorSpace, NSImage};
+use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use icrate::Foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
     NSString,
@@ -10,7 +10,6 @@ use once_cell::sync::Lazy;
 use std::ffi::c_uchar;
 use std::slice;
 
-use super::appkit::NSCursor;
 use super::EventLoopWindowTarget;
 use crate::cursor::CursorImage;
 use crate::cursor::OnlyCursorImageBuilder;
@@ -18,6 +17,11 @@ use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Id<NSCursor>);
+
+// SAFETY: NSCursor is immutable and thread-safe
+// TODO(madsmtm): Put this logic in icrate itself
+unsafe impl Send for CustomCursor {}
+unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
     pub(crate) fn build<T>(
@@ -57,7 +61,7 @@ pub(crate) fn cursor_from_image(cursor: &CursorImage) -> Id<NSCursor> {
 
     let hotspot = NSPoint::new(cursor.hotspot_x as f64, cursor.hotspot_y as f64);
 
-    NSCursor::new(&image, hotspot)
+    NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot)
 }
 
 pub(crate) fn default_cursor() -> Id<NSCursor> {
@@ -149,7 +153,7 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
     }
 
     let hotspot = NSPoint::new(x, y);
-    NSCursor::new(&image, hotspot)
+    NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, hotspot)
 }
 
 fn webkit_move() -> Id<NSCursor> {
@@ -171,19 +175,16 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
         0xA3, 0x9C, 0xB4, 0xDA, 0x8B, 0xB3, 0x3E, 0x05, 0x00, 0x3B,
     ];
 
-    struct Wrapper(Id<NSCursor>);
-
-    // SAFETY: NSCursor is immutable and thread-safe
-    // TODO(madsmtm): Put this logic in icrate itself
-    unsafe impl Send for Wrapper {}
-    unsafe impl Sync for Wrapper {}
-
-    static CURSOR: Lazy<Wrapper> = Lazy::new(|| {
+    static CURSOR: Lazy<CustomCursor> = Lazy::new(|| {
         // TODO: Consider using `dataWithBytesNoCopy:`
         let data = NSData::with_bytes(CURSOR_BYTES);
         let image = NSImage::initWithData(NSImage::alloc(), &data).unwrap();
         let hotspot = NSPoint::new(0.0, 0.0);
-        Wrapper(NSCursor::new(&image, hotspot))
+        CustomCursor(NSCursor::initWithImage_hotSpot(
+            NSCursor::alloc(),
+            &image,
+            hotspot,
+        ))
     });
 
     CURSOR.0.clone()

@@ -2,12 +2,13 @@ use std::ffi::c_void;
 use std::num::NonZeroIsize;
 use std::ptr;
 
+use icrate::AppKit::NSCursor;
 use icrate::Foundation::{NSObject, NSPoint, NSRect};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{extern_class, extern_methods, mutability, ClassType};
 
-use super::{NSCursor, NSResponder, NSTextInputContext, NSWindow};
+use super::{NSResponder, NSTextInputContext, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -83,7 +84,6 @@ extern_methods!(
         }
 
         #[method(addCursorRect:cursor:)]
-        // NSCursor safe to take by shared reference since it is already immutable
         pub fn addCursorRect(&self, rect: NSRect, cursor: &NSCursor);
 
         #[method(setHidden:)]
