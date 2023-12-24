@@ -152,7 +152,7 @@ impl Window {
         window_state.set_resizable(attributes.resizable);
 
         // Set startup mode.
-        match attributes.fullscreen.0.map(Into::into) {
+        match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             }

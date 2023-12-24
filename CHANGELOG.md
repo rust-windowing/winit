@@ -24,6 +24,7 @@ Unreleased` header.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
+- **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 
 # 0.29.6
 

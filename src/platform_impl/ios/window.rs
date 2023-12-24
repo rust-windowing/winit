@@ -367,15 +367,6 @@ impl Inner {
         rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 
-    #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::UiKit(
-            rwh_06::UiKitDisplayHandle::new(),
-        ))
-    }
-
     pub fn theme(&self) -> Option<Theme> {
         warn!("`Window::theme` is ignored on iOS");
         None
@@ -424,7 +415,7 @@ impl Window {
         // TODO: transparency, visible
 
         let main_screen = UIScreen::main(mtm);
-        let fullscreen = window_attributes.fullscreen.0.clone().map(Into::into);
+        let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
@@ -531,6 +522,16 @@ impl Window {
         } else {
             Err(rwh_06::HandleError::Unavailable)
         }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::UiKit(
+            rwh_06::UiKitDisplayHandle::new(),
+        ))
     }
 }
 

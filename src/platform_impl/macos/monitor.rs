@@ -1,6 +1,10 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{collections::VecDeque, fmt};
+use std::{
+    collections::VecDeque,
+    fmt,
+    sync::{Arc, Mutex},
+};
 
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
@@ -23,7 +27,7 @@ pub struct VideoMode {
     bit_depth: u16,
     refresh_rate_millihertz: u32,
     pub(crate) monitor: MonitorHandle,
-    pub(crate) native_mode: NativeDisplayMode,
+    pub(crate) native_mode: Arc<Mutex<NativeDisplayMode>>,
 }
 
 impl PartialEq for VideoMode {
@@ -290,7 +294,7 @@ impl MonitorHandle {
                     refresh_rate_millihertz,
                     bit_depth,
                     monitor: monitor.clone(),
-                    native_mode: NativeDisplayMode(mode),
+                    native_mode: Arc::new(Mutex::new(NativeDisplayMode(mode))),
                 }
             })
         }
