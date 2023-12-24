@@ -31,7 +31,7 @@ use crate::{
         scancode::PhysicalKeyExtScancode,
     },
     window::{
-        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
+        ActivationToken, Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme,
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -422,13 +422,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        x11_or_wayland!(match self; Window(w) => w.set_custom_cursor(cursor))
+    pub fn set_cursor(&self, cursor: Cursor) {
+        x11_or_wayland!(match self; Window(w) => w.set_cursor(cursor))
     }
 
     #[inline]

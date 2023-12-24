@@ -12,7 +12,8 @@ Unreleased` header.
 # Unreleased
 
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
-  - Add `Window::set_custom_cursor`
+  - **Breaking:** Remove `Window::set_cursor_icon`
+  - Add `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
   - Add `CustomCursor`
   - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
   - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.

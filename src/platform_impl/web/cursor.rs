@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    cursor::{BadImage, CursorImage},
+    cursor::{BadImage, Cursor, CursorImage},
     platform_impl::platform::r#async,
 };
 use cursor_icon::CursorIcon;
@@ -141,35 +141,34 @@ impl CursorState {
         })))
     }
 
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+    pub fn set_cursor(&self, cursor: Cursor) {
         let mut this = self.0.borrow_mut();
 
-        if let SelectedCursor::ImageLoading { state, .. } = &this.cursor {
-            if let ImageState::Loading(state) = state.get().borrow_mut().deref_mut() {
-                state.take();
-            }
-        }
+        match cursor {
+            Cursor::Icon(icon) => {
+                if let SelectedCursor::ImageLoading { state, .. } = &this.cursor {
+                    if let ImageState::Loading(state) = state.get().borrow_mut().deref_mut() {
+                        state.take();
+                    }
+                }
 
-        this.cursor = SelectedCursor::Named(cursor);
-        this.set_style();
-    }
-
-    pub(crate) fn set_custom_cursor(&self, cursor: CustomCursor) {
-        let mut this = self.0.borrow_mut();
-
-        match cursor.0.get().borrow_mut().deref_mut() {
-            ImageState::Loading(state) => {
-                this.cursor = SelectedCursor::ImageLoading {
-                    state: cursor.0.clone(),
-                    previous: mem::take(&mut this.cursor).into(),
-                };
-                *state = Some(Rc::downgrade(&self.0));
-            }
-            ImageState::Failed => log::error!("tried to load invalid cursor"),
-            ImageState::Ready(image) => {
-                this.cursor = SelectedCursor::ImageReady(image.clone());
+                this.cursor = SelectedCursor::Named(icon);
                 this.set_style();
             }
+            Cursor::Custom(cursor) => match cursor.inner.0.get().borrow_mut().deref_mut() {
+                ImageState::Loading(state) => {
+                    this.cursor = SelectedCursor::ImageLoading {
+                        state: cursor.inner.0.clone(),
+                        previous: mem::take(&mut this.cursor).into(),
+                    };
+                    *state = Some(Rc::downgrade(&self.0));
+                }
+                ImageState::Failed => log::error!("tried to load invalid cursor"),
+                ImageState::Ready(image) => {
+                    this.cursor = SelectedCursor::ImageReady(image.clone());
+                    this.set_style();
+                }
+            },
         }
     }
 

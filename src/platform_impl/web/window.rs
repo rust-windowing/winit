@@ -2,14 +2,13 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 use crate::SendSyncWrapper;
 
 use super::cursor::CursorState;
 use super::r#async::Dispatcher;
-use super::PlatformCustomCursor;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
 
@@ -212,13 +211,8 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.cursor.set_cursor_icon(cursor)
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        self.cursor.set_custom_cursor(cursor)
+    pub fn set_cursor(&self, cursor: Cursor) {
+        self.cursor.set_cursor(cursor)
     }
 
     #[inline]
