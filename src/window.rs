@@ -17,6 +17,7 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
 /// Represents a window.
 ///
+/// The window is closed when dropped.
 ///
 /// # Threading
 ///
@@ -27,7 +28,6 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 /// interactions on the main thread, so on those platforms, if you use the
 /// window from a thread other than the main, the code is scheduled to run on
 /// the main thread, and your thread may be blocked until that completes.
-///
 ///
 /// # Example
 ///
@@ -52,6 +52,11 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 ///     }
 /// });
 /// ```
+///
+/// ## Platform-specific
+///
+/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Window`].
 pub struct Window {
     pub(crate) window: platform_impl::Window,
 }
@@ -63,6 +68,9 @@ impl fmt::Debug for Window {
 }
 
 impl Drop for Window {
+    /// This will close the [`Window`].
+    ///
+    /// See [`Window`] for more details.
     fn drop(&mut self) {
         self.window.maybe_wait_on_main(|w| {
             // If the window is in exclusive fullscreen, we must restore the desktop
