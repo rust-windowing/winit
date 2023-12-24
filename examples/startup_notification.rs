@@ -31,7 +31,7 @@ mod example {
         let mut counter = 0;
         let mut create_first_window = false;
 
-        event_loop.run(move |event, elwt| {
+        event_loop.run(move |event, event_loop| {
             match event {
                 Event::Resumed => create_first_window = true,
 
@@ -60,7 +60,7 @@ mod example {
                         // Remove the window from the map.
                         windows.remove(&window_id);
                         if windows.is_empty() {
-                            elwt.exit();
+                            event_loop.exit();
                             return;
                         }
                     }
@@ -92,7 +92,7 @@ mod example {
                         builder = builder.with_activation_token(token);
                     }
 
-                    Rc::new(builder.build(elwt).unwrap())
+                    Rc::new(builder.build(event_loop).unwrap())
                 };
 
                 // Add the window to the map.

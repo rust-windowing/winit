@@ -22,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut close_requested = false;
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => {
@@ -64,7 +64,7 @@ fn main() -> Result<(), impl std::error::Error> {
                                 // event loop (i.e. if it's a multi-window application), you need to
                                 // drop the window. That closes it, and results in `Destroyed` being
                                 // sent.
-                                elwt.exit();
+                                event_loop.exit();
                             }
                         }
                         Key::Character("n") => {

@@ -33,14 +33,14 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         println!("{event:?}");
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => elwt.exit(),
+            } => event_loop.exit(),
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..

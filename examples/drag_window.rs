@@ -22,12 +22,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut entered_id = window_2.id();
     let mut cursor_location = None;
 
-    event_loop.run(move |event, elwt| match event {
+    event_loop.run(move |event, event_loop| match event {
         Event::NewEvents(StartCause::Init) => {
             eprintln!("Switch which window is to be dragged by pressing \"x\".")
         }
         Event::WindowEvent { event, window_id } => match event {
-            WindowEvent::CloseRequested => elwt.exit(),
+            WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => cursor_location = Some(position),
             WindowEvent::MouseInput { state, button, .. } => {
                 let window = if (window_id == window_1.id() && switched)

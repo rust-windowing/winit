@@ -30,7 +30,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {
@@ -40,7 +40,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     windows.remove(&window_id);
 
                     if windows.is_empty() {
-                        elwt.exit();
+                        event_loop.exit();
                     }
                 }
                 WindowEvent::Resized(_) => {
@@ -62,7 +62,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         let tabbing_id = windows.get(&window_id).unwrap().tabbing_identifier();
                         let window = WindowBuilder::new()
                             .with_tabbing_identifier(&tabbing_id)
-                            .build(elwt)
+                            .build(event_loop)
                             .unwrap();
                         println!("Added a new tab: {:?}", window.id());
                         windows.insert(window.id(), window);

@@ -78,14 +78,14 @@
 //! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
 //! event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//! event_loop.run(move |event, elwt| {
+//! event_loop.run(move |event, event_loop| {
 //!     match event {
 //!         Event::WindowEvent {
 //!             event: WindowEvent::CloseRequested,
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             elwt.exit();
+//!             event_loop.exit();
 //!         },
 //!         Event::AboutToWait => {
 //!             // Application update code.

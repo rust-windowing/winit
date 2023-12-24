@@ -22,9 +22,9 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut modifiers = ModifiersState::default();
 
-    event_loop.run(move |event, elwt| match event {
+    event_loop.run(move |event, event_loop| match event {
         Event::WindowEvent { event, .. } => match event {
-            WindowEvent::CloseRequested => elwt.exit(),
+            WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
             } => {
                 let result = match key {
                     Key::Named(NamedKey::Escape) => {
-                        elwt.exit();
+                        event_loop.exit();
                         Ok(())
                     }
                     Key::Character(ch) => match ch.to_lowercase().as_str() {

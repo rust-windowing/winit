@@ -40,12 +40,12 @@ fn main() -> Result<(), impl std::error::Error> {
         }
     });
 
-    event_loop.run(move |event, elwt| match event {
+    event_loop.run(move |event, event_loop| match event {
         Event::UserEvent(event) => println!("user event: {event:?}"),
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             ..
-        } => elwt.exit(),
+        } => event_loop.exit(),
         Event::WindowEvent {
             event: WindowEvent::RedrawRequested,
             ..

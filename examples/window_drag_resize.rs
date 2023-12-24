@@ -27,12 +27,12 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut border = false;
     let mut cursor_location = None;
 
-    event_loop.run(move |event, elwt| match event {
+    event_loop.run(move |event, event_loop| match event {
         Event::NewEvents(StartCause::Init) => {
             eprintln!("Press 'B' to toggle borderless")
         }
         Event::WindowEvent { event, .. } => match event {
-            WindowEvent::CloseRequested => elwt.exit(),
+            WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => {
                 if !window.is_decorated() {
                     let new_location =
