@@ -36,7 +36,7 @@ use crate::{
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
-pub(super) struct EventProcessor<T: 'static> {
+pub(super) struct EventProcessor {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
     pub(super) ime_event_receiver: ImeEventReceiver,
@@ -44,7 +44,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: ExtensionInformation,
     pub(super) xkbext: ExtensionInformation,
-    pub(super) target: Rc<RootELW<T>>,
+    pub(super) target: Rc<RootELW>,
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
@@ -59,7 +59,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) is_composing: bool,
 }
 
-impl<T: 'static> EventProcessor<T> {
+impl EventProcessor {
     pub(super) fn init_device(&self, device: xinput::DeviceId) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
@@ -134,7 +134,7 @@ impl<T: 'static> EventProcessor<T> {
         result != 0
     }
 
-    pub(super) fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
+    pub(super) fn process_event<T: 'static, F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
         F: FnMut(Event<T>),
     {
@@ -1377,8 +1377,8 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn handle_pressed_keys<F>(
-        wt: &super::EventLoopWindowTarget<T>,
+    fn handle_pressed_keys<T: 'static, F>(
+        wt: &super::EventLoopWindowTarget,
         window_id: crate::window::WindowId,
         state: ElementState,
         kb_state: &mut KbdState,
@@ -1408,7 +1408,7 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn process_dpi_change<F>(&self, callback: &mut F)
+    fn process_dpi_change<T: 'static, F>(&self, callback: &mut F)
     where
         F: FnMut(Event<T>),
     {

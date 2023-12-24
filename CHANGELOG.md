@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - Add `Window::set_custom_cursor`
   - Add `CustomCursor`

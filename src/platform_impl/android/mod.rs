@@ -138,7 +138,7 @@ pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
     android_app: AndroidApp,
-    window_target: event_loop::EventLoopWindowTarget<T>,
+    window_target: event_loop::EventLoopWindowTarget,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
@@ -185,9 +185,7 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
-                    _marker: std::marker::PhantomData,
                 },
-                _marker: std::marker::PhantomData,
             },
             redraw_flag,
             user_events_sender,
@@ -203,7 +201,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         trace!("Mainloop iteration");
 
@@ -375,7 +373,7 @@ impl<T: 'static> EventLoop<T> {
         callback: &mut F,
     ) -> InputStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         let mut input_status = InputStatus::Handled;
         match event {
@@ -480,14 +478,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -510,7 +508,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -543,7 +541,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         let start = Instant::now();
 
@@ -619,7 +617,7 @@ impl<T: 'static> EventLoop<T> {
         });
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
         &self.window_target
     }
 
@@ -663,15 +661,14 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     app: AndroidApp,
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
     }
@@ -757,8 +754,8 @@ pub(crate) struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        el: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        el: &EventLoopWindowTarget,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {

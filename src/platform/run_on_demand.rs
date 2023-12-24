@@ -66,7 +66,7 @@ pub trait EventLoopExtRunOnDemand {
     /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
@@ -74,7 +74,7 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
 
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
     {
         self.event_loop.run_on_demand(event_handler)
     }

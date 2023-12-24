@@ -87,7 +87,7 @@ pub struct CustomCursorBuilder {
 }
 
 impl CustomCursorBuilder {
-    pub fn build<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
+    pub fn build(self, window_target: &EventLoopWindowTarget) -> CustomCursor {
         CustomCursor {
             inner: PlatformCustomCursor::build(self.inner, &window_target.p),
         }
@@ -189,10 +189,7 @@ impl Eq for OnlyCursorImage {}
 
 #[allow(dead_code)]
 impl OnlyCursorImage {
-    fn build<T>(
-        builder: OnlyCursorImageBuilder,
-        _: &platform_impl::EventLoopWindowTarget<T>,
-    ) -> Self {
+    fn build(builder: OnlyCursorImageBuilder, _: &platform_impl::EventLoopWindowTarget) -> Self {
         Self(Arc::new(builder.0))
     }
 }
@@ -272,7 +269,7 @@ impl NoCustomCursor {
         Ok(Self)
     }
 
-    fn build<T>(self, _: &platform_impl::EventLoopWindowTarget<T>) -> NoCustomCursor {
+    fn build(self, _: &platform_impl::EventLoopWindowTarget) -> NoCustomCursor {
         self
     }
 }

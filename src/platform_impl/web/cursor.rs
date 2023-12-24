@@ -68,9 +68,9 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build<T>(
+    pub(crate) fn build(
         builder: CustomCursorBuilder,
-        window_target: &EventLoopWindowTarget<T>,
+        window_target: &EventLoopWindowTarget,
     ) -> Self {
         Lazy::force(&DROP_HANDLER);
 

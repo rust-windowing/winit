@@ -2,7 +2,6 @@ use std::{
     any::Any,
     cell::{Cell, RefCell},
     collections::VecDeque,
-    marker::PhantomData,
     mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe, RefUnwindSafe, UnwindSafe},
@@ -74,12 +73,11 @@ impl PanicInfo {
 }
 
 #[derive(Debug)]
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     mtm: MainThreadMarker,
-    p: PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
@@ -127,7 +125,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub(crate) fn hide_application(&self) {
         NSApplication::sharedApplication(self.mtm).hide(None)
     }
@@ -159,7 +157,7 @@ pub struct EventLoop<T: 'static> {
     sender: mpsc::Sender<T>,
     receiver: Rc<mpsc::Receiver<T>>,
 
-    window_target: Rc<RootWindowTarget<T>>,
+    window_target: Rc<RootWindowTarget>,
     panic_info: Rc<PanicInfo>,
 
     /// We make sure that the callback closure is dropped during a panic
@@ -228,24 +226,20 @@ impl<T> EventLoop<T> {
             sender,
             receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget {
-                    mtm,
-                    p: PhantomData,
-                },
-                _marker: PhantomData,
+                p: EventLoopWindowTarget { mtm },
             }),
             panic_info,
             _callback: None,
         })
     }
 
-    pub fn window_target(&self) -> &RootWindowTarget<T> {
+    pub fn window_target(&self) -> &RootWindowTarget {
         &self.window_target
     }
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>),
+        F: FnMut(Event<T>, &RootWindowTarget),
     {
         self.run_on_demand(callback)
     }
@@ -256,7 +250,7 @@ impl<T> EventLoop<T> {
     // redundant wake ups.
     pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>),
+        F: FnMut(Event<T>, &RootWindowTarget),
     {
         if AppState::is_running() {
             return Err(EventLoopError::AlreadyRunning);
@@ -273,8 +267,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -340,7 +334,7 @@ impl<T> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>),
+        F: FnMut(Event<T>, &RootWindowTarget),
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
@@ -353,8 +347,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget<T>)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 

@@ -2,7 +2,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::io::Result as IOResult;
-use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::rc::Rc;
@@ -63,7 +62,7 @@ pub struct EventLoop<T: 'static> {
     connection: Connection,
 
     /// Event loop window target.
-    window_target: RootEventLoopWindowTarget<T>,
+    window_target: RootEventLoopWindowTarget,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -167,7 +166,6 @@ impl<T: 'static> EventLoop<T> {
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             state: RefCell::new(winit_state),
-            _marker: PhantomData,
         };
 
         let event_loop = Self {
@@ -182,7 +180,6 @@ impl<T: 'static> EventLoop<T> {
             event_loop,
             window_target: RootEventLoopWindowTarget {
                 p: PlatformEventLoopWindowTarget::Wayland(window_target),
-                _marker: PhantomData,
             },
         };
 
@@ -191,7 +188,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -222,7 +219,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -249,7 +246,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         let cause = loop {
             let start = Instant::now();
@@ -325,7 +322,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         // NOTE currently just indented to simplify the diff
 
@@ -530,7 +527,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
         &self.window_target
     }
 
@@ -602,7 +599,7 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-pub struct EventLoopWindowTarget<T> {
+pub struct EventLoopWindowTarget {
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
 
@@ -624,11 +621,9 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Connection to the wayland server.
     pub connection: Connection,
-
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 

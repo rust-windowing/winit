@@ -136,7 +136,7 @@ pub trait EventLoopExtWebSys {
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -144,7 +144,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
     {
         self.event_loop.spawn(event_handler)
     }
@@ -166,7 +166,7 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.p.set_poll_strategy(strategy);

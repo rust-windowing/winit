@@ -55,7 +55,7 @@ pub trait WindowBuilderExtStartupNotify {
     fn with_activation_token(self, token: ActivationToken) -> Self;
 }
 
-impl<T> EventLoopExtStartupNotify for EventLoopWindowTarget<T> {
+impl EventLoopExtStartupNotify for EventLoopWindowTarget {
     fn read_token_from_env(&self) -> Option<ActivationToken> {
         match self.p {
             #[cfg(wayland_platform)]

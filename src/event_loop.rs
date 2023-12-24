@@ -48,9 +48,8 @@ pub struct EventLoop<T: 'static> {
 /// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
-pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
-    pub(crate) _marker: PhantomData<*mut T>, // Not Send nor Sync + invariant over T
+pub struct EventLoopWindowTarget {
+    pub(crate) p: platform_impl::EventLoopWindowTarget,
 }
 
 /// Object that allows building the event loop.
@@ -142,7 +141,7 @@ impl<T> fmt::Debug for EventLoop<T> {
     }
 }
 
-impl<T> fmt::Debug for EventLoopWindowTarget<T> {
+impl fmt::Debug for EventLoopWindowTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("EventLoopWindowTarget { .. }")
     }
@@ -244,7 +243,7 @@ impl<T> EventLoop<T> {
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         self.event_loop.run(event_handler)
     }
@@ -301,13 +300,13 @@ impl<T> AsRawFd for EventLoop<T> {
 }
 
 impl<T> Deref for EventLoop<T> {
-    type Target = EventLoopWindowTarget<T>;
-    fn deref(&self) -> &EventLoopWindowTarget<T> {
+    type Target = EventLoopWindowTarget;
+    fn deref(&self) -> &EventLoopWindowTarget {
         self.event_loop.window_target()
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
@@ -373,7 +372,7 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 #[cfg(feature = "rwh_06")]
-impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
+impl rwh_06::HasDisplayHandle for EventLoopWindowTarget {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.p.raw_display_handle_rwh_06()?;
         // SAFETY: The display will never be deallocated while the event loop is alive.
@@ -382,7 +381,7 @@ impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
 }
 
 #[cfg(feature = "rwh_05")]
-unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
+unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.p.raw_display_handle_rwh_05()

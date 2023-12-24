@@ -1,7 +1,6 @@
 use std::{
     cell::Cell,
     collections::VecDeque,
-    marker::PhantomData,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
     time::Instant,
@@ -271,9 +270,9 @@ impl EventState {
     }
 }
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop<T> {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::EventLoopWindowTarget<T>,
+    window_target: event_loop::EventLoopWindowTarget,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
 }
@@ -314,9 +313,7 @@ impl<T: 'static> EventLoop<T> {
                     destroys: Arc::new(Mutex::new(VecDeque::new())),
                     event_socket,
                     wake_socket,
-                    p: PhantomData,
                 },
-                _marker: PhantomData,
             },
             user_events_sender,
             user_events_receiver,
@@ -466,10 +463,10 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget<T>| {
+            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget| {
                 event_handler_inner(event, window_target);
             };
 
@@ -676,7 +673,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
         &self.window_target
     }
 
@@ -716,7 +713,7 @@ impl<T> Clone for EventLoopProxy<T> {
 
 impl<T> Unpin for EventLoopProxy<T> {}
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
@@ -724,10 +721,9 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
-    p: PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }

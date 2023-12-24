@@ -94,8 +94,8 @@ pub(crate) struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
@@ -1069,9 +1069,9 @@ impl Drop for Window {
     }
 }
 
-pub(super) struct InitData<'a, T: 'static> {
+pub(super) struct InitData<'a> {
     // inputs
-    pub event_loop: &'a EventLoopWindowTarget<T>,
+    pub event_loop: &'a EventLoopWindowTarget,
     pub attributes: WindowAttributes,
     pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
     pub window_flags: WindowFlags,
@@ -1079,7 +1079,7 @@ pub(super) struct InitData<'a, T: 'static> {
     pub window: Option<Window>,
 }
 
-impl<'a, T: 'static> InitData<'a, T> {
+impl<'a> InitData<'a> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
@@ -1262,18 +1262,15 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
     }
 }
-unsafe fn init<T>(
+unsafe fn init(
     attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError>
-where
-    T: 'static,
-{
+    event_loop: &EventLoopWindowTarget,
+) -> Result<Window, RootOsError> {
     let title = util::encode_wide(&attributes.title);
 
     let class_name = util::encode_wide(&pl_attribs.class_name);
-    unsafe { register_window_class::<T>(&class_name) };
+    unsafe { register_window_class(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
@@ -1368,11 +1365,11 @@ where
     Ok(initdata.window.unwrap())
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
+unsafe fn register_window_class(class_name: &[u16]) {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
+        lpfnWndProc: Some(super::event_loop::public_window_callback),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
