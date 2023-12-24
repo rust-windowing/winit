@@ -284,22 +284,16 @@ impl XConnection {
 
     pub fn available_monitors(&self) -> Result<Vec<MonitorHandle>, X11Error> {
         let mut monitors_lock = self.monitor_handles.lock().unwrap();
-        (*monitors_lock)
-            .as_ref()
-            .cloned()
-            .map(Ok)
-            .or_else(|| {
-                self.query_monitor_list()
-                    .map(|mon_list| {
-                        let monitors = Some(mon_list);
-                        if !DISABLE_MONITOR_LIST_CACHING {
-                            (*monitors_lock) = monitors.clone();
-                        }
-                        monitors
-                    })
-                    .transpose()
-            })
-            .unwrap()
+        match *monitors_lock {
+            Some(ref monitors) => Ok(monitors.clone()),
+            None => {
+                let monitors = self.query_monitor_list()?;
+                if !DISABLE_MONITOR_LIST_CACHING {
+                    *monitors_lock = Some(monitors.clone());
+                }
+                Ok(monitors)
+            }
+        }
     }
 
     #[inline]
