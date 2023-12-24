@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.6
+
 - On Web, fix context menu not being disabled by `with_prevent_default(true)`.
 - On Wayland, fix `WindowEvent::Destroyed` not being delivered after destroying window.
 - Fix `EventLoopExtRunOnDemand::run_on_demand` not working for consequent invocation
