@@ -19,12 +19,12 @@ use once_cell::sync::Lazy;
 
 use super::{
     event::dummy_event, event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never,
-    window::WinitWindow,
+    window::WinitWindow, EventLoopWindowTarget,
 };
 use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::ControlFlow,
     window::WindowId,
 };
 
@@ -45,18 +45,21 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self);
 }
 
-pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>;
+pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
-    window_target: Rc<RootWindowTarget>,
+    window_target: Rc<EventLoopWindowTarget>,
     receiver: Rc<mpsc::Receiver<T>>,
 }
 
 impl<T> EventLoopHandler<T> {
     fn with_callback<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget)>),
+        F: FnOnce(
+            &mut EventLoopHandler<T>,
+            RefMut<'_, dyn FnMut(Event<T>, &EventLoopWindowTarget)>,
+        ),
     {
         // `NSApplication` and our `HANDLER` are global state and so it's possible
         // that we could get a delegate callback after the application has exit an
@@ -370,7 +373,7 @@ impl AppState {
     /// a call to `clear_callback` before returning to avoid undefined behaviour.
     pub unsafe fn set_callback<T>(
         callback: Weak<Callback<T>>,
-        window_target: Rc<RootWindowTarget>,
+        window_target: Rc<EventLoopWindowTarget>,
         receiver: Rc<mpsc::Receiver<T>>,
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {

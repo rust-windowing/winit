@@ -2,7 +2,6 @@ use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
 
 use super::{backend, device, window};
 
@@ -14,8 +13,10 @@ mod window_target;
 pub use proxy::EventLoopProxy;
 pub use window_target::EventLoopWindowTarget;
 
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
+
 pub struct EventLoop<T: 'static> {
-    elw: RootEventLoopWindowTarget,
+    elw: EventLoopWindowTarget,
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
 }
@@ -26,9 +27,7 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 impl<T> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let (user_event_sender, user_event_receiver) = mpsc::channel();
-        let elw = RootEventLoopWindowTarget {
-            p: EventLoopWindowTarget::new(),
-        };
+        let elw = EventLoopWindowTarget::new();
         Ok(EventLoop {
             elw,
             user_event_sender,
@@ -38,11 +37,9 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
-        let target = RootEventLoopWindowTarget {
-            p: self.elw.p.clone(),
-        };
+        let target = self.elw.clone();
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
         let handler: Box<dyn FnMut(Event<()>)> = Box::new(|event| {
@@ -61,7 +58,7 @@ impl<T> EventLoop<T> {
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
         let handler = unsafe { std::mem::transmute(handler) };
-        self.elw.p.run(handler, false);
+        self.elw.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -74,13 +71,11 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: 'static + FnMut(Event<T>, &EventLoopWindowTarget),
     {
-        let target = RootEventLoopWindowTarget {
-            p: self.elw.p.clone(),
-        };
+        let target = self.elw.clone();
 
-        self.elw.p.run(
+        self.elw.run(
             Box::new(move |event| {
                 let event = match event.map_nonuser_event() {
                     Ok(event) => event,
@@ -98,10 +93,10 @@ impl<T> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
+        EventLoopProxy::new(self.elw.waker(), self.user_event_sender.clone())
     }
 
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         &self.elw
     }
 }

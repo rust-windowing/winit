@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     event::Event,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop},
 };
 
 /// The return status for `pump_events`
@@ -174,16 +174,18 @@ pub trait EventLoopExtPumpEvents {
     ///   callback.
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>);
 }
 
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
     type UserEvent = T;
 
-    fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
+    fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>),
     {
-        self.event_loop.pump_events(timeout, event_handler)
+        self.event_loop.pump_events(timeout, move |event, inner| {
+            event_handler(event, ActiveEventLoop { inner })
+        })
     }
 }

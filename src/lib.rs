@@ -132,7 +132,7 @@
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [`EventLoop::run()`]: event_loop::EventLoop::run
-//! [`exit()`]: event_loop::EventLoopWindowTarget::exit
+//! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowBuilder`]: window::WindowBuilder

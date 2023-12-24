@@ -8,7 +8,8 @@ use windows_sys::Win32::{
 
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        ActiveEventLoop, EventLoop, EventLoopProxy, EventLoopWindowTarget,
+        PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
     monitor::{MonitorHandle, VideoMode},

@@ -73,7 +73,7 @@ use crate::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed},
     keyboard::ModifiersState,
     platform::pump_events::PumpStatus,
     platform_impl::platform::{
@@ -157,7 +157,7 @@ pub(crate) enum ProcResult {
 pub struct EventLoop<T: 'static> {
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
-    window_target: RootELW,
+    window_target: EventLoopWindowTarget,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -176,6 +176,8 @@ impl Default for PlatformSpecificEventLoopAttributes {
         }
     }
 }
+
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
 
 pub struct EventLoopWindowTarget {
     thread_id: u32,
@@ -216,34 +218,32 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop {
             user_event_sender,
             user_event_receiver,
-            window_target: RootELW {
-                p: EventLoopWindowTarget {
-                    thread_id,
-                    thread_msg_target,
-                    runner_shared,
-                },
+            window_target: EventLoopWindowTarget {
+                thread_id,
+                thread_msg_target,
+                runner_shared,
             },
             msg_hook: attributes.msg_hook.take(),
         })
     }
 
-    pub fn window_target(&self) -> &RootELW {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         &self.window_target
     }
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         {
-            let runner = &self.window_target.p.runner_shared;
+            let runner = &self.window_target.runner_shared;
             if runner.state() != RunnerState::Uninitialized {
                 return Err(EventLoopError::AlreadyRunning);
             }
@@ -288,7 +288,7 @@ impl<T: 'static> EventLoop<T> {
             }
         };
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
         runner.loop_destroyed();
 
         // # Safety
@@ -305,10 +305,10 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         {
-            let runner = &self.window_target.p.runner_shared;
+            let runner = &self.window_target.runner_shared;
             let event_loop_windows_ref = &self.window_target;
             let user_event_receiver = &self.user_event_receiver;
 
@@ -341,7 +341,7 @@ impl<T: 'static> EventLoop<T> {
             self.dispatch_peeked_messages();
         }
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         let status = if let Some(code) = runner.exit_code() {
             runner.loop_destroyed();
@@ -403,7 +403,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         // We aim to be consistent with the MacOS backend which has a RunLoop
         // observer that will dispatch AboutToWait when about to wait for
@@ -465,7 +465,7 @@ impl<T: 'static> EventLoop<T> {
 
     /// Dispatch all queued messages via `PeekMessageW`
     fn dispatch_peeked_messages(&mut self) {
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &self.window_target.runner_shared;
 
         // We generally want to continue dispatching all pending messages
         // but we also allow dispatching to be interrupted as a means to
@@ -515,13 +515,13 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            target_window: self.window_target.p.thread_msg_target,
+            target_window: self.window_target.thread_msg_target,
             event_send: self.user_event_sender.clone(),
         }
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target.p.exit_code()
+        self.window_target.exit_code()
     }
 }
 
@@ -665,7 +665,7 @@ fn dur2timeout(dur: Duration) -> u32 {
 impl<T> Drop for EventLoop<T> {
     fn drop(&mut self) {
         unsafe {
-            DestroyWindow(self.window_target.p.thread_msg_target);
+            DestroyWindow(self.window_target.thread_msg_target);
         }
     }
 }

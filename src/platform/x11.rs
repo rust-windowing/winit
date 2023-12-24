@@ -1,5 +1,5 @@
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -42,16 +42,29 @@ pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     }
 }
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to X11.
-pub trait EventLoopWindowTargetExtX11 {
-    /// True if the [`EventLoopWindowTarget`] uses X11.
+/// Additional methods on [`EventLoop`] that are specific to X11.
+pub trait EventLoopExtX11 {
+    /// True if the [`EventLoop`] uses X11.
     fn is_x11(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtX11 for EventLoopWindowTarget {
+impl<T> EventLoopExtX11 for EventLoop<T> {
     #[inline]
     fn is_x11(&self) -> bool {
-        !self.p.is_wayland()
+        !self.event_loop.window_target().is_wayland()
+    }
+}
+
+/// Additional methods on [`ActiveEventLoop`] that are specific to X11.
+pub trait ActiveEventLoopExtX11 {
+    /// True if the [`ActiveEventLoop`] uses X11.
+    fn is_x11(&self) -> bool;
+}
+
+impl ActiveEventLoopExtX11 for ActiveEventLoop<'_> {
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.inner.is_wayland()
     }
 }
 

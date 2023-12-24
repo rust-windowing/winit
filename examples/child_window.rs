@@ -16,14 +16,14 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyEvent, WindowEvent},
-        event_loop::{EventLoop, EventLoopWindowTarget},
+        event_loop::{ActiveEventLoop, EventLoop},
         raw_window_handle::HasRawWindowHandle,
         window::{Window, WindowBuilder, WindowId},
     };
 
     fn spawn_child_window(
         parent: &Window,
-        event_loop: &EventLoopWindowTarget,
+        event_loop: ActiveEventLoop<'_>,
         windows: &mut HashMap<WindowId, Window>,
     ) {
         let parent = parent.raw_window_handle().unwrap();

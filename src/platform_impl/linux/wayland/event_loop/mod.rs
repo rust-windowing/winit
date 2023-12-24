@@ -18,9 +18,7 @@ use sctk::reexports::client::{Connection, QueueHandle};
 use crate::dpi::{LogicalSize, PhysicalSize};
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{
-    ControlFlow, DeviceEvents, EventLoopWindowTarget as RootEventLoopWindowTarget,
-};
+use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
 use crate::platform_impl::{EventLoopWindowTarget as PlatformEventLoopWindowTarget, OsError};
@@ -62,7 +60,7 @@ pub struct EventLoop<T: 'static> {
     connection: Connection,
 
     /// Event loop window target.
-    window_target: RootEventLoopWindowTarget,
+    window_target: PlatformEventLoopWindowTarget,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -178,9 +176,7 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender,
             pending_user_events,
             event_loop,
-            window_target: RootEventLoopWindowTarget {
-                p: PlatformEventLoopWindowTarget::Wayland(window_target),
-            },
+            window_target: PlatformEventLoopWindowTarget::Wayland(window_target),
         };
 
         Ok(event_loop)
@@ -188,7 +184,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -219,7 +215,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -246,7 +242,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         let cause = loop {
             let start = Instant::now();
@@ -322,7 +318,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         // NOTE currently just indented to simplify the diff
 
@@ -527,12 +523,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
+    pub fn window_target(&self) -> &PlatformEventLoopWindowTarget {
         &self.window_target
     }
 
     fn with_state<'a, U: 'a, F: FnOnce(&'a mut WinitState) -> U>(&'a mut self, callback: F) -> U {
-        let state = match &mut self.window_target.p {
+        let state = match &mut self.window_target {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(x11_platform)]
             _ => unreachable!(),
@@ -542,7 +538,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let state = match &mut self.window_target.p {
+        let state = match &mut self.window_target {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
@@ -555,7 +551,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn roundtrip(&mut self) -> Result<usize, RootOsError> {
-        let state = match &mut self.window_target.p {
+        let state = match &mut self.window_target {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
@@ -571,19 +567,19 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.window_target.p.control_flow()
+        self.window_target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.window_target.p.exiting()
+        self.window_target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.window_target.p.set_exit_code(code)
+        self.window_target.set_exit_code(code)
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.window_target.p.exit_code()
+        self.window_target.exit_code()
     }
 }
 

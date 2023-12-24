@@ -1,7 +1,7 @@
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop},
 };
 
 #[cfg(doc)]
@@ -62,20 +62,21 @@ pub trait EventLoopExtRunOnDemand {
         doc = "[^1]: `spawn()` is only available on `wasm` platforms."
     )]
     ///
-    /// [`exit()`]: EventLoopWindowTarget::exit()
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
+    /// [`exit()`]: ActiveEventLoop::exit()
+    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>);
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
+    fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>),
     {
-        self.event_loop.run_on_demand(event_handler)
+        self.event_loop
+            .run_on_demand(move |event, inner| event_handler(event, ActiveEventLoop { inner }))
     }
 }

@@ -47,7 +47,7 @@ pub struct EventLoopWindowTarget {
 }
 
 impl EventLoopWindowTarget {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             runner: runner::Shared::new(),
             modifiers: ModifiersShared::default(),

@@ -4,7 +4,7 @@ use std::fmt;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
-    event_loop::EventLoopWindowTarget,
+    event_loop::MaybeActiveEventLoop,
     monitor::{MonitorHandle, VideoMode},
     platform_impl, SendSyncWrapper,
 };
@@ -506,9 +506,9 @@ impl WindowBuilder {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> Result<Window, OsError> {
+    pub fn build<'a>(self, event_loop: impl MaybeActiveEventLoop<'a>) -> Result<Window, OsError> {
         let window =
-            platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)?;
+            platform_impl::Window::new(event_loop.__inner(), self.window, self.platform_specific)?;
         window.maybe_queue_on_main(|w| w.request_redraw());
         Ok(Window { window })
     }
@@ -530,7 +530,7 @@ impl Window {
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
     #[inline]
-    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
+    pub fn new<'a>(event_loop: impl MaybeActiveEventLoop<'a>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
         builder.build(event_loop)
     }
@@ -1494,9 +1494,9 @@ impl Window {
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as [`EventLoopWindowTarget::available_monitors`], and is provided for convenience.
+    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for convenience.
     ///
-    /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
+    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.window.maybe_wait_on_main(|w| {
@@ -1510,13 +1510,13 @@ impl Window {
     ///
     /// Returns `None` if it can't identify any monitor as a primary one.
     ///
-    /// This is the same as [`EventLoopWindowTarget::primary_monitor`], and is provided for convenience.
+    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **Wayland / Web:** Always returns `None`.
     ///
-    /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
+    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.window

@@ -29,8 +29,7 @@
 
 use crate::cursor::CustomCursorBuilder;
 use crate::event::Event;
-use crate::event_loop::EventLoop;
-use crate::event_loop::EventLoopWindowTarget;
+use crate::event_loop::{ActiveEventLoop, EventLoop};
 use crate::platform_impl::PlatformCustomCursorBuilder;
 use crate::window::CustomCursor;
 use crate::window::{Window, WindowBuilder};
@@ -136,21 +135,22 @@ pub trait EventLoopExtWebSys {
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: 'static + FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn<F>(self, event_handler: F)
+    fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: 'static + FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>),
     {
-        self.event_loop.spawn(event_handler)
+        self.event_loop
+            .spawn(move |event, inner| event_handler(event, ActiveEventLoop { inner }))
     }
 }
 
-pub trait EventLoopWindowTargetExtWebSys {
+pub trait ActiveEventLoopExtWebSys {
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
@@ -166,15 +166,15 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
+impl ActiveEventLoopExtWebSys for ActiveEventLoop<'_> {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
-        self.p.set_poll_strategy(strategy);
+        self.inner.set_poll_strategy(strategy);
     }
 
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
-        self.p.poll_strategy()
+        self.inner.poll_strategy()
     }
 }
 

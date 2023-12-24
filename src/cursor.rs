@@ -3,7 +3,7 @@ use std::hash::Hasher;
 use std::sync::Arc;
 use std::{error::Error, hash::Hash};
 
-use crate::event_loop::EventLoopWindowTarget;
+use crate::event_loop::MaybeActiveEventLoop;
 use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
 
 /// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
@@ -87,9 +87,9 @@ pub struct CustomCursorBuilder {
 }
 
 impl CustomCursorBuilder {
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> CustomCursor {
+    pub fn build<'a>(self, event_loop: impl MaybeActiveEventLoop<'a>) -> CustomCursor {
         CustomCursor {
-            inner: PlatformCustomCursor::build(self.inner, &window_target.p),
+            inner: PlatformCustomCursor::build(self.inner, event_loop.__inner()),
         }
     }
 }

@@ -4,19 +4,18 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::EventLoop,
     keyboard::Key,
     window::{CustomCursor, WindowBuilder},
 };
 
-fn decode_cursor(bytes: &[u8], window_target: &EventLoopWindowTarget) -> CustomCursor {
+fn decode_cursor(bytes: &[u8], event_loop: &EventLoop<()>) -> CustomCursor {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
     let builder = CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap();
-
-    builder.build(window_target)
+    builder.build(event_loop)
 }
 
 #[cfg(not(wasm_platform))]

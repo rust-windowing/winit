@@ -69,10 +69,11 @@ use super::{common::xkb_state::KbdState, ControlFlow, OsError};
 use crate::{
     error::{EventLoopError, OsError as RootOsError},
     event::{Event, StartCause, WindowEvent},
-    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{DeviceEvents, EventLoopClosed},
     platform::pump_events::PumpStatus,
     platform_impl::{
         platform::{min_timeout, WindowId},
+        EventLoopWindowTarget as PlatformEventLoopWindowTarget,
         PlatformSpecificWindowBuilderAttributes,
     },
     window::WindowAttributes,
@@ -167,7 +168,7 @@ pub struct EventLoop<T: 'static> {
     user_receiver: PeekableReceiver<T>,
     activation_receiver: PeekableReceiver<ActivationToken>,
     user_sender: Sender<T>,
-    target: Rc<RootELW>,
+    target: Rc<PlatformEventLoopWindowTarget>,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -325,9 +326,7 @@ impl<T: 'static> EventLoop<T> {
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(window_target),
-        });
+        let target = Rc::new(PlatformEventLoopWindowTarget::X(window_target));
 
         let event_processor = EventProcessor {
             target: target.clone(),
@@ -392,13 +391,13 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub(crate) fn window_target(&self) -> &RootELW {
+    pub(crate) fn window_target(&self) -> &PlatformEventLoopWindowTarget {
         &self.target
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -432,7 +431,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -465,7 +464,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         let start = Instant::now();
 
@@ -543,7 +542,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         callback(crate::event::Event::NewEvents(cause), &self.target);
 
@@ -617,7 +616,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn drain_events<F>(&mut self, callback: &mut F)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &PlatformEventLoopWindowTarget),
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
@@ -640,19 +639,19 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.target.p.control_flow()
+        self.target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.target.p.exiting()
+        self.target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.target.p.set_exit_code(code)
+        self.target.set_exit_code(code)
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.target.p.exit_code()
+        self.target.exit_code()
     }
 }
 
@@ -668,8 +667,8 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-pub(crate) fn get_xtarget(target: &RootELW) -> &EventLoopWindowTarget {
-    match target.p {
+pub(crate) fn get_xtarget(target: &PlatformEventLoopWindowTarget) -> &EventLoopWindowTarget {
+    match target {
         super::EventLoopWindowTarget::X(ref target) => target,
         #[cfg(wayland_platform)]
         _ => unreachable!(),

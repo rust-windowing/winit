@@ -4,7 +4,7 @@ use icrate::Foundation::MainThreadMarker;
 use objc2::rc::Id;
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -372,8 +372,8 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 }
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to macOS.
-pub trait EventLoopWindowTargetExtMacOS {
+/// Additional methods on [`ActiveEventLoop`] that are specific to macOS.
+pub trait ActiveEventLoopExtMacOS {
     /// Hide the entire application. In most applications this is typically triggered with Command-H.
     fn hide_application(&self);
     /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
@@ -386,21 +386,21 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtMacOS for EventLoopWindowTarget {
+impl ActiveEventLoopExtMacOS for ActiveEventLoop<'_> {
     fn hide_application(&self) {
-        self.p.hide_application()
+        self.inner.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        self.p.hide_other_applications()
+        self.inner.hide_other_applications()
     }
 
     fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        self.p.set_allows_automatic_window_tabbing(enabled);
+        self.inner.set_allows_automatic_window_tabbing(enabled);
     }
 
     fn allows_automatic_window_tabbing(&self) -> bool {
-        self.p.allows_automatic_window_tabbing()
+        self.inner.allows_automatic_window_tabbing()
     }
 }
 

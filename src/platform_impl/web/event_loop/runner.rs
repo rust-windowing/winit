@@ -207,7 +207,7 @@ impl Shared {
 
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
-    // over a RootEventLoopWindowTarget reference
+    // over a EventLoopWindowTarget reference
     pub fn set_listener(&self, event_handler: Box<EventHandler>) {
         {
             let mut runner = self.0.runner.borrow_mut();

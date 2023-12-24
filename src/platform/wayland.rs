@@ -1,5 +1,5 @@
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -8,16 +8,29 @@ use crate::platform_impl::{ApplicationName, Backend};
 
 pub use crate::window::Theme;
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
-pub trait EventLoopWindowTargetExtWayland {
-    /// True if the [`EventLoopWindowTarget`] uses Wayland.
+/// Additional methods on [`EventLoop`] that are specific to Wayland.
+pub trait EventLoopExtWayland {
+    /// True if the [`EventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
+impl<T: 'static> EventLoopExtWayland for EventLoop<T> {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.p.is_wayland()
+        self.event_loop.window_target().is_wayland()
+    }
+}
+
+/// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
+pub trait ActiveEventLoopExtWayland {
+    /// True if the [`ActiveEventLoop`] uses Wayland.
+    fn is_wayland(&self) -> bool;
+}
+
+impl ActiveEventLoopExtWayland for ActiveEventLoop<'_> {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.inner.is_wayland()
     }
 }
 

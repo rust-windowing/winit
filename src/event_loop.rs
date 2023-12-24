@@ -8,7 +8,6 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 use std::marker::PhantomData;
-use std::ops::Deref;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -37,19 +36,90 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
 ///
 /// [`Window`]: crate::window::Window
+// TODO: Don't allow window creation from this, since that is broken on macOS/iOS.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
-/// Target that associates windows with an [`EventLoop`].
+/// An active event loop.
 ///
-/// This type exists to allow you to create new windows while Winit executes
-/// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
-/// EventLoop<T>`), so functions that take this as a parameter can also take
-/// `&EventLoop`.
-pub struct EventLoopWindowTarget {
-    pub(crate) p: platform_impl::EventLoopWindowTarget,
+/// This type exists to differentiate between functionality available when Winit
+/// is executing your callback, and outside of it.
+#[derive(Copy, Clone)]
+pub struct ActiveEventLoop<'a> {
+    pub(crate) inner: platform_impl::ActiveEventLoop<'a>,
+}
+
+impl fmt::Debug for ActiveEventLoop<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("ActiveEventLoop { .. }")
+    }
+}
+
+impl ActiveEventLoop<'_> {
+    /// Sets the [`ControlFlow`].
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.inner.set_control_flow(control_flow)
+    }
+
+    /// Gets the current [`ControlFlow`].
+    pub fn control_flow(&self) -> ControlFlow {
+        self.inner.control_flow()
+    }
+
+    /// This exits the event loop.
+    ///
+    /// See [`LoopExiting`](Event::LoopExiting).
+    pub fn exit(&self) {
+        self.inner.exit()
+    }
+
+    /// Returns if the [`EventLoop`] is about to stop.
+    ///
+    /// See [`exit()`](Self::exit).
+    pub fn exiting(&self) -> bool {
+        self.inner.exiting()
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland / Web:** Always returns `None`.
+    #[inline]
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.inner
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Returns the list of all the monitors available on the system.
+    #[inline]
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
+        self.inner
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Change if or when [`DeviceEvent`]s are captured.
+    ///
+    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
+    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
+    /// this at runtime to explicitly capture them again.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.inner.listen_device_events(allowed);
+    }
 }
 
 /// Object that allows building the event loop.
@@ -141,13 +211,7 @@ impl<T> fmt::Debug for EventLoop<T> {
     }
 }
 
-impl fmt::Debug for EventLoopWindowTarget {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("EventLoopWindowTarget { .. }")
-    }
-}
-
-/// Set through [`EventLoopWindowTarget::set_control_flow()`].
+/// Set through [`ActiveEventLoop::set_control_flow()`].
 ///
 /// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
@@ -236,16 +300,67 @@ impl<T> EventLoop<T> {
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
+    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`run()`]: Self::run()
     /// [^1]: `EventLoopExtWebSys::spawn()` is only available on WASM.
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget),
+        F: FnMut(Event<T>, ActiveEventLoop<'_>),
     {
-        self.event_loop.run(event_handler)
+        self.event_loop
+            .run(move |event, inner| event_handler(event, ActiveEventLoop { inner }))
+    }
+
+    /// Set the initial [`ControlFlow`].
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.event_loop
+            .window_target()
+            .set_control_flow(control_flow)
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland / Web:** Always returns `None`.
+    #[inline]
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.event_loop
+            .window_target()
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Returns the list of all the monitors available on the system.
+    #[inline]
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        #[allow(clippy::useless_conversion)] // false positive on some platforms
+        self.event_loop
+            .window_target()
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Change if or when [`DeviceEvent`]s are captured.
+    ///
+    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
+    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
+    /// this at runtime to explicitly capture them again.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.event_loop
+            .window_target()
+            .listen_device_events(allowed);
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
@@ -259,7 +374,12 @@ impl<T> EventLoop<T> {
 #[cfg(feature = "rwh_06")]
 impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        rwh_06::HasDisplayHandle::display_handle(&**self)
+        let raw = self
+            .event_loop
+            .window_target()
+            .raw_display_handle_rwh_06()?;
+        // SAFETY: The display will never be deallocated while the event loop is alive.
+        Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
     }
 }
 
@@ -267,7 +387,7 @@ impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
 unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::HasRawDisplayHandle::raw_display_handle(&**self)
+        self.event_loop.window_target().raw_display_handle_rwh_05()
     }
 }
 
@@ -299,92 +419,44 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-impl<T> Deref for EventLoop<T> {
-    type Target = EventLoopWindowTarget;
-    fn deref(&self) -> &EventLoopWindowTarget {
-        self.event_loop.window_target()
-    }
-}
-
-impl EventLoopWindowTarget {
-    /// Returns the list of all the monitors available on the system.
-    #[inline]
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        #[allow(clippy::useless_conversion)] // false positive on some platforms
-        self.p
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
-    }
-
-    /// Returns the primary monitor of the system.
-    ///
-    /// Returns `None` if it can't identify any monitor as a primary one.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **Wayland / Web:** Always returns `None`.
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.p
-            .primary_monitor()
-            .map(|inner| MonitorHandle { inner })
-    }
-
-    /// Change if or when [`DeviceEvent`]s are captured.
-    ///
-    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
-    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
-    /// this at runtime to explicitly capture them again.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / macOS / iOS / Android / Orbital:** Unsupported.
-    ///
-    /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        self.p.listen_device_events(allowed);
-    }
-
-    /// Sets the [`ControlFlow`].
-    pub fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.p.set_control_flow(control_flow)
-    }
-
-    /// Gets the current [`ControlFlow`].
-    pub fn control_flow(&self) -> ControlFlow {
-        self.p.control_flow()
-    }
-
-    /// This exits the event loop.
-    ///
-    /// See [`LoopExiting`](Event::LoopExiting).
-    pub fn exit(&self) {
-        self.p.exit()
-    }
-
-    /// Returns if the [`EventLoop`] is about to stop.
-    ///
-    /// See [`exit()`](Self::exit).
-    pub fn exiting(&self) -> bool {
-        self.p.exiting()
-    }
-}
-
 #[cfg(feature = "rwh_06")]
-impl rwh_06::HasDisplayHandle for EventLoopWindowTarget {
+impl rwh_06::HasDisplayHandle for ActiveEventLoop<'_> {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self.p.raw_display_handle_rwh_06()?;
+        let raw = self.inner.raw_display_handle_rwh_06()?;
         // SAFETY: The display will never be deallocated while the event loop is alive.
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
     }
 }
 
 #[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
+unsafe impl rwh_05::HasRawDisplayHandle for ActiveEventLoop<'_> {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
-        self.p.raw_display_handle_rwh_05()
+        self.inner.raw_display_handle_rwh_05()
+    }
+}
+
+mod private {
+    pub trait Sealed {}
+}
+
+/// Trait to allow functions to be generic over [`EventLoop`] and [`ActiveEventLoop`].
+pub trait MaybeActiveEventLoop<'a>: private::Sealed {
+    #[doc(hidden)]
+    fn __inner(self) -> &'a platform_impl::EventLoopWindowTarget;
+}
+
+impl<T: 'static> private::Sealed for &EventLoop<T> {}
+impl<'a, T: 'static> MaybeActiveEventLoop<'a> for &'a EventLoop<T> {
+    fn __inner(self) -> &'a platform_impl::EventLoopWindowTarget {
+        self.event_loop.window_target()
+    }
+}
+
+impl private::Sealed for ActiveEventLoop<'_> {}
+impl<'a> MaybeActiveEventLoop<'a> for ActiveEventLoop<'a> {
+    fn __inner(self) -> &'a platform_impl::EventLoopWindowTarget {
+        self.inner
     }
 }
 
@@ -470,5 +542,17 @@ impl AsyncRequestSerial {
         // in the loop u64::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(unused)]
+    fn assert_active_event_loop_covariance<'b>(
+        event_loop: ActiveEventLoop<'static>,
+    ) -> ActiveEventLoop<'b> {
+        event_loop
     }
 }

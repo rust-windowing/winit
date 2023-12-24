@@ -20,10 +20,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
     event::KeyEvent,
-    event_loop::{
-        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
-        EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed},
     icon::Icon,
     keyboard::{Key, PhysicalKey},
     platform::{
@@ -816,26 +813,26 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW),
+        F: FnMut(crate::event::Event<T>, &EventLoopWindowTarget),
     {
         self.run_on_demand(callback)
     }
 
     pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW),
+        F: FnMut(crate::event::Event<T>, &EventLoopWindowTarget),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<T>, &RootELW),
+        F: FnMut(crate::event::Event<T>, &EventLoopWindowTarget),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
@@ -857,6 +854,8 @@ impl<T: 'static> EventLoopProxy<T> {
         x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
     }
 }
+
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
 
 pub enum EventLoopWindowTarget {
     #[cfg(wayland_platform)]

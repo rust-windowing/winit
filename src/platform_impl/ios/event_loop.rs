@@ -19,10 +19,7 @@ use objc2::ClassType;
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{
-        ControlFlow, DeviceEvents, EventLoopClosed,
-        EventLoopWindowTarget as RootEventLoopWindowTarget,
-    },
+    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed},
     platform::ios::Idiom,
 };
 
@@ -31,6 +28,8 @@ use super::{
     app_state::AppState,
     uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen},
 };
+
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget {
@@ -88,7 +87,7 @@ pub struct EventLoop<T: 'static> {
     mtm: MainThreadMarker,
     sender: Sender<T>,
     receiver: Receiver<T>,
-    window_target: RootEventLoopWindowTarget,
+    window_target: EventLoopWindowTarget,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -120,15 +119,13 @@ impl<T: 'static> EventLoop<T> {
             mtm,
             sender,
             receiver,
-            window_target: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget { mtm },
-            },
+            window_target: EventLoopWindowTarget { mtm },
         })
     }
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         unsafe {
             let application = UIApplication::shared(self.mtm);
@@ -140,7 +137,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             let event_handler = std::mem::transmute::<
-                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget)>,
+                Box<dyn FnMut(Event<T>, &EventLoopWindowTarget)>,
                 Box<EventHandlerCallback<T>>,
             >(Box::new(event_handler));
 
@@ -169,7 +166,7 @@ impl<T: 'static> EventLoop<T> {
         EventLoopProxy::new(self.sender.clone())
     }
 
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         &self.window_target
     }
 }
@@ -340,7 +337,7 @@ fn setup_control_flow_observers() {
 #[derive(Debug)]
 pub enum Never {}
 
-type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget) + 'static;
+type EventHandlerCallback<T> = dyn FnMut(Event<T>, &EventLoopWindowTarget) + 'static;
 
 pub trait EventHandler: Debug {
     fn handle_nonuser_event(&mut self, event: Event<Never>);
@@ -350,7 +347,7 @@ pub trait EventHandler: Debug {
 struct EventLoopHandler<T: 'static> {
     f: Box<EventHandlerCallback<T>>,
     receiver: Receiver<T>,
-    event_loop: RootEventLoopWindowTarget,
+    event_loop: EventLoopWindowTarget,
 }
 
 impl<T: 'static> Debug for EventLoopHandler<T> {
