@@ -39,10 +39,10 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
     let mut ime_pos = PhysicalPosition::new(0.0, 0.0);
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => elwt.exit(),
+                WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::CursorMoved { position, .. } => {
                     cursor_position = position;
                 }

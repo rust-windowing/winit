@@ -26,7 +26,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     println!("Press N to open a new window.");
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, window_id } = event {
             match event {
                 WindowEvent::CloseRequested => {
@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     windows.remove(&window_id);
 
                     if windows.is_empty() {
-                        elwt.exit();
+                        event_loop.exit();
                     }
                 }
                 WindowEvent::KeyboardInput {
@@ -44,9 +44,9 @@ fn main() -> Result<(), impl std::error::Error> {
                     is_synthetic: false,
                     ..
                 } if event.state == ElementState::Pressed => match event.logical_key {
-                    Key::Named(NamedKey::Escape) => elwt.exit(),
+                    Key::Named(NamedKey::Escape) => event_loop.exit(),
                     Key::Character(c) if c == "n" || c == "N" => {
-                        let window = Window::new(elwt).unwrap();
+                        let window = Window::new(event_loop).unwrap();
                         println!("Opened a new window: {:?}", window.id());
                         windows.insert(window.id(), window);
                     }

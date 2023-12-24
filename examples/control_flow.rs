@@ -47,7 +47,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut wait_cancelled = false;
     let mut close_requested = false;
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         use winit::event::StartCause;
         println!("{event:?}");
         match event {
@@ -104,22 +104,22 @@ fn main() -> Result<(), impl std::error::Error> {
                 }
 
                 match mode {
-                    Mode::Wait => elwt.set_control_flow(ControlFlow::Wait),
+                    Mode::Wait => event_loop.set_control_flow(ControlFlow::Wait),
                     Mode::WaitUntil => {
                         if !wait_cancelled {
-                            elwt.set_control_flow(ControlFlow::WaitUntil(
+                            event_loop.set_control_flow(ControlFlow::WaitUntil(
                                 time::Instant::now() + WAIT_TIME,
                             ));
                         }
                     }
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
-                        elwt.set_control_flow(ControlFlow::Poll);
+                        event_loop.set_control_flow(ControlFlow::Poll);
                     }
                 };
 
                 if close_requested {
-                    elwt.exit();
+                    event_loop.exit();
                 }
             }
             _ => (),

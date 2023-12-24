@@ -27,7 +27,7 @@ fn main() -> Result<(), impl std::error::Error> {
         .unwrap();
 
     let mut deadline = time::Instant::now() + time::Duration::from_secs(3);
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         match event {
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 // Timeout reached; focus the window.
@@ -36,7 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 window.focus_window();
             }
             Event::WindowEvent { event, window_id } if window_id == window.id() => match event {
-                WindowEvent::CloseRequested => elwt.exit(),
+                WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
                     // Notify the windowing system that we'll be presenting to the window.
                     window.pre_present_notify();
@@ -51,6 +51,6 @@ fn main() -> Result<(), impl std::error::Error> {
             _ => (),
         }
 
-        elwt.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(deadline));
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(deadline));
     })
 }

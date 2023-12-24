@@ -52,10 +52,10 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("- I\tToggle mIn size limit");
     println!("- A\tToggle mAx size limit");
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => elwt.exit(),
+                WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -65,7 +65,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key {
-                    Key::Named(NamedKey::Escape) => elwt.exit(),
+                    Key::Named(NamedKey::Escape) => event_loop.exit(),
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {
@@ -88,12 +88,14 @@ fn main() -> Result<(), impl std::error::Error> {
                         }
                         "s" => {
                             monitor_index += 1;
-                            if let Some(mon) = elwt.available_monitors().nth(monitor_index) {
+                            if let Some(mon) = event_loop.available_monitors().nth(monitor_index) {
                                 monitor = mon;
                             } else {
                                 monitor_index = 0;
-                                monitor =
-                                    elwt.available_monitors().next().expect("no monitor found!");
+                                monitor = event_loop
+                                    .available_monitors()
+                                    .next()
+                                    .expect("no monitor found!");
                             }
                             println!("Monitor: {:?}", monitor.name());
 

@@ -19,7 +19,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut cursor_idx = 0;
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::KeyboardInput {
@@ -42,7 +42,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     fill::fill_window(&window);
                 }
                 WindowEvent::CloseRequested => {
-                    elwt.exit();
+                    event_loop.exit();
                 }
                 _ => (),
             }

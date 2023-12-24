@@ -31,7 +31,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { window_id, event } = event {
             match event {
                 WindowEvent::KeyboardInput {
@@ -57,7 +57,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
-                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
+                WindowEvent::CloseRequested if window_id == window.id() => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }

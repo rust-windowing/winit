@@ -48,7 +48,7 @@ fn main() -> Result<(), impl std::error::Error> {
         decode_cursor(include_bytes!("data/cross2.png"), &event_loop),
     ];
 
-    event_loop.run(move |event, _elwt| match event {
+    event_loop.run(move |event, _event_loop| match event {
         Event::WindowEvent { event, .. } => match event {
             WindowEvent::KeyboardInput {
                 event:
@@ -81,7 +81,7 @@ fn main() -> Result<(), impl std::error::Error> {
             }
             WindowEvent::CloseRequested => {
                 #[cfg(not(wasm_platform))]
-                _elwt.exit();
+                _event_loop.exit();
             }
             _ => (),
         },

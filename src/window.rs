@@ -42,12 +42,12 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 /// event_loop.set_control_flow(ControlFlow::Wait);
 /// let window = Window::new(&event_loop).unwrap();
 ///
-/// event_loop.run(move |event, elwt| {
+/// event_loop.run(move |event, event_loop| {
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => elwt.exit(),
+///         } => event_loop.exit(),
 ///         _ => (),
 ///     }
 /// });

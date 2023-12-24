@@ -32,12 +32,12 @@ mod imple {
             .build(&event_loop)
             .unwrap();
 
-        event_loop.run(move |event, elwt| {
+        event_loop.run(move |event, event_loop| {
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => elwt.exit(),
+                } if window_id == window.id() => event_loop.exit(),
                 Event::AboutToWait => {
                     window.request_redraw();
                 }

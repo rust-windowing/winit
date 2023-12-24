@@ -32,7 +32,7 @@ fn main() -> std::process::ExitCode {
 
     'main: loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_events(timeout, |event, elwt| {
+        let status = event_loop.pump_events(timeout, |event, event_loop| {
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{event:?}");
@@ -42,7 +42,7 @@ fn main() -> std::process::ExitCode {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => elwt.exit(),
+                } if window_id == window.id() => event_loop.exit(),
                 Event::AboutToWait => {
                     window.request_redraw();
                 }

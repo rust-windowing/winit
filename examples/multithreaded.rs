@@ -173,9 +173,9 @@ fn main() -> Result<(), impl std::error::Error> {
             }
         });
     }
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if window_senders.is_empty() {
-            elwt.exit()
+            event_loop.exit()
         }
         match event {
             Event::WindowEvent { event, window_id } => match event {

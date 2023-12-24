@@ -38,7 +38,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     event_loop.listen_device_events(DeviceEvents::Always);
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         match event {
             // This used to use the virtual key, but the new API
             // only provides the `physical_key` (`Code`).
@@ -113,7 +113,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         window.set_minimized(minimized);
                     }
                     "q" => {
-                        elwt.exit();
+                        event_loop.exit();
                     }
                     "v" => {
                         visible = !visible;
@@ -125,7 +125,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     }
                     _ => (),
                 },
-                WindowEvent::CloseRequested if window_id == window.id() => elwt.exit(),
+                WindowEvent::CloseRequested if window_id == window.id() => event_loop.exit(),
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(&window);
                 }

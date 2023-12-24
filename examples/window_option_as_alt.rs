@@ -31,11 +31,11 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let mut option_as_alt = window.option_as_alt();
 
-    event_loop.run(move |event, elwt| match event {
+    event_loop.run(move |event, event_loop| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             window_id,
-        } if window_id == window.id() => elwt.exit(),
+        } if window_id == window.id() => event_loop.exit(),
         Event::WindowEvent { event, .. } => match event {
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,

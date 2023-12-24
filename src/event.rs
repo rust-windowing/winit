@@ -9,22 +9,22 @@
 //! ```rust,ignore
 //! let mut start_cause = StartCause::Init;
 //!
-//! while !elwt.exiting() {
-//!     event_handler(NewEvents(start_cause), elwt);
+//! while !event_loop.exiting() {
+//!     event_handler(NewEvents(start_cause), event_loop);
 //!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, elwt);
+//!         event_handler(e, event_loop);
 //!     }
 //!
 //!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), elwt);
+//!         event_handler(RedrawRequested(w), event_loop);
 //!     }
 //!
-//!     event_handler(AboutToWait, elwt);
+//!     event_handler(AboutToWait, event_loop);
 //!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, elwt);
+//! event_handler(LoopExiting, event_loop);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully

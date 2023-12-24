@@ -33,10 +33,10 @@ fn main() -> Result<(), impl std::error::Error> {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, elwt| {
+    event_loop.run(move |event, event_loop| {
         if let Event::WindowEvent { event, .. } = event {
             match event {
-                WindowEvent::CloseRequested => elwt.exit(),
+                WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
                 }
