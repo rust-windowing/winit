@@ -18,7 +18,6 @@ use crate::{
         event_loop::EventLoopWindowTarget,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
-        util,
         view::WinitView,
         window_delegate::WinitWindowDelegate,
         Fullscreen, OsError, PlatformCustomCursor,
@@ -52,7 +51,7 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 use super::cursor::cursor_from_icon;
 use super::ffi::kCGFloatingWindowLevel;
 use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
-use super::monitor::get_display_id;
+use super::monitor::{flip_window_screen_coordinates, get_display_id};
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -295,24 +294,25 @@ impl WinitWindow {
                     let scale_factor = NSScreen::mainScreen(mtm)
                         .map(|screen| screen.backingScaleFactor() as f64)
                         .unwrap_or(1.0);
-                    let (width, height) = match attrs.inner_size {
+                    let size = match attrs.inner_size {
                         Some(size) => {
-                            let logical = size.to_logical(scale_factor);
-                            (logical.width, logical.height)
+                            let size = size.to_logical(scale_factor);
+                            NSSize::new(size.width, size.height)
                         }
-                        None => (800.0, 600.0),
+                        None => NSSize::new(800.0, 600.0),
                     };
-                    let (left, bottom) = match attrs.position {
+                    let position = match attrs.position {
                         Some(position) => {
-                            let logical = util::window_position(position.to_logical(scale_factor));
-                            // macOS wants the position of the bottom left corner,
-                            // but caller is setting the position of top left corner
-                            (logical.x, logical.y - height)
+                            let position = position.to_logical(scale_factor);
+                            flip_window_screen_coordinates(NSRect::new(
+                                NSPoint::new(position.x, position.y),
+                                size,
+                            ))
                         }
                         // This value is ignored by calling win.center() below
-                        None => (0.0, 0.0),
+                        None => NSPoint::new(0.0, 0.0),
                     };
-                    NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
+                    NSRect::new(position, size)
                 }
             };
 
@@ -609,52 +609,44 @@ impl WinitWindow {
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let frame_rect = self.frame();
-        let position = LogicalPosition::new(
-            frame_rect.origin.x as f64,
-            util::bottom_left_to_top_left(frame_rect),
-        );
-        let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        let position = flip_window_screen_coordinates(self.frame());
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let content_rect = self.contentRectForFrameRect(self.frame());
-        let position = LogicalPosition::new(
-            content_rect.origin.x as f64,
-            util::bottom_left_to_top_left(content_rect),
-        );
-        let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        let position = flip_window_screen_coordinates(content_rect);
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let scale_factor = self.scale_factor();
-        let position = position.to_logical(scale_factor);
-        self.setFrameTopLeftPoint(util::window_position(position));
+        let position = position.to_logical(self.scale_factor());
+        let point = flip_window_screen_coordinates(NSRect::new(
+            NSPoint::new(position.x, position.y),
+            self.frame().size,
+        ));
+        unsafe { self.setFrameOrigin(point) };
     }
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let frame = self.contentView().unwrap().frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
-        let scale_factor = self.scale_factor();
-        logical.to_physical(scale_factor)
+        let content_rect = self.contentRectForFrameRect(self.frame());
+        let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
+        logical.to_physical(self.scale_factor())
     }
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let frame = self.frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
-        let scale_factor = self.scale_factor();
-        logical.to_physical(scale_factor)
+        let logical = LogicalSize::new(frame.size.width, frame.size.height);
+        logical.to_physical(self.scale_factor())
     }
 
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
-        let size: LogicalSize<f64> = size.to_logical(scale_factor);
-        self.setContentSize(NSSize::new(size.width as CGFloat, size.height as CGFloat));
+        let size = size.to_logical(scale_factor);
+        self.setContentSize(NSSize::new(size.width, size.height));
         None
     }
 
@@ -665,26 +657,18 @@ impl WinitWindow {
         }));
         let min_size = dimensions.to_logical::<CGFloat>(self.scale_factor());
 
-        let mut current_rect = self.frame();
-        let content_rect = self.contentRectForFrameRect(current_rect);
-        // Convert from client area size to window size
-        let min_size = NSSize::new(
-            min_size.width + (current_rect.size.width - content_rect.size.width), // this tends to be 0
-            min_size.height + (current_rect.size.height - content_rect.size.height),
-        );
-        self.setMinSize(min_size);
+        let min_size = NSSize::new(min_size.width, min_size.height);
+        unsafe { self.setContentMinSize(min_size) };
+
         // If necessary, resize the window to match constraint
-        if current_rect.size.width < min_size.width {
-            current_rect.size.width = min_size.width;
-            self.setFrame_display(current_rect, false)
+        let mut current_size = self.contentRectForFrameRect(self.frame()).size;
+        if current_size.width < min_size.width {
+            current_size.width = min_size.width;
         }
-        if current_rect.size.height < min_size.height {
-            // The origin point of a rectangle is at its bottom left in Cocoa.
-            // To ensure the window's top-left point remains the same:
-            current_rect.origin.y += current_rect.size.height - min_size.height;
-            current_rect.size.height = min_size.height;
-            self.setFrame_display(current_rect, false)
+        if current_size.height < min_size.height {
+            current_size.height = min_size.height;
         }
+        self.setContentSize(current_size);
     }
 
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
@@ -695,26 +679,18 @@ impl WinitWindow {
         let scale_factor = self.scale_factor();
         let max_size = dimensions.to_logical::<CGFloat>(scale_factor);
 
-        let mut current_rect = self.frame();
-        let content_rect = self.contentRectForFrameRect(current_rect);
-        // Convert from client area size to window size
-        let max_size = NSSize::new(
-            max_size.width + (current_rect.size.width - content_rect.size.width), // this tends to be 0
-            max_size.height + (current_rect.size.height - content_rect.size.height),
-        );
-        self.setMaxSize(max_size);
+        let max_size = NSSize::new(max_size.width, max_size.height);
+        unsafe { self.setContentMaxSize(max_size) };
+
         // If necessary, resize the window to match constraint
-        if current_rect.size.width > max_size.width {
-            current_rect.size.width = max_size.width;
-            self.setFrame_display(current_rect, false)
+        let mut current_size = self.contentRectForFrameRect(self.frame()).size;
+        if max_size.width < current_size.width {
+            current_size.width = max_size.width;
         }
-        if current_rect.size.height > max_size.height {
-            // The origin point of a rectangle is at its bottom left in Cocoa.
-            // To ensure the window's top-left point remains the same:
-            current_rect.origin.y += current_rect.size.height - max_size.height;
-            current_rect.size.height = max_size.height;
-            self.setFrame_display(current_rect, false)
+        if max_size.height < current_size.height {
+            current_size.height = max_size.height;
         }
+        self.setContentSize(current_size);
     }
 
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
@@ -1062,11 +1038,7 @@ impl WinitWindow {
 
             let old_screen = self.screen().unwrap();
             if old_screen != new_screen {
-                let mut screen_frame = new_screen.frame();
-                // The coordinate system here has its origin at bottom-left
-                // and Y goes up
-                screen_frame.origin.y += screen_frame.size.height;
-                self.setFrameTopLeftPoint(screen_frame.origin);
+                unsafe { self.setFrameOrigin(new_screen.frame().origin) };
             }
         }
 
@@ -1291,7 +1263,11 @@ impl WinitWindow {
     pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
+        let logical_spot = NSPoint::new(logical_spot.x, logical_spot.y);
+
         let size = size.to_logical(scale_factor);
+        let size = NSSize::new(size.width, size.height);
+
         self.view().set_ime_cursor_area(logical_spot, size);
     }
 

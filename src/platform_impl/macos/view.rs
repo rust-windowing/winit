@@ -123,8 +123,8 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
 #[derive(Debug, Default)]
 pub struct ViewState {
     cursor_state: RefCell<CursorState>,
-    ime_position: Cell<LogicalPosition<f64>>,
-    ime_size: Cell<LogicalSize<f64>>,
+    ime_position: Cell<NSPoint>,
+    ime_size: Cell<NSSize>,
     modifiers: Cell<Modifiers>,
     phys_modifiers: RefCell<HashMap<Key, ModLocationMask>>,
     tracking_rect: Cell<Option<NSTrackingRectTag>>,
@@ -162,6 +162,12 @@ declare_class!(
     }
 
     unsafe impl WinitView {
+        #[method(isFlipped)]
+        fn is_flipped(&self) -> bool {
+            // `winit` uses the upper-left corner as the origin.
+            true
+        }
+
         #[method(viewDidMoveToWindow)]
         fn view_did_move_to_window(&self) {
             trace_scope!("viewDidMoveToWindow");
@@ -365,14 +371,9 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let window = self.window();
-            let content_rect = window.contentRectForFrameRect(window.frame());
-            let base_x = content_rect.origin.x as f64;
-            let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
-            let x = base_x + self.ivars().ime_position.get().x;
-            let y = base_y - self.ivars().ime_position.get().y;
-            let LogicalSize { width, height } = self.ivars().ime_size.get();
-            NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(width, height))
+            let rect = dbg!(NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get()));
+            // Return value is expected to be in screen coordinates, so we need a conversion here
+            unsafe { self.window().convertRectToScreen(self.convertRect_toView(rect, None)) }
         }
 
         #[method(insertText:replacementRange:)]
@@ -876,11 +877,7 @@ impl WinitView {
         }
     }
 
-    pub(super) fn set_ime_cursor_area(
-        &self,
-        position: LogicalPosition<f64>,
-        size: LogicalSize<f64>,
-    ) {
+    pub(super) fn set_ime_cursor_area(&self, position: NSPoint, size: NSSize) {
         self.ivars().ime_position.set(position);
         self.ivars().ime_size.set(size);
         let input_context = self.inputContext().expect("input context");
@@ -1026,12 +1023,12 @@ impl WinitView {
     fn mouse_motion(&self, event: &NSEvent) {
         let window_point = unsafe { event.locationInWindow() };
         let view_point = self.convertPoint_fromView(window_point, None);
-        let view_rect = self.frame();
+        let frame = self.frame();
 
         if view_point.x.is_sign_negative()
             || view_point.y.is_sign_negative()
-            || view_point.x > view_rect.size.width
-            || view_point.y > view_rect.size.height
+            || view_point.x > frame.size.width
+            || view_point.y > frame.size.height
         {
             let mouse_buttons_down = unsafe { NSEvent::pressedMouseButtons() };
             if mouse_buttons_down == 0 {
@@ -1040,15 +1037,13 @@ impl WinitView {
             }
         }
 
-        let x = view_point.x as f64;
-        let y = view_rect.size.height as f64 - view_point.y as f64;
-        let logical_position = LogicalPosition::new(x, y);
+        let view_point = LogicalPosition::new(view_point.x, view_point.y);
 
         self.update_modifiers(event, false);
 
         self.queue_event(WindowEvent::CursorMoved {
             device_id: DEVICE_ID,
-            position: logical_position.to_physical(self.scale_factor()),
+            position: view_point.to_physical(self.scale_factor()),
         });
     }
 }

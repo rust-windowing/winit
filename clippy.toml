@@ -11,4 +11,5 @@ disallowed-methods = [
     { path = "web_sys::Document::exit_fullscreen", reason = "Doesn't account for compatibility with Safari" },
     { path = "web_sys::Document::fullscreen_element", reason = "Doesn't account for compatibility with Safari" },
     { path = "icrate::AppKit::NSView::visibleRect", reason = "We expose a render target to the user, and visibility is not really relevant to that (and can break if you don't use the rectangle position as well). Use `frame` instead." },
+    { path = "icrate::AppKit::NSWindow::setFrameTopLeftPoint", reason = "Not sufficient when working with Winit's coordinate system, use `flip_window_screen_coordinates` instead" },
 ]
