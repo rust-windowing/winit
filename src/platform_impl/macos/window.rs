@@ -1273,7 +1273,11 @@ impl WinitWindow {
     pub fn set_ime_cursor_area(&self, spot: Position, size: Size) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
+        let logical_spot = NSPoint::new(logical_spot.x, logical_spot.y);
+
         let size = size.to_logical(scale_factor);
+        let size = NSSize::new(size.width, size.height);
+
         self.view().set_ime_cursor_area(logical_spot, size);
     }
 
