@@ -39,7 +39,8 @@ use crate::SendSyncWrapper;
 use web_sys::HtmlCanvasElement;
 
 pub trait WindowExtWebSys {
-    /// Only returns the canvas if called from inside the window.
+    /// Only returns the canvas if called from inside the window context (the
+    /// main thread).
     fn canvas(&self) -> Option<HtmlCanvasElement>;
 }
 
@@ -59,11 +60,11 @@ pub trait WindowBuilderExtWebSys {
     /// [`None`] by default.
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
-    /// Whether `event.preventDefault` should be automatically called to prevent event propagation
-    /// when appropriate.
+    /// Whether `event.preventDefault()` should be called on events on the
+    /// canvas that have side effects.
     ///
-    /// For example, mouse wheel events are only handled by the canvas by default. This avoids
-    /// the default behavior of scrolling the page.
+    /// For example, by default using the mouse wheel would cause the page to scroll, enabling this
+    /// would prevent that.
     ///
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
     /// context menu with Shift+Rightclick.

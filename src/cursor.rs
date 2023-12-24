@@ -54,11 +54,6 @@ pub struct CustomCursor {
 
 impl CustomCursor {
     /// Creates a new cursor from an rgba buffer.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** Setting cursor could be delayed due to the creation of `Blob` objects,
-    ///   which are async by nature.
     pub fn from_rgba(
         rgba: impl Into<Vec<u8>>,
         width: u16,
