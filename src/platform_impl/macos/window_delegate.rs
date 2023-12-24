@@ -450,16 +450,18 @@ impl WinitWindowDelegate {
     }
 
     fn queue_static_scale_factor_changed_event(&self) {
-        let scale_factor = self.ivars().window.scale_factor();
+        let window = &self.ivars().window;
+        let scale_factor = window.scale_factor();
         if scale_factor == self.ivars().previous_scale_factor.get() {
             return;
         };
 
         self.ivars().previous_scale_factor.set(scale_factor);
-        let suggested_size = self.view_size();
+        let content_size = window.contentRectForFrameRect(window.frame()).size;
+        let content_size = LogicalSize::new(content_size.width, content_size.height);
         AppState::queue_static_scale_factor_changed_event(
-            self.ivars().window.clone(),
-            suggested_size.to_physical(scale_factor),
+            window.clone(),
+            content_size.to_physical(scale_factor),
             scale_factor,
         );
     }
@@ -474,10 +476,5 @@ impl WinitWindowDelegate {
             let physical_pos = LogicalPosition::<f64>::from((x, y)).to_physical(scale_factor);
             self.queue_event(WindowEvent::Moved(physical_pos));
         }
-    }
-
-    fn view_size(&self) -> LogicalSize<f64> {
-        let size = self.ivars().window.contentView().unwrap().frame().size;
-        LogicalSize::new(size.width as f64, size.height as f64)
     }
 }

@@ -636,25 +636,23 @@ impl WinitWindow {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let frame = self.contentView().unwrap().frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
-        let scale_factor = self.scale_factor();
-        logical.to_physical(scale_factor)
+        let content_rect = self.contentRectForFrameRect(self.frame());
+        let logical = LogicalSize::new(content_rect.size.width, content_rect.size.height);
+        logical.to_physical(self.scale_factor())
     }
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let frame = self.frame();
-        let logical: LogicalSize<f64> = (frame.size.width as f64, frame.size.height as f64).into();
-        let scale_factor = self.scale_factor();
-        logical.to_physical(scale_factor)
+        let logical = LogicalSize::new(frame.size.width, frame.size.height);
+        logical.to_physical(self.scale_factor())
     }
 
     #[inline]
     pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let scale_factor = self.scale_factor();
-        let size: LogicalSize<f64> = size.to_logical(scale_factor);
-        self.setContentSize(NSSize::new(size.width as CGFloat, size.height as CGFloat));
+        let size = size.to_logical(scale_factor);
+        self.setContentSize(NSSize::new(size.width, size.height));
         None
     }
 
@@ -665,26 +663,18 @@ impl WinitWindow {
         }));
         let min_size = dimensions.to_logical::<CGFloat>(self.scale_factor());
 
-        let mut current_rect = self.frame();
-        let content_rect = self.contentRectForFrameRect(current_rect);
-        // Convert from client area size to window size
-        let min_size = NSSize::new(
-            min_size.width + (current_rect.size.width - content_rect.size.width), // this tends to be 0
-            min_size.height + (current_rect.size.height - content_rect.size.height),
-        );
-        self.setMinSize(min_size);
+        let min_size = NSSize::new(min_size.width, min_size.height);
+        unsafe { self.setContentMinSize(min_size) };
+
         // If necessary, resize the window to match constraint
-        if current_rect.size.width < min_size.width {
-            current_rect.size.width = min_size.width;
-            self.setFrame_display(current_rect, false)
+        let mut current_size = self.contentRectForFrameRect(self.frame()).size;
+        if current_size.width < min_size.width {
+            current_size.width = min_size.width;
         }
-        if current_rect.size.height < min_size.height {
-            // The origin point of a rectangle is at its bottom left in Cocoa.
-            // To ensure the window's top-left point remains the same:
-            current_rect.origin.y += current_rect.size.height - min_size.height;
-            current_rect.size.height = min_size.height;
-            self.setFrame_display(current_rect, false)
+        if current_size.height < min_size.height {
+            current_size.height = min_size.height;
         }
+        self.setContentSize(current_size);
     }
 
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
@@ -695,26 +685,18 @@ impl WinitWindow {
         let scale_factor = self.scale_factor();
         let max_size = dimensions.to_logical::<CGFloat>(scale_factor);
 
-        let mut current_rect = self.frame();
-        let content_rect = self.contentRectForFrameRect(current_rect);
-        // Convert from client area size to window size
-        let max_size = NSSize::new(
-            max_size.width + (current_rect.size.width - content_rect.size.width), // this tends to be 0
-            max_size.height + (current_rect.size.height - content_rect.size.height),
-        );
-        self.setMaxSize(max_size);
+        let max_size = NSSize::new(max_size.width, max_size.height);
+        unsafe { self.setContentMaxSize(max_size) };
+
         // If necessary, resize the window to match constraint
-        if current_rect.size.width > max_size.width {
-            current_rect.size.width = max_size.width;
-            self.setFrame_display(current_rect, false)
+        let mut current_size = self.contentRectForFrameRect(self.frame()).size;
+        if max_size.width < current_size.width {
+            current_size.width = max_size.width;
         }
-        if current_rect.size.height > max_size.height {
-            // The origin point of a rectangle is at its bottom left in Cocoa.
-            // To ensure the window's top-left point remains the same:
-            current_rect.origin.y += current_rect.size.height - max_size.height;
-            current_rect.size.height = max_size.height;
-            self.setFrame_display(current_rect, false)
+        if max_size.height < current_size.height {
+            current_size.height = max_size.height;
         }
+        self.setContentSize(current_size);
     }
 
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {

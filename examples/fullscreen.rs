@@ -1,7 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::dpi::PhysicalSize;
+use winit::dpi::LogicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::keyboard::{Key, NamedKey};
@@ -126,7 +126,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         "i" => {
                             with_min_size = !with_min_size;
                             let min_size = if with_min_size {
-                                Some(PhysicalSize::new(100, 100))
+                                Some(LogicalSize::new(100, 100))
                             } else {
                                 None
                             };
@@ -139,7 +139,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         "a" => {
                             with_max_size = !with_max_size;
                             let max_size = if with_max_size {
-                                Some(PhysicalSize::new(200, 200))
+                                Some(LogicalSize::new(200, 200))
                             } else {
                                 None
                             };
