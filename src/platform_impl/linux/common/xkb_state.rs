@@ -398,8 +398,8 @@ impl KbdState {
         let text_with_all_modifiers = event.text_with_all_modifiers();
 
         let platform_specific = KeyEventExtra {
-            key_without_modifiers,
             text_with_all_modifiers,
+            key_without_modifiers,
         };
 
         KeyEvent {

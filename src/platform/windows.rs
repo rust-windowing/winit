@@ -2,11 +2,9 @@ use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
-    event::{DeviceId, KeyEvent},
+    event::DeviceId,
     event_loop::EventLoopBuilder,
-    keyboard::Key,
     monitor::MonitorHandle,
-    platform::modifier_supplement::KeyEventExtModifierSupplement,
     platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
@@ -335,20 +333,5 @@ impl IconExtWindows for Icon {
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
-    }
-}
-
-impl KeyEventExtModifierSupplement for KeyEvent {
-    #[inline]
-    fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific
-            .text_with_all_modifers
-            .as_ref()
-            .map(|s| s.as_str())
-    }
-
-    #[inline]
-    fn key_without_modifiers(&self) -> Key {
-        self.platform_specific.key_without_modifiers.clone()
     }
 }

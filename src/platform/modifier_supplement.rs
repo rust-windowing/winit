@@ -1,5 +1,6 @@
 #![cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform))]
 
+use crate::event::KeyEvent;
 use crate::keyboard::Key;
 
 /// Additional methods for the `KeyEvent` which cannot be implemented on all
@@ -21,4 +22,19 @@ pub trait KeyEventExtModifierSupplement {
     /// key as `Character` according to the current keyboard layout. This value
     /// cannot be `Dead`.
     fn key_without_modifiers(&self) -> Key;
+}
+
+impl KeyEventExtModifierSupplement for KeyEvent {
+    #[inline]
+    fn text_with_all_modifiers(&self) -> Option<&str> {
+        self.platform_specific
+            .text_with_all_modifiers
+            .as_ref()
+            .map(|s| s.as_str())
+    }
+
+    #[inline]
+    fn key_without_modifiers(&self) -> Key {
+        self.platform_specific.key_without_modifiers.clone()
+    }
 }
