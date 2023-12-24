@@ -11,11 +11,11 @@ use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
 use icrate::AppKit::NSScreen;
-use icrate::Foundation::{ns_string, MainThreadMarker, NSNumber};
+use icrate::Foundation::{ns_string, MainThreadMarker, NSNumber, NSPoint, NSRect};
 use objc2::{rc::Id, runtime::AnyObject};
 
 use super::ffi;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -193,11 +193,12 @@ impl MonitorHandle {
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
+        // This is already in screen coordinates. If we were using `NSScreen`,
+        // then a conversion would've been needed:
+        // flip_window_screen_coordinates(self.ns_screen(mtm)?.frame())
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
-        PhysicalPosition::from_logical::<_, f64>(
-            (bounds.origin.x as f64, bounds.origin.y as f64),
-            self.scale_factor(),
-        )
+        let position = LogicalPosition::new(bounds.origin.x, bounds.origin.y);
+        position.to_physical(self.scale_factor())
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -327,4 +328,25 @@ pub(crate) fn get_display_id(screen: &NSScreen) -> u32 {
 
         obj.as_u32()
     })
+}
+
+/// Core graphics screen coordinates are relative to the top-left corner of
+/// the so-called "main" display, with y increasing downwards - which is
+/// exactly what we want in Winit.
+///
+/// However, `NSWindow` and `NSScreen` changes these coordinates to:
+/// 1. Be relative to the bottom-left corner of the "main" screen.
+/// 2. Be relative to the bottom-left corner of the window/screen itself.
+/// 3. Have y increasing upwards.
+///
+/// This conversion happens to be symmetric, so we only need this one function
+/// to convert between the two coordinate systems.
+pub(crate) fn flip_window_screen_coordinates(frame: NSRect) -> NSPoint {
+    // It is intentional that we use `CGMainDisplayID` (as opposed to
+    // `NSScreen::mainScreen`), because that's what the screen coordinates
+    // are relative to, no matter which display the window is currently on.
+    let main_screen_height = CGDisplay::main().bounds().size.height;
+
+    let y = main_screen_height - frame.size.height - frame.origin.y;
+    NSPoint::new(frame.origin.x, y)
 }

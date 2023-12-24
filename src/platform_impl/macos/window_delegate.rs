@@ -7,16 +7,18 @@ use icrate::AppKit::{
     NSApplicationPresentationHideMenuBar, NSApplicationPresentationOptions, NSDraggingDestination,
     NSFilenamesPboardType, NSPasteboard, NSWindowDelegate, NSWindowOcclusionStateVisible,
 };
-use icrate::Foundation::{MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSSize, NSString};
+use icrate::Foundation::{
+    MainThreadMarker, NSArray, NSObject, NSObjectProtocol, NSPoint, NSSize, NSString,
+};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
+use super::monitor::flip_window_screen_coordinates;
 use super::{
     app_state::AppState,
-    util,
     window::{get_ns_theme, WinitWindow},
     Fullscreen,
 };
@@ -35,7 +37,9 @@ pub(crate) struct State {
     initial_fullscreen: Cell<bool>,
 
     // During `windowDidResize`, we use this to only send Moved if the position changed.
-    previous_position: Cell<Option<(f64, f64)>>,
+    //
+    // This is expressed in native screen coordinates.
+    previous_position: Cell<Option<NSPoint>>,
 
     // Used to prevent redundant events.
     previous_scale_factor: Cell<f64>,
@@ -467,14 +471,16 @@ impl WinitWindowDelegate {
     }
 
     fn emit_move_event(&self) {
-        let rect = self.ivars().window.frame();
-        let x = rect.origin.x as f64;
-        let y = util::bottom_left_to_top_left(rect);
-        if self.ivars().previous_position.get() != Some((x, y)) {
-            self.ivars().previous_position.set(Some((x, y)));
-            let scale_factor = self.ivars().window.scale_factor();
-            let physical_pos = LogicalPosition::<f64>::from((x, y)).to_physical(scale_factor);
-            self.queue_event(WindowEvent::Moved(physical_pos));
+        let window = &self.ivars().window;
+        let frame = window.frame();
+        if self.ivars().previous_position.get() == Some(frame.origin) {
+            return;
         }
+        self.ivars().previous_position.set(Some(frame.origin));
+
+        let position = flip_window_screen_coordinates(frame);
+        let position =
+            LogicalPosition::new(position.x, position.y).to_physical(window.scale_factor());
+        self.queue_event(WindowEvent::Moved(position));
     }
 }

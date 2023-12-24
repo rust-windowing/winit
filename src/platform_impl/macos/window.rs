@@ -18,7 +18,6 @@ use crate::{
         event_loop::EventLoopWindowTarget,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
-        util,
         view::WinitView,
         window_delegate::WinitWindowDelegate,
         Fullscreen, OsError, PlatformCustomCursor,
@@ -52,7 +51,7 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 use super::cursor::cursor_from_icon;
 use super::ffi::kCGFloatingWindowLevel;
 use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
-use super::monitor::get_display_id;
+use super::monitor::{flip_window_screen_coordinates, get_display_id};
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -295,24 +294,25 @@ impl WinitWindow {
                     let scale_factor = NSScreen::mainScreen(mtm)
                         .map(|screen| screen.backingScaleFactor() as f64)
                         .unwrap_or(1.0);
-                    let (width, height) = match attrs.inner_size {
+                    let size = match attrs.inner_size {
                         Some(size) => {
-                            let logical = size.to_logical(scale_factor);
-                            (logical.width, logical.height)
+                            let size = size.to_logical(scale_factor);
+                            NSSize::new(size.width, size.height)
                         }
-                        None => (800.0, 600.0),
+                        None => NSSize::new(800.0, 600.0),
                     };
-                    let (left, bottom) = match attrs.position {
+                    let position = match attrs.position {
                         Some(position) => {
-                            let logical = util::window_position(position.to_logical(scale_factor));
-                            // macOS wants the position of the bottom left corner,
-                            // but caller is setting the position of top left corner
-                            (logical.x, logical.y - height)
+                            let position = position.to_logical(scale_factor);
+                            flip_window_screen_coordinates(NSRect::new(
+                                NSPoint::new(position.x, position.y),
+                                size,
+                            ))
                         }
                         // This value is ignored by calling win.center() below
-                        None => (0.0, 0.0),
+                        None => NSPoint::new(0.0, 0.0),
                     };
-                    NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
+                    NSRect::new(position, size)
                 }
             };
 
@@ -609,29 +609,23 @@ impl WinitWindow {
     pub fn pre_present_notify(&self) {}
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        let frame_rect = self.frame();
-        let position = LogicalPosition::new(
-            frame_rect.origin.x as f64,
-            util::bottom_left_to_top_left(frame_rect),
-        );
-        let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        let position = flip_window_screen_coordinates(self.frame());
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let content_rect = self.contentRectForFrameRect(self.frame());
-        let position = LogicalPosition::new(
-            content_rect.origin.x as f64,
-            util::bottom_left_to_top_left(content_rect),
-        );
-        let scale_factor = self.scale_factor();
-        Ok(position.to_physical(scale_factor))
+        let position = flip_window_screen_coordinates(content_rect);
+        Ok(LogicalPosition::new(position.x, position.y).to_physical(self.scale_factor()))
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let scale_factor = self.scale_factor();
-        let position = position.to_logical(scale_factor);
-        self.setFrameTopLeftPoint(util::window_position(position));
+        let position = position.to_logical(self.scale_factor());
+        let point = flip_window_screen_coordinates(NSRect::new(
+            NSPoint::new(position.x, position.y),
+            self.frame().size,
+        ));
+        unsafe { self.setFrameOrigin(point) };
     }
 
     #[inline]
@@ -1044,11 +1038,7 @@ impl WinitWindow {
 
             let old_screen = self.screen().unwrap();
             if old_screen != new_screen {
-                let mut screen_frame = new_screen.frame();
-                // The coordinate system here has its origin at bottom-left
-                // and Y goes up
-                screen_frame.origin.y += screen_frame.size.height;
-                self.setFrameTopLeftPoint(screen_frame.origin);
+                unsafe { self.setFrameOrigin(new_screen.frame().origin) };
             }
         }
 
