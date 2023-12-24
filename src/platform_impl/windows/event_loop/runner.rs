@@ -163,6 +163,10 @@ impl<T> EventLoopRunner<T> {
         self.exit.get()
     }
 
+    pub fn clear_exit(&self) {
+        self.exit.set(None);
+    }
+
     pub fn should_buffer(&self) -> bool {
         let handler = self.event_handler.take();
         let should_buffer = handler.is_none();

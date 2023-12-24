@@ -96,21 +96,13 @@ fn main() -> Result<(), impl std::error::Error> {
                                     )),
                                     (false, _) => None,
                                 }),
-                                "l" if state => {
-                                    if let Err(err) = window.set_cursor_grab(CursorGrabMode::Locked)
-                                    {
-                                        println!("error: {err}");
-                                    }
-                                }
-                                "g" if state => {
-                                    if let Err(err) =
-                                        window.set_cursor_grab(CursorGrabMode::Confined)
-                                    {
-                                        println!("error: {err}");
-                                    }
-                                }
-                                "g" | "l" if !state => {
-                                    if let Err(err) = window.set_cursor_grab(CursorGrabMode::None) {
+                                ch @ ("g" | "l") => {
+                                    let mode = match (ch, state) {
+                                        ("l", true) => CursorGrabMode::Locked,
+                                        ("g", true) => CursorGrabMode::Confined,
+                                        (_, _) => CursorGrabMode::None,
+                                    };
+                                    if let Err(err) = window.set_cursor_grab(mode) {
                                         println!("error: {err}");
                                     }
                                 }
@@ -123,10 +115,6 @@ fn main() -> Result<(), impl std::error::Error> {
                                     println!("-> inner_size     : {:?}", window.inner_size());
                                     println!("-> fullscreen     : {:?}", window.fullscreen());
                                 }
-                                "l" => window.set_min_inner_size(match state {
-                                    true => Some(WINDOW_SIZE),
-                                    false => None,
-                                }),
                                 "m" => window.set_maximized(state),
                                 "p" => window.set_outer_position({
                                     let mut position = window.outer_position().unwrap();
@@ -140,12 +128,26 @@ fn main() -> Result<(), impl std::error::Error> {
                                 "s" => {
                                     let _ = window.request_inner_size(match state {
                                         true => PhysicalSize::new(
-                                            WINDOW_SIZE.width + 100,
-                                            WINDOW_SIZE.height + 100,
+                                            WINDOW_SIZE.width + 50,
+                                            WINDOW_SIZE.height + 50,
                                         ),
                                         false => WINDOW_SIZE,
                                     });
                                 }
+                                "k" => window.set_min_inner_size(match state {
+                                    true => Some(PhysicalSize::new(
+                                        WINDOW_SIZE.width - 100,
+                                        WINDOW_SIZE.height - 100,
+                                    )),
+                                    false => None,
+                                }),
+                                "o" => window.set_max_inner_size(match state {
+                                    true => Some(PhysicalSize::new(
+                                        WINDOW_SIZE.width + 100,
+                                        WINDOW_SIZE.height + 100,
+                                    )),
+                                    false => None,
+                                }),
                                 "w" => {
                                     if let Size::Physical(size) = WINDOW_SIZE.into() {
                                         window

@@ -467,44 +467,44 @@ impl<T: 'static> EventLoop<T> {
         });
 
         for window_id in window_ids.drain(..) {
-            let request_redraw = self.with_state(|state| {
+            let event = self.with_state(|state| {
                 let window_requests = state.window_requests.get_mut();
                 if window_requests.get(&window_id).unwrap().take_closed() {
                     mem::drop(window_requests.remove(&window_id));
                     mem::drop(state.windows.get_mut().remove(&window_id));
-                    false
-                } else {
-                    let mut window = state
-                        .windows
-                        .get_mut()
-                        .get_mut(&window_id)
-                        .unwrap()
-                        .lock()
-                        .unwrap();
-
-                    if window.frame_callback_state() == FrameCallbackState::Requested {
-                        false
-                    } else {
-                        // Reset the frame callbacks state.
-                        window.frame_callback_reset();
-                        let mut redraw_requested = window_requests
-                            .get(&window_id)
-                            .unwrap()
-                            .take_redraw_requested();
-
-                        // Redraw the frame while at it.
-                        redraw_requested |= window.refresh_frame();
-
-                        redraw_requested
-                    }
+                    return Some(WindowEvent::Destroyed);
                 }
+
+                let mut window = state
+                    .windows
+                    .get_mut()
+                    .get_mut(&window_id)
+                    .unwrap()
+                    .lock()
+                    .unwrap();
+
+                if window.frame_callback_state() == FrameCallbackState::Requested {
+                    return None;
+                }
+
+                // Reset the frame callbacks state.
+                window.frame_callback_reset();
+                let mut redraw_requested = window_requests
+                    .get(&window_id)
+                    .unwrap()
+                    .take_redraw_requested();
+
+                // Redraw the frame while at it.
+                redraw_requested |= window.refresh_frame();
+
+                redraw_requested.then_some(WindowEvent::RedrawRequested)
             });
 
-            if request_redraw {
+            if let Some(event) = event {
                 callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::RedrawRequested,
+                        event,
                     },
                     &self.window_target,
                 );
@@ -629,6 +629,34 @@ pub struct EventLoopWindowTarget<T> {
 }
 
 impl<T> EventLoopWindowTarget<T> {
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(None)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    pub(crate) fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub(crate) fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
+    }
+
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 

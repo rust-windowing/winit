@@ -17,12 +17,18 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use icrate::Foundation::MainThreadMarker;
-use objc2::rc::{autoreleasepool, Id};
-use objc2::runtime::NSObjectProtocol;
+use icrate::AppKit::{
+    NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
+    NSApplicationActivationPolicyRegular, NSWindow,
+};
+use icrate::Foundation::{MainThreadMarker, NSObjectProtocol};
 use objc2::{msg_send_id, ClassType};
+use objc2::{
+    rc::{autoreleasepool, Id},
+    runtime::ProtocolObject,
+};
 
-use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent, NSWindow};
+use super::event::dummy_event;
 use crate::{
     error::EventLoopError,
     event::Event,
@@ -116,6 +122,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         AppState::exit()
     }
 
+    pub(crate) fn clear_exit(&self) {
+        AppState::clear_exit()
+    }
+
     pub(crate) fn exiting(&self) -> bool {
         AppState::exiting()
     }
@@ -123,19 +133,19 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
 impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn hide_application(&self) {
-        NSApplication::shared(self.mtm).hide(None)
+        NSApplication::sharedApplication(self.mtm).hide(None)
     }
 
     pub(crate) fn hide_other_applications(&self) {
-        NSApplication::shared(self.mtm).hideOtherApplications(None)
+        NSApplication::sharedApplication(self.mtm).hideOtherApplications(None)
     }
 
     pub(crate) fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
-        NSWindow::setAllowsAutomaticWindowTabbing(enabled)
+        NSWindow::setAllowsAutomaticWindowTabbing(enabled, self.mtm)
     }
 
     pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
-        NSWindow::allowsAutomaticWindowTabbing()
+        NSWindow::allowsAutomaticWindowTabbing(self.mtm)
     }
 }
 
@@ -196,20 +206,20 @@ impl<T> EventLoop<T> {
             panic!("`winit` requires control over the principal class. You must create the event loop before other parts of your application initialize NSApplication");
         }
 
-        use NSApplicationActivationPolicy::*;
         let activation_policy = match attributes.activation_policy {
             ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
         let delegate = ApplicationDelegate::new(
+            mtm,
             activation_policy,
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
 
         autoreleasepool(|_| {
-            app.setDelegate(&delegate);
+            app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         });
 
         let panic_info: Rc<PanicInfo> = Default::default();
@@ -307,7 +317,7 @@ impl<T> EventLoop<T> {
 
                 // While the app is running it's possible that we catch a panic
                 // to avoid unwinding across an objective-c ffi boundary, which
-                // will lead to us stopping the `NSApp` and saving the
+                // will lead to us stopping the `NSApplication` and saving the
                 // `PanicInfo` so that we can resume the unwind at a controlled,
                 // safe point in time.
                 if let Some(panic) = self.panic_info.take() {
@@ -355,8 +365,6 @@ impl<T> EventLoop<T> {
         self._callback = Some(Rc::clone(&callback));
 
         autoreleasepool(|_| {
-            let app = NSApp();
-
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
@@ -377,25 +385,24 @@ impl<T> EventLoop<T> {
             // catch panics to make sure we can't unwind without clearing the set callback
             // (which would leave the global `AppState` in an undefined, unsafe state)
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
-                // As a special case, if the `NSApp` hasn't been launched yet then we at least run
+                // As a special case, if the application hasn't been launched yet then we at least run
                 // the loop until it has fully launched.
                 if !AppState::is_launched() {
                     debug_assert!(!AppState::is_running());
 
                     AppState::request_stop_on_launch();
                     unsafe {
-                        app.run();
+                        self.app.run();
                     }
 
-                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the `NSApp` has launched
+                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application has launched
                 } else if !AppState::is_running() {
-                    // Even though the NSApp may have been launched, it's possible we aren't running
+                    // Even though the application may have been launched, it's possible we aren't running
                     // if the `EventLoop` was run before and has since exited. This indicates that
                     // we just starting to re-run the same `EventLoop` again.
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 } else {
-                    // Only run the NSApp for as long as the given `Duration` allows so we
-                    // don't block the external loop.
+                    // Only run for as long as the given `Duration` allows so we don't block the external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
                             AppState::set_wait_timeout(None);
@@ -415,13 +422,13 @@ impl<T> EventLoop<T> {
                     }
                     AppState::set_stop_app_on_redraw_requested(true);
                     unsafe {
-                        app.run();
+                        self.app.run();
                     }
                 }
 
                 // While the app is running it's possible that we catch a panic
                 // to avoid unwinding across an objective-c ffi boundary, which
-                // will lead to us stopping the `NSApp` and saving the
+                // will lead to us stopping the application and saving the
                 // `PanicInfo` so that we can resume the unwind at a controlled,
                 // safe point in time.
                 if let Some(panic) = self.panic_info.take() {
@@ -459,6 +466,7 @@ impl<T> EventLoop<T> {
 /// happens, stops the `sharedApplication`
 #[inline]
 pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
+    mtm: MainThreadMarker,
     panic_info: Weak<PanicInfo>,
     f: F,
 ) -> Option<R> {
@@ -473,11 +481,11 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 let panic_info = panic_info.upgrade().unwrap();
                 panic_info.set_panic(e);
             }
-            let app = NSApp();
+            let app = NSApplication::sharedApplication(mtm);
             app.stop(None);
             // Posting a dummy event to get `stop` to take effect immediately.
             // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-            app.postEvent_atStart(&NSEvent::dummy(), true);
+            app.postEvent_atStart(&dummy_event().unwrap(), true);
             None
         }
     }

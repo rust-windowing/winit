@@ -19,10 +19,15 @@ Unreleased` header.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
-- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
 - **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
+
+# 0.29.6
+
+- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
+- On Wayland, fix `WindowEvent::Destroyed` not being delivered after destroying window.
+- Fix `EventLoopExtRunOnDemand::run_on_demand` not working for consequent invocation
 
 # 0.29.5
 

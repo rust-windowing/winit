@@ -4,10 +4,15 @@ use core_foundation::{
     base::CFRelease,
     data::{CFDataGetBytePtr, CFDataRef},
 };
-use icrate::Foundation::MainThreadMarker;
+use icrate::AppKit::{
+    NSEvent, NSEventModifierFlagCommand, NSEventModifierFlagControl, NSEventModifierFlagOption,
+    NSEventModifierFlagShift, NSEventModifierFlags, NSEventSubtypeWindowExposed,
+    NSEventTypeApplicationDefined,
+};
+use icrate::Foundation::{MainThreadMarker, NSPoint};
+use objc2::rc::Id;
 use smol_str::SmolStr;
 
-use super::appkit::{NSEvent, NSEventModifierFlags};
 use crate::{
     event::{ElementState, KeyEvent, Modifiers},
     keyboard::{
@@ -98,8 +103,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
 }
 
 fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
-    let string = ns_event
-        .charactersIgnoringModifiers()
+    let string = unsafe { ns_event.charactersIgnoringModifiers() }
         .map(|s| s.to_string())
         .unwrap_or_default();
     if string.is_empty() {
@@ -122,15 +126,14 @@ pub(crate) fn create_key_event(
     use ElementState::{Pressed, Released};
     let state = if is_press { Pressed } else { Released };
 
-    let scancode = ns_event.key_code();
+    let scancode = unsafe { ns_event.keyCode() };
     let mut physical_key =
         key_override.unwrap_or_else(|| PhysicalKey::from_scancode(scancode as u32));
 
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
     } else {
-        let characters = ns_event
-            .characters()
+        let characters = unsafe { ns_event.characters() }
             .map(|s| s.to_string())
             .unwrap_or_default();
         if characters.is_empty() {
@@ -148,8 +151,8 @@ pub(crate) fn create_key_event(
     let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
         let key_without_modifiers = get_modifierless_char(scancode);
 
-        let modifiers = NSEvent::modifierFlags(ns_event);
-        let has_ctrl = modifiers.contains(NSEventModifierFlags::NSControlKeyMask);
+        let modifiers = unsafe { ns_event.modifierFlags() };
+        let has_ctrl = flags_contains(modifiers, NSEventModifierFlagControl);
 
         let logical_key = match text_with_all_modifiers.as_ref() {
             // Only checking for ctrl here, not checking for alt because we DO want to
@@ -311,46 +314,104 @@ pub fn extra_function_key_to_code(scancode: u16, string: &str) -> PhysicalKey {
     }
 }
 
+// The values are from the https://github.com/apple-oss-distributions/IOHIDFamily/blob/19666c840a6d896468416ff0007040a10b7b46b8/IOHIDSystem/IOKit/hidsystem/IOLLEvent.h#L258-L259
+const NX_DEVICELCTLKEYMASK: NSEventModifierFlags = 0x00000001;
+const NX_DEVICELSHIFTKEYMASK: NSEventModifierFlags = 0x00000002;
+const NX_DEVICERSHIFTKEYMASK: NSEventModifierFlags = 0x00000004;
+const NX_DEVICELCMDKEYMASK: NSEventModifierFlags = 0x00000008;
+const NX_DEVICERCMDKEYMASK: NSEventModifierFlags = 0x00000010;
+const NX_DEVICELALTKEYMASK: NSEventModifierFlags = 0x00000020;
+const NX_DEVICERALTKEYMASK: NSEventModifierFlags = 0x00000040;
+const NX_DEVICERCTLKEYMASK: NSEventModifierFlags = 0x00002000;
+
+pub(super) fn flags_contains(flags: NSEventModifierFlags, value: NSEventModifierFlags) -> bool {
+    flags & value == value
+}
+
+pub(super) fn lalt_pressed(event: &NSEvent) -> bool {
+    flags_contains(unsafe { event.modifierFlags() }, NX_DEVICELALTKEYMASK)
+}
+
+pub(super) fn ralt_pressed(event: &NSEvent) -> bool {
+    flags_contains(unsafe { event.modifierFlags() }, NX_DEVICERALTKEYMASK)
+}
+
 pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
-    let flags = event.modifierFlags();
+    let flags = unsafe { event.modifierFlags() };
     let mut state = ModifiersState::empty();
     let mut pressed_mods = ModifiersKeys::empty();
 
     state.set(
         ModifiersState::SHIFT,
-        flags.contains(NSEventModifierFlags::NSShiftKeyMask),
+        flags_contains(flags, NSEventModifierFlagShift),
     );
-
-    pressed_mods.set(ModifiersKeys::LSHIFT, event.lshift_pressed());
-    pressed_mods.set(ModifiersKeys::RSHIFT, event.rshift_pressed());
+    pressed_mods.set(
+        ModifiersKeys::LSHIFT,
+        flags_contains(flags, NX_DEVICELSHIFTKEYMASK),
+    );
+    pressed_mods.set(
+        ModifiersKeys::RSHIFT,
+        flags_contains(flags, NX_DEVICERSHIFTKEYMASK),
+    );
 
     state.set(
         ModifiersState::CONTROL,
-        flags.contains(NSEventModifierFlags::NSControlKeyMask),
+        flags_contains(flags, NSEventModifierFlagControl),
     );
-
-    pressed_mods.set(ModifiersKeys::LCONTROL, event.lctrl_pressed());
-    pressed_mods.set(ModifiersKeys::RCONTROL, event.rctrl_pressed());
+    pressed_mods.set(
+        ModifiersKeys::LCONTROL,
+        flags_contains(flags, NX_DEVICELCTLKEYMASK),
+    );
+    pressed_mods.set(
+        ModifiersKeys::RCONTROL,
+        flags_contains(flags, NX_DEVICERCTLKEYMASK),
+    );
 
     state.set(
         ModifiersState::ALT,
-        flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
+        flags_contains(flags, NSEventModifierFlagOption),
     );
-
-    pressed_mods.set(ModifiersKeys::LALT, event.lalt_pressed());
-    pressed_mods.set(ModifiersKeys::RALT, event.ralt_pressed());
+    pressed_mods.set(
+        ModifiersKeys::LALT,
+        flags_contains(flags, NX_DEVICELALTKEYMASK),
+    );
+    pressed_mods.set(
+        ModifiersKeys::RALT,
+        flags_contains(flags, NX_DEVICERALTKEYMASK),
+    );
 
     state.set(
         ModifiersState::SUPER,
-        flags.contains(NSEventModifierFlags::NSCommandKeyMask),
+        flags_contains(flags, NSEventModifierFlagCommand),
     );
-
-    pressed_mods.set(ModifiersKeys::LSUPER, event.lcmd_pressed());
-    pressed_mods.set(ModifiersKeys::RSUPER, event.rcmd_pressed());
+    pressed_mods.set(
+        ModifiersKeys::LSUPER,
+        flags_contains(flags, NX_DEVICELCMDKEYMASK),
+    );
+    pressed_mods.set(
+        ModifiersKeys::RSUPER,
+        flags_contains(flags, NX_DEVICERCMDKEYMASK),
+    );
 
     Modifiers {
         state,
         pressed_mods,
+    }
+}
+
+pub(super) fn dummy_event() -> Option<Id<NSEvent>> {
+    unsafe {
+        NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+            NSEventTypeApplicationDefined,
+            NSPoint::new(0.0, 0.0),
+            0, // Empty NSEventModifierFlags
+            0.0,
+            0,
+            None,
+            NSEventSubtypeWindowExposed,
+            0,
+            0,
+        )
     }
 }
 
