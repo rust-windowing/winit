@@ -10,6 +10,10 @@ use std::sync::{
     Arc,
 };
 
+use log::debug;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use super::{ffi, util, XConnection, XError};
 
 pub use self::context::ImeContextCreationError;

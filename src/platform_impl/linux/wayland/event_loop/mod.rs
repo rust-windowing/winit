@@ -552,7 +552,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         self.event_loop.dispatch(timeout, state).map_err(|error| {
-            error!("Error dispatching event loop: {}", error);
+            log::error!("Error dispatching event loop: {}", error);
             error.into()
         })
     }

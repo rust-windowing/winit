@@ -160,15 +160,6 @@
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate log;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
-#[macro_use]
-extern crate bitflags;
-
 pub mod dpi;
 #[macro_use]
 pub mod error;

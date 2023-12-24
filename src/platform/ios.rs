@@ -283,7 +283,7 @@ pub enum Idiom {
     CarPlay,
 }
 
-bitflags! {
+bitflags::bitflags! {
     /// The [edges] of a screen.
     ///
     /// [edges]: https://developer.apple.com/documentation/uikit/uirectedge?language=objc

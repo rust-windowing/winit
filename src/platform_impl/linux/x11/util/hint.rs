@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use super::*;
 
 #[derive(Debug)]

@@ -14,6 +14,7 @@ use std::{
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy};
 use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
+use log::trace;
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 

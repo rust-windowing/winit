@@ -18,6 +18,8 @@ use windows_sys::{
     },
 };
 
+use log::debug;
+
 use crate::platform_impl::platform::{
     definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
     WindowId,

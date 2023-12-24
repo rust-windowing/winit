@@ -14,6 +14,8 @@ pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Represents a window.
 ///
@@ -1674,7 +1676,7 @@ pub enum UserAttentionType {
     Informational,
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowButtons: u32 {
         const CLOSE  = 1 << 0;

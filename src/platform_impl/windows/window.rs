@@ -54,6 +54,8 @@ use windows_sys::Win32::{
     },
 };
 
+use log::warn;
+
 use crate::{
     cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},

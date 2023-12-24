@@ -2,6 +2,8 @@ use std::os::raw::c_void;
 
 use icrate::Foundation::MainThreadMarker;
 use objc2::rc::Id;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
