@@ -172,7 +172,7 @@ pub trait EventLoopExtWebSys {
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -180,7 +180,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
     {
         self.event_loop.spawn(event_handler)
     }
@@ -202,7 +202,7 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.p.set_poll_strategy(strategy);
@@ -315,11 +315,11 @@ impl Error for BadAnimation {}
 pub trait CustomCursorBuilderExtWebSys {
     /// Async version of [`CustomCursorBuilder::build()`] which waits until the
     /// cursor has completely finished loading.
-    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture;
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture;
 }
 
 impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
-    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture {
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture {
         CustomCursorFuture(PlatformCustomCursor::build_async(
             self.inner,
             &window_target.p,

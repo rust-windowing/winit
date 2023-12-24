@@ -237,7 +237,7 @@ impl WinCursor {
         }
     }
 
-    pub(crate) fn build<T>(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget<T>) -> Self {
+    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget) -> Self {
         match Self::new(&cursor.0) {
             Ok(cursor) => cursor,
             Err(err) => {

@@ -28,8 +28,8 @@ pub struct Inner {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        target: &EventLoopWindowTarget,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {

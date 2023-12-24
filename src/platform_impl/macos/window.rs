@@ -69,8 +69,8 @@ impl Drop for Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        _window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        _window_target: &EventLoopWindowTarget,
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {

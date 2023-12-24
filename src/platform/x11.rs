@@ -95,7 +95,7 @@ pub trait EventLoopWindowTargetExtX11 {
     fn is_x11(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtX11 for EventLoopWindowTarget {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.p.is_wayland()

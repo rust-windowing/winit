@@ -8,7 +8,7 @@ use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
 
 use super::event_loop::EventLoopWindowTarget;
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.state

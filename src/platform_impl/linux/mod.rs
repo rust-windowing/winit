@@ -286,8 +286,8 @@ impl VideoModeHandle {
 
 impl Window {
     #[inline]
-    pub(crate) fn new<T>(
-        window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        window_target: &EventLoopWindowTarget,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
@@ -781,26 +781,26 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         self.run_on_demand(callback)
     }
 
     pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
@@ -823,14 +823,14 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-pub enum EventLoopWindowTarget<T> {
+pub enum EventLoopWindowTarget {
     #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopWindowTarget<T>),
+    Wayland(wayland::EventLoopWindowTarget),
     #[cfg(x11_platform)]
-    X(x11::EventLoopWindowTarget<T>),
+    X(x11::EventLoopWindowTarget),
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline]
     pub fn is_wayland(&self) -> bool {
         match *self {
