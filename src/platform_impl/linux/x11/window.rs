@@ -575,6 +575,8 @@ impl UnownedWindow {
             leap!(window.set_window_level_inner(window_attrs.window_level)).ignore_error();
         }
 
+        window.set_cursor(window_attrs.cursor);
+
         // Remove the startup notification if we have one.
         if let Some(startup) = pl_attribs.activation_token.as_ref() {
             leap!(xconn.remove_activation_token(xwindow, &startup._token));

@@ -1225,6 +1225,8 @@ impl<'a, T: 'static> InitData<'a, T> {
             win.set_content_protected(true);
         }
 
+        win.set_cursor(attributes.cursor);
+
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);

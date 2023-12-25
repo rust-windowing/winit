@@ -518,6 +518,8 @@ impl WinitWindow {
             }
         }
 
+        this.set_cursor(attrs.cursor);
+
         let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.0.is_some());
 
         // XXX Send `Focused(false)` right after creating the window delegate, so we won't

@@ -155,6 +155,7 @@ pub struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub active: bool,
+    pub cursor: Cursor,
     #[cfg(feature = "rwh_06")]
     pub(crate) parent_window: SendSyncWrapper<Option<rwh_06::RawWindowHandle>>,
     pub(crate) fullscreen: SendSyncWrapper<Option<Fullscreen>>,
@@ -182,6 +183,7 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            cursor: Cursor::default(),
             #[cfg(feature = "rwh_06")]
             parent_window: SendSyncWrapper(None),
             active: true,
@@ -471,6 +473,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
         self.window.active = active;
+        self
+    }
+
+    /// Modifies the cursor icon of the window.
+    ///
+    /// The default is [`CursorIcon::Default`].
+    ///
+    /// See [`Window::set_cursor()`] for more details.
+    #[inline]
+    pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
+        self.window.cursor = cursor.into();
         self
     }
 

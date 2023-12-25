@@ -169,6 +169,11 @@ impl Window {
             _ => (),
         };
 
+        match attributes.cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+        }
+
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (
             xdg_activation.as_ref(),
