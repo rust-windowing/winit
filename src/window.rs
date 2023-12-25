@@ -6,7 +6,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoModeHandle},
-    platform_impl,
+    platform_impl::{self, PlatformSpecificWindowBuilderAttributes},
 };
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
@@ -129,9 +129,6 @@ impl From<u64> for WindowId {
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub(crate) window: WindowAttributes,
-
-    // Platform-specific configuration.
-    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
 impl fmt::Debug for WindowBuilder {
@@ -167,6 +164,9 @@ pub struct WindowAttributes {
     #[cfg(feature = "rwh_06")]
     pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
     pub fullscreen: Option<Fullscreen>,
+    // Platform-specific configuration.
+    #[allow(dead_code)]
+    pub(crate) platform_specific: PlatformSpecificWindowBuilderAttributes,
 }
 
 impl Default for WindowAttributes {
@@ -195,6 +195,7 @@ impl Default for WindowAttributes {
             #[cfg(feature = "rwh_06")]
             parent_window: None,
             active: true,
+            platform_specific: Default::default(),
         }
     }
 }
@@ -540,8 +541,7 @@ impl WindowBuilder {
     ///   see the web platform module for more information.
     #[inline]
     pub fn build(self, window_target: &EventLoopWindowTarget) -> Result<Window, OsError> {
-        let window =
-            platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)?;
+        let window = platform_impl::Window::new(&window_target.p, self.window)?;
         window.maybe_queue_on_main(|w| w.request_redraw());
         Ok(Window { window })
     }

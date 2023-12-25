@@ -22,7 +22,6 @@ use crate::{
     platform::ios::ValidOrientations,
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
-        window::PlatformSpecificWindowBuilderAttributes,
         Fullscreen, DEVICE_ID,
     },
     window::{WindowAttributes, WindowId as RootWindowId},
@@ -264,8 +263,7 @@ extern_methods!(
 impl WinitView {
     pub(crate) fn new(
         _mtm: MainThreadMarker,
-        _window_attributes: &WindowAttributes,
-        platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+        window_attributes: &WindowAttributes,
         frame: CGRect,
     ) -> Id<Self> {
         let this = Self::alloc().set_ivars(WinitViewState {
@@ -277,7 +275,7 @@ impl WinitView {
 
         this.setMultipleTouchEnabled(true);
 
-        if let Some(scale_factor) = platform_attributes.scale_factor {
+        if let Some(scale_factor) = window_attributes.platform_specific.scale_factor {
             this.setContentScaleFactor(scale_factor as _);
         }
 
@@ -515,8 +513,7 @@ impl WinitViewController {
 
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        _window_attributes: &WindowAttributes,
-        platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+        window_attributes: &WindowAttributes,
         view: &UIView,
     ) -> Id<Self> {
         // These are set properly below, we just to set them to something in the meantime.
@@ -529,18 +526,33 @@ impl WinitViewController {
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
-        this.set_prefers_status_bar_hidden(platform_attributes.prefers_status_bar_hidden);
+        this.set_prefers_status_bar_hidden(
+            window_attributes
+                .platform_specific
+                .prefers_status_bar_hidden,
+        );
 
-        this.set_preferred_status_bar_style(platform_attributes.preferred_status_bar_style.into());
+        this.set_preferred_status_bar_style(
+            window_attributes
+                .platform_specific
+                .preferred_status_bar_style
+                .into(),
+        );
 
-        this.set_supported_interface_orientations(mtm, platform_attributes.valid_orientations);
+        this.set_supported_interface_orientations(
+            mtm,
+            window_attributes.platform_specific.valid_orientations,
+        );
 
         this.set_prefers_home_indicator_auto_hidden(
-            platform_attributes.prefers_home_indicator_hidden,
+            window_attributes
+                .platform_specific
+                .prefers_home_indicator_hidden,
         );
 
         this.set_preferred_screen_edges_deferring_system_gestures(
-            platform_attributes
+            window_attributes
+                .platform_specific
                 .preferred_screen_edges_deferring_system_gestures
                 .into(),
         );
@@ -597,7 +609,6 @@ impl WinitUIWindow {
     pub(crate) fn new(
         mtm: MainThreadMarker,
         window_attributes: &WindowAttributes,
-        _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Id<Self> {
