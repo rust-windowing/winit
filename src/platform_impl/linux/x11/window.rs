@@ -26,6 +26,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
+    platform::x11::WindowType,
     platform_impl::{
         x11::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
@@ -635,10 +636,7 @@ impl UnownedWindow {
         flusher.map(Some)
     }
 
-    fn set_window_types(
-        &self,
-        window_types: Vec<util::WindowType>,
-    ) -> Result<VoidCookie<'_>, X11Error> {
+    fn set_window_types(&self, window_types: Vec<WindowType>) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
         let hint_atom = atoms[_NET_WM_WINDOW_TYPE];
         let atoms: Vec<_> = window_types

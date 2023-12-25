@@ -260,7 +260,7 @@ impl fmt::Display for XError {
 
 /// Error returned if this system doesn't have XLib or can't create an X connection.
 #[derive(Clone, Debug)]
-pub enum XNotSupported {
+pub(crate) enum XNotSupported {
     /// Failed to load one or several shared libraries.
     LibraryOpenError(ffi::OpenError),
 

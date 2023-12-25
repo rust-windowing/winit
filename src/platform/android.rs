@@ -3,7 +3,7 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
-use android_activity::{AndroidApp, ConfigurationRef, Rect};
+use self::activity::{AndroidApp, ConfigurationRef, Rect};
 
 /// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {}
@@ -89,5 +89,16 @@ pub mod activity {
     // feature enabled, so we avoid inlining it so that they're forced to view
     // it on the crate's own docs.rs page.
     #[doc(no_inline)]
+    #[cfg(android_platform)]
     pub use android_activity::*;
+
+    #[cfg(not(android_platform))]
+    #[doc(hidden)]
+    pub struct Rect(());
+    #[cfg(not(android_platform))]
+    #[doc(hidden)]
+    pub struct ConfigurationRef(());
+    #[cfg(not(android_platform))]
+    #[doc(hidden)]
+    pub struct AndroidApp(());
 }

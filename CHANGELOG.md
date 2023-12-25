@@ -28,6 +28,8 @@ Unreleased` header.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- **Breaking:** No longer export `platform::x11::XNotSupported`.
+- **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 
 # 0.29.8
 

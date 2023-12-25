@@ -5,7 +5,6 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -183,7 +182,14 @@ pub trait WindowBuilderExtWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
     /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     ///
-    /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
+    #[cfg_attr(
+        platform_windows,
+        doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
+    )]
+    #[cfg_attr(
+        not(platform_windows),
+        doc = "[`CreateMenu`]: #only-available-on-windows"
+    )]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -326,12 +332,12 @@ impl IconExtWindows for Icon {
         path: P,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_path(path, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }
 
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
     }
 }
