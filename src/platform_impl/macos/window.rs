@@ -3,7 +3,6 @@
 use std::collections::VecDeque;
 use std::f64;
 use std::ops;
-use std::sync::PoisonError;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::{
@@ -114,13 +113,9 @@ impl Window {
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        struct UnsafeSendWrapper<T>(T);
-
-        unsafe impl<T> Send for UnsafeSendWrapper<T> {}
-
-        Ok(self
-            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_display_handle_rwh_06()))
-            .0)
+        Ok(rwh_06::RawDisplayHandle::AppKit(
+            rwh_06::AppKitDisplayHandle::new(),
+        ))
     }
 }
 
@@ -1110,11 +1105,7 @@ impl WinitWindow {
             unsafe {
                 let result = ffi::CGDisplaySetDisplayMode(
                     display_id,
-                    video_mode
-                        .native_mode
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .0,
+                    video_mode.native_mode.0,
                     std::ptr::null(),
                 );
                 assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
@@ -1385,12 +1376,6 @@ impl WinitWindow {
             std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
         });
         rwh_06::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(&self) -> rwh_06::RawDisplayHandle {
-        rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new())
     }
 
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {
