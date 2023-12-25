@@ -32,7 +32,7 @@ use crate::{
             X11Error,
         },
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoModeHandle as PlatformVideoModeHandle,
+        VideoModeHandle as PlatformVideoModeHandle,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -154,7 +154,6 @@ impl UnownedWindow {
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
@@ -227,7 +226,7 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match pl_attribs.x11.screen_id {
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
             Some(id) => id,
             None => xconn.default_screen_index() as c_int,
         };
@@ -247,7 +246,11 @@ impl UnownedWindow {
             });
 
         // creating
-        let (visualtype, depth, require_colormap) = match pl_attribs.x11.visual_id {
+        let (visualtype, depth, require_colormap) = match window_attrs
+            .platform_specific
+            .x11
+            .visual_id
+        {
             Some(vi) => {
                 // Find this specific visual.
                 let (visualtype, depth) = all_visuals
@@ -289,12 +292,12 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if pl_attribs.x11.override_redirect {
+            if window_attrs.platform_specific.x11.override_redirect {
                 aux = aux.override_redirect(true as u32);
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match pl_attribs.x11.visual_id {
+            let colormap_visual = match window_attrs.platform_specific.x11.visual_id {
                 Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
@@ -317,7 +320,11 @@ impl UnownedWindow {
         };
 
         // Figure out the window's parent.
-        let parent = pl_attribs.x11.embed_window.unwrap_or(root);
+        let parent = window_attrs
+            .platform_specific
+            .x11
+            .embed_window
+            .unwrap_or(root);
 
         // finally creating the window
         let xwindow = {
@@ -379,7 +386,7 @@ impl UnownedWindow {
         }
 
         // Embed the window if needed.
-        if pl_attribs.x11.embed_window.is_some() {
+        if window_attrs.platform_specific.x11.embed_window.is_some() {
             window.embed_window()?;
         }
 
@@ -400,7 +407,7 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (class, instance) = if let Some(name) = pl_attribs.name {
+                let (class, instance) = if let Some(name) = window_attrs.platform_specific.name {
                     (name.instance, name.general)
                 } else {
                     let class = env::args_os()
@@ -433,7 +440,8 @@ impl UnownedWindow {
                 flusher.ignore_error()
             }
 
-            leap!(window.set_window_types(pl_attribs.x11.x11_window_types)).ignore_error();
+            leap!(window.set_window_types(window_attrs.platform_specific.x11.x11_window_types))
+                .ignore_error();
 
             // Set size hints.
             let mut min_inner_size = window_attrs
@@ -456,7 +464,7 @@ impl UnownedWindow {
             shared_state.min_inner_size = min_inner_size.map(Into::into);
             shared_state.max_inner_size = max_inner_size.map(Into::into);
             shared_state.resize_increments = window_attrs.resize_increments;
-            shared_state.base_size = pl_attribs.x11.base_size;
+            shared_state.base_size = window_attrs.platform_specific.x11.base_size;
 
             let normal_hints = WmSizeHints {
                 position: position.map(|PhysicalPosition { x, y }| {
@@ -472,7 +480,8 @@ impl UnownedWindow {
                 size_increment: window_attrs
                     .resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
-                base_size: pl_attribs
+                base_size: window_attrs
+                    .platform_specific
                     .x11
                     .base_size
                     .map(|size| cast_size_to_hint(size, scale_factor)),
@@ -578,7 +587,7 @@ impl UnownedWindow {
         window.set_cursor(window_attrs.cursor);
 
         // Remove the startup notification if we have one.
-        if let Some(startup) = pl_attribs.activation_token.as_ref() {
+        if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
             leap!(xconn.remove_activation_token(xwindow, &startup._token));
         }
 

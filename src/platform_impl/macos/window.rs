@@ -72,12 +72,10 @@ impl Window {
     pub(crate) fn new<T: 'static>(
         _window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = MainThreadMarker::new()
             .expect("windows can only be created on the main thread on macOS");
-        let (window, _delegate) =
-            autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs, mtm))?;
+        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, mtm))?;
         Ok(Window {
             window: MainThreadBound::new(window, mtm),
             _delegate: MainThreadBound::new(_delegate, mtm),
@@ -140,7 +138,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
@@ -286,7 +284,6 @@ impl WinitWindow {
     #[allow(clippy::type_complexity)]
     fn new(
         attrs: WindowAttributes,
-        pl_attrs: PlatformSpecificWindowBuilderAttributes,
         mtm: MainThreadMarker,
     ) -> Result<(Id<Self>, Id<WinitWindowDelegate>), RootOsError> {
         trace_scope!("WinitWindow::new");
@@ -328,7 +325,8 @@ impl WinitWindow {
                 }
             };
 
-            let mut masks = if (!attrs.decorations && screen.is_none()) || pl_attrs.titlebar_hidden
+            let mut masks = if (!attrs.decorations && screen.is_none())
+                || attrs.platform_specific.titlebar_hidden
             {
                 // Resizable without a titlebar or borders
                 // if decorations is set to false, ignore pl_attrs
@@ -357,7 +355,7 @@ impl WinitWindow {
                 masks &= !NSWindowStyleMaskClosable;
             }
 
-            if pl_attrs.fullsize_content_view {
+            if attrs.platform_specific.fullsize_content_view {
                 masks |= NSWindowStyleMaskFullSizeContentView;
             }
 
@@ -400,7 +398,7 @@ impl WinitWindow {
             this.setTitle(&NSString::from_str(&attrs.title));
             this.setAcceptsMouseMovedEvents(true);
 
-            if let Some(identifier) = pl_attrs.tabbing_identifier {
+            if let Some(identifier) = attrs.platform_specific.tabbing_identifier {
                 this.setTabbingIdentifier(&NSString::from_str(&identifier));
                 this.setTabbingMode(NSWindowTabbingModePreferred);
             }
@@ -409,13 +407,13 @@ impl WinitWindow {
                 this.setSharingType(NSWindowSharingNone);
             }
 
-            if pl_attrs.titlebar_transparent {
+            if attrs.platform_specific.titlebar_transparent {
                 this.setTitlebarAppearsTransparent(true);
             }
-            if pl_attrs.title_hidden {
+            if attrs.platform_specific.title_hidden {
                 this.setTitleVisibility(NSWindowTitleHidden);
             }
-            if pl_attrs.titlebar_buttons_hidden {
+            if attrs.platform_specific.titlebar_buttons_hidden {
                 for titlebar_button in &[
                     #[allow(deprecated)]
                     NSWindowFullScreenButton,
@@ -428,7 +426,7 @@ impl WinitWindow {
                     }
                 }
             }
-            if pl_attrs.movable_by_window_background {
+            if attrs.platform_specific.movable_by_window_background {
                 this.setMovableByWindowBackground(true);
             }
 
@@ -438,14 +436,14 @@ impl WinitWindow {
                 }
             }
 
-            if !pl_attrs.has_shadow {
+            if !attrs.platform_specific.has_shadow {
                 this.setHasShadow(false);
             }
             if attrs.position.is_none() {
                 this.center();
             }
 
-            this.set_option_as_alt(pl_attrs.option_as_alt);
+            this.set_option_as_alt(attrs.platform_specific.option_as_alt);
 
             Some(this)
         })
@@ -472,13 +470,13 @@ impl WinitWindow {
             None => (),
         }
 
-        let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
+        let view = WinitView::new(&this, attrs.platform_specific.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
         #[allow(deprecated)]
-        view.setWantsBestResolutionOpenGLSurface(!pl_attrs.disallow_hidpi);
+        view.setWantsBestResolutionOpenGLSurface(!attrs.platform_specific.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
         // a window. Changing the layer-backedness of a view breaks the association between

@@ -77,7 +77,7 @@ impl ApplicationName {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
@@ -85,7 +85,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11: X11WindowBuilderAttributes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg(x11_platform)]
 pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
@@ -294,16 +294,15 @@ impl Window {
     pub(crate) fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref window_target) => {
-                wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
+                wayland::Window::new(window_target, attribs).map(Window::Wayland)
             }
             #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref window_target) => {
-                x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
+                x11::Window::new(window_target, attribs).map(Window::X)
             }
         }
     }

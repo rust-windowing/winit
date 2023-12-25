@@ -766,7 +766,6 @@ impl Window {
     pub(crate) fn new<T: 'static>(
         el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
 

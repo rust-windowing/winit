@@ -14,7 +14,7 @@ use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{Force, InnerSizeWriter, MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::OsError;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use super::super::cursor::CursorHandler;
@@ -75,10 +75,9 @@ impl Canvas {
         id: WindowId,
         window: web_sys::Window,
         document: Document,
-        attr: &WindowAttributes,
-        mut platform_attr: PlatformSpecificWindowBuilderAttributes,
+        attr: &mut WindowAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match platform_attr.canvas.take().map(|canvas| {
+        let canvas = match attr.platform_specific.canvas.take().map(|canvas| {
             Arc::try_unwrap(canvas)
                 .map(|canvas| canvas.into_inner(main_thread))
                 .unwrap_or_else(|canvas| canvas.get(main_thread).clone())
@@ -90,7 +89,7 @@ impl Canvas {
                 .unchecked_into(),
         };
 
-        if platform_attr.append && !document.contains(Some(&canvas)) {
+        if attr.platform_specific.append && !document.contains(Some(&canvas)) {
             document
                 .body()
                 .expect("Failed to get body from document")
@@ -103,7 +102,7 @@ impl Canvas {
         // sequential keyboard navigation, but its order is defined by the
         // document's source order.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
-        if platform_attr.focusable {
+        if attr.platform_specific.focusable {
             canvas
                 .set_attribute("tabindex", "0")
                 .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
@@ -154,7 +153,7 @@ impl Canvas {
             common,
             id,
             has_focus: Rc::new(Cell::new(false)),
-            prevent_default: Rc::new(Cell::new(platform_attr.prevent_default)),
+            prevent_default: Rc::new(Cell::new(attr.platform_specific.prevent_default)),
             is_intersecting: None,
             on_touch_start: None,
             on_blur: None,

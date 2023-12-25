@@ -75,7 +75,7 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
+        Fullscreen, SelectedCursor, WindowId,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -99,13 +99,12 @@ impl Window {
     pub(crate) fn new<T: 'static>(
         event_loop: &EventLoopWindowTarget<T>,
         w_attr: WindowAttributes,
-        pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe { init(w_attr, pl_attr, event_loop) }
+        unsafe { init(w_attr, event_loop) }
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
@@ -1078,7 +1077,6 @@ pub(super) struct InitData<'a, T: 'static> {
     // inputs
     pub event_loop: &'a EventLoopWindowTarget<T>,
     pub attributes: WindowAttributes,
-    pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
     pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
@@ -1128,7 +1126,7 @@ impl<'a, T: 'static> InitData<'a, T> {
     }
 
     unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData<T> {
-        let file_drop_handler = if self.pl_attribs.drag_and_drop {
+        let file_drop_handler = if self.attributes.platform_specific.drag_and_drop {
             let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
             // It is ok if the initialize result is `S_FALSE` because it might happen that
             // multiple windows are created on the same thread.
@@ -1195,7 +1193,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         let win = self.window.as_mut().expect("failed window creation");
 
         // making the window transparent
-        if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
+        if self.attributes.transparent && !self.attributes.platform_specific.no_redirection_bitmap {
             // Empty region for the blur effect, so the window is fully transparent
             let region = unsafe { CreateRectRgn(0, 0, -1, -1) };
 
@@ -1215,9 +1213,9 @@ impl<'a, T: 'static> InitData<'a, T> {
             unsafe { DeleteObject(region) };
         }
 
-        win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+        win.set_skip_taskbar(self.attributes.platform_specific.skip_taskbar);
         win.set_window_icon(self.attributes.window_icon.clone());
-        win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
+        win.set_taskbar_icon(self.attributes.platform_specific.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
 
@@ -1271,7 +1269,6 @@ impl<'a, T: 'static> InitData<'a, T> {
 }
 unsafe fn init<T>(
     attributes: WindowAttributes,
-    pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError>
 where
@@ -1279,14 +1276,14 @@ where
 {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = util::encode_wide(&pl_attribs.class_name);
+    let class_name = util::encode_wide(&attributes.platform_specific.class_name);
     unsafe { register_window_class::<T>(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(
         WindowFlags::MARKER_UNDECORATED_SHADOW,
-        pl_attribs.decoration_shadow,
+        attributes.platform_specific.decoration_shadow,
     );
     window_flags.set(
         WindowFlags::ALWAYS_ON_TOP,
@@ -1298,7 +1295,7 @@ where
     );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
-        pl_attribs.no_redirection_bitmap,
+        attributes.platform_specific.no_redirection_bitmap,
     );
     window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
@@ -1308,7 +1305,7 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
-    let mut fallback_parent = || match pl_attribs.owner {
+    let mut fallback_parent = || match attributes.platform_specific.owner {
         Some(parent) => {
             window_flags.set(WindowFlags::POPUP, true);
             Some(parent)
@@ -1323,7 +1320,7 @@ where
     let parent = match attributes.parent_window.as_ref().map(|handle| handle.0) {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
-            if pl_attribs.menu.is_some() {
+            if attributes.platform_specific.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(handle.hwnd.get() as HWND)
@@ -1335,10 +1332,10 @@ where
     #[cfg(not(feature = "rwh_06"))]
     let parent = fallback_parent();
 
+    let menu = attributes.platform_specific.menu;
     let mut initdata = InitData {
         event_loop,
         attributes,
-        pl_attribs: pl_attribs.clone(),
         window_flags,
         window: None,
     };
@@ -1355,7 +1352,7 @@ where
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             parent.unwrap_or(0),
-            pl_attribs.menu.unwrap_or(0),
+            menu.unwrap_or(0),
             util::get_instance_handle(),
             &mut initdata as *mut _ as *mut _,
         )

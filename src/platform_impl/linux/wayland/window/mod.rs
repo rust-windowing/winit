@@ -23,7 +23,6 @@ use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-    PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -84,7 +83,6 @@ impl Window {
     pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
-        platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
@@ -134,7 +132,7 @@ impl Window {
         window_state.set_decorate(attributes.decorations);
 
         // Set the app_id.
-        if let Some(name) = platform_attributes.name.map(|name| name.general) {
+        if let Some(name) = attributes.platform_specific.name.map(|name| name.general) {
             window.set_app_id(name);
         }
 
@@ -177,7 +175,7 @@ impl Window {
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (
             xdg_activation.as_ref(),
-            platform_attributes.activation_token,
+            attributes.platform_specific.activation_token,
         ) {
             xdg_activation.activate(token._token, &surface);
         }

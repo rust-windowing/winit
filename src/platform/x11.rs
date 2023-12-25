@@ -143,43 +143,44 @@ pub trait WindowBuilderExtX11 {
 impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
-        self.platform_specific.x11.visual_id = Some(visual_id);
+        self.window.platform_specific.x11.visual_id = Some(visual_id);
         self
     }
 
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.platform_specific.x11.screen_id = Some(screen_id);
+        self.window.platform_specific.x11.screen_id = Some(screen_id);
         self
     }
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
+        self.window.platform_specific.name =
+            Some(ApplicationName::new(general.into(), instance.into()));
         self
     }
 
     #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
-        self.platform_specific.x11.override_redirect = override_redirect;
+        self.window.platform_specific.x11.override_redirect = override_redirect;
         self
     }
 
     #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
-        self.platform_specific.x11.x11_window_types = x11_window_types;
+        self.window.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }
 
     #[inline]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
-        self.platform_specific.x11.base_size = Some(base_size.into());
+        self.window.platform_specific.x11.base_size = Some(base_size.into());
         self
     }
 
     #[inline]
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
-        self.platform_specific.x11.embed_window = Some(parent_window_id);
+        self.window.platform_specific.x11.embed_window = Some(parent_window_id);
         self
     }
 }

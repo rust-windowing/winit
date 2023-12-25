@@ -187,38 +187,39 @@ pub trait WindowBuilderExtIOS {
 impl WindowBuilderExtIOS for WindowBuilder {
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> Self {
-        self.platform_specific.scale_factor = Some(scale_factor);
+        self.window.platform_specific.scale_factor = Some(scale_factor);
         self
     }
 
     #[inline]
     fn with_valid_orientations(mut self, valid_orientations: ValidOrientations) -> Self {
-        self.platform_specific.valid_orientations = valid_orientations;
+        self.window.platform_specific.valid_orientations = valid_orientations;
         self
     }
 
     #[inline]
     fn with_prefers_home_indicator_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_home_indicator_hidden = hidden;
+        self.window.platform_specific.prefers_home_indicator_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_screen_edges_deferring_system_gestures(mut self, edges: ScreenEdge) -> Self {
-        self.platform_specific
+        self.window
+            .platform_specific
             .preferred_screen_edges_deferring_system_gestures = edges;
         self
     }
 
     #[inline]
     fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_status_bar_hidden = hidden;
+        self.window.platform_specific.prefers_status_bar_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
-        self.platform_specific.preferred_status_bar_style = status_bar_style;
+        self.window.platform_specific.preferred_status_bar_style = status_bar_style;
         self
     }
 }

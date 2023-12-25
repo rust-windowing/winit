@@ -104,22 +104,22 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.set_canvas(canvas);
+        self.window.platform_specific.set_canvas(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
-        self.platform_specific.prevent_default = prevent_default;
+        self.window.platform_specific.prevent_default = prevent_default;
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
-        self.platform_specific.focusable = focusable;
+        self.window.platform_specific.focusable = focusable;
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
-        self.platform_specific.append = append;
+        self.window.platform_specific.append = append;
         self
     }
 }

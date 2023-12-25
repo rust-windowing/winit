@@ -218,49 +218,49 @@ pub trait WindowBuilderExtWindows {
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
-        self.platform_specific.owner = Some(parent);
+        self.window.platform_specific.owner = Some(parent);
         self
     }
 
     #[inline]
     fn with_menu(mut self, menu: HMENU) -> Self {
-        self.platform_specific.menu = Some(menu);
+        self.window.platform_specific.menu = Some(menu);
         self
     }
 
     #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
-        self.platform_specific.taskbar_icon = taskbar_icon;
+        self.window.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
     #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
-        self.platform_specific.no_redirection_bitmap = flag;
+        self.window.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> Self {
-        self.platform_specific.drag_and_drop = flag;
+        self.window.platform_specific.drag_and_drop = flag;
         self
     }
 
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> Self {
-        self.platform_specific.skip_taskbar = skip;
+        self.window.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
-        self.platform_specific.class_name = class_name.into();
+        self.window.platform_specific.class_name = class_name.into();
         self
     }
 
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
-        self.platform_specific.decoration_shadow = shadow;
+        self.window.platform_specific.decoration_shadow = shadow;
         self
     }
 }
