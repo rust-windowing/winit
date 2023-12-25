@@ -18,6 +18,7 @@ use android_activity::{
 use once_cell::sync::Lazy;
 
 use crate::{
+    cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, Force, InnerSizeWriter, StartCause},
@@ -908,9 +909,7 @@ impl Window {
 
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
-
-    pub(crate) fn set_custom_cursor(&self, _: PlatformCustomCursor) {}
+    pub fn set_cursor(&self, _: Cursor) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(

@@ -84,7 +84,7 @@ fn main() -> Result<(), impl std::error::Error> {
                                 "1" => window.set_window_level(WindowLevel::AlwaysOnTop),
                                 "2" => window.set_window_level(WindowLevel::AlwaysOnBottom),
                                 "3" => window.set_window_level(WindowLevel::Normal),
-                                "c" => window.set_cursor_icon(match state {
+                                "c" => window.set_cursor(match state {
                                     true => CursorIcon::Progress,
                                     false => CursorIcon::Default,
                                 }),

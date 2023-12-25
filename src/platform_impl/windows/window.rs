@@ -55,6 +55,7 @@ use windows_sys::Win32::{
 };
 
 use crate::{
+    cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
@@ -72,12 +73,11 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformCustomCursor, PlatformSpecificWindowBuilderAttributes, SelectedCursor,
-        WindowId,
+        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
@@ -395,27 +395,30 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(cursor);
-        self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = LoadCursorW(0, util::to_windows_cursor(cursor));
-            SetCursor(cursor);
-        });
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        let new_cursor = match WinCursor::new(&cursor.0) {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                warn!("Failed to create custom cursor: {err}");
-                return;
+    pub fn set_cursor(&self, cursor: Cursor) {
+        match cursor {
+            Cursor::Icon(icon) => {
+                self.window_state_lock().mouse.selected_cursor = SelectedCursor::Named(icon);
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    let cursor = LoadCursorW(0, util::to_windows_cursor(icon));
+                    SetCursor(cursor);
+                });
             }
-        };
-        self.window_state_lock().mouse.selected_cursor = SelectedCursor::Custom(new_cursor.clone());
-        self.thread_executor.execute_in_thread(move || unsafe {
-            SetCursor(new_cursor.as_raw_handle());
-        });
+            Cursor::Custom(cursor) => {
+                let new_cursor = match WinCursor::new(&cursor.inner.0) {
+                    Ok(cursor) => cursor,
+                    Err(err) => {
+                        warn!("Failed to create custom cursor: {err}");
+                        return;
+                    }
+                };
+                self.window_state_lock().mouse.selected_cursor =
+                    SelectedCursor::Custom(new_cursor.clone());
+                self.thread_executor.execute_in_thread(move || unsafe {
+                    SetCursor(new_cursor.as_raw_handle());
+                });
+            }
+        }
     }
 
     #[inline]

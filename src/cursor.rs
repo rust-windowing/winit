@@ -3,6 +3,8 @@ use std::hash::Hasher;
 use std::sync::Arc;
 use std::{error::Error, hash::Hash};
 
+use cursor_icon::CursorIcon;
+
 use crate::event_loop::EventLoopWindowTarget;
 use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
 
@@ -11,7 +13,34 @@ pub const MAX_CURSOR_SIZE: u16 = 2048;
 
 const PIXEL_SIZE: usize = 4;
 
+/// See [`Window::set_cursor()`](crate::window::Window::set_cursor) for more details.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum Cursor {
+    Icon(CursorIcon),
+    Custom(CustomCursor),
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Self::Icon(CursorIcon::default())
+    }
+}
+
+impl From<CursorIcon> for Cursor {
+    fn from(icon: CursorIcon) -> Self {
+        Self::Icon(icon)
+    }
+}
+
+impl From<CustomCursor> for Cursor {
+    fn from(custom: CustomCursor) -> Self {
+        Self::Custom(custom)
+    }
+}
+
 /// Use a custom image as a cursor (mouse pointer).
+///
+/// Is guaranteed to be cheap to clone.
 ///
 /// ## Platform-specific
 ///
@@ -44,7 +73,7 @@ const PIXEL_SIZE: usize = 4;
 /// let custom_cursor = builder.build(&event_loop);
 ///
 /// let window = Window::new(&event_loop).unwrap();
-/// window.set_custom_cursor(&custom_cursor);
+/// window.set_cursor(custom_cursor.clone());
 /// ```
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CustomCursor {

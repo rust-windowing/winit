@@ -11,17 +11,18 @@ use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
+    cursor::Cursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
-        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle, PlatformCustomCursor,
+        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -173,12 +174,8 @@ impl Inner {
         self.view.contentScaleFactor() as _
     }
 
-    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        debug!("`Window::set_cursor_icon` ignored on iOS")
-    }
-
-    pub(crate) fn set_custom_cursor(&self, _: PlatformCustomCursor) {
-        debug!("`Window::set_custom_cursor` ignored on iOS")
+    pub fn set_cursor(&self, _cursor: Cursor) {
+        debug!("`Window::set_cursor` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {

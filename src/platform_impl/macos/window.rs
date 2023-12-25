@@ -6,6 +6,7 @@ use std::ops;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::{
+    cursor::Cursor,
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
     },
@@ -20,11 +21,11 @@ use crate::{
         monitor::{self, MonitorHandle, VideoMode},
         view::WinitView,
         window_delegate::WinitWindowDelegate,
-        Fullscreen, OsError, PlatformCustomCursor,
+        Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 use core_graphics::display::{CGDisplay, CGPoint};
@@ -795,17 +796,19 @@ impl WinitWindow {
         buttons
     }
 
-    pub fn set_cursor_icon(&self, icon: CursorIcon) {
-        let view = self.view();
-        view.set_cursor_icon(cursor_from_icon(icon));
-        self.invalidateCursorRectsForView(&view);
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        let view = self.view();
-        view.set_cursor_icon(cursor.0.clone());
-        self.invalidateCursorRectsForView(&view);
+    pub fn set_cursor(&self, cursor: Cursor) {
+        match cursor {
+            Cursor::Icon(icon) => {
+                let view = self.view();
+                view.set_cursor_icon(cursor_from_icon(icon));
+                self.invalidateCursorRectsForView(&view);
+            }
+            Cursor::Custom(cursor) => {
+                let view = self.view();
+                view.set_cursor_icon(cursor.inner.0.clone());
+                self.invalidateCursorRectsForView(&view);
+            }
+        }
     }
 
     #[inline]
