@@ -81,6 +81,23 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedWindowHandle {
+    hwnd: HWND,
+}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(handle: rwh_06::WindowHandle<'_>) -> Self {
+        // TODO: Do we need to do something to extend the lifetime of the window handle?
+        let hwnd = match handle.as_raw() {
+            rwh_06::RawWindowHandle::Win32(handle) => handle.hwnd.get() as HWND,
+            handle => panic!("invalid window handle {handle:?} on Windows"),
+        };
+        Self { hwnd }
+    }
+}
+
 /// The Win32 implementation of the main `Window` object.
 pub(crate) struct Window {
     /// Main handle for the window.
@@ -1301,32 +1318,24 @@ where
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
 
-    let mut fallback_parent = || match pl_attribs.owner {
-        Some(parent) => {
-            window_flags.set(WindowFlags::POPUP, true);
-            Some(parent)
+    let parent = if let Some(parent_window) = &attributes.parent_window {
+        window_flags.set(WindowFlags::CHILD, true);
+        if pl_attribs.menu.is_some() {
+            warn!("Setting a menu on a child window is unsupported");
         }
-        None => {
-            window_flags.set(WindowFlags::ON_TASKBAR, true);
-            None
-        }
-    };
-
-    #[cfg(feature = "rwh_06")]
-    let parent = match attributes.parent_window.0 {
-        Some(rwh_06::RawWindowHandle::Win32(handle)) => {
-            window_flags.set(WindowFlags::CHILD, true);
-            if pl_attribs.menu.is_some() {
-                warn!("Setting a menu on a child window is unsupported");
+        Some(parent_window.hwnd)
+    } else {
+        match pl_attribs.owner {
+            Some(parent) => {
+                window_flags.set(WindowFlags::POPUP, true);
+                Some(parent)
             }
-            Some(handle.hwnd.get() as HWND)
+            None => {
+                window_flags.set(WindowFlags::ON_TASKBAR, true);
+                None
+            }
         }
-        Some(raw) => unreachable!("Invalid raw window handle {raw:?} on Windows"),
-        None => fallback_parent(),
     };
-
-    #[cfg(not(feature = "rwh_06"))]
-    let parent = fallback_parent();
 
     let mut initdata = InitData {
         event_loop,

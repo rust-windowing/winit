@@ -25,6 +25,19 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedWindowHandle {}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(_handle: rwh_06::WindowHandle<'_>) -> Self {
+        // Parent windows are currently unsupported, though owned window
+        // handles would be implementable (would work similar to macOS).
+        warn!("parent windows are unsupported on iOS");
+        Self {}
+    }
+}
+
 pub struct Inner {
     window: Id<WinitUIWindow>,
     view_controller: Id<WinitViewController>,

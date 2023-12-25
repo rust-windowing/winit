@@ -30,6 +30,7 @@ use crate::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
             X11Error,
         },
+        OwnedWindowHandle as PlatformOwnedWindowHandle,
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
         PlatformIcon, PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
@@ -157,15 +158,12 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
-        #[cfg(feature = "rwh_06")]
-        let root = match window_attrs.parent_window.0 {
-            Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
-            Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
-            Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
+        let root = match window_attrs.parent_window {
+            Some(PlatformOwnedWindowHandle::X(handle)) => handle,
+            #[cfg(wayland_platform)]
+            Some(handle) => panic!("invalid window handle {handle:?} on X11"),
             None => event_loop.root,
         };
-        #[cfg(not(feature = "rwh_06"))]
-        let root = event_loop.root;
 
         let mut monitors = leap!(xconn.available_monitors());
         let guessed_monitor = if monitors.is_empty() {

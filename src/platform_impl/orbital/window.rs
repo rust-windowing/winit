@@ -25,6 +25,18 @@ const ORBITAL_FLAG_BORDERLESS: char = 'l';
 const ORBITAL_FLAG_RESIZABLE: char = 'r';
 const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedWindowHandle {}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(_handle: rwh_06::WindowHandle<'_>) -> Self {
+        // Parent windows are currently unsupported, though owned window
+        // handles would be implementable.
+        Self {}
+    }
+}
+
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
     redraws: Arc<Mutex<VecDeque<WindowId>>>,

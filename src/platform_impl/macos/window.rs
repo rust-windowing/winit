@@ -128,6 +128,54 @@ impl From<u64> for WindowId {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct OwnedWindowHandle {
+    ns_view: MainThreadBound<Id<NSView>>,
+}
+
+impl Clone for OwnedWindowHandle {
+    fn clone(&self) -> Self {
+        Self {
+            ns_view: MainThreadMarker::run_on_main(|mtm| {
+                MainThreadBound::new(self.ns_view.get(mtm).clone(), mtm)
+            }),
+        }
+    }
+}
+
+impl OwnedWindowHandle {
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn new_parent_window(handle: rwh_06::WindowHandle<'_>) -> Self {
+        let mtm =
+            MainThreadMarker::new().expect("can only have handles on macOS on the main thread");
+        let ns_view = match handle.as_raw() {
+            rwh_06::RawWindowHandle::AppKit(handle) => {
+                // SAFETY: Taking `WindowHandle<'_>` ensures that the pointer is valid.
+                // Unwrap is fine, since the pointer comes from `NonNull`.
+                unsafe { Id::retain(handle.ns_view.as_ptr().cast()) }.unwrap()
+            }
+            handle => panic!("invalid window handle {handle:?} on macOS"),
+        };
+        Self {
+            ns_view: MainThreadBound::new(ns_view, mtm),
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    pub(crate) fn raw_window_handle(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        if let Some(mtm) = MainThreadMarker::new() {
+            let window_handle = rwh_06::AppKitWindowHandle::new({
+                let ptr = Id::as_ptr(self.ns_view.get(mtm)) as *mut _;
+                std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
+            });
+            let handle = rwh_06::RawWindowHandle::AppKit(window_handle);
+            Ok(handle)
+        } else {
+            Err(rwh_06::HandleError::Unavailable)
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
@@ -439,25 +487,16 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        #[cfg(feature = "rwh_06")]
-        match attrs.parent_window.0 {
-            Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
-                // SAFETY: Caller ensures the pointer is valid or NULL
-                // Unwrap is fine, since the pointer comes from `NonNull`.
-                let parent_view: Id<NSView> =
-                    unsafe { Id::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
-                let parent = parent_view.window().ok_or_else(|| {
-                    os_error!(OsError::CreationError(
-                        "parent view should be installed in a window"
-                    ))
-                })?;
+        if let Some(parent_window) = attrs.parent_window {
+            let parent = parent_window.ns_view.get(mtm).window().ok_or_else(|| {
+                os_error!(OsError::CreationError(
+                    "parent view should be installed in a window"
+                ))
+            })?;
 
-                // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
-                // where we allow making a window a child window is right here, just after it's been created.
-                unsafe { parent.addChildWindow_ordered(&this, NSWindowAbove) };
-            }
-            Some(raw) => panic!("Invalid raw window handle {raw:?} on macOS"),
-            None => (),
+            // SAFETY: We know that there are no parent -> child -> parent cycles since the only place in `winit`
+            // where we allow making a window a child window is right here, just after it's been created.
+            unsafe { parent.addChildWindow_ordered(&this, NSWindowAbove) };
         }
 
         let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
