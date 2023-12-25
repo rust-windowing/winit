@@ -5,6 +5,7 @@ use crate::{
     platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor},
     window::{Theme, WindowAttributes},
 };
+use bitflags::bitflags;
 use std::io;
 use std::sync::MutexGuard;
 use windows_sys::Win32::{

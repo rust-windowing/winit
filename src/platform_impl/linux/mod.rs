@@ -712,7 +712,7 @@ unsafe extern "C" fn x_error_callback(
 
         // Don't log error.
         if !error_handled {
-            error!("X11 error: {:#?}", error);
+            log::error!("X11 error: {:#?}", error);
             // XXX only update the error, if it wasn't handled by any of the hooks.
             *xconn.latest_error.lock().unwrap() = Some(error);
         }

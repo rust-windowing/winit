@@ -74,7 +74,7 @@ unsafe fn try_cursor_from_selector(sel: Sel) -> Option<Id<NSCursor>> {
         let cursor: Id<NSCursor> = unsafe { msg_send_id![cls, performSelector: sel] };
         Some(cursor)
     } else {
-        warn!("cursor `{sel}` appears to be invalid");
+        log::warn!("cursor `{sel}` appears to be invalid");
         None
     }
 }

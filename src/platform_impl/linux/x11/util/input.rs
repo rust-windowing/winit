@@ -45,7 +45,7 @@ impl XConnection {
             self.flush_requests()?;
             Ok(true)
         } else {
-            error!("Could not select XKB events: The XKB extension is not initialized!");
+            log::error!("Could not select XKB events: The XKB extension is not initialized!");
             Ok(false)
         }
     }

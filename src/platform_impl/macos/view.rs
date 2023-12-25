@@ -73,7 +73,7 @@ enum ImeState {
     Commited,
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq)]
     struct ModLocationMask: u8 {
         const LEFT     = 0b0001;
@@ -338,7 +338,7 @@ declare_class!(
                 // Leave the Preedit self.ivars()
                 self.ivars().ime_state.set(ImeState::Ground);
             } else {
-                warn!("Expected to have IME enabled when receiving unmarkText");
+                log::warn!("Expected to have IME enabled when receiving unmarkText");
             }
         }
 

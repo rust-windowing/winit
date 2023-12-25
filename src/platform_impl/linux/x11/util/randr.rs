@@ -4,6 +4,7 @@ use super::*;
 use crate::platform_impl::platform::x11::monitor;
 use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
 
+use log::warn;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.

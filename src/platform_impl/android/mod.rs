@@ -15,6 +15,7 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
 
 use crate::{

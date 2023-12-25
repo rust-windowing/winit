@@ -7,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use bitflags::bitflags;
 use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
     ResizeEvent, ScrollEvent, TextInputEvent,
@@ -459,7 +460,7 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
             other => {
-                warn!("unhandled event: {:?}", other);
+                log::warn!("unhandled event: {:?}", other);
             }
         }
     }

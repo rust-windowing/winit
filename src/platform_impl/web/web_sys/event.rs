@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
-bitflags! {
+bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ButtonsState: u16 {
@@ -178,7 +178,7 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
         KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
         KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
         location => {
-            warn!("Unexpected key location: {location}");
+            log::warn!("Unexpected key location: {location}");
             KeyLocation::Standard
         }
     }
