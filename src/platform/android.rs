@@ -94,11 +94,11 @@ pub mod activity {
 
     #[cfg(not(android_platform))]
     #[doc(hidden)]
-    pub struct Rect(());
+    pub struct Rect;
     #[cfg(not(android_platform))]
     #[doc(hidden)]
-    pub struct ConfigurationRef(());
+    pub struct ConfigurationRef;
     #[cfg(not(android_platform))]
     #[doc(hidden)]
-    pub struct AndroidApp(());
+    pub struct AndroidApp;
 }
