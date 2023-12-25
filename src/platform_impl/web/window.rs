@@ -36,8 +36,6 @@ impl Window {
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
-        let prevent_default = platform_attr.prevent_default;
-
         let window = target.runner.window();
         let document = target.runner.document();
         let canvas =
@@ -45,7 +43,7 @@ impl Window {
         let canvas = Rc::new(RefCell::new(canvas));
         let cursor = CursorState::new(canvas.borrow().style().clone());
 
-        target.register(&canvas, id, prevent_default);
+        target.register(&canvas, id);
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
@@ -82,6 +80,16 @@ impl Window {
         self.inner
             .value()
             .map(|inner| inner.canvas.borrow().raw().clone())
+    }
+
+    pub(crate) fn prevent_default(&self) -> bool {
+        self.inner
+            .queue(|inner| inner.canvas.borrow().prevent_default.get())
+    }
+
+    pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
+        self.inner
+            .dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
     }
 
     #[cfg(feature = "rwh_06")]
