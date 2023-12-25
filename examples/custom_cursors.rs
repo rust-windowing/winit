@@ -6,7 +6,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{EventLoop, EventLoopWindowTarget},
     keyboard::Key,
-    window::{CustomCursor, WindowBuilder},
+    window::{CursorIcon, CustomCursor, WindowBuilder},
 };
 
 fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
@@ -62,12 +62,12 @@ fn main() -> Result<(), impl std::error::Error> {
             } => match key.as_ref() {
                 Key::Character("1") => {
                     log::debug!("Setting cursor to {:?}", cursor_idx);
-                    window.set_custom_cursor(&custom_cursors[cursor_idx]);
+                    window.set_cursor(custom_cursors[cursor_idx].clone());
                     cursor_idx = (cursor_idx + 1) % 2;
                 }
                 Key::Character("2") => {
                     log::debug!("Setting cursor icon to default");
-                    window.set_cursor_icon(Default::default());
+                    window.set_cursor(CursorIcon::default());
                 }
                 Key::Character("3") => {
                     cursor_visible = !cursor_visible;

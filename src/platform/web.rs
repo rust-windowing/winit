@@ -42,12 +42,35 @@ pub trait WindowExtWebSys {
     /// Only returns the canvas if called from inside the window context (the
     /// main thread).
     fn canvas(&self) -> Option<HtmlCanvasElement>;
+
+    /// Returns [`true`] if calling `event.preventDefault()` is enabled.
+    ///
+    /// See [`Window::set_prevent_default()`] for more details.
+    fn prevent_default(&self) -> bool;
+
+    /// Sets whether `event.preventDefault()` should be called on events on the
+    /// canvas that have side effects.
+    ///
+    /// For example, by default using the mouse wheel would cause the page to scroll, enabling this
+    /// would prevent that.
+    ///
+    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
+    /// context menu with Shift+Rightclick.
+    fn set_prevent_default(&self, prevent_default: bool);
 }
 
 impl WindowExtWebSys for Window {
     #[inline]
     fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.window.canvas()
+    }
+
+    fn prevent_default(&self) -> bool {
+        self.window.prevent_default()
+    }
+
+    fn set_prevent_default(&self, prevent_default: bool) {
+        self.window.set_prevent_default(prevent_default)
     }
 }
 
@@ -60,14 +83,10 @@ pub trait WindowBuilderExtWebSys {
     /// [`None`] by default.
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
-    /// Whether `event.preventDefault()` should be called on events on the
+    /// Sets whether `event.preventDefault()` should be called on events on the
     /// canvas that have side effects.
     ///
-    /// For example, by default using the mouse wheel would cause the page to scroll, enabling this
-    /// would prevent that.
-    ///
-    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
-    /// context menu with Shift+Rightclick.
+    /// See [`Window::set_prevent_default()`] for more details.
     ///
     /// Enabled by default.
     fn with_prevent_default(self, prevent_default: bool) -> Self;

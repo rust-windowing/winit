@@ -22,6 +22,7 @@ pub use self::xdisplay::{XError, XNotSupported};
 use calloop::generic::Generic;
 use calloop::EventLoop as Loop;
 use calloop::{ping::Ping, Readiness};
+use log::warn;
 
 use std::{
     cell::{Cell, RefCell},

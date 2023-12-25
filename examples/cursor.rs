@@ -31,7 +31,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     ..
                 } => {
                     println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-                    window.set_cursor_icon(CURSORS[cursor_idx]);
+                    window.set_cursor(CURSORS[cursor_idx]);
                     if cursor_idx < CURSORS.len() - 1 {
                         cursor_idx += 1;
                     } else {

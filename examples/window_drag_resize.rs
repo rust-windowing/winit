@@ -40,7 +40,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
                     if new_location != cursor_location {
                         cursor_location = new_location;
-                        window.set_cursor_icon(cursor_direction_icon(cursor_location))
+                        window.set_cursor(cursor_direction_icon(cursor_location))
                     }
                 }
             }

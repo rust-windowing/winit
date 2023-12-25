@@ -30,6 +30,7 @@ pub struct Canvas {
     common: Common,
     id: WindowId,
     pub has_focus: Rc<Cell<bool>>,
+    pub prevent_default: Rc<Cell<bool>>,
     pub is_intersecting: Option<bool>,
     on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -141,6 +142,7 @@ impl Canvas {
             common,
             id,
             has_focus: Rc::new(Cell::new(false)),
+            prevent_default: Rc::new(Cell::new(platform_attr.prevent_default)),
             is_intersecting: None,
             on_touch_start: None,
             on_blur: None,
@@ -231,9 +233,10 @@ impl Canvas {
         &self.common.style
     }
 
-    pub fn on_touch_start(&mut self, prevent_default: bool) {
+    pub fn on_touch_start(&mut self) {
+        let prevent_default = Rc::clone(&self.prevent_default);
         self.on_touch_start = Some(self.common.add_event("touchstart", move |event: Event| {
-            if prevent_default {
+            if prevent_default.get() {
                 event.prevent_default();
             }
         }));
@@ -257,13 +260,14 @@ impl Canvas {
         }));
     }
 
-    pub fn on_keyboard_release<F>(&mut self, mut handler: F, prevent_default: bool)
+    pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
+        let prevent_default = Rc::clone(&self.prevent_default);
         self.on_keyboard_release =
             Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
-                if prevent_default {
+                if prevent_default.get() {
                     event.prevent_default();
                 }
                 let key = event::key(&event);
@@ -279,14 +283,15 @@ impl Canvas {
             }));
     }
 
-    pub fn on_keyboard_press<F>(&mut self, mut handler: F, prevent_default: bool)
+    pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
+        let prevent_default = Rc::clone(&self.prevent_default);
         self.on_keyboard_press = Some(self.common.add_event(
             "keydown",
             move |event: KeyboardEvent| {
-                if prevent_default {
+                if prevent_default.get() {
                     event.prevent_default();
                 }
                 let key = event::key(&event);
@@ -340,7 +345,6 @@ impl Canvas {
         modifier_handler: MOD,
         mouse_handler: M,
         touch_handler: T,
-        prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
@@ -351,7 +355,7 @@ impl Canvas {
             modifier_handler,
             mouse_handler,
             touch_handler,
-            prevent_default,
+            Rc::clone(&self.prevent_default),
         )
     }
 
@@ -361,7 +365,6 @@ impl Canvas {
         mouse_handler: M,
         touch_handler: T,
         button_handler: B,
-        prevent_default: bool,
     ) where
         MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
@@ -375,7 +378,7 @@ impl Canvas {
             mouse_handler,
             touch_handler,
             button_handler,
-            prevent_default,
+            Rc::clone(&self.prevent_default),
         )
     }
 
@@ -386,13 +389,14 @@ impl Canvas {
         self.pointer_handler.on_touch_cancel(&self.common, handler)
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         let window = self.common.window.clone();
+        let prevent_default = Rc::clone(&self.prevent_default);
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
-            if prevent_default {
+            if prevent_default.get() {
                 event.prevent_default();
             }
 
@@ -443,11 +447,12 @@ impl Canvas {
         self.animation_frame_handler.on_animation_frame(f)
     }
 
-    pub(crate) fn on_context_menu(&mut self, prevent_default: bool) {
+    pub(crate) fn on_context_menu(&mut self) {
+        let prevent_default = Rc::clone(&self.prevent_default);
         self.on_context_menu = Some(self.common.add_event(
             "contextmenu",
             move |event: PointerEvent| {
-                if prevent_default {
+                if prevent_default.get() {
                     event.prevent_default();
                 }
             },

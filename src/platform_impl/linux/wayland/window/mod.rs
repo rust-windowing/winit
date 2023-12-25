@@ -15,16 +15,18 @@ use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
 
+use log::warn;
+
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
-    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
-    PlatformIcon, PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
+    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
+    PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowLevel,
 };
 
@@ -502,16 +504,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state.lock().unwrap().set_cursor(cursor);
-    }
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let window_state = &mut self.window_state.lock().unwrap();
 
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        self.window_state
-            .lock()
-            .unwrap()
-            .set_custom_cursor(&cursor.0);
+        match cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+        }
     }
 
     #[inline]

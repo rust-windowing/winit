@@ -211,9 +211,6 @@ impl<T> EventLoop<T> {
     /// Runs the event loop in the calling thread and calls the given `event_handler` closure
     /// to dispatch any pending events.
     ///
-    /// Since the closure is `'static`, it must be a `move` closure if it needs to
-    /// access any data from the calling context.
-    ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
     ///
     /// ## Platform-specific

@@ -31,7 +31,7 @@ use crate::{
         scancode::PhysicalKeyExtScancode,
     },
     window::{
-        ActivationToken, CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme,
+        ActivationToken, Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme,
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
@@ -422,13 +422,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        x11_or_wayland!(match self; Window(w) => w.set_custom_cursor(cursor))
+    pub fn set_cursor(&self, cursor: Cursor) {
+        x11_or_wayland!(match self; Window(w) => w.set_cursor(cursor))
     }
 
     #[inline]
@@ -717,7 +712,7 @@ unsafe extern "C" fn x_error_callback(
 
         // Don't log error.
         if !error_handled {
-            error!("X11 error: {:#?}", error);
+            log::error!("X11 error: {:#?}", error);
             // XXX only update the error, if it wasn't handled by any of the hooks.
             *xconn.latest_error.lock().unwrap() = Some(error);
         }

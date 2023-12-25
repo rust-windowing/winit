@@ -2,14 +2,13 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 use crate::SendSyncWrapper;
 
 use super::cursor::CursorState;
 use super::r#async::Dispatcher;
-use super::PlatformCustomCursor;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
 
@@ -37,8 +36,6 @@ impl Window {
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
-        let prevent_default = platform_attr.prevent_default;
-
         let window = target.runner.window();
         let document = target.runner.document();
         let canvas =
@@ -46,7 +43,7 @@ impl Window {
         let canvas = Rc::new(RefCell::new(canvas));
         let cursor = CursorState::new(canvas.borrow().style().clone());
 
-        target.register(&canvas, id, prevent_default);
+        target.register(&canvas, id);
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
@@ -83,6 +80,16 @@ impl Window {
         self.inner
             .value()
             .map(|inner| inner.canvas.borrow().raw().clone())
+    }
+
+    pub(crate) fn prevent_default(&self) -> bool {
+        self.inner
+            .queue(|inner| inner.canvas.borrow().prevent_default.get())
+    }
+
+    pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
+        self.inner
+            .dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
     }
 
     #[cfg(feature = "rwh_06")]
@@ -212,13 +219,8 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.cursor.set_cursor_icon(cursor)
-    }
-
-    #[inline]
-    pub(crate) fn set_custom_cursor(&self, cursor: PlatformCustomCursor) {
-        self.cursor.set_custom_cursor(cursor)
+    pub fn set_cursor(&self, cursor: Cursor) {
+        self.cursor.set_cursor(cursor)
     }
 
     #[inline]

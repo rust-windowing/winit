@@ -9,11 +9,13 @@ use crate::{
     platform_impl, SendSyncWrapper,
 };
 
-pub use crate::cursor::{BadImage, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
+pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Represents a window.
 ///
@@ -1336,30 +1338,17 @@ impl Window {
 /// Cursor functions.
 impl Window {
     /// Modifies the cursor icon of the window.
-    /// Overwrites cursors set in [`Window::set_custom_cursor`].
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Custom cursors have to be loaded and decoded first, until
+    ///   then the previous cursor is shown.
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+    pub fn set_cursor(&self, cursor: impl Into<Cursor>) {
+        let cursor = cursor.into();
         self.window
-            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
-    }
-
-    /// Modifies the cursor icon of the window with a custom cursor.
-    /// Overwrites cursors set in [`Window::set_cursor_icon`].
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS / Android / Orbital:** Unsupported.
-    /// - **Web:** Cursor have to be loaded and decoded first, which introduces
-    ///   a delay until cursors are shown.
-    #[inline]
-    pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
-        let cursor = cursor.inner.clone();
-        self.window
-            .maybe_queue_on_main(move |w| w.set_custom_cursor(cursor))
+            .maybe_queue_on_main(move |w| w.set_cursor(cursor))
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -1687,7 +1676,7 @@ pub enum UserAttentionType {
     Informational,
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowButtons: u32 {
         const CLOSE  = 1 << 0;

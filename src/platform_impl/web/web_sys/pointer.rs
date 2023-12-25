@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use super::canvas::Common;
 use super::event;
 use super::event_handle::EventListenerHandle;
@@ -110,7 +113,7 @@ impl PointerHandler {
         mut modifier_handler: MOD,
         mut mouse_handler: M,
         mut touch_handler: T,
-        prevent_default: bool,
+        prevent_default: Rc<Cell<bool>>,
     ) where
         MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
@@ -121,7 +124,7 @@ impl PointerHandler {
         self.on_pointer_press = Some(canvas_common.add_event(
             "pointerdown",
             move |event: PointerEvent| {
-                if prevent_default {
+                if prevent_default.get() {
                     // prevent text selection
                     event.prevent_default();
                     // but still focus element
@@ -165,7 +168,7 @@ impl PointerHandler {
         mut mouse_handler: M,
         mut touch_handler: T,
         mut button_handler: B,
-        prevent_default: bool,
+        prevent_default: Rc<Cell<bool>>,
     ) where
         MOD: 'static + FnMut(ModifiersState),
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
@@ -197,7 +200,7 @@ impl PointerHandler {
                         "expect pointer type of a chorded button event to be a mouse"
                     );
 
-                    if prevent_default {
+                    if prevent_default.get() {
                         // prevent text selection
                         event.prevent_default();
                         // but still focus element

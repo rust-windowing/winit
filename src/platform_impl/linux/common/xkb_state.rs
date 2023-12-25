@@ -682,7 +682,7 @@ fn byte_slice_to_smol_str(bytes: &[u8]) -> Option<SmolStr> {
     std::str::from_utf8(bytes)
         .map(SmolStr::new)
         .map_err(|e| {
-            warn!(
+            log::warn!(
                 "UTF-8 received from libxkbcommon ({:?}) was invalid: {e}",
                 bytes
             )

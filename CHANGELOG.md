@@ -12,7 +12,8 @@ Unreleased` header.
 # Unreleased
 
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
-  - Add `Window::set_custom_cursor`
+  - **Breaking:** Remove `Window::set_cursor_icon`
+  - Add `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
   - Add `CustomCursor`
   - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
   - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
@@ -22,6 +23,7 @@ Unreleased` header.
 - **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
 - **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
+- On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 
 # 0.29.6
 

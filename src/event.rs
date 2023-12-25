@@ -37,6 +37,8 @@ use std::sync::{Mutex, Weak};
 #[cfg(not(wasm_platform))]
 use std::time::Instant;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 #[cfg(wasm_platform)]
 use web_time::Instant;
