@@ -1353,6 +1353,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Cursor have to be loaded and decoded first, which introduces
+    ///   a delay until cursors are shown.
     #[inline]
     pub fn set_custom_cursor(&self, cursor: &CustomCursor) {
         let cursor = cursor.inner.clone();
