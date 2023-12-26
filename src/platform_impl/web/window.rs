@@ -5,9 +5,8 @@ use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
-use crate::SendSyncWrapper;
 
-use super::cursor::CursorState;
+use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 use web_sys::HtmlCanvasElement;
@@ -15,6 +14,7 @@ use web_sys::HtmlCanvasElement;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -24,7 +24,6 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    cursor: CursorState,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -38,10 +37,16 @@ impl Window {
 
         let window = target.runner.window();
         let document = target.runner.document();
-        let canvas =
-            backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
+        let canvas = backend::Canvas::create(
+            target.runner.main_thread(),
+            target.runner.weak(),
+            id,
+            window.clone(),
+            document.clone(),
+            &attr,
+            platform_attr,
+        )?;
         let canvas = Rc::new(RefCell::new(canvas));
-        let cursor = CursorState::new(canvas.borrow().style().clone());
 
         target.register(&canvas, id);
 
@@ -52,7 +57,6 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            cursor,
             destroy_fn: Some(destroy_fn),
         };
 
@@ -62,7 +66,7 @@ impl Window {
         inner.set_window_icon(attr.window_icon);
 
         let canvas = Rc::downgrade(&inner.canvas);
-        let (dispatcher, runner) = Dispatcher::new(inner).unwrap();
+        let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
         target.runner.add_canvas(RootWI(id), canvas, runner);
 
         Ok(Window { inner: dispatcher })
@@ -220,7 +224,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        self.cursor.set_cursor(cursor)
+        self.canvas.borrow_mut().cursor.set_cursor(cursor)
     }
 
     #[inline]
@@ -246,7 +250,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.cursor.set_cursor_visible(visible)
+        self.canvas.borrow_mut().cursor.set_cursor_visible(visible)
     }
 
     #[inline]
@@ -465,16 +469,30 @@ impl From<u64> for WindowId {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub(crate) canvas: SendSyncWrapper<Option<backend::RawCanvasType>>,
+    pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
 }
 
+impl PlatformSpecificWindowBuilderAttributes {
+    pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
+        let Some(canvas) = canvas else {
+            self.canvas = None;
+            return;
+        };
+
+        let main_thread = MainThreadMarker::new()
+            .expect("received a `HtmlCanvasElement` outside the window context");
+
+        self.canvas = Some(Arc::new(MainThreadSafe::new(main_thread, canvas)));
+    }
+}
+
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            canvas: SendSyncWrapper(None),
+            canvas: None,
             prevent_default: true,
             focusable: true,
             append: false,

@@ -1,3 +1,5 @@
+use super::super::cursor::CustomCursorHandle;
+use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
@@ -37,6 +39,7 @@ impl Clone for Shared {
 type OnEventHandle<T> = RefCell<Option<EventListenerHandle<dyn FnMut(T)>>>;
 
 pub struct Execution {
+    main_thread: MainThreadMarker,
     proxy_spawner: WakerSpawner<Weak<Self>>,
     control_flow: Cell<ControlFlow>,
     poll_strategy: Cell<PollStrategy>,
@@ -137,19 +140,30 @@ impl Runner {
                     )
                 }
             }
+            EventWrapper::CursorReady(result) => {
+                for (_, canvas, _) in runner.0.all_canvases.borrow().deref() {
+                    if let Some(canvas) = canvas.upgrade() {
+                        canvas
+                            .borrow_mut()
+                            .cursor
+                            .handle_cursor_ready(result.clone())
+                    }
+                }
+            }
         }
     }
 }
 
 impl Shared {
     pub fn new() -> Self {
+        let main_thread = MainThreadMarker::new().expect("only callable from inside the `Window`");
         #[allow(clippy::disallowed_methods)]
         let window = web_sys::window().expect("only callable from inside the `Window`");
         #[allow(clippy::disallowed_methods)]
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner = WakerSpawner::new(weak.clone(), |runner, count| {
+            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, count| {
                 if let Some(runner) = runner.upgrade() {
                     Shared(runner).send_events(iter::repeat(Event::UserEvent(())).take(count))
                 }
@@ -157,6 +171,7 @@ impl Shared {
             .expect("`EventLoop` has to be created in the main thread");
 
             Execution {
+                main_thread,
                 proxy_spawner,
                 control_flow: Cell::new(ControlFlow::default()),
                 poll_strategy: Cell::new(PollStrategy::default()),
@@ -182,6 +197,10 @@ impl Shared {
                 on_visibility_change: RefCell::new(None),
             }
         }))
+    }
+
+    pub fn main_thread(&self) -> MainThreadMarker {
+        self.0.main_thread
     }
 
     pub fn window(&self) -> &web_sys::Window {
@@ -803,6 +822,19 @@ impl Shared {
     pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
         self.0.proxy_spawner.waker()
     }
+
+    pub(crate) fn weak(&self) -> WeakShared {
+        WeakShared(Rc::downgrade(&self.0))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WeakShared(Weak<Execution>);
+
+impl WeakShared {
+    pub(crate) fn upgrade(&self) -> Option<Shared> {
+        self.0.upgrade().map(Shared)
+    }
 }
 
 pub(crate) enum EventWrapper {
@@ -812,6 +844,7 @@ pub(crate) enum EventWrapper {
         size: PhysicalSize<u32>,
         scale: f64,
     },
+    CursorReady(Result<CustomCursorHandle, CustomCursorHandle>),
 }
 
 impl From<Event<()>> for EventWrapper {
