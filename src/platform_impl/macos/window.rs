@@ -107,6 +107,16 @@ impl Window {
             Err(rwh_06::HandleError::Unavailable)
         }
     }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::AppKit(
+            rwh_06::AppKitDisplayHandle::new(),
+        ))
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -282,7 +292,7 @@ impl WinitWindow {
         trace_scope!("WinitWindow::new");
 
         let this = autoreleasepool(|_| {
-            let screen = match attrs.fullscreen.0.clone().map(Into::into) {
+            let screen = match attrs.fullscreen.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
                 | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
                     monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
@@ -442,7 +452,7 @@ impl WinitWindow {
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
-        match attrs.parent_window.0 {
+        match attrs.parent_window.map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
                 // Unwrap is fine, since the pointer comes from `NonNull`.
@@ -520,14 +530,14 @@ impl WinitWindow {
 
         this.set_cursor(attrs.cursor);
 
-        let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.0.is_some());
+        let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
         // XXX Send `Focused(false)` right after creating the window delegate, so we won't
         // obscure the real focused events on the startup.
         delegate.queue_event(WindowEvent::Focused(false));
 
         // Set fullscreen mode after we setup everything
-        this.set_fullscreen(attrs.fullscreen.0.map(Into::into));
+        this.set_fullscreen(attrs.fullscreen.map(Into::into));
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -1366,16 +1376,6 @@ impl WinitWindow {
             std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
         });
         rwh_06::RawWindowHandle::AppKit(window_handle)
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::AppKit(
-            rwh_06::AppKitDisplayHandle::new(),
-        ))
     }
 
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {

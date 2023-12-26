@@ -6,7 +6,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
-    platform_impl, SendSyncWrapper,
+    platform_impl,
 };
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
@@ -157,8 +157,8 @@ pub struct WindowAttributes {
     pub active: bool,
     pub cursor: Cursor,
     #[cfg(feature = "rwh_06")]
-    pub(crate) parent_window: SendSyncWrapper<Option<rwh_06::RawWindowHandle>>,
-    pub(crate) fullscreen: SendSyncWrapper<Option<Fullscreen>>,
+    pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
+    pub fullscreen: Option<Fullscreen>,
 }
 
 impl Default for WindowAttributes {
@@ -173,7 +173,7 @@ impl Default for WindowAttributes {
             enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
-            fullscreen: SendSyncWrapper(None),
+            fullscreen: None,
             visible: true,
             transparent: false,
             blur: false,
@@ -185,22 +185,32 @@ impl Default for WindowAttributes {
             content_protected: false,
             cursor: Cursor::default(),
             #[cfg(feature = "rwh_06")]
-            parent_window: SendSyncWrapper(None),
+            parent_window: None,
             active: true,
         }
     }
 }
 
+/// Wrapper for [`rwh_06::RawWindowHandle`] for [`WindowAttributes::parent_window`].
+///
+/// # Safety
+///
+/// The user has to account for that when using [`WindowBuilder::with_parent_window()`],
+/// which is `unsafe`.
+#[derive(Debug, Clone)]
+#[cfg(feature = "rwh_06")]
+pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
+
+#[cfg(feature = "rwh_06")]
+unsafe impl Send for SendSyncRawWindowHandle {}
+#[cfg(feature = "rwh_06")]
+unsafe impl Sync for SendSyncRawWindowHandle {}
+
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
     #[cfg(feature = "rwh_06")]
     pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
-        self.parent_window.0.as_ref()
-    }
-
-    /// Get `Fullscreen` option stored on the attributes.
-    pub fn fullscreen(&self) -> Option<&Fullscreen> {
-        self.fullscreen.0.as_ref()
+        self.parent_window.as_ref().map(|handle| &handle.0)
     }
 }
 
@@ -321,7 +331,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = SendSyncWrapper(fullscreen);
+        self.window.fullscreen = fullscreen;
         self
     }
 
@@ -508,7 +518,7 @@ impl WindowBuilder {
         mut self,
         parent_window: Option<rwh_06::RawWindowHandle>,
     ) -> Self {
-        self.window.parent_window = SendSyncWrapper(parent_window);
+        self.window.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
     }
 
@@ -1545,21 +1555,30 @@ impl rwh_06::HasWindowHandle for Window {
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self
-            .window
-            .maybe_wait_on_main(|w| w.raw_display_handle_rwh_06().map(SendSyncWrapper))?
-            .0;
+        let raw = self.window.raw_display_handle_rwh_06()?;
 
-        // SAFETY: The window handle will never be deallocated while the window is alive.
+        // SAFETY: The window handle will never be deallocated while the window is alive,
+        // and the main thread safety requirements are upheld internally by each platform.
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
     }
 }
+
+/// Wrapper to make objects `Send`.
+///
+/// # Safety
+///
+/// This is not safe! This is only used for `RawWindowHandle`, which only has unsafe getters.
+#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
+struct UnsafeSendWrapper<T>(T);
+
+#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
+unsafe impl<T> Send for UnsafeSendWrapper<T> {}
 
 #[cfg(feature = "rwh_05")]
 unsafe impl rwh_05::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_05()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_05()))
             .0
     }
 }
@@ -1572,7 +1591,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for Window {
     /// [`EventLoop`]: crate::event_loop::EventLoop
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_display_handle_rwh_05()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_display_handle_rwh_05()))
             .0
     }
 }
@@ -1581,7 +1600,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for Window {
 unsafe impl rwh_04::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_04()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_04()))
             .0
     }
 }

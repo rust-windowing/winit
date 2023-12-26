@@ -142,7 +142,7 @@ impl Canvas {
             super::set_canvas_position(&common.document, &common.raw, &common.style, position);
         }
 
-        if attr.fullscreen.0.is_some() {
+        if attr.fullscreen.is_some() {
             fullscreen::request_fullscreen(&document, &canvas);
         }
 

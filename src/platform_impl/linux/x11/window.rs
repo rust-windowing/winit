@@ -159,7 +159,7 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         #[cfg(feature = "rwh_06")]
-        let root = match window_attrs.parent_window.0 {
+        let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
@@ -557,10 +557,10 @@ impl UnownedWindow {
             if window_attrs.maximized {
                 leap!(window.set_maximized_inner(window_attrs.maximized)).ignore_error();
             }
-            if window_attrs.fullscreen.0.is_some() {
+            if window_attrs.fullscreen.is_some() {
                 if let Some(flusher) =
                     leap!(window
-                        .set_fullscreen_inner(window_attrs.fullscreen.0.clone().map(Into::into)))
+                        .set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into)))
                 {
                     flusher.ignore_error()
                 }

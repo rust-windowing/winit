@@ -60,6 +60,7 @@ impl std::fmt::Debug for VideoMode {
 pub struct NativeDisplayMode(pub ffi::CGDisplayModeRef);
 
 unsafe impl Send for NativeDisplayMode {}
+unsafe impl Sync for NativeDisplayMode {}
 
 impl Drop for NativeDisplayMode {
     fn drop(&mut self) {
