@@ -1374,6 +1374,13 @@ impl Window {
             .maybe_queue_on_main(move |w| w.set_cursor(cursor))
     }
 
+    /// Deprecated! Use [`Window::set_cursor()`] instead.
+    #[deprecated = "Renamed to `set_cursor`"]
+    #[inline]
+    pub fn set_cursor_icon(&self, icon: CursorIcon) {
+        self.set_cursor(icon)
+    }
+
     /// Changes the position of the cursor in window coordinates.
     ///
     /// ```no_run
