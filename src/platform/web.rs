@@ -34,7 +34,6 @@ use crate::event_loop::EventLoopWindowTarget;
 use crate::platform_impl::PlatformCustomCursorBuilder;
 use crate::window::CustomCursor;
 use crate::window::{Window, WindowBuilder};
-use crate::SendSyncWrapper;
 
 use web_sys::HtmlCanvasElement;
 
@@ -105,7 +104,7 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.canvas = SendSyncWrapper(canvas);
+        self.platform_specific.set_canvas(canvas);
         self
     }
 

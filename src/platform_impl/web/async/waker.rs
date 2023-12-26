@@ -1,3 +1,4 @@
+use super::super::main_thread::MainThreadMarker;
 use super::Wrapper;
 use atomic_waker::AtomicWaker;
 use std::future;
@@ -19,7 +20,7 @@ struct Sender(Arc<Inner>);
 
 impl<T> WakerSpawner<T> {
     #[track_caller]
-    pub fn new(value: T, handler: fn(&T, usize)) -> Option<Self> {
+    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, usize)) -> Option<Self> {
         let inner = Arc::new(Inner {
             counter: AtomicUsize::new(0),
             waker: AtomicWaker::new(),
@@ -31,6 +32,7 @@ impl<T> WakerSpawner<T> {
         let sender = Sender(Arc::clone(&inner));
 
         let wrapper = Wrapper::new(
+            main_thread,
             handler,
             |handler, count| {
                 let handler = handler.borrow();
@@ -86,7 +88,7 @@ impl<T> WakerSpawner<T> {
 
     pub fn fetch(&self) -> usize {
         debug_assert!(
-            self.0.is_main_thread(),
+            MainThreadMarker::new().is_some(),
             "this should only be called from the main thread"
         );
 
