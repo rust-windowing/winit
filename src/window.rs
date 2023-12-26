@@ -5,7 +5,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     platform_impl,
 };
 
@@ -1669,7 +1669,7 @@ impl From<ResizeDirection> for CursorIcon {
 /// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fullscreen {
-    Exclusive(VideoMode),
+    Exclusive(VideoModeHandle),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),

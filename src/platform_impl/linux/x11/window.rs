@@ -32,7 +32,7 @@ use crate::{
             X11Error,
         },
         Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
+        PlatformSpecificWindowBuilderAttributes, VideoModeHandle as PlatformVideoModeHandle,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -754,10 +754,10 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))))
+            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
             | (
                 &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
+                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode = Some((
@@ -793,7 +793,7 @@ impl UnownedWindow {
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode)) => {
+                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
                         (Some(video_mode), video_mode.monitor.clone().unwrap())
                     }
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {

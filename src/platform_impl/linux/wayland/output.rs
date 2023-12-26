@@ -4,7 +4,7 @@ use sctk::reexports::client::Proxy;
 use sctk::output::OutputData;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::platform_impl::platform::VideoMode as PlatformVideoMode;
+use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
 
 use super::event_loop::EventLoopWindowTarget;
 
@@ -98,14 +98,14 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         let modes = output_data.with_output_info(|info| info.modes.clone());
 
         let monitor = self.clone();
 
         modes.into_iter().map(move |mode| {
-            PlatformVideoMode::Wayland(VideoMode {
+            PlatformVideoModeHandle::Wayland(VideoModeHandle {
                 size: (mode.dimensions.0 as u32, mode.dimensions.1 as u32).into(),
                 refresh_rate_millihertz: mode.refresh_rate as u32,
                 bit_depth: 32,
@@ -142,14 +142,14 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
     pub(crate) monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size

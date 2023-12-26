@@ -17,7 +17,7 @@ use windows_sys::Win32::{
 use super::util::decode_wide;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode as RootVideoMode,
+    monitor::VideoModeHandle as RootVideoModeHandle,
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         util::has_flag,
@@ -26,7 +26,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
@@ -35,7 +35,7 @@ pub struct VideoMode {
     pub(crate) native_video_mode: Box<DEVMODEW>,
 }
 
-impl PartialEq for VideoMode {
+impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size
             && self.bit_depth == other.bit_depth
@@ -44,9 +44,9 @@ impl PartialEq for VideoMode {
     }
 }
 
-impl Eq for VideoMode {}
+impl Eq for VideoModeHandle {}
 
-impl std::hash::Hash for VideoMode {
+impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.size.hash(state);
         self.bit_depth.hash(state);
@@ -55,9 +55,9 @@ impl std::hash::Hash for VideoMode {
     }
 }
 
-impl std::fmt::Debug for VideoMode {
+impl std::fmt::Debug for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VideoMode")
+        f.debug_struct("VideoModeHandle")
             .field("size", &self.size)
             .field("bit_depth", &self.bit_depth)
             .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
@@ -66,7 +66,7 @@ impl std::fmt::Debug for VideoMode {
     }
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
@@ -226,12 +226,12 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
-        let mut modes = BTreeSet::<RootVideoMode>::new();
-        let mod_map = |mode: RootVideoMode| mode.video_mode;
+        let mut modes = BTreeSet::<RootVideoModeHandle>::new();
+        let mod_map = |mode: RootVideoModeHandle| mode.video_mode;
 
         let monitor_info = match get_monitor_info(self.0) {
             Ok(monitor_info) => monitor_info,
@@ -255,9 +255,9 @@ impl MonitorHandle {
                 DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
             assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
-            // Use Ord impl of RootVideoMode
-            modes.insert(RootVideoMode {
-                video_mode: VideoMode {
+            // Use Ord impl of RootVideoModeHandle
+            modes.insert(RootVideoModeHandle {
+                video_mode: VideoModeHandle {
                     size: (mode.dmPelsWidth, mode.dmPelsHeight),
                     bit_depth: mode.dmBitsPerPel as u16,
                     refresh_rate_millihertz: mode.dmDisplayFrequency * 1000,

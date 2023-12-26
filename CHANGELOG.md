@@ -25,6 +25,7 @@ Unreleased` header.
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
+- **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 
 # 0.29.6
 

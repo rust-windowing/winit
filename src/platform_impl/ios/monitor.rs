@@ -13,7 +13,7 @@ use objc2::Message;
 use super::uikit::{UIScreen, UIScreenMode};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode as RootVideoMode,
+    monitor::VideoModeHandle as RootVideoModeHandle,
     platform_impl::platform::app_state,
 };
 
@@ -48,7 +48,7 @@ impl<T: IsRetainable + Message> PartialEq for MainThreadBoundDelegateImpls<T> {
 impl<T: IsRetainable + Message> Eq for MainThreadBoundDelegateImpls<T> {}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
@@ -56,15 +56,15 @@ pub struct VideoMode {
     pub(crate) monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     fn new(
         uiscreen: Id<UIScreen>,
         screen_mode: Id<UIScreenMode>,
         mtm: MainThreadMarker,
-    ) -> VideoMode {
+    ) -> VideoModeHandle {
         let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
         let size = screen_mode.size();
-        VideoMode {
+        VideoModeHandle {
             size: (size.width as u32, size.height as u32),
             bit_depth: 32,
             refresh_rate_millihertz,
@@ -196,16 +196,16 @@ impl MonitorHandle {
         )
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         MainThreadMarker::run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
-            // Use Ord impl of RootVideoMode
+            // Use Ord impl of RootVideoModeHandle
 
             let modes: BTreeSet<_> = ui_screen
                 .availableModes()
                 .into_iter()
-                .map(|mode| RootVideoMode {
-                    video_mode: VideoMode::new(ui_screen.clone(), mode, mtm),
+                .map(|mode| RootVideoModeHandle {
+                    video_mode: VideoModeHandle::new(ui_screen.clone(), mode, mtm),
                 })
                 .collect();
 
@@ -217,9 +217,9 @@ impl MonitorHandle {
         self.ui_screen.get(mtm)
     }
 
-    pub fn preferred_video_mode(&self) -> VideoMode {
+    pub fn preferred_video_mode(&self) -> VideoModeHandle {
         MainThreadMarker::run_on_main(|mtm| {
-            VideoMode::new(
+            VideoModeHandle::new(
                 self.ui_screen(mtm).clone(),
                 self.ui_screen(mtm).preferredMode().unwrap(),
                 mtm,

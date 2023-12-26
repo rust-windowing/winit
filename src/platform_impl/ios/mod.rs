@@ -72,7 +72,7 @@ pub(crate) use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 

@@ -1,4 +1,4 @@
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoModeHandle as RootVideoModeHandle};
 use crate::window::Fullscreen as RootFullscreen;
 
 #[cfg(windows_platform)]
@@ -25,10 +25,10 @@ mod platform;
 
 pub use self::platform::*;
 
-/// Helper for converting between platform-specific and generic VideoMode/MonitorHandle
+/// Helper for converting between platform-specific and generic [`VideoModeHandle`]/[`MonitorHandle`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Fullscreen {
-    Exclusive(VideoMode),
+    Exclusive(VideoModeHandle),
     Borderless(Option<MonitorHandle>),
 }
 
@@ -45,7 +45,9 @@ impl From<RootFullscreen> for Fullscreen {
 impl From<Fullscreen> for RootFullscreen {
     fn from(f: Fullscreen) -> Self {
         match f {
-            Fullscreen::Exclusive(video_mode) => Self::Exclusive(RootVideoMode { video_mode }),
+            Fullscreen::Exclusive(video_mode) => {
+                Self::Exclusive(RootVideoModeHandle { video_mode })
+            }
             Fullscreen::Borderless(Some(inner)) => {
                 Self::Borderless(Some(RootMonitorHandle { inner }))
             }

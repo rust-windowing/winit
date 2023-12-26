@@ -11,7 +11,7 @@ pub(crate) use self::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::Window,
 };
 
