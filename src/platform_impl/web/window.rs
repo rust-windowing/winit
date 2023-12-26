@@ -6,7 +6,6 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
-use super::cursor::CursorState;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
@@ -25,7 +24,6 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    cursor: CursorState,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
@@ -41,6 +39,7 @@ impl Window {
         let document = target.runner.document();
         let canvas = backend::Canvas::create(
             target.runner.main_thread(),
+            target.runner.weak(),
             id,
             window.clone(),
             document.clone(),
@@ -48,7 +47,6 @@ impl Window {
             platform_attr,
         )?;
         let canvas = Rc::new(RefCell::new(canvas));
-        let cursor = CursorState::new(target.runner.main_thread(), canvas.borrow().style().clone());
 
         target.register(&canvas, id);
 
@@ -59,7 +57,6 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            cursor,
             destroy_fn: Some(destroy_fn),
         };
 
@@ -227,7 +224,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        self.cursor.set_cursor(cursor)
+        self.canvas.borrow_mut().cursor.set_cursor(cursor)
     }
 
     #[inline]
@@ -253,7 +250,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.cursor.set_cursor_visible(visible)
+        self.canvas.borrow_mut().cursor.set_cursor_visible(visible)
     }
 
     #[inline]
