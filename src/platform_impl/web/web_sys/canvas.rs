@@ -17,6 +17,8 @@ use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
+use super::super::cursor::CursorHandler;
+use super::super::event_loop::runner::WeakShared;
 use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
@@ -46,6 +48,7 @@ pub struct Canvas {
     animation_frame_handler: AnimationFrameHandler,
     on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_context_menu: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    pub cursor: CursorHandler,
 }
 
 pub struct Common {
@@ -66,8 +69,9 @@ pub struct Style {
 }
 
 impl Canvas {
-    pub fn create(
+    pub(crate) fn create(
         main_thread: MainThreadMarker,
+        runner: WeakShared,
         id: WindowId,
         window: web_sys::Window,
         document: Document,
@@ -106,6 +110,8 @@ impl Canvas {
         }
 
         let style = Style::new(&window, &canvas);
+
+        let cursor = CursorHandler::new(main_thread, runner, style.clone());
 
         let common = Common {
             window: window.clone(),
@@ -163,6 +169,7 @@ impl Canvas {
             animation_frame_handler: AnimationFrameHandler::new(window),
             on_touch_end: None,
             on_context_menu: None,
+            cursor,
         })
     }
 
