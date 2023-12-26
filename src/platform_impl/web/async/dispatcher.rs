@@ -1,3 +1,4 @@
+use super::super::main_thread::MainThreadMarker;
 use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
 use std::{
     cell::Ref,
@@ -10,10 +11,11 @@ struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
-    pub fn new(value: T) -> Option<(Self, DispatchRunner<T>)> {
+    pub fn new(main_thread: MainThreadMarker, value: T) -> Option<(Self, DispatchRunner<T>)> {
         let (sender, receiver) = channel::<Closure<T>>();
 
         Wrapper::new(
+            main_thread,
             value,
             |value, Closure(closure)| {
                 // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything

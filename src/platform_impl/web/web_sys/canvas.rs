@@ -17,6 +17,7 @@ use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
+use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
 use super::event_handle::EventListenerHandle;
@@ -66,13 +67,18 @@ pub struct Style {
 
 impl Canvas {
     pub fn create(
+        main_thread: MainThreadMarker,
         id: WindowId,
         window: web_sys::Window,
         document: Document,
         attr: &WindowAttributes,
-        platform_attr: PlatformSpecificWindowBuilderAttributes,
+        mut platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = match platform_attr.canvas.0 {
+        let canvas = match platform_attr.canvas.take().map(|canvas| {
+            Arc::try_unwrap(canvas)
+                .map(|canvas| canvas.into_inner(main_thread))
+                .unwrap_or_else(|canvas| canvas.get(main_thread).clone())
+        }) {
             Some(canvas) => canvas,
             None => document
                 .create_element("canvas")

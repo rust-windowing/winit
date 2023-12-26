@@ -23,6 +23,7 @@ mod device;
 mod error;
 mod event_loop;
 mod keyboard;
+mod main_thread;
 mod monitor;
 mod window;
 
