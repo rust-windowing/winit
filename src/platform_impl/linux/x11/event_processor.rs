@@ -1413,6 +1413,9 @@ impl<T: 'static> EventProcessor<T> {
         F: FnMut(Event<T>),
     {
         let wt = get_xtarget(&self.target);
+        wt.xconn
+            .reload_database()
+            .expect("failed to reload Xft database");
 
         // In the future, it would be quite easy to emit monitor hotplug events.
         let prev_list = {
