@@ -4,7 +4,7 @@ use std::{
     fmt, ptr,
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, RwLock, RwLockReadGuard,
     },
 };
 
@@ -45,7 +45,7 @@ pub(crate) struct XConnection {
     pub monitor_handles: Mutex<Option<Vec<MonitorHandle>>>,
 
     /// The resource database.
-    database: resource_manager::Database,
+    database: RwLock<resource_manager::Database>,
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -115,7 +115,7 @@ impl XConnection {
             timestamp: AtomicU32::new(0),
             latest_error: Mutex::new(None),
             monitor_handles: Mutex::new(None),
-            database,
+            database: RwLock::new(database),
             cursor_cache: Default::default(),
         })
     }
@@ -159,8 +159,16 @@ impl XConnection {
 
     /// Get the resource database.
     #[inline]
-    pub fn database(&self) -> &resource_manager::Database {
-        &self.database
+    pub fn database(&self) -> RwLockReadGuard<'_, resource_manager::Database> {
+        self.database.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Reload the resource database.
+    #[inline]
+    pub fn reload_database(&self) -> Result<(), super::X11Error> {
+        let database = resource_manager::new_from_default(self.xcb_connection())?;
+        *self.database.write().unwrap_or_else(|e| e.into_inner()) = database;
+        Ok(())
     }
 
     /// Get the latest timestamp.
