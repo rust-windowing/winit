@@ -64,6 +64,7 @@ impl Window {
         inner.set_maximized(attr.maximized);
         inner.set_visible(attr.visible);
         inner.set_window_icon(attr.window_icon);
+        inner.set_cursor(attr.cursor);
 
         let canvas = Rc::downgrade(&inner.canvas);
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
