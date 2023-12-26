@@ -12,7 +12,7 @@ mod window;
 mod xdisplay;
 
 pub(crate) use self::{
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::UnownedWindow,
     xdisplay::XConnection,
 };

@@ -22,7 +22,7 @@ pub(crate) use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::{PlatformSpecificWindowBuilderAttributes, WindowId},
 };
 use crate::event::DeviceId as RootDeviceId;

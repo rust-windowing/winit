@@ -18,7 +18,7 @@ use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     size: PhysicalSize<u32>,
     bit_depth: u16,
     refresh_rate_millihertz: u32,
@@ -26,7 +26,7 @@ pub struct VideoMode {
     pub(crate) native_mode: NativeDisplayMode,
 }
 
-impl PartialEq for VideoMode {
+impl PartialEq for VideoModeHandle {
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size
             && self.bit_depth == other.bit_depth
@@ -35,9 +35,9 @@ impl PartialEq for VideoMode {
     }
 }
 
-impl Eq for VideoMode {}
+impl Eq for VideoModeHandle {}
 
-impl std::hash::Hash for VideoMode {
+impl std::hash::Hash for VideoModeHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.size.hash(state);
         self.bit_depth.hash(state);
@@ -46,9 +46,9 @@ impl std::hash::Hash for VideoMode {
     }
 }
 
-impl std::fmt::Debug for VideoMode {
+impl std::fmt::Debug for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VideoMode")
+        f.debug_struct("VideoModeHandle")
             .field("size", &self.size)
             .field("bit_depth", &self.bit_depth)
             .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
@@ -79,7 +79,7 @@ impl Clone for NativeDisplayMode {
     }
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
@@ -239,7 +239,7 @@ impl MonitorHandle {
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
         let monitor = self.clone();
 
@@ -283,7 +283,7 @@ impl MonitorHandle {
                     unimplemented!()
                 };
 
-                VideoMode {
+                VideoModeHandle {
                     size: PhysicalSize::new(
                         ffi::CGDisplayModeGetPixelWidth(mode) as u32,
                         ffi::CGDisplayModeGetPixelHeight(mode) as u32,

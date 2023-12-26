@@ -5,7 +5,7 @@ use objc2::rc::Id;
 
 use crate::{
     event_loop::EventLoop,
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::{Window, WindowBuilder},
 };
 
@@ -230,10 +230,10 @@ pub trait MonitorHandleExtIOS {
     /// [`UIScreen`]: https://developer.apple.com/documentation/uikit/uiscreen?language=objc
     fn ui_screen(&self) -> *mut c_void;
 
-    /// Returns the preferred [`VideoMode`] for this monitor.
+    /// Returns the preferred [`VideoModeHandle`] for this monitor.
     ///
     /// This translates to a call to [`-[UIScreen preferredMode]`](https://developer.apple.com/documentation/uikit/uiscreen/1617823-preferredmode?language=objc).
-    fn preferred_video_mode(&self) -> VideoMode;
+    fn preferred_video_mode(&self) -> VideoModeHandle;
 }
 
 impl MonitorHandleExtIOS for MonitorHandle {
@@ -245,8 +245,8 @@ impl MonitorHandleExtIOS for MonitorHandle {
     }
 
     #[inline]
-    fn preferred_video_mode(&self) -> VideoMode {
-        VideoMode {
+    fn preferred_video_mode(&self) -> VideoModeHandle {
+        VideoModeHandle {
             video_mode: self.inner.preferred_video_mode(),
         }
     }

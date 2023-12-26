@@ -35,7 +35,7 @@ pub use self::error::OsError;
 pub(crate) use self::event_loop::{
     EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
-pub use self::monitor::{MonitorHandle, VideoMode};
+pub use self::monitor::{MonitorHandle, VideoModeHandle};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use self::keyboard::KeyEventExtra;

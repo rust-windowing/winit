@@ -1,7 +1,7 @@
 use super::{util, X11Error, XConnection};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::VideoMode as PlatformVideoMode,
+    platform_impl::VideoModeHandle as PlatformVideoModeHandle,
 };
 use x11rb::{
     connection::RequestConnection,
@@ -22,7 +22,7 @@ impl XConnection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
@@ -30,7 +30,7 @@ pub struct VideoMode {
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
@@ -71,7 +71,7 @@ pub struct MonitorHandle {
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoMode>,
+    video_modes: Vec<VideoModeHandle>,
 }
 
 impl PartialEq for MonitorHandle {
@@ -191,11 +191,11 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
             x.monitor = Some(monitor.clone());
-            PlatformVideoMode::X(x)
+            PlatformVideoModeHandle::X(x)
         })
     }
 }

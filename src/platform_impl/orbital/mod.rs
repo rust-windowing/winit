@@ -222,11 +222,11 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        std::iter::once(VideoModeHandle {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
@@ -236,14 +236,14 @@ impl MonitorHandle {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     size: (u32, u32),
     bit_depth: u16,
     refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }

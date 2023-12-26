@@ -254,38 +254,38 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoModeHandle>> {
         x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum VideoMode {
+pub enum VideoModeHandle {
     #[cfg(x11_platform)]
-    X(x11::VideoMode),
+    X(x11::VideoModeHandle),
     #[cfg(wayland_platform)]
-    Wayland(wayland::VideoMode),
+    Wayland(wayland::VideoModeHandle),
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; VideoMode(m) => m.size())
+        x11_or_wayland!(match self; VideoModeHandle(m) => m.size())
     }
 
     #[inline]
     pub fn bit_depth(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.bit_depth())
+        x11_or_wayland!(match self; VideoModeHandle(m) => m.bit_depth())
     }
 
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> u32 {
-        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate_millihertz())
+        x11_or_wayland!(match self; VideoModeHandle(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; VideoMode(m) => m.monitor(); as MonitorHandle)
+        x11_or_wayland!(match self; VideoModeHandle(m) => m.monitor(); as MonitorHandle)
     }
 }
 

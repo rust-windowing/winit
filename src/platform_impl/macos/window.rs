@@ -18,7 +18,7 @@ use crate::{
         app_state::AppState,
         event_loop::EventLoopWindowTarget,
         ffi,
-        monitor::{self, MonitorHandle, VideoMode},
+        monitor::{self, MonitorHandle, VideoModeHandle},
         view::WinitView,
         window_delegate::WinitWindowDelegate,
         Fullscreen, OsError,
@@ -294,7 +294,7 @@ impl WinitWindow {
         let this = autoreleasepool(|_| {
             let screen = match attrs.fullscreen.clone().map(Into::into) {
                 Some(Fullscreen::Borderless(Some(monitor)))
-                | Some(Fullscreen::Exclusive(VideoMode { monitor, .. })) => {
+                | Some(Fullscreen::Exclusive(VideoModeHandle { monitor, .. })) => {
                     monitor.ns_screen(mtm).or_else(|| NSScreen::mainScreen(mtm))
                 }
                 Some(Fullscreen::Borderless(None)) => NSScreen::mainScreen(mtm),

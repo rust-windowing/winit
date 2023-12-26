@@ -26,15 +26,15 @@ impl MonitorHandle {
         unreachable!()
     }
 
-    pub fn video_modes(&self) -> Empty<VideoMode> {
+    pub fn video_modes(&self) -> Empty<VideoModeHandle> {
         unreachable!()
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct VideoMode;
+pub struct VideoModeHandle;
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         unreachable!();
     }
