@@ -798,18 +798,19 @@ impl WinitWindow {
     }
 
     pub fn set_cursor(&self, cursor: Cursor) {
-        match cursor {
-            Cursor::Icon(icon) => {
-                let view = self.view();
-                view.set_cursor_icon(cursor_from_icon(icon));
-                self.invalidateCursorRectsForView(&view);
-            }
-            Cursor::Custom(cursor) => {
-                let view = self.view();
-                view.set_cursor_icon(cursor.inner.0.clone());
-                self.invalidateCursorRectsForView(&view);
-            }
+        let view = self.view();
+
+        let cursor = match cursor {
+            Cursor::Icon(icon) => cursor_from_icon(icon),
+            Cursor::Custom(cursor) => cursor.inner.0,
+        };
+
+        if view.cursor_icon() == cursor {
+            return;
         }
+
+        view.set_cursor_icon(cursor);
+        self.invalidateCursorRectsForView(&view);
     }
 
     #[inline]
