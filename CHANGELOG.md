@@ -27,6 +27,11 @@ Unreleased` header.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 
+# 0.29.7
+
+- On X11, fix `Xft.dpi` reload during runtime.
+- On X11, fix window minimize.
+
 # 0.29.6
 
 - On Web, fix context menu not being disabled by `with_prevent_default(true)`.
