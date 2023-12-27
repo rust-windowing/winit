@@ -9,7 +9,7 @@ use std::{
 
 use x11rb::{
     connection::Connection,
-    properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
+    properties::{WmHints, WmSizeHints, WmSizeHintsSpecification},
     protocol::{
         randr,
         shape::SK,
@@ -987,7 +987,7 @@ impl UnownedWindow {
                     xproto::EventMask::SUBSTRUCTURE_REDIRECT
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
-                [WmHintsState::Iconic as u32, 0, 0, 0, 0],
+                [3u32, 0, 0, 0, 0],
             )
         } else {
             self.xconn.send_client_msg(
