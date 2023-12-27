@@ -11,6 +11,11 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.7
+
+- On X11, fix `Xft.dpi` reload during runtime.
+- On X11, fix window minimize.
+
 # 0.29.6
 
 - On Web, fix context menu not being disabled by `with_prevent_default(true)`.
