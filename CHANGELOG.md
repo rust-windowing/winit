@@ -26,6 +26,8 @@ Unreleased` header.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- On Wayland, fix `Window::request_inner_size` being overwritten by resize.
+- On Wayland, fix `Window::inner_size` not using the correct rounding.
 
 # 0.29.7
 
