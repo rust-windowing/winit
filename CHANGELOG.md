@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, reduce the amount of time spent fetching screen resources.
+
 # 0.29.7
 
 - On X11, fix `Xft.dpi` reload during runtime.
