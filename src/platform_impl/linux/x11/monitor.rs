@@ -344,7 +344,7 @@ impl ScreenResources {
         conn: &impl x11rb::connection::Connection,
         root: &x11rb::protocol::xproto::Screen,
     ) -> Result<Self, X11Error> {
-        let version = conn.randr_query_version(0, 0)?.reply()?;
+        let version = conn.randr_query_version(1, 3)?.reply()?;
 
         if (version.major_version == 1 && version.minor_version >= 3) || version.major_version > 1 {
             let reply = conn
