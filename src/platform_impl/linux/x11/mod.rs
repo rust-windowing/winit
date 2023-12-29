@@ -365,7 +365,9 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY
+                    | xkb::EventType::MAP_NOTIFY
+                    | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
