@@ -12,6 +12,8 @@ Unreleased` header.
 # Unreleased
 
 - On X11, reduce the amount of time spent fetching screen resources.
+- On Wayland, fix `Window::request_inner_size` being overwritten by resize.
+- On Wayland, fix `Window::inner_size` not using the correct rounding.
 
 # 0.29.7
 

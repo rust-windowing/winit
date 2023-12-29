@@ -31,8 +31,8 @@ use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
-use crate::platform_impl::wayland::make_wid;
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::wayland::{logical_to_physical_rounded, make_wid};
 use crate::platform_impl::WindowId;
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -256,7 +256,7 @@ impl WindowState {
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
         event_sink: &mut EventSink,
-    ) -> Option<LogicalSize<u32>> {
+    ) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -368,9 +368,9 @@ impl WindowState {
 
         if state_change_requires_resize || new_size != self.inner_size() {
             self.resize(new_size);
-            Some(new_size)
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -647,7 +647,7 @@ impl WindowState {
             self.resize(inner_size.to_logical(self.scale_factor()))
         }
 
-        self.inner_size().to_physical(self.scale_factor())
+        logical_to_physical_rounded(self.inner_size(), self.scale_factor())
     }
 
     /// Resize the window to the new inner size.

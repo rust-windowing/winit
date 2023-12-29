@@ -9,6 +9,7 @@ use sctk::reexports::client::globals::{BindError, GlobalError};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
 
+use crate::dpi::{LogicalSize, PhysicalSize};
 pub use crate::platform_impl::platform::{OsError, WindowId};
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use output::{MonitorHandle, VideoMode};
@@ -75,4 +76,11 @@ impl DeviceId {
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
     WindowId(surface.id().as_ptr() as u64)
+}
+
+/// The default routine does floor, but we need round on Wayland.
+fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> PhysicalSize<u32> {
+    let width = size.width as f64 * scale_factor;
+    let height = size.height as f64 * scale_factor;
+    (width.round(), height.round()).into()
 }
