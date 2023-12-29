@@ -234,7 +234,8 @@ impl XConnection {
 
     fn query_monitor_list(&self) -> Result<Vec<MonitorHandle>, X11Error> {
         let root = self.default_root();
-        let resources = ScreenResources::from_connection(self.xcb_connection(), root)?;
+        let resources =
+            ScreenResources::from_connection(self.xcb_connection(), root, self.randr_version())?;
 
         // Pipeline all of the get-crtc requests.
         let mut crtc_cookies = Vec::with_capacity(resources.crtcs().len());
@@ -343,10 +344,9 @@ impl ScreenResources {
     pub(crate) fn from_connection(
         conn: &impl x11rb::connection::Connection,
         root: &x11rb::protocol::xproto::Screen,
+        (major_version, minor_version): (u32, u32),
     ) -> Result<Self, X11Error> {
-        let version = conn.randr_query_version(1, 3)?.reply()?;
-
-        if (version.major_version == 1 && version.minor_version >= 3) || version.major_version > 1 {
+        if (major_version == 1 && minor_version >= 3) || major_version > 1 {
             let reply = conn
                 .randr_get_screen_resources_current(root.root)?
                 .reply()?;
