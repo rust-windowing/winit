@@ -1282,6 +1282,21 @@ impl<T: 'static> EventProcessor<T> {
                                 unsafe { self.kb_state.init_with_x11_keymap() };
                             }
                         }
+                        ffi::XkbMapNotify => {
+                            let prev_mods = self.kb_state.mods_state();
+                            unsafe { self.kb_state.init_with_x11_keymap() };
+                            let new_mods = self.kb_state.mods_state();
+                            if prev_mods != new_mods {
+                                if let Some(window) = self.active_window {
+                                    callback(Event::WindowEvent {
+                                        window_id: mkwid(window),
+                                        event: WindowEvent::ModifiersChanged(
+                                            Into::<ModifiersState>::into(new_mods).into(),
+                                        ),
+                                    });
+                                }
+                            }
+                        }
                         ffi::XkbStateNotify => {
                             let xev =
                                 unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
