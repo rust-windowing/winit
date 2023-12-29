@@ -114,7 +114,7 @@ impl XConnection {
 
         // Load the RandR version.
         let randr_version = xcb
-            .randr_query_version(0, 0)
+            .randr_query_version(1, 3)
             .expect("failed to request XRandR version")
             .reply()
             .expect("failed to query XRandR version");
