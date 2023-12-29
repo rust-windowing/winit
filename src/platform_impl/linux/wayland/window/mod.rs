@@ -280,7 +280,7 @@ impl Window {
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        window_state.inner_size().to_physical(scale_factor)
+        super::logical_to_physical_rounded(window_state.inner_size(), scale_factor)
     }
 
     #[inline]
@@ -308,7 +308,7 @@ impl Window {
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        window_state.outer_size().to_physical(scale_factor)
+        super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
     #[inline]

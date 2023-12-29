@@ -16,7 +16,7 @@ use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, QueueHandle};
 
-use crate::dpi::{LogicalSize, PhysicalSize};
+use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{
@@ -34,7 +34,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{DeviceId, WaylandError, WindowId};
+use super::{logical_to_physical_rounded, DeviceId, WaylandError, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -356,15 +356,13 @@ impl<T: 'static> EventLoop<T> {
 
         for mut compositor_update in compositor_updates.drain(..) {
             let window_id = compositor_update.window_id;
-            if let Some(scale_factor) = compositor_update.scale_factor {
-                let physical_size = self.with_state(|state| {
+            if compositor_update.scale_changed {
+                let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
-                    let mut window = windows.get(&window_id).unwrap().lock().unwrap();
-
-                    // Set the new scale factor.
-                    window.set_scale_factor(scale_factor);
-                    let window_size = compositor_update.size.unwrap_or(window.inner_size());
-                    logical_to_physical_rounded(window_size, scale_factor)
+                    let window = windows.get(&window_id).unwrap().lock().unwrap();
+                    let scale_factor = window.scale_factor();
+                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
+                    (size, scale_factor)
                 });
 
                 // Stash the old window size.
@@ -386,30 +384,30 @@ impl<T: 'static> EventLoop<T> {
 
                 let physical_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
-                let new_logical_size = physical_size.to_logical(scale_factor);
 
                 // Resize the window when user altered the size.
                 if old_physical_size != physical_size {
                     self.with_state(|state| {
                         let windows = state.windows.get_mut();
                         let mut window = windows.get(&window_id).unwrap().lock().unwrap();
+
+                        let new_logical_size: LogicalSize<f64> =
+                            physical_size.to_logical(scale_factor);
                         window.request_inner_size(new_logical_size.into());
                     });
-                }
 
-                // Make it queue resize.
-                compositor_update.size = Some(new_logical_size);
+                    // Make it queue resize.
+                    compositor_update.resized = true;
+                }
             }
 
-            if let Some(size) = compositor_update.size.take() {
+            if compositor_update.resized {
                 let physical_size = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
                     let scale_factor = window.scale_factor();
-                    let physical_size = logical_to_physical_rounded(size, scale_factor);
-
-                    // TODO could probably bring back size reporting optimization.
+                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
 
                     // Mark the window as needed a redraw.
                     state
@@ -420,7 +418,7 @@ impl<T: 'static> EventLoop<T> {
                         .redraw_requested
                         .store(true, Ordering::Relaxed);
 
-                    physical_size
+                    size
                 });
 
                 callback(
@@ -683,11 +681,4 @@ impl<T> EventLoopWindowTarget<T> {
         })
         .into())
     }
-}
-
-// The default routine does floor, but we need round on Wayland.
-fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> PhysicalSize<u32> {
-    let width = size.width as f64 * scale_factor;
-    let height = size.height as f64 * scale_factor;
-    (width.round(), height.round()).into()
 }
