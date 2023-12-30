@@ -11,7 +11,12 @@ use std::{
 use crate::window::CursorIcon;
 
 use super::{atoms::Atoms, ffi, monitor::MonitorHandle};
-use x11rb::{connection::Connection, protocol::xproto, resource_manager, xcb_ffi::XCBConnection};
+use x11rb::{
+    connection::Connection,
+    protocol::{randr::ConnectionExt as _, xproto},
+    resource_manager,
+    xcb_ffi::XCBConnection,
+};
 
 /// A connection to an X server.
 pub(crate) struct XConnection {
@@ -46,6 +51,9 @@ pub(crate) struct XConnection {
 
     /// The resource database.
     database: RwLock<resource_manager::Database>,
+
+    /// RandR version.
+    randr_version: (u32, u32),
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -104,6 +112,13 @@ impl XConnection {
         let database = resource_manager::new_from_default(&xcb)
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
+        // Load the RandR version.
+        let randr_version = xcb
+            .randr_query_version(1, 3)
+            .expect("failed to request XRandR version")
+            .reply()
+            .expect("failed to query XRandR version");
+
         Ok(XConnection {
             xlib,
             xcursor,
@@ -117,6 +132,7 @@ impl XConnection {
             monitor_handles: Mutex::new(None),
             database: RwLock::new(database),
             cursor_cache: Default::default(),
+            randr_version: (randr_version.major_version, randr_version.minor_version),
         })
     }
 
@@ -129,6 +145,11 @@ impl XConnection {
         } else {
             Ok(())
         }
+    }
+
+    #[inline]
+    pub fn randr_version(&self) -> (u32, u32) {
+        self.randr_version
     }
 
     /// Get the underlying XCB connection.
