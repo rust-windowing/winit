@@ -23,21 +23,19 @@ use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
-use crate::dpi::LogicalSize;
-use crate::platform_impl::OsError;
-
-use super::event_loop::sink::EventSink;
-use super::output::MonitorHandle;
-use super::seat::{
+use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::output::MonitorHandle;
+use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
 };
-use super::types::kwin_blur::KWinBlurManager;
-use super::types::wp_fractional_scaling::FractionalScalingManager;
-use super::types::wp_viewporter::ViewporterState;
-use super::types::xdg_activation::XdgActivationState;
-use super::window::{WindowRequests, WindowState};
-use super::{WaylandError, WindowId};
+use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
+use crate::platform_impl::wayland::types::wp_viewporter::ViewporterState;
+use crate::platform_impl::wayland::types::xdg_activation::XdgActivationState;
+use crate::platform_impl::wayland::window::{WindowRequests, WindowState};
+use crate::platform_impl::wayland::{WaylandError, WindowId};
+use crate::platform_impl::OsError;
 
 /// Winit's Wayland state.
 pub struct WinitState {
@@ -227,7 +225,7 @@ impl WinitState {
 
             // Update the scale factor right away.
             window.lock().unwrap().set_scale_factor(scale_factor);
-            self.window_compositor_updates[pos].scale_factor = Some(scale_factor);
+            self.window_compositor_updates[pos].scale_changed = true;
         } else if let Some(pointer) = self.pointer_surfaces.get(&surface.id()) {
             // Get the window, where the pointer resides right now.
             let focused_window = match pointer.pointer().winit_data().focused_window() {
@@ -291,9 +289,7 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        //
-        // XXX the size on the window will be updated right before dispatching the size to the user.
-        let new_size = self
+        self.window_compositor_updates[pos].resized |= self
             .windows
             .get_mut()
             .get_mut(&window_id)
@@ -306,12 +302,6 @@ impl WindowHandler for WinitState {
                 &self.subcompositor_state,
                 &mut self.events_sink,
             );
-
-        // NOTE: Only update when the value is `Some` to not override consequent configures with
-        // the same sizes.
-        if new_size.is_some() {
-            self.window_compositor_updates[pos].size = new_size;
-        }
     }
 }
 
@@ -405,10 +395,10 @@ pub struct WindowCompositorUpdate {
     pub window_id: WindowId,
 
     /// New window size.
-    pub size: Option<LogicalSize<u32>>,
+    pub resized: bool,
 
     /// New scale factor.
-    pub scale_factor: Option<f64>,
+    pub scale_changed: bool,
 
     /// Close the window.
     pub close_window: bool,
@@ -418,8 +408,8 @@ impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
         Self {
             window_id,
-            size: None,
-            scale_factor: None,
+            resized: false,
+            scale_changed: false,
             close_window: false,
         }
     }
