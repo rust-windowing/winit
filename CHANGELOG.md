@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, fix `ModifiersChanged` not sent from xdotool-like input
 - On X11, keymap not updated from xmodmap.
 - On X11, reduce the amount of time spent fetching screen resources.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
