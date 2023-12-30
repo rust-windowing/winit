@@ -347,6 +347,7 @@ impl<T: 'static> EventLoop<T> {
             held_key_press: None,
             first_touch: None,
             active_window: None,
+            modifiers: Default::default(),
             is_composing: false,
         };
 
