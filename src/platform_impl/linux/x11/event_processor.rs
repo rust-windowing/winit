@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     os::raw::{c_char, c_int, c_long, c_ulong},
     rc::Rc,
@@ -56,6 +56,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<xproto::Window>,
+    /// Latest modifiers we've sent for the user to trigger change in event.
+    pub(super) modifiers: Cell<ModifiersState>,
     pub(super) is_composing: bool,
 }
 
@@ -994,12 +996,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             let modifiers: crate::keyboard::ModifiersState =
                                 self.kb_state.mods_state().into();
-                            if !modifiers.is_empty() {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::ModifiersChanged(modifiers.into()),
-                                });
-                            }
+                            self.send_modifiers(modifiers, &mut callback);
 
                             // The deviceid for this event is for a keyboard instead of a pointer,
                             // so we have to do a little extra work.
@@ -1061,12 +1058,7 @@ impl<T: 'static> EventProcessor<T> {
                             // window regains focus.
                             self.held_key_press = None;
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ModifiersChanged(
-                                    ModifiersState::empty().into(),
-                                ),
-                            });
+                            self.send_modifiers(ModifiersState::empty(), &mut callback);
 
                             if let Some(window) = self.with_window(window, Arc::clone) {
                                 window.shared_state_lock().has_focus = false;
@@ -1280,22 +1272,13 @@ impl<T: 'static> EventProcessor<T> {
                                 && (keycodes_changed || geometry_changed)
                             {
                                 unsafe { self.kb_state.init_with_x11_keymap() };
+                                let modifiers = self.kb_state.mods_state();
+                                self.send_modifiers(modifiers.into(), &mut callback);
                             }
                         }
                         ffi::XkbMapNotify => {
-                            let prev_mods = self.kb_state.mods_state();
                             unsafe { self.kb_state.init_with_x11_keymap() };
-                            let new_mods = self.kb_state.mods_state();
-                            if prev_mods != new_mods {
-                                if let Some(window) = self.active_window {
-                                    callback(Event::WindowEvent {
-                                        window_id: mkwid(window),
-                                        event: WindowEvent::ModifiersChanged(
-                                            Into::<ModifiersState>::into(new_mods).into(),
-                                        ),
-                                    });
-                                }
-                            }
+                            self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
                         }
                         ffi::XkbStateNotify => {
                             let xev =
@@ -1304,7 +1287,9 @@ impl<T: 'static> EventProcessor<T> {
                             // Set the timestamp.
                             wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                            let prev_mods = self.kb_state.mods_state();
+                            // NOTE: Modifiers could update without a prior event updating them,
+                            // thus diffing the state before and after is not reliable.
+
                             self.kb_state.update_modifiers(
                                 xev.base_mods,
                                 xev.latched_mods,
@@ -1313,17 +1298,8 @@ impl<T: 'static> EventProcessor<T> {
                                 xev.latched_group as u32,
                                 xev.locked_group as u32,
                             );
-                            let new_mods = self.kb_state.mods_state();
-                            if prev_mods != new_mods {
-                                if let Some(window) = self.active_window {
-                                    callback(Event::WindowEvent {
-                                        window_id: mkwid(window),
-                                        event: WindowEvent::ModifiersChanged(
-                                            Into::<ModifiersState>::into(new_mods).into(),
-                                        ),
-                                    });
-                                }
-                            }
+
+                            self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
                         }
                         _ => {}
                     }
@@ -1389,6 +1365,23 @@ impl<T: 'static> EventProcessor<T> {
                     event: WindowEvent::Ime(Ime::Disabled),
                 });
             }
+        }
+    }
+
+    /// Send modifiers for the active window.
+    ///
+    /// The event won't be send when the `modifiers` match the previosly `sent` modifiers value.
+    fn send_modifiers<F: FnMut(Event<T>)>(&self, modifiers: ModifiersState, callback: &mut F) {
+        let window_id = match self.active_window {
+            Some(window) => mkwid(window),
+            None => return,
+        };
+
+        if self.modifiers.replace(modifiers) != modifiers {
+            callback(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
+            });
         }
     }
 
