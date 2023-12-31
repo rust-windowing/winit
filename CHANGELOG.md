@@ -15,7 +15,7 @@ Unreleased` header.
 
 - On X11, fix IME input lagging behind.
 - On X11, fix `ModifiersChanged` not sent from xdotool-like input
-- On X11, keymap not updated from xmodmap.
+- On X11, fix keymap not updated from xmodmap.
 - On X11, reduce the amount of time spent fetching screen resources.
 - On Wayland, fix `Window::request_inner_size` being overwritten by resize.
 - On Wayland, fix `Window::inner_size` not using the correct rounding.
