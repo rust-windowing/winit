@@ -1311,7 +1311,7 @@ impl<T: 'static> EventProcessor<T> {
         }
 
         // Handle IME requests.
-        if let Ok(request) = self.ime_receiver.try_recv() {
+        while let Ok(request) = self.ime_receiver.try_recv() {
             let mut ime = wt.ime.borrow_mut();
             match request {
                 ImeRequest::Position(window_id, x, y) => {
@@ -1323,47 +1323,46 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        let (window, event) = match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => (window as xproto::Window, event),
-            Err(_) => return,
-        };
-
-        match event {
-            ImeEvent::Enabled => {
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                });
-            }
-            ImeEvent::Start => {
-                self.is_composing = true;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                });
-            }
-            ImeEvent::Update(text, position) => {
-                if self.is_composing {
+        // Drain IME events.
+        while let Ok((window, event)) = self.ime_event_receiver.try_recv() {
+            let window_id = mkwid(window as xproto::Window);
+            match event {
+                ImeEvent::Enabled => {
                     callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Enabled),
                     });
                 }
-            }
-            ImeEvent::End => {
-                self.is_composing = false;
-                // Issue empty preedit on `Done`.
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                });
-            }
-            ImeEvent::Disabled => {
-                self.is_composing = false;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Disabled),
-                });
+                ImeEvent::Start => {
+                    self.is_composing = true;
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                    });
+                }
+                ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        });
+                    }
+                }
+                ImeEvent::End => {
+                    self.is_composing = false;
+                    // Issue empty preedit on `Done`.
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+                ImeEvent::Disabled => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Disabled),
+                    });
+                }
             }
         }
     }
