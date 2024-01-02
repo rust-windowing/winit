@@ -504,7 +504,7 @@ pub fn keysym_to_key(keysym: u32) -> Key {
         keysyms::KP_F4 => NamedKey::F4,
         keysyms::KP_Home => NamedKey::Home,
         keysyms::KP_Left => NamedKey::ArrowLeft,
-        keysyms::KP_Up => NamedKey::ArrowLeft,
+        keysyms::KP_Up => NamedKey::ArrowUp,
         keysyms::KP_Right => NamedKey::ArrowRight,
         keysyms::KP_Down => NamedKey::ArrowDown,
         // keysyms::KP_Prior => NamedKey::PageUp,
