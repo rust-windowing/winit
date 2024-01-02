@@ -1,6 +1,5 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
-use std::ptr::NonNull;
 
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::rc::Id;
