@@ -89,10 +89,19 @@ pub trait WindowExtIOS {
     /// is also called for you.
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle);
 
+    /// Sets whether the [`Window`] should recognize pinch gestures.
+    ///
+    /// The default is to not recognize gestures.
     fn recognize_pinch_gesture(&self, should_recognize: bool);
 
+    /// Sets whether the [`Window`] should recognize double tap gestures.
+    ///
+    /// The default is to not recognize gestures.
     fn recognize_doubletap_gesture(&self, should_recognize: bool);
 
+    /// Sets whether the [`Window`] should recognize rotation gestures.
+    ///
+    /// The default is to not recognize gestures.
     fn recognize_rotation_gesture(&self, should_recognize: bool);
 }
 
