@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
+
 # 0.29.8
 
 - On X11, fix IME input lagging behind.
