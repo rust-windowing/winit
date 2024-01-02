@@ -298,7 +298,6 @@ impl WinitView {
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        println!("recognize_pinch_gesture: {}", should_recognize);
         if should_recognize && self.ivars().pinch_gesture_recognizer.borrow().is_none() {
             let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
             self.addGestureRecognizer(pinch.as_super());
@@ -309,7 +308,6 @@ impl WinitView {
     }
 
     pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        println!("recognize_doubletap_gesture: {}", should_recognize);
         if should_recognize && self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
             let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
             unsafe {
@@ -324,7 +322,6 @@ impl WinitView {
     }
 
     pub(crate) fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        println!("recognize_rotation_gesture: {}", should_recognize);
         if should_recognize && self.ivars().rotation_gesture_recognizer.borrow().is_none() {
             let rotation =
                 UIRotationGestureRecognizer::init_with_target(self, sel!(rotationGesture:));
