@@ -13,9 +13,9 @@ use objc2::{
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIGestureRecognizerState,
-    UIInterfaceOrientationMask, UIPinchGestureRecognizer, UIResponder, UIStatusBarStyle,
-    UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView,
-    UIViewController, UIWindow,
+    UIInterfaceOrientationMask, UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer,
+    UIStatusBarStyle, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
+    UITraitCollection, UIView, UIViewController, UIWindow,
 };
 use super::window::WindowId;
 use crate::{
@@ -33,6 +33,7 @@ use crate::{
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
     doubletap_gesture_recognizer: RefCell<Option<Id<UITapGestureRecognizer>>>,
+    rotation_gesture_recognizer: RefCell<Option<Id<UIRotationGestureRecognizer>>>,
 }
 
 declare_class!(
@@ -219,6 +220,36 @@ declare_class!(
                 app_state::handle_nonuser_event(mtm, gesture_event);
             }
         }
+
+        #[method(rotationGesture:)]
+        fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
+            let window = self.window().unwrap();
+            let uiscreen = window.screen();
+
+            let phase = match recognizer.state() {
+                UIGestureRecognizerState::Began => TouchPhase::Started,
+                UIGestureRecognizerState::Changed => TouchPhase::Moved,
+                UIGestureRecognizerState::Ended => TouchPhase::Ended,
+                UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
+                    TouchPhase::Cancelled
+                }
+                state => panic!("unexpected recognizer state: {:?}", state),
+            };
+
+            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::RotationGesture {
+                    device_id: RootDeviceId(DeviceId {
+                        uiscreen: Id::as_ptr(&uiscreen),
+                    }),
+                    delta: recognizer.velocity() as f32,
+                    phase,
+                },
+            });
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, gesture_event);
+        }
     }
 );
 
@@ -253,6 +284,7 @@ impl WinitView {
         let this = Self::alloc().set_ivars(WinitViewState {
             pinch_gesture_recognizer: RefCell::new(None),
             doubletap_gesture_recognizer: RefCell::new(None),
+            rotation_gesture_recognizer: RefCell::new(None),
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
@@ -287,6 +319,20 @@ impl WinitView {
             self.addGestureRecognizer(tap.as_super());
             self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
         } else if let Some(recognizer) = self.ivars().doubletap_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
+        }
+    }
+
+    pub(crate) fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        println!("recognize_rotation_gesture: {}", should_recognize);
+        if should_recognize && self.ivars().rotation_gesture_recognizer.borrow().is_none() {
+            let rotation =
+                UIRotationGestureRecognizer::init_with_target(self, sel!(rotationGesture:));
+            self.addGestureRecognizer(rotation.as_super());
+            self.ivars()
+                .rotation_gesture_recognizer
+                .replace(Some(rotation));
+        } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
     }

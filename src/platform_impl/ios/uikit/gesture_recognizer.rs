@@ -78,6 +78,37 @@ impl UIPinchGestureRecognizer {
     }
 }
 
+// https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer
+extern_class!(
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct UIRotationGestureRecognizer;
+
+    unsafe impl ClassType for UIRotationGestureRecognizer {
+        type Super = UIGestureRecognizer;
+        type Mutability = mutability::InteriorMutable;
+    }
+);
+
+extern_methods!(
+    unsafe impl UIRotationGestureRecognizer {
+        #[method(rotation)]
+        pub fn rotation(&self) -> CGFloat;
+
+        #[method(velocity)]
+        pub fn velocity(&self) -> CGFloat;
+    }
+);
+
+unsafe impl Encode for UIRotationGestureRecognizer {
+    const ENCODING: Encoding = Encoding::Object;
+}
+
+impl UIRotationGestureRecognizer {
+    pub(crate) fn init_with_target(target: &WinitView, action: Sel) -> Id<Self> {
+        unsafe { msg_send_id![Self::alloc(), initWithTarget: target, action: action] }
+    }
+}
+
 // https://developer.apple.com/documentation/uikit/uitapgesturerecognizer
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

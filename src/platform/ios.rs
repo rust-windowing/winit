@@ -92,6 +92,8 @@ pub trait WindowExtIOS {
     fn recognize_pinch_gesture(&self, should_recognize: bool);
 
     fn recognize_doubletap_gesture(&self, should_recognize: bool);
+
+    fn recognize_rotation_gesture(&self, should_recognize: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -142,6 +144,12 @@ impl WindowExtIOS for Window {
     fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         self.window
             .maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
+    }
+
+    #[inline]
+    fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
 

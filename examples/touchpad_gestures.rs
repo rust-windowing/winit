@@ -33,7 +33,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::DoubleTapGesture { .. } => {
                     println!("Smart zoom");
                 }
-                WindowEvent::TouchpadRotate { delta, .. } => {
+                WindowEvent::RotationGesture { delta, .. } => {
                     if delta > 0.0 {
                         println!("Rotated counterclockwise {delta}");
                     } else {

@@ -25,7 +25,8 @@ pub(crate) use self::coordinate_space::UICoordinateSpace;
 pub(crate) use self::device::UIDevice;
 pub(crate) use self::event::UIEvent;
 pub(crate) use self::gesture_recognizer::{
-    UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer, UITapGestureRecognizer,
+    UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer,
+    UIRotationGestureRecognizer, UITapGestureRecognizer,
 };
 pub(crate) use self::responder::UIResponder;
 pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};

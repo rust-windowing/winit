@@ -487,8 +487,8 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
-    TouchpadRotate {
+    /// - Only available on **macOS** and **iOS**.
+    RotationGesture {
         device_id: DeviceId,
         delta: f32,
         phase: TouchPhase,
@@ -1207,7 +1207,7 @@ mod tests {
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(DoubleTapGesture { device_id: did });
-                with_window_event(TouchpadRotate {
+                with_window_event(RotationGesture {
                     device_id: did,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,

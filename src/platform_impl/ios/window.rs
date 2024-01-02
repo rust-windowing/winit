@@ -579,6 +579,10 @@ impl Inner {
     pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         self.view.recognize_doubletap_gesture(should_recognize);
     }
+
+    pub fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        self.view.recognize_rotation_gesture(should_recognize);
+    }
 }
 
 impl Inner {
