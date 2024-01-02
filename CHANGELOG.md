@@ -26,6 +26,8 @@ Unreleased` header.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
 
 # 0.29.8
 
