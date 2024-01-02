@@ -6,8 +6,8 @@ use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectPr
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{
-    declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType, DeclaredClass,
-    Encode, Encoding,
+    declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType,
+    DeclaredClass, Encode, Encoding,
 };
 
 use super::app_state::{self, EventWrapper};
@@ -36,11 +36,7 @@ pub struct WinitViewState {
 }
 
 declare_class!(
-    pub(crate) struct WinitView {
-        state: IvarDrop<Box<WinitViewState>, "_state">,
-    }
-
-    mod winit_view_ivars;
+    pub(crate) struct WinitView;
 
     unsafe impl ClassType for WinitView {
         #[inherits(UIResponder, NSObject)]
@@ -49,23 +45,8 @@ declare_class!(
         const NAME: &'static str = "WinitUIView";
     }
 
-    impl DeclaredClass for WinitView {}
-
-    unsafe impl WinitView {
-        #[method(initWithFrame:)]
-        unsafe fn init_with_frame(this: *mut Self, frame: CGRect) -> Option<NonNull<Self>> {
-            let this: Option<&mut Self> = msg_send![super(this), initWithFrame: frame];
-            this.map(|this| {
-                Ivar::write(
-                    &mut this.state,
-                    Box::new(WinitViewState {
-                        pinch_gesture_recognizer: RefCell::new(None),
-                        doubletap_gesture_recognizer: RefCell::new(None),
-                    }),
-                );
-                NonNull::from(this)
-            })
-        }
+    impl DeclaredClass for WinitView {
+        type Ivars = WinitViewState;
     }
 
     unsafe impl WinitView {
@@ -269,7 +250,11 @@ impl WinitView {
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
     ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
+        let this = Self::alloc().set_ivars(WinitViewState {
+            pinch_gesture_recognizer: RefCell::new(None),
+            doubletap_gesture_recognizer: RefCell::new(None),
+        });
+        let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -282,26 +267,26 @@ impl WinitView {
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
         println!("recognize_pinch_gesture: {}", should_recognize);
-        if should_recognize && self.state.pinch_gesture_recognizer.borrow().is_none() {
+        if should_recognize && self.ivars().pinch_gesture_recognizer.borrow().is_none() {
             let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
             self.addGestureRecognizer(pinch.as_super());
-            self.state.pinch_gesture_recognizer.replace(Some(pinch));
-        } else if let Some(recognizer) = self.state.pinch_gesture_recognizer.take() {
+            self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
+        } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
     }
 
     pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         println!("recognize_doubletap_gesture: {}", should_recognize);
-        if should_recognize && self.state.doubletap_gesture_recognizer.borrow().is_none() {
+        if should_recognize && self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
             let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
             unsafe {
                 let _: () = msg_send![&tap, setNumberOfTapsRequired: 2_u64];
                 let _: () = msg_send![&tap, setNumberOfTouchesRequired: 1_u64];
             }
             self.addGestureRecognizer(tap.as_super());
-            self.state.doubletap_gesture_recognizer.replace(Some(tap));
-        } else if let Some(recognizer) = self.state.doubletap_gesture_recognizer.take() {
+            self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
+        } else if let Some(recognizer) = self.ivars().doubletap_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
     }
