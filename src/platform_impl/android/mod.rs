@@ -641,6 +641,12 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
+impl<T> Drop for EventLoop<T> {
+    fn drop(&mut self) {
+        crate::event_loop::EventLoopBuilder::<()>::allow_event_loop_recreation();
+    }
+}
+
 pub struct EventLoopProxy<T: 'static> {
     user_events_sender: mpsc::Sender<T>,
     waker: AndroidAppWaker,
