@@ -786,7 +786,7 @@ impl<T: 'static> EventLoop<T> {
             #[cfg(wayland_platform)]
             Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
             #[cfg(x11_platform)]
-            Backend::X => Ok(EventLoop::new_x11_any_thread().unwrap()),
+            Backend::X => EventLoop::new_x11_any_thread().map_err(Into::into),
         }
     }
 
@@ -796,10 +796,10 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(x11_platform)]
-    fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
+    fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(err) => return Err(err.clone()),
+            Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
