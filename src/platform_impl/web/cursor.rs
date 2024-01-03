@@ -1,6 +1,7 @@
 use super::backend::Style;
 use super::event_loop::runner::{EventWrapper, WeakShared};
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
+use super::r#async::{AbortHandle, Abortable};
 use super::EventLoopWindowTarget;
 use crate::cursor::{BadImage, Cursor, CursorImage};
 use cursor_icon::CursorIcon;
@@ -65,13 +66,6 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    fn new(main_thread: MainThreadMarker) -> Self {
-        Self(Arc::new(MainThreadSafe::new(
-            main_thread,
-            RefCell::new(ImageState::Loading(None)),
-        )))
-    }
-
     pub(crate) fn build<T>(
         builder: CustomCursorBuilder,
         window_target: &EventLoopWindowTarget<T>,
@@ -146,8 +140,8 @@ impl CursorHandler {
 
                 let mut image = cursor.0.get(self.main_thread).borrow_mut();
                 match image.deref_mut() {
-                    ImageState::Loading(state) => {
-                        *state = Some(self.runner.clone());
+                    ImageState::Loading { runner, .. } => {
+                        *runner = Some(self.runner.clone());
                         drop(image);
                         self.cursor = SelectedCursor::ImageLoading {
                             cursor,
@@ -273,7 +267,10 @@ impl From<SelectedCursor> for Previous {
 
 #[derive(Debug)]
 enum ImageState {
-    Loading(Option<WeakShared>),
+    Loading {
+        runner: Option<WeakShared>,
+        handle: AbortHandle,
+    },
     Failed,
     Ready {
         style: String,
@@ -340,9 +337,16 @@ impl ImageState {
                 .expect("unexpected exception in `createImageBitmap()`"),
         );
 
-        let this = CustomCursor::new(main_thread);
+        let handle = AbortHandle::new();
+        let this = CustomCursor(Arc::new(MainThreadSafe::new(
+            main_thread,
+            RefCell::new(ImageState::Loading {
+                runner: None,
+                handle: handle.clone(),
+            }),
+        )));
 
-        wasm_bindgen_futures::spawn_local({
+        let task = Abortable::new(handle, {
             let weak = Arc::downgrade(&this.0);
             let CursorImage {
                 width,
@@ -352,19 +356,10 @@ impl ImageState {
                 ..
             } = *image;
             async move {
-                // Keep checking if all references are dropped between every `await` call.
-                if weak.strong_count() == 0 {
-                    return;
-                }
-
                 let bitmap: ImageBitmap = bitmap
                     .await
                     .expect("found invalid state in `ImageData`")
                     .unchecked_into();
-
-                if weak.strong_count() == 0 {
-                    return;
-                }
 
                 let canvas: HtmlCanvasElement = document
                     .create_element("canvas")
@@ -417,17 +412,13 @@ impl ImageState {
                 .await;
                 drop(canvas);
 
-                if weak.strong_count() == 0 {
-                    return;
-                }
-
                 let Some(blob) = blob else {
                     log::error!("creating object URL from custom cursor failed");
-                    let Some(this) = weak.upgrade() else {
-                        return;
-                    };
+                    let this = weak
+                        .upgrade()
+                        .expect("`CursorHandler` invalidated without aborting");
                     let mut this = this.get(main_thread).borrow_mut();
-                    let ImageState::Loading(runner) = this.deref_mut() else {
+                    let ImageState::Loading { runner, .. } = this.deref_mut() else {
                         unreachable!("found invalid state");
                     };
                     let runner = runner.take();
@@ -449,6 +440,10 @@ impl ImageState {
             }
         });
 
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = task.await;
+        });
+
         this
     }
 
@@ -458,14 +453,28 @@ impl ImageState {
         hotspot_x: u16,
         hotspot_y: u16,
     ) -> CustomCursor {
-        let this = CustomCursor::new(main_thread);
-        wasm_bindgen_futures::spawn_local(Self::decode(
+        let handle = AbortHandle::new();
+        let this = CustomCursor(Arc::new(MainThreadSafe::new(
             main_thread,
-            Arc::downgrade(&this.0),
-            UrlType::Plain(url),
-            hotspot_x,
-            hotspot_y,
-        ));
+            RefCell::new(ImageState::Loading {
+                runner: None,
+                handle: handle.clone(),
+            }),
+        )));
+
+        let task = Abortable::new(
+            handle,
+            Self::decode(
+                main_thread,
+                Arc::downgrade(&this.0),
+                UrlType::Plain(url),
+                hotspot_x,
+                hotspot_y,
+            ),
+        );
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = task.await;
+        });
 
         this
     }
@@ -477,22 +486,18 @@ impl ImageState {
         hotspot_x: u16,
         hotspot_y: u16,
     ) {
-        if weak.strong_count() == 0 {
-            return;
-        }
-
         // 6. Decode the image on an `HTMLImageElement` from the URL.
         let image =
             HtmlImageElement::new().expect("unexpected exception in `new HtmlImageElement`");
         image.set_src(url.url());
         let result = JsFuture::from(image.decode()).await;
 
-        let Some(this) = weak.upgrade() else {
-            return;
-        };
+        let this = weak
+            .upgrade()
+            .expect("`CursorHandler` invalidated without aborting");
         let mut this = this.get(main_thread).borrow_mut();
 
-        let ImageState::Loading(runner) = this.deref_mut() else {
+        let ImageState::Loading { runner, .. } = this.deref_mut() else {
             unreachable!("found invalid state");
         };
         let runner = runner.take();
@@ -520,6 +525,14 @@ impl ImageState {
         // 7. Notify event loop if one is registered.
         if let Some(runner) = runner.and_then(|weak| weak.upgrade()) {
             runner.send_event(EventWrapper::CursorReady(Ok(CustomCursorHandle(weak))));
+        }
+    }
+}
+
+impl Drop for ImageState {
+    fn drop(&mut self) {
+        if let Self::Loading { handle, .. } = self {
+            handle.abort();
         }
     }
 }
