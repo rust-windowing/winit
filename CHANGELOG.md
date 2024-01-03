@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On Wayland, fix resize not issued when scale changes
 - On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
 
 # 0.29.8
