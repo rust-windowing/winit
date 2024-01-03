@@ -106,6 +106,9 @@ impl<T> EventLoopBuilder<T> {
     ///                    or `DISPLAY` respectively when building the event loop.
     /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
     ///     [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
+    ///     Due to android platform-specific behaviour, it's possible to recreate the EventLoop
+    ///     after the previous one has been destroyed, this is to prevent bugs when multiple
+    ///     activities are used.
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
@@ -130,7 +133,7 @@ impl<T> EventLoopBuilder<T> {
         })
     }
 
-    #[cfg(wasm_platform)]
+    #[cfg(any(wasm_platform, android_platform))]
     pub(crate) fn allow_event_loop_recreation() {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
