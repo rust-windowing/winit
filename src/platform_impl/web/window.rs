@@ -16,10 +16,12 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct Window {
     inner: Dispatcher<Inner>,
 }
 
+#[derive(Debug)]
 pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
@@ -468,7 +470,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,

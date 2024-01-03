@@ -86,6 +86,7 @@ const ICONIC_STATE: u32 = 3;
 
 type X11Source = Generic<BorrowedFd<'static>>;
 
+#[derive(Debug)]
 struct WakeSender<T> {
     sender: Sender<T>,
     waker: Ping,
@@ -831,6 +832,7 @@ impl DeviceId {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {

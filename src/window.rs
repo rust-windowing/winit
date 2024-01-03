@@ -54,14 +54,9 @@ use serde::{Deserialize, Serialize};
 ///     }
 /// });
 /// ```
+#[derive(Debug)]
 pub struct Window {
     pub(crate) window: platform_impl::Window,
-}
-
-impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("Window { .. }")
-    }
 }
 
 impl Drop for Window {
@@ -116,7 +111,7 @@ impl From<u64> for WindowId {
 }
 
 /// Object that allows building windows.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[must_use]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
@@ -124,14 +119,6 @@ pub struct WindowBuilder {
 
     // Platform-specific configuration.
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
-}
-
-impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.debug_struct("WindowBuilder")
-            .field("window", &self.window)
-            .finish()
-    }
 }
 
 /// Attributes to use when creating a window.

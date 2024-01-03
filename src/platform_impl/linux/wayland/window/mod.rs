@@ -1,5 +1,6 @@
 //! The Wayland window.
 
+use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -78,6 +79,12 @@ pub struct Window {
 
     /// The event sink to deliver sythetic events.
     window_events_sink: Arc<Mutex<EventSink>>,
+}
+
+impl fmt::Debug for Window {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Window { .. }").finish_non_exhaustive()
+    }
 }
 
 impl Window {

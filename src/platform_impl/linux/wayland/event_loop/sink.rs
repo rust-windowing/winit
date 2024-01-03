@@ -10,7 +10,7 @@ use super::{DeviceId, WindowId};
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct EventSink {
     pub window_events: Vec<Event<()>>,
 }

@@ -393,6 +393,7 @@ impl Inner {
     }
 }
 
+#[derive(Debug)]
 pub struct Window {
     inner: MainThreadBound<Inner>,
 }
@@ -673,7 +674,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

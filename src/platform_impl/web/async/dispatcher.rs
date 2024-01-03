@@ -2,12 +2,20 @@ use super::super::main_thread::MainThreadMarker;
 use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
 use std::{
     cell::Ref,
+    fmt,
     sync::{Arc, Condvar, Mutex},
 };
 
+#[derive(Debug)]
 pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
 
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
+
+impl<T> fmt::Debug for Closure<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Closure").finish_non_exhaustive()
+    }
+}
 
 impl<T> Dispatcher<T> {
     #[track_caller]

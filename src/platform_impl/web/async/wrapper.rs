@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
+#[derive(Debug)]
 pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
     value: Value<SYNC, V>,
     handler: fn(&RefCell<Option<V>>, E),
@@ -13,6 +14,7 @@ pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
     sender_handler: fn(&S, E),
 }
 
+#[derive(Debug)]
 struct Value<const SYNC: bool, V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.

@@ -55,6 +55,7 @@ use super::ffi::kCGFloatingWindowLevel;
 use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
 use super::monitor::{flip_window_screen_coordinates, get_display_id};
 
+#[derive(Debug)]
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
     // We keep this around so that it doesn't get dropped until the window does.
@@ -140,7 +141,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,

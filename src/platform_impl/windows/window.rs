@@ -84,6 +84,7 @@ use crate::{
 };
 
 /// The Win32 implementation of the main `Window` object.
+#[derive(Debug)]
 pub(crate) struct Window {
     /// Main handle for the window.
     window: HWND,

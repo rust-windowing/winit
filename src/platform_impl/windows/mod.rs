@@ -24,7 +24,7 @@ use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,

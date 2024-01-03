@@ -25,8 +25,10 @@ pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     (sender, receiver)
 }
 
+#[derive(Debug)]
 pub struct AsyncSender<T>(Arc<SenderInner<T>>);
 
+#[derive(Debug)]
 struct SenderInner<T> {
     // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
     // be accessed on the main thread, as it could block. Additionally we need
@@ -64,6 +66,7 @@ impl<T> Drop for SenderInner<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct AsyncReceiver<T> {
     receiver: Rc<Receiver<T>>,
     shared: Arc<Shared>,
@@ -117,6 +120,7 @@ impl<T> Drop for AsyncReceiver<T> {
     }
 }
 
+#[derive(Debug)]
 struct Shared {
     closed: AtomicBool,
     waker: AtomicWaker,

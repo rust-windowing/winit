@@ -77,7 +77,7 @@ impl ApplicationName {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
@@ -85,7 +85,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11: X11WindowBuilderAttributes,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[cfg(x11_platform)]
 pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
@@ -141,6 +141,7 @@ impl fmt::Display for OsError {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum Window {
     #[cfg(x11_platform)]
     X(x11::Window),
