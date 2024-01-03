@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On Wayland, fix resize not issued when scale changes
 - On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
