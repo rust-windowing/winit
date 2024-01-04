@@ -17,17 +17,6 @@ jobs:
     - name: Check Formatting
       run: cargo fmt -- --check
 
-  docsrs:
-    name: Check building on docs.rs
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: Check Formatting
-      run: cargo doc --no-deps --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
-      env:
-        RUSTDOCFLAGS: '--cfg=docsrs --deny=warnings'
-
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
@@ -161,6 +150,12 @@ jobs:
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.70.0'
       run: cargo $CMD test $OPTIONS --features serde
+
+    - name: Check docs.rs documentation
+      if: matrix.toolchain == 'nightly'
+      run: cargo doc --no-deps --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+      env:
+        RUSTDOCFLAGS: '--cfg=docsrs --deny=warnings'
 
     # See restore step above
     - name: Save cache of cargo folder
