@@ -17,6 +17,17 @@ jobs:
     - name: Check Formatting
       run: cargo fmt -- --check
 
+  docsrs:
+    name: Check building on docs.rs
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: Check Formatting
+      run: cargo doc --no-deps --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+      env:
+        RUSTDOCFLAGS: '--cfg=docsrs --deny=warnings'
+
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}

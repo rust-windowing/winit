@@ -22,15 +22,15 @@ use objc2::{
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{code_to_key, code_to_location};
 use super::event::{lalt_pressed, ralt_pressed};
+use crate::platform_impl::scancode_to_physicalkey;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
         DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
         TouchPhase, WindowEvent,
     },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::{
         app_state::AppState,
         event::{create_key_event, event_mods},
@@ -915,7 +915,7 @@ impl WinitView {
         'send_event: {
             if is_flags_changed_event && unsafe { ns_event.keyCode() } != 0 {
                 let scancode = unsafe { ns_event.keyCode() };
-                let physical_key = PhysicalKey::from_scancode(scancode as u32);
+                let physical_key = scancode_to_physicalkey(scancode as u32);
 
                 // We'll correct the `is_press` later.
                 let mut event = create_key_event(ns_event, false, false, Some(physical_key));

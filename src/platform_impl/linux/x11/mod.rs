@@ -14,10 +14,8 @@ mod xdisplay;
 pub(crate) use self::{
     monitor::{MonitorHandle, VideoModeHandle},
     window::UnownedWindow,
-    xdisplay::XConnection,
+    xdisplay::{XConnection, XError, XNotSupported},
 };
-
-pub use self::xdisplay::{XError, XNotSupported};
 
 use calloop::generic::Generic;
 use calloop::EventLoop as Loop;

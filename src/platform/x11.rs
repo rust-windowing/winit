@@ -1,3 +1,6 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
@@ -5,9 +8,50 @@ use crate::{
 };
 
 use crate::dpi::Size;
-use crate::platform_impl::{ApplicationName, Backend, XLIB_ERROR_HOOKS};
 
-pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+/// X window type. Maps directly to
+/// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowType {
+    /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
+    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
+    /// root window clicks.
+    Desktop,
+    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+    Dock,
+    /// Toolbar windows. "Torn off" from the main application.
+    Toolbar,
+    /// Pinnable menu windows. "Torn off" from the main application.
+    Menu,
+    /// A small persistent utility window, such as a palette or toolbox.
+    Utility,
+    /// The window is a splash screen displayed as an application is starting up.
+    Splash,
+    /// This is a dialog window.
+    Dialog,
+    /// A dropdown menu that usually appears when the user clicks on an item in a menu bar.
+    /// This property is typically used on override-redirect windows.
+    DropdownMenu,
+    /// A popup menu that usually appears when the user right clicks on an object.
+    /// This property is typically used on override-redirect windows.
+    PopupMenu,
+    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
+    /// This property is typically used on override-redirect windows.
+    Tooltip,
+    /// The window is a notification.
+    /// This property is typically used on override-redirect windows.
+    Notification,
+    /// This should be used on the windows that are popped up by combo boxes.
+    /// This property is typically used on override-redirect windows.
+    Combo,
+    /// This indicates the the window is being dragged.
+    /// This property is typically used on override-redirect windows.
+    Dnd,
+    /// This is a normal, top-level window.
+    #[default]
+    Normal,
+}
 
 /// The first argument in the provided hook will be the pointer to `XDisplay`
 /// and the second one the pointer to [`XErrorEvent`]. The returned `bool` is an
@@ -38,7 +82,10 @@ pub type XWindow = u32;
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
     unsafe {
-        XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
+        crate::platform_impl::XLIB_ERROR_HOOKS
+            .lock()
+            .unwrap()
+            .push(hook);
     }
 }
 
@@ -70,7 +117,7 @@ pub trait EventLoopBuilderExtX11 {
 impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
     #[inline]
     fn with_x11(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(Backend::X);
+        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
         self
     }
 
@@ -102,13 +149,13 @@ pub trait WindowBuilderExtX11 {
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 
-    /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
+    /// Build window with override-redirect flag; defaults to false.
     fn with_override_redirect(self, override_redirect: bool) -> Self;
 
-    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
-    fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
+    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`.
+    fn with_x11_window_type(self, x11_window_type: Vec<WindowType>) -> Self;
 
-    /// Build window with base size hint. Only implemented on X11.
+    /// Build window with base size hint.
     ///
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
@@ -155,7 +202,10 @@ impl WindowBuilderExtX11 for WindowBuilder {
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+            general.into(),
+            instance.into(),
+        ));
         self
     }
 
@@ -166,7 +216,7 @@ impl WindowBuilderExtX11 for WindowBuilder {
     }
 
     #[inline]
-    fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
+    fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
         self.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }

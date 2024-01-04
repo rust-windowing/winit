@@ -6,13 +6,13 @@ use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyC
 ///
 /// X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses.
 pub fn raw_keycode_to_physicalkey(keycode: u32) -> PhysicalKey {
-    scancode_to_keycode(keycode.saturating_sub(8))
+    scancode_to_physicalkey(keycode.saturating_sub(8))
 }
 
 /// Map the linux scancode to Keycode.
 ///
 /// Both X11 and Wayland use keys with `+ 8` offset to linux scancode.
-pub fn scancode_to_keycode(scancode: u32) -> PhysicalKey {
+pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     // The keycode values are taken from linux/include/uapi/linux/input-event-codes.h, as
     // libxkbcommon's documentation seems to suggest that the keycode values we're interested in
     // are defined by the Linux kernel. If Winit programs end up being run on other Unix-likes,

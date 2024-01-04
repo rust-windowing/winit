@@ -35,7 +35,12 @@ use crate::platform_impl::PlatformCustomCursorBuilder;
 use crate::window::CustomCursor;
 use crate::window::{Window, WindowBuilder};
 
+#[cfg(wasm_platform)]
 use web_sys::HtmlCanvasElement;
+
+#[cfg(not(wasm_platform))]
+#[doc(hidden)]
+pub struct HtmlCanvasElement;
 
 pub trait WindowExtWebSys {
     /// Only returns the canvas if called from inside the window context (the
@@ -80,6 +85,11 @@ pub trait WindowBuilderExtWebSys {
     /// In any case, the canvas won't be automatically inserted into the web page.
     ///
     /// [`None`] by default.
+    #[cfg_attr(
+        not(wasm_platform),
+        doc = "",
+        doc = "[`HtmlCanvasElement`]: #only-available-on-wasm"
+    )]
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
     /// Sets whether `event.preventDefault()` should be called on events on the
