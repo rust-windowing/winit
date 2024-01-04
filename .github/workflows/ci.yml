@@ -65,7 +65,6 @@ jobs:
 
       # Faster compilation and error on warnings
       RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings ${{ matrix.platform.rustflags }}'
-      RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }}'
 
       OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
       CMD: ${{ matrix.platform.cmd }}
@@ -122,6 +121,8 @@ jobs:
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
+      env:
+        RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }}'
 
     - name: Build crate
       run: cargo $CMD build $OPTIONS
@@ -162,9 +163,9 @@ jobs:
 
     - name: Check docs.rs documentation
       if: matrix.toolchain == 'nightly'
-      run: cargo doc --no-deps --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+      run: cargo doc --no-deps $OPTIONS --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
       env:
-        RUSTDOCFLAGS: '--cfg=docsrs --deny=warnings'
+        RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }} --cfg=docsrs'
 
     # See restore step above
     - name: Save cache of cargo folder
