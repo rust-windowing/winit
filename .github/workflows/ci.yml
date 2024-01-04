@@ -48,6 +48,15 @@ jobs:
         include:
           - toolchain: '1.70.0'
             platform: { name: 'Android', target: aarch64-linux-android, os: ubuntu-latest, options: '--package=winit --features=android-native-activity', cmd: 'apk --' }
+          - toolchain: 'nightly'
+            platform: {
+              name:       'web Atomic',
+              target:     wasm32-unknown-unknown,
+              os:         ubuntu-latest,
+              options:    '-Zbuild-std=panic_abort,std',
+              rustflags:  '-Ctarget-feature=+atomics,+bulk-memory',
+              components: rust-src,
+            }
 
     env:
       # Set more verbose terminal output
@@ -55,8 +64,8 @@ jobs:
       RUST_BACKTRACE: 1
 
       # Faster compilation and error on warnings
-      RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings'
-      RUSTDOCFLAGS: '--deny=warnings'
+      RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings ${{ matrix.platform.rustflags }}'
+      RUSTDOCFLAGS: '--deny=warnings ${{ matrix.platform.rustflags }}'
 
       OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
       CMD: ${{ matrix.platform.cmd }}
@@ -109,7 +118,7 @@ jobs:
       with:
         toolchain: ${{ matrix.toolchain }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
-        components: clippy
+        components: clippy, ${{ matrix.platform.components }}
 
     - name: Check documentation
       run: cargo doc --no-deps $OPTIONS --document-private-items
