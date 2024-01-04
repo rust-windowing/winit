@@ -254,3 +254,7 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 members = [
     "run-wasm",
 ]
+
+[[example]]
+doc-scrape-examples = true
+name = "window"
