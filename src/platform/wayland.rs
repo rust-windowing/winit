@@ -4,8 +4,6 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
-use crate::platform_impl::{ApplicationName, Backend};
-
 pub use crate::window::Theme;
 
 /// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
@@ -36,7 +34,7 @@ pub trait EventLoopBuilderExtWayland {
 impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
     #[inline]
     fn with_wayland(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(Backend::Wayland);
+        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::Wayland);
         self
     }
 
@@ -67,7 +65,10 @@ pub trait WindowBuilderExtWayland {
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+            general.into(),
+            instance.into(),
+        ));
         self
     }
 }

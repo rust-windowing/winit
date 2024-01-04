@@ -2,12 +2,9 @@ use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
-    event::{DeviceId, KeyEvent},
+    event::DeviceId,
     event_loop::EventLoopBuilder,
-    keyboard::Key,
     monitor::MonitorHandle,
-    platform::modifier_supplement::KeyEventExtModifierSupplement,
-    platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -185,7 +182,14 @@ pub trait WindowBuilderExtWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
     /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     ///
-    /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
+    #[cfg_attr(
+        platform_windows,
+        doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
+    )]
+    #[cfg_attr(
+        not(platform_windows),
+        doc = "[`CreateMenu`]: #only-available-on-windows"
+    )]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -328,27 +332,12 @@ impl IconExtWindows for Icon {
         path: P,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_path(path, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }
 
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
-    }
-}
-
-impl KeyEventExtModifierSupplement for KeyEvent {
-    #[inline]
-    fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific
-            .text_with_all_modifers
-            .as_ref()
-            .map(|s| s.as_str())
-    }
-
-    #[inline]
-    fn key_without_modifiers(&self) -> Key {
-        self.platform_specific.key_without_modifiers.clone()
     }
 }

@@ -1,8 +1,5 @@
 use std::os::raw::c_void;
 
-use icrate::Foundation::MainThreadMarker;
-use objc2::rc::Id;
-
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoModeHandle},
@@ -240,8 +237,8 @@ impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
         // SAFETY: The marker is only used to get the pointer of the screen
-        let mtm = unsafe { MainThreadMarker::new_unchecked() };
-        Id::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
+        let mtm = unsafe { icrate::Foundation::MainThreadMarker::new_unchecked() };
+        objc2::rc::Id::as_ptr(self.inner.ui_screen(mtm)) as *mut c_void
     }
 
     #[inline]

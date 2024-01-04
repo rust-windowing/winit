@@ -53,8 +53,7 @@ use windows_sys::Win32::{
 
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey},
-    platform::scancode::PhysicalKeyExtScancode,
-    platform_impl::{loword, primarylangid},
+    platform_impl::{loword, primarylangid, scancode_to_physicalkey},
 };
 
 pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
@@ -336,7 +335,7 @@ impl LayoutCache {
             if scancode == 0 {
                 continue;
             }
-            let keycode = match PhysicalKey::from_scancode(scancode) {
+            let keycode = match scancode_to_physicalkey(scancode) {
                 PhysicalKey::Code(code) => code,
                 // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                 _ => continue,
@@ -388,7 +387,7 @@ impl LayoutCache {
                 }
 
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
-                let key_code = match PhysicalKey::from_scancode(scancode) {
+                let key_code = match scancode_to_physicalkey(scancode) {
                     PhysicalKey::Code(code) => code,
                     // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                     _ => continue,

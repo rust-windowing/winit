@@ -27,11 +27,11 @@ use windows_sys::Win32::{
     },
 };
 
+use super::scancode_to_physicalkey;
 use crate::{
     event::ElementState,
     event_loop::DeviceEvents,
     keyboard::{KeyCode, PhysicalKey},
-    platform::scancode::PhysicalKeyExtScancode,
     platform_impl::platform::util,
 };
 
@@ -284,7 +284,7 @@ pub fn get_keyboard_physical_key(keyboard: RAWKEYBOARD) -> Option<PhysicalKey> {
         // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
         PhysicalKey::Code(KeyCode::NumLock)
     } else {
-        PhysicalKey::from_scancode(scancode as u32)
+        scancode_to_physicalkey(scancode as u32)
     };
     if keyboard.VKey == VK_SHIFT {
         if let PhysicalKey::Code(code) = physical_key {

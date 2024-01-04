@@ -1,7 +1,5 @@
 use std::os::raw::c_void;
 
-use icrate::Foundation::MainThreadMarker;
-use objc2::rc::Id;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -369,8 +367,10 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
     fn ns_screen(&self) -> Option<*mut c_void> {
         // SAFETY: We only use the marker to get a pointer
-        let mtm = unsafe { MainThreadMarker::new_unchecked() };
-        self.inner.ns_screen(mtm).map(|s| Id::as_ptr(&s) as _)
+        let mtm = unsafe { icrate::Foundation::MainThreadMarker::new_unchecked() };
+        self.inner
+            .ns_screen(mtm)
+            .map(|s| objc2::rc::Id::as_ptr(&s) as _)
     }
 }
 
