@@ -123,8 +123,10 @@ pub(crate) fn create_key_event(
         // 3) Pressing CTRL SHIFT A: logical key should also be "A"
         // `ns_event.characters()` gets 3) wrong, returning "a" instead of "A".
         // In fact it gets it wrong anytime CTRL or CMD is pressed.
-        // `ns_event.charactersIgnoringModifiers()` gets everything right.
-        // See https://github.com/rust-windowing/winit/issues/3078
+        // `ns_event.charactersIgnoringModifiers()` gets everything right,
+        // because it ignores all modifiers except for shift.
+        // https://developer.apple.com/documentation/appkit/nsevent/1524605-charactersignoringmodifiers
+        // https://github.com/rust-windowing/winit/issues/3078
         let characters = unsafe { ns_event.charactersIgnoringModifiers() }
             .map(|s| s.to_string())
             .unwrap_or_default();
