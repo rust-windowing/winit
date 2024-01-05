@@ -122,7 +122,6 @@ pub(crate) fn create_key_event(
     // * Pressing CTRL SHIFT A: logical key should also be "A"
     // This is not easy to tease out of `NSEvent`, but we do our best.
 
-    // `text_with_all_modifiers` is unreliable when ctrl or cmd is pressed
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
     } else {
