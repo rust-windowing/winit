@@ -28,6 +28,7 @@ pub struct KeyEventExtra {
     pub key_without_modifiers: Key,
 }
 
+/// Ignores ALL modifiers.
 pub fn get_modifierless_char(scancode: u16) -> Key {
     let mut string = [0; 16];
     let input_source;
@@ -86,7 +87,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
     Key::Character(SmolStr::new(chars))
 }
 
-// Ignores all modifiers except for shift
+// Ignores all modifiers except for SHIFT (yes, even ALT is ignored).
 fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     let string = unsafe { ns_event.charactersIgnoringModifiers() }
         .map(|s| s.to_string())
@@ -147,7 +148,7 @@ pub(crate) fn create_key_event(
 
     let key_from_code = code_to_key(physical_key, scancode);
     let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
-        // `key_without_modifiers` ignores all modifiers except for shift.
+        // `get_modifierless_char/key_without_modifiers` ignores ALL modifiers.
         let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { ns_event.modifierFlags() };
@@ -160,11 +161,16 @@ pub(crate) fn create_key_event(
             // presses alt+8, the logical key should be "{"
             // Also not checking if this is a release event because then this issue would
             // still affect the key release.
-            Some(text) if !has_ctrl && !has_cmd => Key::Character(text.clone()),
+            Some(text) if !has_ctrl && !has_cmd => {
+                // Character heeding both SHIFT and ALT.
+                Key::Character(text.clone())
+            }
 
             _ => match key_without_modifiers.as_ref() {
+                // Character heeding just SHIFT, ignoring ALT.
                 Key::Character(ch) => get_logical_key_char(ns_event, ch),
-                // Don't try to get text for events which likely don't have it.
+
+                // Character ignoring ALL modifiers.
                 _ => key_without_modifiers.clone(),
             },
         };
