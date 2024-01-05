@@ -28,6 +28,7 @@ pub struct KeyEventExtra {
     pub key_without_modifiers: Key,
 }
 
+/// Ignores ALL modifiers.
 pub fn get_modifierless_char(scancode: u16) -> Key {
     let mut string = [0; 16];
     let input_source;
@@ -86,6 +87,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
     Key::Character(SmolStr::new(chars))
 }
 
+// Ignores all modifiers except for SHIFT (yes, even ALT is ignored).
 fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     let string = unsafe { ns_event.charactersIgnoringModifiers() }
         .map(|s| s.to_string())
@@ -113,6 +115,13 @@ pub(crate) fn create_key_event(
     let scancode = unsafe { ns_event.keyCode() };
     let mut physical_key = key_override.unwrap_or_else(|| scancode_to_physicalkey(scancode as u32));
 
+    // NOTE: The logical key should heed both SHIFT and ALT if possible.
+    // For instance:
+    // * Pressing the A key: logical key should be "a"
+    // * Pressing SHIFT A: logical key should be "A"
+    // * Pressing CTRL SHIFT A: logical key should also be "A"
+    // This is not easy to tease out of `NSEvent`, but we do our best.
+
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
     } else {
@@ -132,21 +141,29 @@ pub(crate) fn create_key_event(
 
     let key_from_code = code_to_key(physical_key, scancode);
     let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
+        // `get_modifierless_char/key_without_modifiers` ignores ALL modifiers.
         let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { ns_event.modifierFlags() };
         let has_ctrl = flags_contains(modifiers, NSEventModifierFlagControl);
+        let has_cmd = flags_contains(modifiers, NSEventModifierFlagCommand);
 
         let logical_key = match text_with_all_modifiers.as_ref() {
-            // Only checking for ctrl here, not checking for alt because we DO want to
+            // Only checking for ctrl and cmd here, not checking for alt because we DO want to
             // include its effect in the key. For example if -on the Germay layout- one
             // presses alt+8, the logical key should be "{"
             // Also not checking if this is a release event because then this issue would
             // still affect the key release.
-            Some(text) if !has_ctrl => Key::Character(text.clone()),
+            Some(text) if !has_ctrl && !has_cmd => {
+                // Character heeding both SHIFT and ALT.
+                Key::Character(text.clone())
+            }
+
             _ => match key_without_modifiers.as_ref() {
+                // Character heeding just SHIFT, ignoring ALT.
                 Key::Character(ch) => get_logical_key_char(ns_event, ch),
-                // Don't try to get text for events which likely don't have it.
+
+                // Character ignoring ALL modifiers.
                 _ => key_without_modifiers.clone(),
             },
         };
