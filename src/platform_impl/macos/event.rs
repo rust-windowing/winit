@@ -86,6 +86,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
     Key::Character(SmolStr::new(chars))
 }
 
+// Ignores all modifiers except for shift
 fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
     let string = unsafe { ns_event.charactersIgnoringModifiers() }
         .map(|s| s.to_string())
@@ -113,21 +114,24 @@ pub(crate) fn create_key_event(
     let scancode = unsafe { ns_event.keyCode() };
     let mut physical_key = key_override.unwrap_or_else(|| scancode_to_physicalkey(scancode as u32));
 
+    // NOTE:
+    // The logical key should be the key resulting from applying all modifiers.
+    // Consider these cases:
+    // 1) Pressing the A key: logical key should be "a"
+    // 2) Pressing SHIFT A: logical key should be "A"
+    // 3) Pressing CTRL SHIFT A: logical key should also be "A"
+    // `ns_event.characters()` gets 3) wrong, returning "a" instead of "A".
+    // In fact it gets it wrong anytime CTRL or CMD is pressed.
+    // `ns_event.charactersIgnoringModifiers()` gets everything right,
+    // because it ignores all modifiers except for shift.
+    // https://developer.apple.com/documentation/appkit/nsevent/1524605-charactersignoringmodifiers
+    // https://github.com/rust-windowing/winit/issues/3078
+
+    // `text_with_all_modifiers` is unreliable when ctrl or cmd is pressed
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
     } else {
-        // The logical key should always be the key resulting from applying all modifiers.
-        // Consider these cases:
-        // 1) Pressing the A key: logical key should be "a"
-        // 2) Pressing SHIFT A: logical key should be "A"
-        // 3) Pressing CTRL SHIFT A: logical key should also be "A"
-        // `ns_event.characters()` gets 3) wrong, returning "a" instead of "A".
-        // In fact it gets it wrong anytime CTRL or CMD is pressed.
-        // `ns_event.charactersIgnoringModifiers()` gets everything right,
-        // because it ignores all modifiers except for shift.
-        // https://developer.apple.com/documentation/appkit/nsevent/1524605-charactersignoringmodifiers
-        // https://github.com/rust-windowing/winit/issues/3078
-        let characters = unsafe { ns_event.charactersIgnoringModifiers() }
+        let characters = unsafe { ns_event.characters() }
             .map(|s| s.to_string())
             .unwrap_or_default();
         if characters.is_empty() {
@@ -143,18 +147,21 @@ pub(crate) fn create_key_event(
 
     let key_from_code = code_to_key(physical_key, scancode);
     let (logical_key, key_without_modifiers) = if matches!(key_from_code, Key::Unidentified(_)) {
+        // `key_without_modifiers` ignores all modifiers except for shift.
         let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { ns_event.modifierFlags() };
         let has_ctrl = flags_contains(modifiers, NSEventModifierFlagControl);
+        let has_cmd = flags_contains(modifiers, NSEventModifierFlagCommand);
 
         let logical_key = match text_with_all_modifiers.as_ref() {
-            // Only checking for ctrl here, not checking for alt because we DO want to
+            // Only checking for ctrl and cmd here, not checking for alt because we DO want to
             // include its effect in the key. For example if -on the Germay layout- one
             // presses alt+8, the logical key should be "{"
             // Also not checking if this is a release event because then this issue would
             // still affect the key release.
-            Some(text) if !has_ctrl => Key::Character(text.clone()),
+            Some(text) if !has_ctrl && !has_cmd => Key::Character(text.clone()),
+
             _ => match key_without_modifiers.as_ref() {
                 Key::Character(ch) => get_logical_key_char(ns_event, ch),
                 // Don't try to get text for events which likely don't have it.
