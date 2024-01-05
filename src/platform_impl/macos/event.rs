@@ -115,18 +115,12 @@ pub(crate) fn create_key_event(
     let scancode = unsafe { ns_event.keyCode() };
     let mut physical_key = key_override.unwrap_or_else(|| scancode_to_physicalkey(scancode as u32));
 
-    // NOTE:
-    // The logical key should be the key resulting from applying all modifiers.
-    // Consider these cases:
-    // 1) Pressing the A key: logical key should be "a"
-    // 2) Pressing SHIFT A: logical key should be "A"
-    // 3) Pressing CTRL SHIFT A: logical key should also be "A"
-    // `ns_event.characters()` gets 3) wrong, returning "a" instead of "A".
-    // In fact it gets it wrong anytime CTRL or CMD is pressed.
-    // `ns_event.charactersIgnoringModifiers()` gets everything right,
-    // because it ignores all modifiers except for shift.
-    // https://developer.apple.com/documentation/appkit/nsevent/1524605-charactersignoringmodifiers
-    // https://github.com/rust-windowing/winit/issues/3078
+    // NOTE: The logical key should heed both SHIFT and ALT if possible.
+    // For instance:
+    // * Pressing the A key: logical key should be "a"
+    // * Pressing SHIFT A: logical key should be "A"
+    // * Pressing CTRL SHIFT A: logical key should also be "A"
+    // This is not easy to tease out of `NSEvent`, but we do our best.
 
     // `text_with_all_modifiers` is unreliable when ctrl or cmd is pressed
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
