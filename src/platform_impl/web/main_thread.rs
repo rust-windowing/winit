@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 
-use super::r#async::{self, AsyncSender};
+use super::r#async::{self, Sender};
 
 thread_local! {
     static MAIN_THREAD: bool = {
@@ -85,7 +85,7 @@ impl<T> Drop for MainThreadSafe<T> {
 unsafe impl<T> Send for MainThreadSafe<T> {}
 unsafe impl<T> Sync for MainThreadSafe<T> {}
 
-static DROP_HANDLER: OnceLock<AsyncSender<DropBox>> = OnceLock::new();
+static DROP_HANDLER: OnceLock<Sender<DropBox>> = OnceLock::new();
 
 struct DropBox(#[allow(dead_code)] Box<dyn Any>);
 
