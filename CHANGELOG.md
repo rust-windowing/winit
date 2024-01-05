@@ -14,6 +14,7 @@ Unreleased` header.
 - On X11, fix `NotSupported` error not propagated when creating event loop.
 - On Wayland, fix resize not issued when scale changes
 - On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
+- On macOS, report correct logical key when Ctrl or Cmd is pressed.
 
 # 0.29.8
 
