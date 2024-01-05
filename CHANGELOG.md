@@ -31,6 +31,7 @@ Unreleased` header.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- On macOS, report correct logical key when Ctrl or Cmd is pressed.
 
 # 0.29.8
 
