@@ -17,9 +17,12 @@ use windows_sys::{
 };
 
 use crate::icon::*;
-use crate::{cursor::CursorImage, dpi::PhysicalSize};
+use crate::{
+    cursor::{CursorImage, OnlyCursorImageBuilder},
+    dpi::PhysicalSize,
+};
 
-use super::util;
+use super::{util, EventLoopWindowTarget};
 
 impl Pixel {
     fn convert_to_bgra(&mut self) {
@@ -169,7 +172,7 @@ pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
 #[derive(Debug, Clone)]
 pub enum SelectedCursor {
     Named(CursorIcon),
-    Custom(WinCursor),
+    Custom(Arc<RaiiCursor>),
 }
 
 impl Default for SelectedCursor {
@@ -178,23 +181,14 @@ impl Default for SelectedCursor {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct WinCursor {
-    inner: Arc<RaiiCursor>,
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub enum WinCursor {
+    Cursor(Arc<RaiiCursor>),
+    Failed,
 }
 
 impl WinCursor {
-    pub fn as_raw_handle(&self) -> HICON {
-        self.inner.handle
-    }
-
-    fn from_handle(handle: HCURSOR) -> Self {
-        Self {
-            inner: Arc::new(RaiiCursor { handle }),
-        }
-    }
-
-    pub(crate) fn new(image: &CursorImage) -> Result<Self, io::Error> {
+    fn new(image: &CursorImage) -> Result<Self, io::Error> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
@@ -239,18 +233,34 @@ impl WinCursor {
                 return Err(io::Error::last_os_error());
             }
 
-            Ok(Self::from_handle(handle))
+            Ok(Self::Cursor(Arc::new(RaiiCursor { handle })))
+        }
+    }
+
+    pub(crate) fn build<T>(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget<T>) -> Self {
+        match Self::new(&cursor.0) {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                log::warn!("Failed to create custom cursor: {err}");
+                Self::Failed
+            }
         }
     }
 }
 
-#[derive(Debug)]
-struct RaiiCursor {
+#[derive(Debug, Hash, Eq, PartialEq)]
+pub struct RaiiCursor {
     handle: HCURSOR,
 }
 
 impl Drop for RaiiCursor {
     fn drop(&mut self) {
         unsafe { DestroyCursor(self.handle) };
+    }
+}
+
+impl RaiiCursor {
+    pub fn as_raw_handle(&self) -> HICON {
+        self.handle
     }
 }
