@@ -98,17 +98,38 @@ use self::runner::RunnerState;
 
 use super::{window::set_skip_taskbar, SelectedCursor};
 
-pub(crate) struct WindowData<T: 'static> {
+/// some backends like macos uses an uninhabited `Never` type,
+/// on windows, `UserEvent`s are also dispatched through the
+/// WNDPROC callback, and due to the re-entrant nature of the
+/// callback, recursively delivered events must be queued in a
+/// buffer, the current implementation put this queue in
+/// `EventLoopRunner`, which is shared between the event pumping
+/// loop and the callback. because it's hard to decide from the
+/// outside whether a event needs to be buffered, I decided not
+/// use `Event<Never>` for the shared runner state, but use unit
+/// as a placeholder so user events can be buffered as usual,
+/// the real `UserEvent` is pulled from the mpsc channel directly
+/// when the placeholder event is delivered to the event handler
+pub(crate) struct UserEventPlaceholder;
+
+// here below, the generic `EventLoopRunnerShared<T>` is replaced with
+// `EventLoopRunnerShared<UserEventPlaceholder>` so we can get rid
+// of the generic parameter T in types which don't depend on T.
+// this is the approach which requires minimum changes to current
+// backend implementation. it should be considered transitional
+// and should be refactored and cleaned up eventually, I hope.
+
+pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_loop_runner: EventLoopRunnerShared<T>,
+    pub event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
     pub recurse_depth: Cell<u32>,
 }
 
-impl<T> WindowData<T> {
-    fn send_event(&self, event: Event<T>) {
+impl WindowData {
+    fn send_event(&self, event: Event<UserEventPlaceholder>) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -117,13 +138,12 @@ impl<T> WindowData<T> {
     }
 }
 
-struct ThreadMsgTargetData<T: 'static> {
-    event_loop_runner: EventLoopRunnerShared<T>,
-    user_event_receiver: Receiver<T>,
+struct ThreadMsgTargetData {
+    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
 }
 
-impl<T> ThreadMsgTargetData<T> {
-    fn send_event(&self, event: Event<T>) {
+impl ThreadMsgTargetData {
+    fn send_event(&self, event: Event<UserEventPlaceholder>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -136,7 +156,8 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop<T: 'static> {
-    thread_msg_sender: Sender<T>,
+    user_event_sender: Sender<T>,
+    user_event_receiver: Receiver<T>,
     window_target: RootELW<T>,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
@@ -160,7 +181,8 @@ impl Default for PlatformSpecificEventLoopAttributes {
 pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: u32,
     thread_msg_target: HWND,
-    pub(crate) runner_shared: EventLoopRunnerShared<T>,
+    pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
+    _marker: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -182,24 +204,26 @@ impl<T: 'static> EventLoop<T> {
             become_dpi_aware();
         }
 
-        let thread_msg_target = create_event_target_window::<T>();
+        let thread_msg_target = create_event_target_window();
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
 
-        let thread_msg_sender =
-            insert_event_target_window_data::<T>(thread_msg_target, runner_shared.clone());
+        let (user_event_sender, user_event_receiver) = mpsc::channel();
+        insert_event_target_window_data(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(
             thread_msg_target,
             Default::default(),
         );
 
         Ok(EventLoop {
-            thread_msg_sender,
+            user_event_sender,
+            user_event_receiver,
             window_target: RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
                     thread_msg_target,
                     runner_shared,
+                    _marker: PhantomData,
                 },
                 _marker: PhantomData,
             },
@@ -229,11 +253,28 @@ impl<T: 'static> EventLoop<T> {
             }
 
             let event_loop_windows_ref = &self.window_target;
+            let user_event_receiver = &self.user_event_receiver;
             // # Safety
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
+                runner.set_event_handler(move |event| {
+                    // the shared `EventLoopRunner` is not parameterized
+                    // `EventLoopProxy::send_event()` calls `PostMessage`
+                    // to wakeup and dispatch a placeholder `UserEvent`,
+                    // when we received the placeholder event here, the
+                    // real UserEvent(T) should already be put in the
+                    // mpsc channel and ready to be pulled
+                    let event = match event.map_nonuser_event() {
+                        Ok(non_user_event) => non_user_event,
+                        Err(_user_event_placeholder) => Event::UserEvent(
+                            user_event_receiver
+                                .try_recv()
+                                .expect("user event signaled but not received"),
+                        ),
+                    };
+                    event_handler(event, event_loop_windows_ref)
+                });
             }
         }
 
@@ -273,6 +314,7 @@ impl<T: 'static> EventLoop<T> {
         {
             let runner = &self.window_target.p.runner_shared;
             let event_loop_windows_ref = &self.window_target;
+            let user_event_receiver = &self.user_event_receiver;
 
             // # Safety
             // We make sure to call runner.clear_event_handler() before
@@ -282,7 +324,17 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
+                runner.set_event_handler(move |event| {
+                    let event = match event.map_nonuser_event() {
+                        Ok(non_user_event) => non_user_event,
+                        Err(_user_event_placeholder) => Event::UserEvent(
+                            user_event_receiver
+                                .recv()
+                                .expect("user event signaled but not received"),
+                        ),
+                    };
+                    event_handler(event, event_loop_windows_ref)
+                });
                 runner.wakeup();
             }
         }
@@ -468,7 +520,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             target_window: self.window_target.p.thread_msg_target,
-            event_send: self.thread_msg_sender.clone(),
+            event_send: self.user_event_sender.clone(),
         }
     }
 
@@ -779,14 +831,14 @@ static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
-fn create_event_target_window<T: 'static>() -> HWND {
+fn create_event_target_window() -> HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_VREDRAW;
     unsafe {
         let class = WNDCLASSEXW {
             cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
             style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(thread_event_target_callback::<T>),
+            lpfnWndProc: Some(thread_event_target_callback),
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: util::get_instance_handle(),
@@ -839,21 +891,14 @@ fn create_event_target_window<T: 'static>() -> HWND {
     }
 }
 
-fn insert_event_target_window_data<T>(
+fn insert_event_target_window_data(
     thread_msg_target: HWND,
-    event_loop_runner: EventLoopRunnerShared<T>,
-) -> Sender<T> {
-    let (tx, rx) = mpsc::channel();
-
-    let userdata = ThreadMsgTargetData {
-        event_loop_runner,
-        user_event_receiver: rx,
-    };
+    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+) {
+    let userdata = ThreadMsgTargetData { event_loop_runner };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
     unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
-
-    tx
 }
 
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
@@ -883,7 +928,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
-fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
+fn update_modifiers(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::ModifiersChanged;
 
     let modifiers = {
@@ -905,7 +950,7 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     }
 }
 
-unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::Focused;
 
     update_modifiers(window, userdata);
@@ -916,7 +961,7 @@ unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
     });
 }
 
-unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
@@ -973,7 +1018,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             return DefWindowProcW(window, msg, wparam, lparam);
         },
         (0, _) => return unsafe { DefWindowProcW(window, msg, wparam, lparam) },
-        _ => userdata as *mut WindowData<T>,
+        _ => userdata as *mut WindowData,
     };
 
     let (result, userdata_removed, recurse_depth) = {
@@ -997,12 +1042,12 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     result
 }
 
-unsafe fn public_window_callback_inner<T: 'static>(
+unsafe fn public_window_callback_inner(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
     lparam: LPARAM,
-    userdata: &WindowData<T>,
+    userdata: &WindowData,
 ) -> LRESULT {
     let mut result = ProcResult::DefWindowProc(wparam);
 
@@ -2299,14 +2344,14 @@ unsafe fn public_window_callback_inner<T: 'static>(
     }
 }
 
-unsafe extern "system" fn thread_event_target_callback<T: 'static>(
+unsafe extern "system" fn thread_event_target_callback(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
     let userdata_ptr =
-        unsafe { super::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData<T>;
+        unsafe { super::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData;
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.
@@ -2359,9 +2404,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         }
 
         _ if msg == USER_EVENT_MSG_ID.get() => {
-            if let Ok(event) = userdata.user_event_receiver.recv() {
-                userdata.send_event(Event::UserEvent(event));
-            }
+            // synthesis a placeholder UserEvent, so that if the callback is
+            // re-entered it can be buffered for later delivery. the real
+            // user event is still in the mpsc channel and will be pulled
+            // once the placeholder event is delivered to the wrapper
+            // `event_handler`
+            userdata.send_event(Event::UserEvent(UserEventPlaceholder));
             0
         }
         _ if msg == EXEC_MSG_ID.get() => {
@@ -2384,7 +2432,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     result
 }
 
-unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: RAWINPUT) {
+unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
     use crate::event::{
         DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
         ElementState::{Pressed, Released},

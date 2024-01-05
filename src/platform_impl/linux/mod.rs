@@ -15,41 +15,36 @@ use once_cell::sync::Lazy;
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
-use crate::platform::x11::XlibErrorHook;
+use self::x11::{X11Error, XConnection, XError, XNotSupported};
+#[cfg(x11_platform)]
+use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
-    event::KeyEvent,
     event_loop::{
         AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
         EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    keyboard::{Key, PhysicalKey},
-    platform::{
-        modifier_supplement::KeyEventExtModifierSupplement, pump_events::PumpStatus,
-        scancode::PhysicalKeyExtScancode,
-    },
+    keyboard::Key,
+    platform::pump_events::PumpStatus,
     window::{
         ActivationToken, Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme,
         UserAttentionType, WindowAttributes, WindowButtons, WindowLevel,
     },
 };
-#[cfg(x11_platform)]
-pub use x11::XNotSupported;
-#[cfg(x11_platform)]
-use x11::{util::WindowType as XWindowType, X11Error, XConnection, XError};
 
+pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
-pub mod common;
+pub(crate) mod common;
 #[cfg(wayland_platform)]
-pub mod wayland;
+pub(crate) mod wayland;
 #[cfg(x11_platform)]
-pub mod x11;
+pub(crate) mod x11;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
@@ -640,33 +635,8 @@ impl Window {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
-    pub key_without_modifiers: Key,
     pub text_with_all_modifiers: Option<SmolStr>,
-}
-
-impl KeyEventExtModifierSupplement for KeyEvent {
-    #[inline]
-    fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific
-            .text_with_all_modifiers
-            .as_ref()
-            .map(|s| s.as_str())
-    }
-
-    #[inline]
-    fn key_without_modifiers(&self) -> Key {
-        self.platform_specific.key_without_modifiers.clone()
-    }
-}
-
-impl PhysicalKeyExtScancode for PhysicalKey {
-    fn from_scancode(scancode: u32) -> PhysicalKey {
-        common::keymap::scancode_to_keycode(scancode)
-    }
-
-    fn to_scancode(self) -> Option<u32> {
-        common::keymap::physicalkey_to_scancode(self)
-    }
+    pub key_without_modifiers: Key,
 }
 
 /// Hooks for X11 errors.
@@ -786,7 +756,7 @@ impl<T: 'static> EventLoop<T> {
             #[cfg(wayland_platform)]
             Backend::Wayland => EventLoop::new_wayland_any_thread().map_err(Into::into),
             #[cfg(x11_platform)]
-            Backend::X => Ok(EventLoop::new_x11_any_thread().unwrap()),
+            Backend::X => EventLoop::new_x11_any_thread().map_err(Into::into),
         }
     }
 
@@ -796,10 +766,10 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(x11_platform)]
-    fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
+    fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(err) => return Err(err.clone()),
+            Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))

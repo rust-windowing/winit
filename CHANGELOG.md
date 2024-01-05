@@ -11,7 +11,6 @@ Unreleased` header.
 
 # Unreleased
 
-- On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
@@ -27,8 +26,17 @@ Unreleased` header.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- **Breaking:** No longer export `platform::x11::XNotSupported`.
+- **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+
+# 0.29.9
+
+- On X11, fix `NotSupported` error not propagated when creating event loop.
+- On Wayland, fix resize not issued when scale changes
+- On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
+- On macOS, report correct logical key when Ctrl or Cmd is pressed.
 
 # 0.29.8
 

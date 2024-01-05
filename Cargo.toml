@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.29.8"
+version = "0.29.9"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -18,6 +18,7 @@ features = [
     "rwh_05",
     "rwh_06",
     "serde",
+    "mint",
     # Enabled to get docs to compile
     "android-native-activity",
 ]
@@ -253,3 +254,7 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 members = [
     "run-wasm",
 ]
+
+[[example]]
+doc-scrape-examples = true
+name = "window"

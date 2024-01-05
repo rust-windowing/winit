@@ -11,12 +11,13 @@ pub(crate) use self::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
+    keyboard::{physicalkey_to_scancode, scancode_to_physicalkey},
     monitor::{MonitorHandle, VideoModeHandle},
     window::Window,
 };
 
+pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
 pub use self::icon::WinIcon as PlatformIcon;
-pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 use crate::platform_impl::Fullscreen;
 
@@ -90,7 +91,7 @@ pub type OsError = std::io::Error;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
-    pub text_with_all_modifers: Option<SmolStr>,
+    pub text_with_all_modifiers: Option<SmolStr>,
     pub key_without_modifiers: Key,
 }
 

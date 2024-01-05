@@ -2,11 +2,13 @@
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
+[![Master Docs](https://img.shields.io/github/actions/workflow/status/rust-windowing/winit/docs.yml?branch=master&label=master%20docs
+)](https://rust-windowing.github.io/winit/winit/index.html)
 [![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
 
 ```toml
 [dependencies]
-winit = "0.29.8"
+winit = "0.29.9"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -156,7 +158,7 @@ For more details, refer to these `android-activity` [example applications](https
 
 If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk`, then the minimal changes would be:
 1. Remove `ndk-glue` from your `Cargo.toml`
-2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.8", features = [ "android-native-activity" ] }`
+2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.9", features = [ "android-native-activity" ] }`
 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize logging as above).
 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your event loop (as shown above).
 
