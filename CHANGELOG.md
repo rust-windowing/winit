@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On Web, account for canvas being focused already before event loop starts.
+
 # 0.29.9
 
 - On X11, fix `NotSupported` error not propagated when creating event loop.
