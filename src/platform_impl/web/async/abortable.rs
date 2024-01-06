@@ -70,6 +70,25 @@ impl AbortHandle {
     }
 }
 
+#[derive(Debug)]
+pub struct DropAbortHandle(AbortHandle);
+
+impl DropAbortHandle {
+    pub fn new(handle: AbortHandle) -> Self {
+        Self(handle)
+    }
+
+    pub fn handle(&self) -> AbortHandle {
+        self.0.clone()
+    }
+}
+
+impl Drop for DropAbortHandle {
+    fn drop(&mut self) {
+        self.0.abort()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Aborted;
 

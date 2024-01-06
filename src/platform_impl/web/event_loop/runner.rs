@@ -1,4 +1,3 @@
-use super::super::cursor::CustomCursorHandle;
 use super::super::main_thread::MainThreadMarker;
 use super::super::DeviceId;
 use super::{backend, state::State};
@@ -138,16 +137,6 @@ impl Runner {
                         size,
                         scale,
                     )
-                }
-            }
-            EventWrapper::CursorReady(result) => {
-                for (_, canvas, _) in runner.0.all_canvases.borrow().deref() {
-                    if let Some(canvas) = canvas.upgrade() {
-                        canvas
-                            .borrow_mut()
-                            .cursor
-                            .handle_cursor_ready(result.clone())
-                    }
                 }
             }
         }
@@ -822,19 +811,6 @@ impl Shared {
     pub(crate) fn waker(&self) -> Waker<Weak<Execution>> {
         self.0.proxy_spawner.waker()
     }
-
-    pub(crate) fn weak(&self) -> WeakShared {
-        WeakShared(Rc::downgrade(&self.0))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct WeakShared(Weak<Execution>);
-
-impl WeakShared {
-    pub(crate) fn upgrade(&self) -> Option<Shared> {
-        self.0.upgrade().map(Shared)
-    }
 }
 
 pub(crate) enum EventWrapper {
@@ -844,7 +820,6 @@ pub(crate) enum EventWrapper {
         size: PhysicalSize<u32>,
         scale: f64,
     },
-    CursorReady(Result<CustomCursorHandle, CustomCursorHandle>),
 }
 
 impl From<Event<()>> for EventWrapper {

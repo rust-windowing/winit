@@ -39,7 +39,6 @@ impl Window {
         let document = target.runner.document();
         let canvas = backend::Canvas::create(
             target.runner.main_thread(),
-            target.runner.weak(),
             id,
             window.clone(),
             document.clone(),

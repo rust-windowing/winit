@@ -1,7 +1,6 @@
 use super::backend::Style;
-use super::event_loop::runner::{EventWrapper, WeakShared};
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::r#async::{AbortHandle, Abortable};
+use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notifier};
 use super::EventLoopWindowTarget;
 use crate::cursor::{BadImage, Cursor, CursorImage};
 use cursor_icon::CursorIcon;
@@ -89,41 +88,44 @@ impl CustomCursor {
 }
 
 #[derive(Debug)]
-pub struct CursorHandler {
+pub struct CursorHandler(Rc<RefCell<Inner>>);
+
+#[derive(Debug)]
+struct Inner {
     main_thread: MainThreadMarker,
-    runner: WeakShared,
     style: Style,
     visible: bool,
     cursor: SelectedCursor,
 }
 
 impl CursorHandler {
-    pub(crate) fn new(main_thread: MainThreadMarker, runner: WeakShared, style: Style) -> Self {
-        Self {
+    pub(crate) fn new(main_thread: MainThreadMarker, style: Style) -> Self {
+        Self(Rc::new(RefCell::new(Inner {
             main_thread,
-            runner,
             style,
             visible: true,
             cursor: SelectedCursor::default(),
-        }
+        })))
     }
 
-    pub fn set_cursor(&mut self, cursor: Cursor) {
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let mut this = self.0.borrow_mut();
+
         match cursor {
             Cursor::Icon(icon) => {
                 if let SelectedCursor::Icon(old_icon)
                 | SelectedCursor::ImageLoading {
                     previous: Previous::Icon(old_icon),
                     ..
-                } = &self.cursor
+                } = &this.cursor
                 {
                     if *old_icon == icon {
                         return;
                     }
                 }
 
-                self.cursor = SelectedCursor::Icon(icon);
-                self.set_style();
+                this.cursor = SelectedCursor::Icon(icon);
+                this.set_style();
             }
             Cursor::Custom(cursor) => {
                 let cursor = cursor.inner;
@@ -131,73 +133,65 @@ impl CursorHandler {
                 if let SelectedCursor::ImageLoading {
                     cursor: old_cursor, ..
                 }
-                | SelectedCursor::ImageReady(old_cursor) = &self.cursor
+                | SelectedCursor::ImageReady(old_cursor) = &this.cursor
                 {
                     if *old_cursor == cursor {
                         return;
                     }
                 }
 
-                let mut image = cursor.0.get(self.main_thread).borrow_mut();
-                match image.deref_mut() {
-                    ImageState::Loading { runner, .. } => {
-                        *runner = Some(self.runner.clone());
-                        drop(image);
-                        self.cursor = SelectedCursor::ImageLoading {
+                let state = cursor.0.get(this.main_thread).borrow();
+
+                match state.deref() {
+                    ImageState::Loading { notifier, .. } => {
+                        let notified = notifier.notified();
+                        let handle = DropAbortHandle::new(AbortHandle::new());
+                        let task = Abortable::new(handle.handle(), {
+                            let weak = Rc::downgrade(&self.0);
+                            async move {
+                                notified.await;
+                                let handler = weak
+                                    .upgrade()
+                                    .expect("`CursorHandler` invalidated without aborting");
+                                handler.borrow_mut().notify();
+                            }
+                        });
+                        wasm_bindgen_futures::spawn_local(async move {
+                            let _ = task.await;
+                        });
+
+                        drop(state);
+                        this.cursor = SelectedCursor::ImageLoading {
                             cursor,
-                            previous: mem::take(&mut self.cursor).into(),
+                            previous: mem::take(&mut this.cursor).into(),
+                            _handle: handle,
                         };
                     }
                     ImageState::Failed => log::error!("tried to load invalid cursor"),
                     ImageState::Ready { .. } => {
-                        drop(image);
-                        self.cursor = SelectedCursor::ImageReady(cursor);
-                        self.set_style();
+                        drop(state);
+                        this.cursor = SelectedCursor::ImageReady(cursor);
+                        this.set_style();
                     }
                 };
             }
         }
     }
 
-    pub fn set_cursor_visible(&mut self, visible: bool) {
-        if !visible && self.visible {
-            self.visible = false;
-            self.style.set("cursor", "none");
-        } else if visible && !self.visible {
-            self.visible = true;
-            self.set_style();
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut this = self.0.borrow_mut();
+
+        if !visible && this.visible {
+            this.visible = false;
+            this.style.set("cursor", "none");
+        } else if visible && !this.visible {
+            this.visible = true;
+            this.set_style();
         }
     }
+}
 
-    pub fn handle_cursor_ready(&mut self, result: Result<CustomCursorHandle, CustomCursorHandle>) {
-        if let SelectedCursor::ImageLoading {
-            cursor: current_cursor,
-            ..
-        } = &self.cursor
-        {
-            let current_cursor = Arc::downgrade(&current_cursor.0);
-
-            let (Ok(new_cursor) | Err(new_cursor)) = &result;
-
-            if !new_cursor.0.ptr_eq(&current_cursor) {
-                return;
-            }
-
-            let SelectedCursor::ImageLoading { cursor, previous } = mem::take(&mut self.cursor)
-            else {
-                unreachable!("found wrong state")
-            };
-
-            match result {
-                Ok(_) => {
-                    self.cursor = SelectedCursor::ImageReady(cursor);
-                    self.set_style();
-                }
-                Err(_) => self.cursor = previous.into(),
-            }
-        }
-    }
-
+impl Inner {
     fn set_style(&self) {
         if self.visible {
             match &self.cursor {
@@ -222,6 +216,26 @@ impl CursorHandler {
             }
         }
     }
+
+    fn notify(&mut self) {
+        let SelectedCursor::ImageLoading {
+            cursor, previous, ..
+        } = mem::take(&mut self.cursor)
+        else {
+            unreachable!("found wrong state")
+        };
+
+        let state = cursor.0.get(self.main_thread).borrow();
+        match state.deref() {
+            ImageState::Failed => self.cursor = previous.into(),
+            ImageState::Ready { .. } => {
+                drop(state);
+                self.cursor = SelectedCursor::ImageReady(cursor);
+                self.set_style();
+            }
+            ImageState::Loading { .. } => unreachable!("notified without being ready"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -230,6 +244,7 @@ enum SelectedCursor {
     ImageLoading {
         cursor: CustomCursor,
         previous: Previous,
+        _handle: DropAbortHandle,
     },
     ImageReady(CustomCursor),
 }
@@ -268,8 +283,8 @@ impl From<SelectedCursor> for Previous {
 #[derive(Debug)]
 enum ImageState {
     Loading {
-        runner: Option<WeakShared>,
-        handle: AbortHandle,
+        notifier: Notifier,
+        _handle: DropAbortHandle,
     },
     Failed,
     Ready {
@@ -292,7 +307,7 @@ impl ImageState {
         // 4. Create a `Blob` from the `HTMLCanvasElement`.
         // 5. Create an object URL from the `Blob`.
         // 6. Decode the image on an `HTMLImageElement` from the URL.
-        // 7. Notify event loop if one is registered.
+        // 7. Notify listeners.
 
         // 1. Create an `ImageData` from the RGBA data.
         // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
@@ -341,8 +356,8 @@ impl ImageState {
         let this = CustomCursor(Arc::new(MainThreadSafe::new(
             main_thread,
             RefCell::new(ImageState::Loading {
-                runner: None,
-                handle: handle.clone(),
+                notifier: Notifier::new(),
+                _handle: DropAbortHandle::new(handle.clone()),
             }),
         )));
 
@@ -418,15 +433,12 @@ impl ImageState {
                         .upgrade()
                         .expect("`CursorHandler` invalidated without aborting");
                     let mut this = this.get(main_thread).borrow_mut();
-                    let ImageState::Loading { runner, .. } = this.deref_mut() else {
+                    let ImageState::Loading { notifier, .. } =
+                        mem::replace(this.deref_mut(), ImageState::Failed)
+                    else {
                         unreachable!("found invalid state");
                     };
-                    let runner = runner.take();
-                    *this = ImageState::Failed;
-
-                    if let Some(runner) = runner.and_then(|weak| weak.upgrade()) {
-                        runner.send_event(EventWrapper::CursorReady(Err(CustomCursorHandle(weak))));
-                    }
+                    notifier.notify();
 
                     return;
                 };
@@ -457,8 +469,8 @@ impl ImageState {
         let this = CustomCursor(Arc::new(MainThreadSafe::new(
             main_thread,
             RefCell::new(ImageState::Loading {
-                runner: None,
-                handle: handle.clone(),
+                notifier: Notifier::new(),
+                _handle: DropAbortHandle::new(handle.clone()),
             }),
         )));
 
@@ -497,48 +509,36 @@ impl ImageState {
             .expect("`CursorHandler` invalidated without aborting");
         let mut this = this.get(main_thread).borrow_mut();
 
-        let ImageState::Loading { runner, .. } = this.deref_mut() else {
-            unreachable!("found invalid state");
-        };
-        let runner = runner.take();
-
         if let Err(error) = result {
             log::error!("decoding custom cursor failed: {error:?}");
-            *this = ImageState::Failed;
-
-            if let Some(runner) = runner.and_then(|weak| weak.upgrade()) {
-                runner.send_event(EventWrapper::CursorReady(Err(CustomCursorHandle(weak))));
-            }
+            let ImageState::Loading { notifier, .. } =
+                mem::replace(this.deref_mut(), ImageState::Failed)
+            else {
+                unreachable!("found invalid state");
+            };
+            notifier.notify();
 
             return;
         }
 
-        *this = ImageState::Ready {
-            style: format!("url({}) {hotspot_x} {hotspot_y}, auto", url.url()),
-            _object_url: match url {
-                UrlType::Plain(_) => None,
-                UrlType::Object(object_url) => Some(object_url),
+        let ImageState::Loading { notifier, .. } = mem::replace(
+            this.deref_mut(),
+            ImageState::Ready {
+                style: format!("url({}) {hotspot_x} {hotspot_y}, auto", url.url()),
+                _object_url: match url {
+                    UrlType::Plain(_) => None,
+                    UrlType::Object(object_url) => Some(object_url),
+                },
+                _image: image,
             },
-            _image: image,
+        ) else {
+            unreachable!("found invalid state");
         };
 
-        // 7. Notify event loop if one is registered.
-        if let Some(runner) = runner.and_then(|weak| weak.upgrade()) {
-            runner.send_event(EventWrapper::CursorReady(Ok(CustomCursorHandle(weak))));
-        }
+        // 7. Notify listeners.
+        notifier.notify();
     }
 }
-
-impl Drop for ImageState {
-    fn drop(&mut self) {
-        if let Self::Loading { handle, .. } = self {
-            handle.abort();
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct CustomCursorHandle(Weak<MainThreadSafe<RefCell<ImageState>>>);
 
 enum UrlType {
     Plain(String),

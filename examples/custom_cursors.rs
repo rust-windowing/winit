@@ -74,6 +74,25 @@ fn main() -> Result<(), impl std::error::Error> {
                     log::debug!("Setting cursor visibility to {:?}", cursor_visible);
                     window.set_cursor_visible(cursor_visible);
                 }
+                #[cfg(wasm_platform)]
+                Key::Character("4") => {
+                    use std::sync::atomic::{AtomicU64, Ordering};
+                    use winit::platform::web::CustomCursorExtWebSys;
+                    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+                    log::debug!("Setting cursor to a random image from an URL");
+                    window.set_cursor(
+                        CustomCursor::from_url(
+                            format!(
+                                "https://picsum.photos/128?random={}",
+                                COUNTER.fetch_add(1, Ordering::Relaxed)
+                            ),
+                            64,
+                            64,
+                        )
+                        .build(_elwt),
+                    );
+                }
                 _ => {}
             },
             WindowEvent::RedrawRequested => {
