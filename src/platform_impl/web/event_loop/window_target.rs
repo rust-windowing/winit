@@ -5,6 +5,8 @@ use std::iter;
 use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
 
+use web_sys::Element;
+
 use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
@@ -117,6 +119,25 @@ impl<T> EventLoopWindowTarget<T> {
                 });
             }
         });
+
+        // It is possible that at this point the canvas has
+        // been focused before the callback can be called.
+        let focused = canvas
+            .document()
+            .active_element()
+            .filter(|element| {
+                let canvas: &Element = canvas.raw();
+                element == canvas
+            })
+            .is_some();
+
+        if focused {
+            canvas.has_focus.set(true);
+            self.runner.send_event(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::Focused(true),
+            })
+        }
 
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();
