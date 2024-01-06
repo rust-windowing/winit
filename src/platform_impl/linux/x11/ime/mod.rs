@@ -52,7 +52,7 @@ pub enum ImeRequest {
 pub(crate) enum ImeCreationError {
     // Boxed to prevent large error type
     OpenFailure(Box<PotentialInputMethods>),
-    SetDestroyCallbackFailed(XError),
+    SetDestroyCallbackFailed(#[allow(dead_code)] XError),
 }
 
 pub(crate) struct Ime {
