@@ -127,7 +127,7 @@ impl ResizeScaleInternal {
              (-webkit-device-pixel-ratio: {current_scale})",
         );
         let mql = MediaQueryListHandle::new(window, &media_query, closure);
-        assert!(
+        debug_assert!(
             mql.mql().matches(),
             "created media query doesn't match, {current_scale} != {}",
             super::scale_factor(window)
