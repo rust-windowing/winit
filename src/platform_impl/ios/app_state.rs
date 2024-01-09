@@ -110,13 +110,16 @@ enum AppStateImpl {
     ProcessingRedraws {
         event_handler: Box<dyn EventHandler>,
         active_control_flow: ControlFlow,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     Waiting {
         waiting_event_handler: Box<dyn EventHandler>,
         start: Instant,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     PollFinished {
         waiting_event_handler: Box<dyn EventHandler>,
+        queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     Terminated,
 }
@@ -251,55 +254,61 @@ impl AppState {
             return None;
         }
 
-        let (event_handler, event) = match (self.control_flow, self.take_state()) {
-            (
-                ControlFlow::Poll,
-                AppStateImpl::PollFinished {
+        let (event_handler, event, queued_gpu_redraws) =
+            match (self.control_flow, self.take_state()) {
+                (
+                    ControlFlow::Poll,
+                    AppStateImpl::PollFinished {
+                        waiting_event_handler,
+                        queued_gpu_redraws,
+                    },
+                ) => (
                     waiting_event_handler,
-                },
-            ) => (
-                waiting_event_handler,
-                EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
-            ),
-            (
-                ControlFlow::Wait,
-                AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                },
-            ) => (
-                waiting_event_handler,
-                EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
-                    start,
-                    requested_resume: None,
-                })),
-            ),
-            (
-                ControlFlow::WaitUntil(requested_resume),
-                AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                },
-            ) => {
-                let event = if Instant::now() >= requested_resume {
-                    EventWrapper::StaticEvent(Event::NewEvents(StartCause::ResumeTimeReached {
+                    EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
+                    queued_gpu_redraws,
+                ),
+                (
+                    ControlFlow::Wait,
+                    AppStateImpl::Waiting {
+                        waiting_event_handler,
                         start,
-                        requested_resume,
-                    }))
-                } else {
+                        queued_gpu_redraws,
+                    },
+                ) => (
+                    waiting_event_handler,
                     EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
                         start,
-                        requested_resume: Some(requested_resume),
-                    }))
-                };
-                (waiting_event_handler, event)
-            }
-            s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
-        };
+                        requested_resume: None,
+                    })),
+                    queued_gpu_redraws,
+                ),
+                (
+                    ControlFlow::WaitUntil(requested_resume),
+                    AppStateImpl::Waiting {
+                        waiting_event_handler,
+                        start,
+                        queued_gpu_redraws,
+                    },
+                ) => {
+                    let event = if Instant::now() >= requested_resume {
+                        EventWrapper::StaticEvent(Event::NewEvents(StartCause::ResumeTimeReached {
+                            start,
+                            requested_resume,
+                        }))
+                    } else {
+                        EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
+                            start,
+                            requested_resume: Some(requested_resume),
+                        }))
+                    };
+                    (waiting_event_handler, event, queued_gpu_redraws)
+                }
+                s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
+            };
 
         self.set_state(AppStateImpl::ProcessingEvents {
             event_handler,
-            queued_gpu_redraws: Default::default(),
+            queued_gpu_redraws,
             active_control_flow: self.control_flow,
         });
         Some(event)
@@ -361,7 +370,8 @@ impl AppState {
                 AppStateImpl::ProcessingRedraws {
                     event_handler,
                     active_control_flow,
-                } => (event_handler, Default::default(), active_control_flow, true),
+                    queued_gpu_redraws,
+                } => (event_handler, queued_gpu_redraws, active_control_flow, true),
                 AppStateImpl::PollFinished { .. }
                 | AppStateImpl::Waiting { .. }
                 | AppStateImpl::Terminated => unreachable!(),
@@ -389,6 +399,7 @@ impl AppState {
         self.set_state(AppStateImpl::ProcessingRedraws {
             event_handler,
             active_control_flow,
+            queued_gpu_redraws: HashSet::default(),
         });
         queued_gpu_redraws
     }
@@ -397,13 +408,15 @@ impl AppState {
         if !self.has_launched() || self.has_terminated() {
             return;
         }
-        let (waiting_event_handler, old) = match self.take_state() {
+        let (waiting_event_handler, old, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::ProcessingRedraws {
                 event_handler,
                 active_control_flow,
-            } => (event_handler, active_control_flow),
+                queued_gpu_redraws,
+            } => (event_handler, active_control_flow, queued_gpu_redraws),
             s => bug!("unexpected state {:?}", s),
         };
+        let has_queued_gpu_redraws = !queued_gpu_redraws.is_empty();
 
         let new = self.control_flow;
         match (old, new) {
@@ -412,6 +425,7 @@ impl AppState {
                 self.set_state(AppStateImpl::Waiting {
                     waiting_event_handler,
                     start,
+                    queued_gpu_redraws,
                 });
             }
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
@@ -421,6 +435,7 @@ impl AppState {
                 self.set_state(AppStateImpl::Waiting {
                     waiting_event_handler,
                     start,
+                    queued_gpu_redraws,
                 });
             }
             (_, ControlFlow::Wait) => {
@@ -428,6 +443,7 @@ impl AppState {
                 self.set_state(AppStateImpl::Waiting {
                     waiting_event_handler,
                     start,
+                    queued_gpu_redraws,
                 });
                 self.waker.stop()
             }
@@ -436,6 +452,7 @@ impl AppState {
                 self.set_state(AppStateImpl::Waiting {
                     waiting_event_handler,
                     start,
+                    queued_gpu_redraws,
                 });
                 self.waker.start_at(new_instant)
             }
@@ -443,9 +460,14 @@ impl AppState {
             (_, ControlFlow::Poll) => {
                 self.set_state(AppStateImpl::PollFinished {
                     waiting_event_handler,
+                    queued_gpu_redraws,
                 });
                 self.waker.start()
             }
+        }
+
+        if has_queued_gpu_redraws {
+            self.waker.start();
         }
     }
 
@@ -645,13 +667,10 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                 _ => unreachable!(),
             };
             this.app_state = Some(if processing_redraws {
-                bug_assert!(
-                    queued_gpu_redraws.is_empty(),
-                    "redraw queued while processing redraws"
-                );
                 AppStateImpl::ProcessingRedraws {
                     event_handler,
                     active_control_flow,
+                    queued_gpu_redraws,
                 }
             } else {
                 AppStateImpl::ProcessingEvents {
