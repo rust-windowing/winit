@@ -1,5 +1,9 @@
 mod abortable;
+#[cfg(not(target_feature = "atomics"))]
+mod atomic_waker;
 mod channel;
+#[cfg(not(target_feature = "atomics"))]
+mod concurrent_queue;
 mod dispatcher;
 mod notifier;
 mod waker;
@@ -11,3 +15,5 @@ pub use self::dispatcher::{DispatchRunner, Dispatcher};
 pub use self::notifier::Notifier;
 pub use self::waker::{Waker, WakerSpawner};
 use self::wrapper::Wrapper;
+use atomic_waker::AtomicWaker;
+use concurrent_queue::{ConcurrentQueue, PushError};

@@ -6,8 +6,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use atomic_waker::AtomicWaker;
 use pin_project::pin_project;
+
+use super::AtomicWaker;
 
 #[pin_project]
 pub struct Abortable<F: Future> {

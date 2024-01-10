@@ -7,8 +7,7 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 
-use concurrent_queue::ConcurrentQueue;
-use concurrent_queue::PushError;
+use super::{ConcurrentQueue, PushError};
 
 #[derive(Debug)]
 pub struct Notifier(Arc<Inner>);

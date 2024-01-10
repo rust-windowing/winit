@@ -1,10 +1,11 @@
-use atomic_waker::AtomicWaker;
 use std::future;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvError, SendError, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+
+use super::AtomicWaker;
 
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
