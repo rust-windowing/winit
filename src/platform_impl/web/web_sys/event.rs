@@ -81,9 +81,22 @@ impl MouseButton {
 }
 
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
+    #[wasm_bindgen]
+    extern "C" {
+        type MouseEventExt;
+
+        #[wasm_bindgen(method, getter, js_name = offsetX)]
+        fn offset_x(this: &MouseEventExt) -> f64;
+
+        #[wasm_bindgen(method, getter, js_name = offsetY)]
+        fn offset_y(this: &MouseEventExt) -> f64;
+    }
+
+    let event: &MouseEventExt = event.unchecked_ref();
+
     LogicalPosition {
-        x: event.offset_x() as f64,
-        y: event.offset_y() as f64,
+        x: event.offset_x(),
+        y: event.offset_y(),
     }
 }
 
