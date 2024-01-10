@@ -27,16 +27,21 @@
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
-use crate::cursor::CustomCursorBuilder;
-use crate::event::Event;
-use crate::event_loop::EventLoop;
-use crate::event_loop::EventLoopWindowTarget;
-use crate::platform_impl::PlatformCustomCursorBuilder;
-use crate::window::CustomCursor;
-use crate::window::{Window, WindowBuilder};
+use std::fmt::{self, Display, Formatter};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 #[cfg(wasm_platform)]
 use web_sys::HtmlCanvasElement;
+
+use crate::cursor::CustomCursorBuilder;
+use crate::event::Event;
+use crate::event_loop::{EventLoop, EventLoopWindowTarget};
+#[cfg(wasm_platform)]
+use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
+use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
+use crate::window::{CustomCursor, Window, WindowBuilder};
 
 #[cfg(not(wasm_platform))]
 #[doc(hidden)]
@@ -250,6 +255,52 @@ impl CustomCursorExtWebSys for CustomCursor {
                 hotspot_x,
                 hotspot_y,
             },
+        }
+    }
+}
+
+pub trait CustomCursorBuilderExtWebSys {
+    /// Async version of [`CustomCursorBuilder::build()`] which waits until the
+    /// cursor has completely finished loading.
+    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture;
+}
+
+impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
+    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture {
+        CustomCursorFuture(PlatformCustomCursor::build_async(
+            self.inner,
+            &window_target.p,
+        ))
+    }
+}
+
+#[cfg(not(wasm_platform))]
+struct PlatformCustomCursorFuture;
+
+#[derive(Debug)]
+pub struct CustomCursorFuture(PlatformCustomCursorFuture);
+
+impl Future for CustomCursorFuture {
+    type Output = Result<CustomCursor, CustomCursorError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map_ok(|cursor| CustomCursor { inner: cursor })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CustomCursorError {
+    Blob,
+    Decode(String),
+}
+
+impl Display for CustomCursorError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            CustomCursorError::Blob => write!(f, "failed to create `Blob`"),
+            CustomCursorError::Decode(error) => write!(f, "failed to decode image: {error}"),
         }
     }
 }

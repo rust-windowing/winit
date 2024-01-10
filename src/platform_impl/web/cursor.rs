@@ -1,11 +1,15 @@
 use super::backend::Style;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notifier};
+use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
 use super::EventLoopWindowTarget;
 use crate::cursor::{BadImage, Cursor, CursorImage};
+use crate::platform::web::CustomCursorError;
 use cursor_icon::CursorIcon;
+use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::sync::Weak;
+use std::task::{ready, Context};
 use std::{
     cell::RefCell,
     future,
@@ -19,8 +23,8 @@ use std::{
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Blob, Document, HtmlCanvasElement, HtmlImageElement, ImageBitmap, ImageBitmapOptions,
-    ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
+    Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap,
+    ImageBitmapOptions, ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
 
 #[derive(Debug)]
@@ -84,6 +88,48 @@ impl CustomCursor {
                 hotspot_y,
             } => ImageState::from_url(main_thread, url, hotspot_x, hotspot_y),
         }
+    }
+
+    pub(crate) fn build_async<T>(
+        builder: CustomCursorBuilder,
+        window_target: &EventLoopWindowTarget<T>,
+    ) -> CustomCursorFuture {
+        let state = Self::build(builder, window_target).0;
+        let binding = state.get(window_target.runner.main_thread()).borrow();
+        let ImageState::Loading { notifier, .. } = binding.deref() else {
+            unreachable!("found invalid state")
+        };
+        let notify = notifier.notified();
+        drop(binding);
+
+        CustomCursorFuture {
+            notify,
+            state: Some(state),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CustomCursorFuture {
+    notify: Notified<Result<(), CustomCursorError>>,
+    state: Option<Arc<MainThreadSafe<RefCell<ImageState>>>>,
+}
+
+impl Future for CustomCursorFuture {
+    type Output = Result<CustomCursor, CustomCursorError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.state.is_none() {
+            panic!("`CustomCursorFuture` polled after completion")
+        }
+
+        let result = ready!(Pin::new(&mut self.notify).poll(cx));
+        let state = self
+            .state
+            .take()
+            .expect("`CustomCursorFuture` polled after completion");
+
+        Poll::Ready(result.map(|_| CustomCursor(state)))
     }
 }
 
@@ -149,7 +195,7 @@ impl CursorHandler {
                         let task = Abortable::new(handle.handle(), {
                             let weak = Rc::downgrade(&self.0);
                             async move {
-                                notified.await;
+                                let _ = notified.await;
                                 let handler = weak
                                     .upgrade()
                                     .expect("`CursorHandler` invalidated without aborting");
@@ -167,7 +213,9 @@ impl CursorHandler {
                             _handle: handle,
                         };
                     }
-                    ImageState::Failed => log::error!("tried to load invalid cursor"),
+                    ImageState::Failed(error) => {
+                        log::error!("trying to load custom cursor that has failed to load: {error}")
+                    }
                     ImageState::Ready { .. } => {
                         drop(state);
                         this.cursor = SelectedCursor::ImageReady(cursor);
@@ -227,7 +275,10 @@ impl Inner {
 
         let state = cursor.0.get(self.main_thread).borrow();
         match state.deref() {
-            ImageState::Failed => self.cursor = previous.into(),
+            ImageState::Failed(error) => {
+                log::error!("custom cursor failed to load: {error}");
+                self.cursor = previous.into()
+            }
             ImageState::Ready { .. } => {
                 drop(state);
                 self.cursor = SelectedCursor::ImageReady(cursor);
@@ -283,10 +334,10 @@ impl From<SelectedCursor> for Previous {
 #[derive(Debug)]
 enum ImageState {
     Loading {
-        notifier: Notifier,
+        notifier: Notifier<Result<(), CustomCursorError>>,
         _handle: DropAbortHandle,
     },
-    Failed,
+    Failed(CustomCursorError),
     Ready {
         style: String,
         _object_url: Option<ObjectUrl>,
@@ -428,17 +479,17 @@ impl ImageState {
                 drop(canvas);
 
                 let Some(blob) = blob else {
-                    log::error!("creating object URL from custom cursor failed");
                     let this = weak
                         .upgrade()
                         .expect("`CursorHandler` invalidated without aborting");
                     let mut this = this.get(main_thread).borrow_mut();
-                    let ImageState::Loading { notifier, .. } =
-                        mem::replace(this.deref_mut(), ImageState::Failed)
-                    else {
+                    let ImageState::Loading { notifier, .. } = mem::replace(
+                        this.deref_mut(),
+                        ImageState::Failed(CustomCursorError::Blob),
+                    ) else {
                         unreachable!("found invalid state");
                     };
-                    notifier.notify();
+                    notifier.notify(Err(CustomCursorError::Blob));
 
                     return;
                 };
@@ -510,13 +561,18 @@ impl ImageState {
         let mut this = this.get(main_thread).borrow_mut();
 
         if let Err(error) = result {
-            log::error!("decoding custom cursor failed: {error:?}");
-            let ImageState::Loading { notifier, .. } =
-                mem::replace(this.deref_mut(), ImageState::Failed)
-            else {
+            debug_assert!(error.has_type::<DomException>());
+            let error: DomException = error.unchecked_into();
+            debug_assert_eq!(error.name(), "EncodingError");
+            let error = error.message();
+
+            let ImageState::Loading { notifier, .. } = mem::replace(
+                this.deref_mut(),
+                ImageState::Failed(CustomCursorError::Decode(error.clone())),
+            ) else {
                 unreachable!("found invalid state");
             };
-            notifier.notify();
+            notifier.notify(Err(CustomCursorError::Decode(error)));
 
             return;
         }
@@ -536,7 +592,7 @@ impl ImageState {
         };
 
         // 7. Notify listeners.
-        notifier.notify();
+        notifier.notify(Ok(()));
     }
 }
 
