@@ -87,7 +87,7 @@ unsafe impl<T> Sync for MainThreadSafe<T> {}
 
 static DROP_HANDLER: OnceLock<AsyncSender<DropBox>> = OnceLock::new();
 
-struct DropBox(Box<dyn Any>);
+struct DropBox(#[allow(dead_code)] Box<dyn Any>);
 
 unsafe impl Send for DropBox {}
 unsafe impl Sync for DropBox {}
