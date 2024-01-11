@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+use crate::keyboard::{Key, KeyLocation, ModifiersState, PhysicalKey};
 
 use smol_str::SmolStr;
 use std::cell::OnceCell;
