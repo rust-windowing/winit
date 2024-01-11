@@ -174,14 +174,7 @@ pub fn key(event: &KeyboardEvent) -> Key {
 pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
     let key = event.key();
     let key = Key::from_key_attribute_value(&key);
-    match &key {
-        Key::Character(text) => Some(text.clone()),
-        Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),
-        Key::Named(NamedKey::Enter) => Some(SmolStr::new("\r")),
-        Key::Named(NamedKey::Space) => Some(SmolStr::new(" ")),
-        _ => None,
-    }
-    .map(SmolStr::new)
+    key.to_text().map(SmolStr::new)
 }
 
 pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
