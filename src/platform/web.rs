@@ -27,10 +27,12 @@
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
+use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 #[cfg(wasm_platform)]
 use web_sys::HtmlCanvasElement;
@@ -239,15 +241,29 @@ pub enum PollStrategy {
 }
 
 pub trait CustomCursorExtWebSys {
+    /// Returns if this cursor is an animation.
+    fn is_animation(&self) -> bool;
+
     /// Creates a new cursor from a URL pointing to an image.
     /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
     /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
     ///
     /// [PNG]: https://en.wikipedia.org/wiki/PNG
     fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder;
+
+    /// Crates a new animated cursor from multiple [`CustomCursor`]s.
+    /// Supplied `cursors` can't be empty or other animations.
+    fn from_animation(
+        duration: Duration,
+        cursors: Vec<CustomCursor>,
+    ) -> Result<CustomCursorBuilder, BadAnimation>;
 }
 
 impl CustomCursorExtWebSys for CustomCursor {
+    fn is_animation(&self) -> bool {
+        self.inner.animation
+    }
+
     fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder {
         CustomCursorBuilder {
             inner: PlatformCustomCursorBuilder::Url {
@@ -257,7 +273,44 @@ impl CustomCursorExtWebSys for CustomCursor {
             },
         }
     }
+
+    fn from_animation(
+        duration: Duration,
+        cursors: Vec<CustomCursor>,
+    ) -> Result<CustomCursorBuilder, BadAnimation> {
+        if cursors.is_empty() {
+            return Err(BadAnimation::Empty);
+        }
+
+        if cursors.iter().any(CustomCursor::is_animation) {
+            return Err(BadAnimation::Animation);
+        }
+
+        Ok(CustomCursorBuilder {
+            inner: PlatformCustomCursorBuilder::Animation { duration, cursors },
+        })
+    }
 }
+
+/// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
+#[derive(Debug, Clone)]
+pub enum BadAnimation {
+    /// Produced when no cursors were supplied.
+    Empty,
+    /// Produced when a supplied cursor is an animation.
+    Animation,
+}
+
+impl fmt::Display for BadAnimation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => write!(f, "No cursors supplied"),
+            Self::Animation => write!(f, "A supplied cursor is an animtion"),
+        }
+    }
+}
+
+impl Error for BadAnimation {}
 
 pub trait CustomCursorBuilderExtWebSys {
     /// Async version of [`CustomCursorBuilder::build()`] which waits until the
@@ -294,13 +347,18 @@ impl Future for CustomCursorFuture {
 pub enum CustomCursorError {
     Blob,
     Decode(String),
+    Animation,
 }
 
 impl Display for CustomCursorError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            CustomCursorError::Blob => write!(f, "failed to create `Blob`"),
-            CustomCursorError::Decode(error) => write!(f, "failed to decode image: {error}"),
+            Self::Blob => write!(f, "failed to create `Blob`"),
+            Self::Decode(error) => write!(f, "failed to decode image: {error}"),
+            Self::Animation => write!(
+                f,
+                "found `CustomCursor` that is an animation when building an animation"
+            ),
         }
     }
 }

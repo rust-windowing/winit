@@ -109,7 +109,7 @@ impl Canvas {
 
         let style = Style::new(&window, &canvas);
 
-        let cursor = CursorHandler::new(main_thread, style.clone());
+        let cursor = CursorHandler::new(main_thread, canvas.clone(), style.clone());
 
         let common = Common {
             window: window.clone(),
