@@ -29,6 +29,7 @@ Unreleased` header.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - On Web, increase cursor position accuracy.
+- On Web, fix missing text content in KeyEvent for backspace and escape.
 
 # 0.29.9
 
