@@ -1,31 +1,27 @@
-use super::backend::Style;
-use super::main_thread::{MainThreadMarker, MainThreadSafe};
-use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
-use super::EventLoopWindowTarget;
-use crate::cursor::{BadImage, Cursor, CursorImage};
-use crate::platform::web::CustomCursorError;
-use cursor_icon::CursorIcon;
-use std::future::Future;
-use std::ops::Deref;
+use std::cell::RefCell;
+use std::future::{self, Future};
+use std::hash::{Hash, Hasher};
+use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
-use std::sync::Weak;
-use std::task::{ready, Context};
-use std::{
-    cell::RefCell,
-    future,
-    hash::{Hash, Hasher},
-    mem,
-    ops::DerefMut,
-    rc::Rc,
-    sync::Arc,
-    task::{Poll, Waker},
-};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::task::{ready, Context, Poll, Waker};
+
+use cursor_icon::CursorIcon;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap,
     ImageBitmapOptions, ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
 };
+
+use super::backend::Style;
+use super::main_thread::{MainThreadMarker, MainThreadSafe};
+use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
+use super::EventLoopWindowTarget;
+use crate::cursor::{BadImage, Cursor, CursorImage};
+use crate::platform::web::CustomCursorError;
 
 #[derive(Debug)]
 pub(crate) enum CustomCursorBuilder {
@@ -73,21 +69,76 @@ impl CustomCursor {
         builder: CustomCursorBuilder,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Self {
-        let main_thread = window_target.runner.main_thread();
-
         match builder {
-            CustomCursorBuilder::Image(image) => ImageState::from_rgba(
-                main_thread,
-                window_target.runner.window(),
-                window_target.runner.document().clone(),
-                &image,
+            CustomCursorBuilder::Image(image) => Self::build_spawn(
+                window_target,
+                from_rgba(
+                    window_target.runner.window(),
+                    window_target.runner.document().clone(),
+                    &image,
+                ),
             ),
             CustomCursorBuilder::Url {
                 url,
                 hotspot_x,
                 hotspot_y,
-            } => ImageState::from_url(main_thread, url, hotspot_x, hotspot_y),
+            } => Self::build_spawn(
+                window_target,
+                from_url(UrlType::Plain(url), hotspot_x, hotspot_y),
+            ),
         }
+    }
+
+    fn build_spawn<T, F: 'static + Future<Output = Result<Image, CustomCursorError>>>(
+        window_target: &EventLoopWindowTarget<T>,
+        task: F,
+    ) -> CustomCursor {
+        let handle = AbortHandle::new();
+        let this = CustomCursor(Arc::new(MainThreadSafe::new(
+            window_target.runner.main_thread(),
+            RefCell::new(ImageState::Loading {
+                notifier: Notifier::new(),
+                _handle: DropAbortHandle::new(handle.clone()),
+            }),
+        )));
+        let weak = Arc::downgrade(&this.0);
+        let main_thread = window_target.runner.main_thread();
+
+        let task = Abortable::new(handle, {
+            async move {
+                let result = task.await;
+
+                let this = weak
+                    .upgrade()
+                    .expect("`CursorHandler` invalidated without aborting");
+                let mut this = this.get(main_thread).borrow_mut();
+
+                match result {
+                    Ok(image) => {
+                        let ImageState::Loading { notifier, .. } =
+                            mem::replace(this.deref_mut(), ImageState::Ready(image))
+                        else {
+                            unreachable!("found invalid state");
+                        };
+                        notifier.notify(Ok(()));
+                    }
+                    Err(error) => {
+                        let ImageState::Loading { notifier, .. } =
+                            mem::replace(this.deref_mut(), ImageState::Failed(error.clone()))
+                        else {
+                            unreachable!("found invalid state");
+                        };
+                        notifier.notify(Err(error));
+                    }
+                }
+            }
+        });
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = task.await;
+        });
+
+        this
     }
 
     pub(crate) fn build_async<T>(
@@ -99,11 +150,11 @@ impl CustomCursor {
         let ImageState::Loading { notifier, .. } = binding.deref() else {
             unreachable!("found invalid state")
         };
-        let notify = notifier.notified();
+        let notified = notifier.notified();
         drop(binding);
 
         CustomCursorFuture {
-            notify,
+            notified,
             state: Some(state),
         }
     }
@@ -111,7 +162,7 @@ impl CustomCursor {
 
 #[derive(Debug)]
 pub struct CustomCursorFuture {
-    notify: Notified<Result<(), CustomCursorError>>,
+    notified: Notified<Result<(), CustomCursorError>>,
     state: Option<Arc<MainThreadSafe<RefCell<ImageState>>>>,
 }
 
@@ -123,7 +174,7 @@ impl Future for CustomCursorFuture {
             panic!("`CustomCursorFuture` polled after completion")
         }
 
-        let result = ready!(Pin::new(&mut self.notify).poll(cx));
+        let result = ready!(Pin::new(&mut self.notified).poll(cx));
         let state = self
             .state
             .take()
@@ -253,7 +304,7 @@ impl Inner {
                     ..
                 }
                 | SelectedCursor::ImageReady(cursor) => {
-                    if let ImageState::Ready { style, .. } =
+                    if let ImageState::Ready(Image { style, .. }) =
                         cursor.0.get(self.main_thread).borrow().deref()
                     {
                         self.style.set("cursor", style)
@@ -338,262 +389,14 @@ enum ImageState {
         _handle: DropAbortHandle,
     },
     Failed(CustomCursorError),
-    Ready {
-        style: String,
-        _object_url: Option<ObjectUrl>,
-        _image: HtmlImageElement,
-    },
+    Ready(Image),
 }
 
-impl ImageState {
-    fn from_rgba(
-        main_thread: MainThreadMarker,
-        window: &Window,
-        document: Document,
-        image: &CursorImage,
-    ) -> CustomCursor {
-        // 1. Create an `ImageData` from the RGBA data.
-        // 2. Create an `ImageBitmap` from the `ImageData`.
-        // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
-        // 4. Create a `Blob` from the `HTMLCanvasElement`.
-        // 5. Create an object URL from the `Blob`.
-        // 6. Decode the image on an `HTMLImageElement` from the URL.
-        // 7. Notify listeners.
-
-        // 1. Create an `ImageData` from the RGBA data.
-        // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
-        #[cfg(target_feature = "atomics")]
-        // Can't share `SharedArrayBuffer` with `ImageData`.
-        let result = {
-            use js_sys::{Uint8Array, Uint8ClampedArray};
-            use wasm_bindgen::prelude::wasm_bindgen;
-            use wasm_bindgen::JsValue;
-
-            #[wasm_bindgen]
-            extern "C" {
-                #[wasm_bindgen(js_namespace = ImageData)]
-                type ImageDataExt;
-                #[wasm_bindgen(catch, constructor, js_class = ImageData)]
-                fn new(array: Uint8ClampedArray, sw: u32) -> Result<ImageDataExt, JsValue>;
-            }
-
-            let array = Uint8Array::new_with_length(image.rgba.len() as u32);
-            array.copy_from(&image.rgba);
-            let array = Uint8ClampedArray::new(&array);
-            ImageDataExt::new(array, image.width as u32)
-                .map(JsValue::from)
-                .map(ImageData::unchecked_from_js)
-        };
-        #[cfg(not(target_feature = "atomics"))]
-        let result = ImageData::new_with_u8_clamped_array(
-            wasm_bindgen::Clamped(&image.rgba),
-            image.width as u32,
-        );
-        let image_data = result.expect("found wrong image size");
-
-        // 2. Create an `ImageBitmap` from the `ImageData`.
-        //
-        // We call `createImageBitmap()` before spawning the future,
-        // to not have to clone the image buffer.
-        let mut options = ImageBitmapOptions::new();
-        options.premultiply_alpha(PremultiplyAlpha::None);
-        let bitmap = JsFuture::from(
-            window
-                .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)
-                .expect("unexpected exception in `createImageBitmap()`"),
-        );
-
-        let handle = AbortHandle::new();
-        let this = CustomCursor(Arc::new(MainThreadSafe::new(
-            main_thread,
-            RefCell::new(ImageState::Loading {
-                notifier: Notifier::new(),
-                _handle: DropAbortHandle::new(handle.clone()),
-            }),
-        )));
-
-        let task = Abortable::new(handle, {
-            let weak = Arc::downgrade(&this.0);
-            let CursorImage {
-                width,
-                height,
-                hotspot_x,
-                hotspot_y,
-                ..
-            } = *image;
-            async move {
-                let bitmap: ImageBitmap = bitmap
-                    .await
-                    .expect("found invalid state in `ImageData`")
-                    .unchecked_into();
-
-                let canvas: HtmlCanvasElement = document
-                    .create_element("canvas")
-                    .expect("invalid tag name")
-                    .unchecked_into();
-                #[allow(clippy::disallowed_methods)]
-                canvas.set_width(width as u32);
-                #[allow(clippy::disallowed_methods)]
-                canvas.set_height(height as u32);
-
-                // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
-                let context: ImageBitmapRenderingContext = canvas
-                    .get_context("bitmaprenderer")
-                    .expect("unexpected exception in `HTMLCanvasElement.getContext()`")
-                    .expect("`bitmaprenderer` context unsupported")
-                    .unchecked_into();
-                context.transfer_from_image_bitmap(&bitmap);
-                drop(bitmap);
-                drop(context);
-
-                // 4. Create a `Blob` from the `HTMLCanvasElement`.
-                //
-                // To keep the `Closure` alive until `HTMLCanvasElement.toBlob()` is done,
-                // we do the whole `Waker` strategy. Commonly on `Drop` the callback is aborted,
-                // but it would increase complexity and isn't possible in this case.
-                // Keep in mind that `HTMLCanvasElement.toBlob()` can call the callback immediately.
-                let value = Rc::new(RefCell::new(None));
-                let waker = Rc::new(RefCell::<Option<Waker>>::new(None));
-                let callback = Closure::once({
-                    let value = value.clone();
-                    let waker = waker.clone();
-                    move |blob: Option<Blob>| {
-                        *value.borrow_mut() = Some(blob);
-                        if let Some(waker) = waker.borrow_mut().take() {
-                            waker.wake();
-                        }
-                    }
-                });
-                canvas
-                    .to_blob(callback.as_ref().unchecked_ref())
-                    .expect("failed with `SecurityError` despite only source coming from memory");
-                let blob = future::poll_fn(|cx| {
-                    if let Some(blob) = value.borrow_mut().take() {
-                        Poll::Ready(blob)
-                    } else {
-                        *waker.borrow_mut() = Some(cx.waker().clone());
-                        Poll::Pending
-                    }
-                })
-                .await;
-                drop(canvas);
-
-                let Some(blob) = blob else {
-                    let this = weak
-                        .upgrade()
-                        .expect("`CursorHandler` invalidated without aborting");
-                    let mut this = this.get(main_thread).borrow_mut();
-                    let ImageState::Loading { notifier, .. } = mem::replace(
-                        this.deref_mut(),
-                        ImageState::Failed(CustomCursorError::Blob),
-                    ) else {
-                        unreachable!("found invalid state");
-                    };
-                    notifier.notify(Err(CustomCursorError::Blob));
-
-                    return;
-                };
-
-                // 5. Create an object URL from the `Blob`.
-                let url = Url::create_object_url_with_blob(&blob)
-                    .expect("unexpected exception in `URL.createObjectURL()`");
-                let url = UrlType::Object(ObjectUrl(url));
-
-                Self::decode(main_thread, weak, url, hotspot_x, hotspot_y).await;
-            }
-        });
-
-        wasm_bindgen_futures::spawn_local(async move {
-            let _ = task.await;
-        });
-
-        this
-    }
-
-    fn from_url(
-        main_thread: MainThreadMarker,
-        url: String,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> CustomCursor {
-        let handle = AbortHandle::new();
-        let this = CustomCursor(Arc::new(MainThreadSafe::new(
-            main_thread,
-            RefCell::new(ImageState::Loading {
-                notifier: Notifier::new(),
-                _handle: DropAbortHandle::new(handle.clone()),
-            }),
-        )));
-
-        let task = Abortable::new(
-            handle,
-            Self::decode(
-                main_thread,
-                Arc::downgrade(&this.0),
-                UrlType::Plain(url),
-                hotspot_x,
-                hotspot_y,
-            ),
-        );
-        wasm_bindgen_futures::spawn_local(async move {
-            let _ = task.await;
-        });
-
-        this
-    }
-
-    async fn decode(
-        main_thread: MainThreadMarker,
-        weak: Weak<MainThreadSafe<RefCell<ImageState>>>,
-        url: UrlType,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) {
-        // 6. Decode the image on an `HTMLImageElement` from the URL.
-        let image =
-            HtmlImageElement::new().expect("unexpected exception in `new HtmlImageElement`");
-        image.set_src(url.url());
-        let result = JsFuture::from(image.decode()).await;
-
-        let this = weak
-            .upgrade()
-            .expect("`CursorHandler` invalidated without aborting");
-        let mut this = this.get(main_thread).borrow_mut();
-
-        if let Err(error) = result {
-            debug_assert!(error.has_type::<DomException>());
-            let error: DomException = error.unchecked_into();
-            debug_assert_eq!(error.name(), "EncodingError");
-            let error = error.message();
-
-            let ImageState::Loading { notifier, .. } = mem::replace(
-                this.deref_mut(),
-                ImageState::Failed(CustomCursorError::Decode(error.clone())),
-            ) else {
-                unreachable!("found invalid state");
-            };
-            notifier.notify(Err(CustomCursorError::Decode(error)));
-
-            return;
-        }
-
-        let ImageState::Loading { notifier, .. } = mem::replace(
-            this.deref_mut(),
-            ImageState::Ready {
-                style: format!("url({}) {hotspot_x} {hotspot_y}, auto", url.url()),
-                _object_url: match url {
-                    UrlType::Plain(_) => None,
-                    UrlType::Object(object_url) => Some(object_url),
-                },
-                _image: image,
-            },
-        ) else {
-            unreachable!("found invalid state");
-        };
-
-        // 7. Notify listeners.
-        notifier.notify(Ok(()));
-    }
+#[derive(Debug)]
+struct Image {
+    style: String,
+    _object_url: Option<ObjectUrl>,
+    _image: HtmlImageElement,
 }
 
 enum UrlType {
@@ -617,4 +420,165 @@ impl Drop for ObjectUrl {
     fn drop(&mut self) {
         Url::revoke_object_url(&self.0).expect("unexpected exception in `URL.revokeObjectURL()`");
     }
+}
+
+fn from_rgba(
+    window: &Window,
+    document: Document,
+    image: &CursorImage,
+) -> impl Future<Output = Result<Image, CustomCursorError>> {
+    // 1. Create an `ImageData` from the RGBA data.
+    // 2. Create an `ImageBitmap` from the `ImageData`.
+    // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
+    // 4. Create a `Blob` from the `HTMLCanvasElement`.
+    // 5. Create an object URL from the `Blob`.
+    // 6. Decode the image on an `HTMLImageElement` from the URL.
+
+    // 1. Create an `ImageData` from the RGBA data.
+    // Adapted from https://github.com/rust-windowing/softbuffer/blob/ab7688e2ed2e2eca51b3c4e1863a5bd7fe85800e/src/web.rs#L196-L223
+    #[cfg(target_feature = "atomics")]
+    // Can't share `SharedArrayBuffer` with `ImageData`.
+    let result = {
+        use js_sys::{Uint8Array, Uint8ClampedArray};
+        use wasm_bindgen::prelude::wasm_bindgen;
+        use wasm_bindgen::JsValue;
+
+        #[wasm_bindgen]
+        extern "C" {
+            #[wasm_bindgen(js_namespace = ImageData)]
+            type ImageDataExt;
+            #[wasm_bindgen(catch, constructor, js_class = ImageData)]
+            fn new(array: Uint8ClampedArray, sw: u32) -> Result<ImageDataExt, JsValue>;
+        }
+
+        let array = Uint8Array::new_with_length(image.rgba.len() as u32);
+        array.copy_from(&image.rgba);
+        let array = Uint8ClampedArray::new(&array);
+        ImageDataExt::new(array, image.width as u32)
+            .map(JsValue::from)
+            .map(ImageData::unchecked_from_js)
+    };
+    #[cfg(not(target_feature = "atomics"))]
+    let result = ImageData::new_with_u8_clamped_array(
+        wasm_bindgen::Clamped(&image.rgba),
+        image.width as u32,
+    );
+    let image_data = result.expect("found wrong image size");
+
+    // 2. Create an `ImageBitmap` from the `ImageData`.
+    //
+    // We call `createImageBitmap()` before spawning the future,
+    // to not have to clone the image buffer.
+    let mut options = ImageBitmapOptions::new();
+    options.premultiply_alpha(PremultiplyAlpha::None);
+    let bitmap = JsFuture::from(
+        window
+            .create_image_bitmap_with_image_data_and_image_bitmap_options(&image_data, &options)
+            .expect("unexpected exception in `createImageBitmap()`"),
+    );
+
+    let CursorImage {
+        width,
+        height,
+        hotspot_x,
+        hotspot_y,
+        ..
+    } = *image;
+    async move {
+        let bitmap: ImageBitmap = bitmap
+            .await
+            .expect("found invalid state in `ImageData`")
+            .unchecked_into();
+
+        let canvas: HtmlCanvasElement = document
+            .create_element("canvas")
+            .expect("invalid tag name")
+            .unchecked_into();
+        #[allow(clippy::disallowed_methods)]
+        canvas.set_width(width as u32);
+        #[allow(clippy::disallowed_methods)]
+        canvas.set_height(height as u32);
+
+        // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
+        let context: ImageBitmapRenderingContext = canvas
+            .get_context("bitmaprenderer")
+            .expect("unexpected exception in `HTMLCanvasElement.getContext()`")
+            .expect("`bitmaprenderer` context unsupported")
+            .unchecked_into();
+        context.transfer_from_image_bitmap(&bitmap);
+        drop(bitmap);
+        drop(context);
+
+        // 4. Create a `Blob` from the `HTMLCanvasElement`.
+        //
+        // To keep the `Closure` alive until `HTMLCanvasElement.toBlob()` is done,
+        // we do the whole `Waker` strategy. Commonly on `Drop` the callback is aborted,
+        // but it would increase complexity and isn't possible in this case.
+        // Keep in mind that `HTMLCanvasElement.toBlob()` can call the callback immediately.
+        let value = Rc::new(RefCell::new(None));
+        let waker = Rc::new(RefCell::<Option<Waker>>::new(None));
+        let callback = Closure::once({
+            let value = value.clone();
+            let waker = waker.clone();
+            move |blob: Option<Blob>| {
+                *value.borrow_mut() = Some(blob);
+                if let Some(waker) = waker.borrow_mut().take() {
+                    waker.wake();
+                }
+            }
+        });
+        canvas
+            .to_blob(callback.as_ref().unchecked_ref())
+            .expect("failed with `SecurityError` despite only source coming from memory");
+        let blob = future::poll_fn(|cx| {
+            if let Some(blob) = value.borrow_mut().take() {
+                Poll::Ready(blob)
+            } else {
+                *waker.borrow_mut() = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        })
+        .await;
+        drop(canvas);
+
+        let Some(blob) = blob else {
+            return Err(CustomCursorError::Blob);
+        };
+
+        // 5. Create an object URL from the `Blob`.
+        let url = Url::create_object_url_with_blob(&blob)
+            .expect("unexpected exception in `URL.createObjectURL()`");
+        let url = UrlType::Object(ObjectUrl(url));
+
+        from_url(url, hotspot_x, hotspot_y).await
+    }
+}
+
+async fn from_url(
+    url: UrlType,
+    hotspot_x: u16,
+    hotspot_y: u16,
+) -> Result<Image, CustomCursorError> {
+    // 6. Decode the image on an `HTMLImageElement` from the URL.
+    let image = HtmlImageElement::new().expect("unexpected exception in `new HtmlImageElement`");
+    image.set_src(url.url());
+    let result = JsFuture::from(image.decode()).await;
+
+    if let Err(error) = result {
+        debug_assert!(error.has_type::<DomException>());
+        let error: DomException = error.unchecked_into();
+        debug_assert_eq!(error.name(), "EncodingError");
+        let error = error.message();
+
+        return Err(CustomCursorError::Decode(error));
+    }
+
+    Ok(Image {
+        style: format!("url({}) {hotspot_x} {hotspot_y}, auto", url.url()),
+        _object_url: match url {
+            UrlType::Plain(_) => None,
+            UrlType::Object(object_url) => Some(object_url),
+        },
+        _image: image,
+    })
 }
