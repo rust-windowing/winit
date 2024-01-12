@@ -20,7 +20,7 @@ use web_time::{Duration, Instant};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_helper::{map_event, MapEventHelper};
+use crate::event_helper::MapEventHelper;
 use crate::handler::ApplicationHandler;
 use crate::{monitor::MonitorHandle, platform_impl};
 
@@ -317,8 +317,16 @@ impl<T> EventLoop<T> {
 
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
     pub fn run_with<A: ApplicationHandler<T>>(self, mut handler: A) -> Result<(), EventLoopError> {
-        self.event_loop
-            .run(|event, inner| map_event(&mut handler, event, ActiveEventLoop { inner }))
+        #[cfg(any(macos_platform, orbital_platform))]
+        {
+            self.event_loop.run(handler)
+        }
+        #[cfg(not(any(macos_platform, orbital_platform)))]
+        {
+            self.event_loop.run(|event, inner| {
+                crate::event_helper::map_event(&mut handler, event, ActiveEventLoop { inner })
+            })
+        }
     }
 
     /// Set the initial [`ControlFlow`].

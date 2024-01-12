@@ -25,6 +25,7 @@ use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::ControlFlow,
+    handler::ApplicationHandler,
     window::WindowId,
 };
 
@@ -45,7 +46,7 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self);
 }
 
-pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>;
+pub(crate) type Callback<T> = RefCell<dyn ApplicationHandler<T>>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
@@ -56,10 +57,7 @@ struct EventLoopHandler<T: 'static> {
 impl<T> EventLoopHandler<T> {
     fn with_callback<F>(&mut self, f: F)
     where
-        F: FnOnce(
-            &mut EventLoopHandler<T>,
-            RefMut<'_, dyn FnMut(Event<T>, &EventLoopWindowTarget)>,
-        ),
+        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn ApplicationHandler<T>>),
     {
         // `NSApplication` and our `HANDLER` are global state and so it's possible
         // that we could get a delegate callback after the application has exit an
@@ -88,14 +86,26 @@ impl<T> Debug for EventLoopHandler<T> {
 impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<Never>) {
         self.with_callback(|this, mut callback| {
-            (callback)(event.userify(), &this.window_target);
+            crate::event_helper::map_event(
+                &mut *callback,
+                event.userify(),
+                crate::event_loop::ActiveEventLoop {
+                    inner: &this.window_target,
+                },
+            );
         });
     }
 
     fn handle_user_events(&mut self) {
         self.with_callback(|this, mut callback| {
             for event in this.receiver.try_iter() {
-                (callback)(Event::UserEvent(event), &this.window_target);
+                crate::event_helper::map_event(
+                    &mut *callback,
+                    Event::UserEvent(event),
+                    crate::event_loop::ActiveEventLoop {
+                        inner: &this.window_target,
+                    },
+                );
             }
         });
     }

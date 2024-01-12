@@ -30,8 +30,8 @@ use objc2::{
 use super::event::dummy_event;
 use crate::{
     error::EventLoopError,
-    event::Event,
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed},
+    handler::ApplicationHandler,
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
     platform_impl::platform::{
         app::WinitApplication,
@@ -235,20 +235,17 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &EventLoopWindowTarget),
-    {
-        self.run_on_demand(callback)
+    pub fn run(mut self, handler: impl ApplicationHandler<T>) -> Result<(), EventLoopError> {
+        self.run_on_demand(handler)
     }
 
     // NB: we don't base this on `pump_events` because for `MacOs` we can't support
     // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
     // time and so a layered implementation would end up using a lot of CPU due to
     // redundant wake ups.
-    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<A>(&mut self, handler: A) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget),
+        A: ApplicationHandler<T>,
     {
         if AppState::is_running() {
             return Err(EventLoopError::AlreadyRunning);
@@ -265,9 +262,9 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>>,
-            >(Rc::new(RefCell::new(callback)))
+                Rc<RefCell<dyn ApplicationHandler<T>>>,
+                Rc<RefCell<dyn ApplicationHandler<T>>>,
+            >(Rc::new(RefCell::new(handler)))
         };
 
         self._callback = Some(Rc::clone(&callback));
@@ -330,9 +327,9 @@ impl<T> EventLoop<T> {
         Ok(())
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
+    pub fn pump_events<A>(&mut self, timeout: Option<Duration>, handler: A) -> PumpStatus
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget),
+        A: ApplicationHandler<T>,
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
@@ -345,9 +342,9 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>>,
-            >(Rc::new(RefCell::new(callback)))
+                Rc<RefCell<dyn ApplicationHandler<T>>>,
+                Rc<RefCell<dyn ApplicationHandler<T>>>,
+            >(Rc::new(RefCell::new(handler)))
         };
 
         self._callback = Some(Rc::clone(&callback));
