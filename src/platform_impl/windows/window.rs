@@ -1233,28 +1233,17 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen.map(Into::into));
-            unsafe { force_window_active(win.window) };
-        } else {
-            let size = attributes
-                .inner_size
-                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-            let max_size = attributes
-                .max_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-            let min_size = attributes
-                .min_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-            let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-            win.request_inner_size(clamped_size);
-
-            if attributes.maximized {
-                // Need to set MAXIMIZED after setting `inner_size` as
-                // `Window::request_inner_size` changes MAXIMIZED to false.
-                win.set_maximized(true);
-            }
-        }
+        let size = attributes
+            .inner_size
+            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let max_size = attributes
+            .max_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+        let min_size = attributes
+            .min_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
+        win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,
@@ -1337,7 +1326,7 @@ where
 
     let mut initdata = InitData {
         event_loop,
-        attributes,
+        attributes: attributes.clone(),
         pl_attribs: pl_attribs.clone(),
         window_flags,
         window: None,
@@ -1372,7 +1361,18 @@ where
 
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
-    Ok(initdata.window.unwrap())
+    let win = initdata.window.unwrap();
+
+    // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
+    // This is because if the size is changed in WM_CREATE, the restored size will be stored in that size.
+    if attributes.fullscreen.is_some() {
+        win.set_fullscreen(attributes.fullscreen.map(Into::into));
+        unsafe { force_window_active(win.window) };
+    } else if attributes.maximized {
+        win.set_maximized(true);
+    }
+
+    Ok(win)
 }
 
 unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
