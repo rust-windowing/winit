@@ -18,7 +18,6 @@ use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 use super::super::cursor::CursorHandler;
-use super::super::event_loop::runner::WeakShared;
 use super::super::main_thread::MainThreadMarker;
 use super::super::WindowId;
 use super::animation_frame::AnimationFrameHandler;
@@ -71,7 +70,6 @@ pub struct Style {
 impl Canvas {
     pub(crate) fn create(
         main_thread: MainThreadMarker,
-        runner: WeakShared,
         id: WindowId,
         window: web_sys::Window,
         document: Document,
@@ -111,7 +109,7 @@ impl Canvas {
 
         let style = Style::new(&window, &canvas);
 
-        let cursor = CursorHandler::new(main_thread, runner, style.clone());
+        let cursor = CursorHandler::new(main_thread, canvas.clone(), style.clone());
 
         let common = Common {
             window: window.clone(),

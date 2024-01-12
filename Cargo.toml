@@ -205,6 +205,7 @@ features = [
     'console',
     'CssStyleDeclaration',
     'Document',
+    'DomException',
     'DomRect',
     'DomRectReadOnly',
     'Element',
@@ -240,11 +241,15 @@ features = [
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-atomic-waker = "1"
 js-sys = "0.3.64"
+pin-project = "1"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-time = "0.2"
+
+[target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
+atomic-waker = "1"
+concurrent-queue = { version = "2", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_log = "1"

@@ -8,6 +8,15 @@ use winit::{
     keyboard::Key,
     window::{CursorIcon, CustomCursor, WindowBuilder},
 };
+#[cfg(wasm_platform)]
+use {
+    std::sync::atomic::{AtomicU64, Ordering},
+    std::time::Duration,
+    winit::platform::web::CustomCursorExtWebSys,
+};
+
+#[cfg(wasm_platform)]
+static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
@@ -73,6 +82,45 @@ fn main() -> Result<(), impl std::error::Error> {
                     cursor_visible = !cursor_visible;
                     log::debug!("Setting cursor visibility to {:?}", cursor_visible);
                     window.set_cursor_visible(cursor_visible);
+                }
+                #[cfg(wasm_platform)]
+                Key::Character("4") => {
+                    log::debug!("Setting cursor to a random image from an URL");
+                    window.set_cursor(
+                        CustomCursor::from_url(
+                            format!(
+                                "https://picsum.photos/128?random={}",
+                                COUNTER.fetch_add(1, Ordering::Relaxed)
+                            ),
+                            64,
+                            64,
+                        )
+                        .build(_elwt),
+                    );
+                }
+                #[cfg(wasm_platform)]
+                Key::Character("5") => {
+                    log::debug!("Setting cursor to an animation");
+                    window.set_cursor(
+                        CustomCursor::from_animation(
+                            Duration::from_secs(3),
+                            vec![
+                                custom_cursors[0].clone(),
+                                custom_cursors[1].clone(),
+                                CustomCursor::from_url(
+                                    format!(
+                                        "https://picsum.photos/128?random={}",
+                                        COUNTER.fetch_add(1, Ordering::Relaxed)
+                                    ),
+                                    64,
+                                    64,
+                                )
+                                .build(_elwt),
+                            ],
+                        )
+                        .unwrap()
+                        .build(_elwt),
+                    );
                 }
                 _ => {}
             },

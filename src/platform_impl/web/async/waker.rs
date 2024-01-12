@@ -1,10 +1,10 @@
-use super::super::main_thread::MainThreadMarker;
-use super::Wrapper;
-use atomic_waker::AtomicWaker;
 use std::future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
+
+use super::super::main_thread::MainThreadMarker;
+use super::{AtomicWaker, Wrapper};
 
 pub struct WakerSpawner<T: 'static>(Wrapper<false, Handler<T>, Sender, usize>);
 

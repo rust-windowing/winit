@@ -1,23 +1,24 @@
-use atomic_waker::AtomicWaker;
 use std::future;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvError, SendError, Sender, TryRecvError};
+use std::sync::mpsc::{self, RecvError, SendError, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
-pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
+use super::AtomicWaker;
+
+pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
     let shared = Arc::new(Shared {
         closed: AtomicBool::new(false),
         waker: AtomicWaker::new(),
     });
 
-    let sender = AsyncSender(Arc::new(SenderInner {
+    let sender = Sender(Arc::new(SenderInner {
         sender: Mutex::new(sender),
         shared: Arc::clone(&shared),
     }));
-    let receiver = AsyncReceiver {
+    let receiver = Receiver {
         receiver: Rc::new(receiver),
         shared,
     };
@@ -25,18 +26,18 @@ pub fn channel<T>() -> (AsyncSender<T>, AsyncReceiver<T>) {
     (sender, receiver)
 }
 
-pub struct AsyncSender<T>(Arc<SenderInner<T>>);
+pub struct Sender<T>(Arc<SenderInner<T>>);
 
 struct SenderInner<T> {
     // We need to wrap it into a `Mutex` to make it `Sync`. So the sender can't
     // be accessed on the main thread, as it could block. Additionally we need
     // to wrap `Sender` in an `Arc` to make it clonable on the main thread without
     // having to block.
-    sender: Mutex<Sender<T>>,
+    sender: Mutex<mpsc::Sender<T>>,
     shared: Arc<Shared>,
 }
 
-impl<T> AsyncSender<T> {
+impl<T> Sender<T> {
     pub fn send(&self, event: T) -> Result<(), SendError<T>> {
         self.0.sender.lock().unwrap().send(event)?;
         self.0.shared.waker.wake();
@@ -52,7 +53,7 @@ impl<T> SenderInner<T> {
     }
 }
 
-impl<T> Clone for AsyncSender<T> {
+impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
     }
@@ -64,12 +65,12 @@ impl<T> Drop for SenderInner<T> {
     }
 }
 
-pub struct AsyncReceiver<T> {
-    receiver: Rc<Receiver<T>>,
+pub struct Receiver<T> {
+    receiver: Rc<mpsc::Receiver<T>>,
     shared: Arc<Shared>,
 }
 
-impl<T> AsyncReceiver<T> {
+impl<T> Receiver<T> {
     pub async fn next(&self) -> Result<T, RecvError> {
         future::poll_fn(|cx| match self.receiver.try_recv() {
             Ok(event) => Poll::Ready(Ok(event)),
@@ -102,7 +103,7 @@ impl<T> AsyncReceiver<T> {
     }
 }
 
-impl<T> Clone for AsyncReceiver<T> {
+impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
         Self {
             receiver: Rc::clone(&self.receiver),
@@ -111,7 +112,7 @@ impl<T> Clone for AsyncReceiver<T> {
     }
 }
 
-impl<T> Drop for AsyncReceiver<T> {
+impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         self.shared.closed.store(true, Ordering::Relaxed);
     }
