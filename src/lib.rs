@@ -170,6 +170,8 @@ extern crate serde;
 extern crate bitflags;
 
 pub mod dpi;
+mod event_helper;
+pub mod handler;
 #[macro_use]
 pub mod error;
 mod cursor;

@@ -2,29 +2,30 @@
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
+    event::{ButtonId, DeviceId, ElementState, KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, EventLoop},
+    handler::{ApplicationHandler, DeviceEventHandler},
     keyboard::{Key, ModifiersState, NamedKey},
-    window::{CursorGrabMode, WindowBuilder},
+    window::{CursorGrabMode, Window, WindowBuilder, WindowId},
 };
 
 #[path = "util/fill.rs"]
 mod fill;
 
-fn main() -> Result<(), impl std::error::Error> {
-    SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new().unwrap();
+struct App {
+    window: Window,
+    modifiers: ModifiersState,
+}
 
-    let window = WindowBuilder::new()
-        .with_title("Super Cursor Grab'n'Hide Simulator 9000")
-        .build(&event_loop)
-        .unwrap();
-
-    let mut modifiers = ModifiersState::default();
-
-    event_loop.run(move |event, event_loop| match event {
-        Event::WindowEvent { event, .. } => match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+impl ApplicationHandler for App {
+    fn window_event(
+        &mut self,
+        active: ActiveEventLoop<'_>,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        match event {
+            WindowEvent::CloseRequested => active.exit(),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -36,15 +37,15 @@ fn main() -> Result<(), impl std::error::Error> {
             } => {
                 let result = match key {
                     Key::Named(NamedKey::Escape) => {
-                        event_loop.exit();
+                        active.exit();
                         Ok(())
                     }
                     Key::Character(ch) => match ch.to_lowercase().as_str() {
-                        "g" => window.set_cursor_grab(CursorGrabMode::Confined),
-                        "l" => window.set_cursor_grab(CursorGrabMode::Locked),
-                        "a" => window.set_cursor_grab(CursorGrabMode::None),
+                        "g" => self.window.set_cursor_grab(CursorGrabMode::Confined),
+                        "l" => self.window.set_cursor_grab(CursorGrabMode::Locked),
+                        "a" => self.window.set_cursor_grab(CursorGrabMode::None),
                         "h" => {
-                            window.set_cursor_visible(modifiers.shift_key());
+                            self.window.set_cursor_visible(self.modifiers.shift_key());
                             Ok(())
                         }
                         _ => Ok(()),
@@ -56,18 +57,52 @@ fn main() -> Result<(), impl std::error::Error> {
                     println!("error: {err}");
                 }
             }
-            WindowEvent::ModifiersChanged(new) => modifiers = new.state(),
-            WindowEvent::RedrawRequested => fill::fill_window(&window),
+            WindowEvent::ModifiersChanged(new) => self.modifiers = new.state(),
+            WindowEvent::RedrawRequested => fill::fill_window(&self.window),
             _ => (),
-        },
-        Event::DeviceEvent { event, .. } => match event {
-            DeviceEvent::MouseMotion { delta } => println!("mouse moved: {delta:?}"),
-            DeviceEvent::Button { button, state } => match state {
-                ElementState::Pressed => println!("mouse button {button} pressed"),
-                ElementState::Released => println!("mouse button {button} released"),
-            },
-            _ => (),
-        },
-        _ => (),
+        }
+    }
+
+    fn device_event(&mut self) -> Option<&mut dyn DeviceEventHandler> {
+        Some(self)
+    }
+}
+
+impl DeviceEventHandler for App {
+    fn mouse_motion(
+        &mut self,
+        _active: ActiveEventLoop<'_>,
+        _device_id: DeviceId,
+        delta: (f64, f64),
+    ) {
+        println!("mouse moved: {delta:?}");
+    }
+
+    fn button(
+        &mut self,
+        _active: ActiveEventLoop<'_>,
+        _device_id: DeviceId,
+        button: ButtonId,
+        state: ElementState,
+    ) {
+        match state {
+            ElementState::Pressed => println!("mouse button {button} pressed"),
+            ElementState::Released => println!("mouse button {button} released"),
+        }
+    }
+}
+
+fn main() -> Result<(), impl std::error::Error> {
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new().unwrap();
+
+    let window = WindowBuilder::new()
+        .with_title("Super Cursor Grab'n'Hide Simulator 9000")
+        .build(&event_loop)
+        .unwrap();
+
+    event_loop.run_with(App {
+        window,
+        modifiers: ModifiersState::default(),
     })
 }

@@ -19,7 +19,10 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::error::EventLoopError;
-use crate::{event::Event, monitor::MonitorHandle, platform_impl};
+use crate::event::Event;
+use crate::event_helper::{map_event, MapEventHelper};
+use crate::handler::ApplicationHandler;
+use crate::{monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -305,12 +308,17 @@ impl<T> EventLoop<T> {
     /// [^1]: `EventLoopExtWebSys::spawn()` is only available on WASM.
     #[inline]
     #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run<F>(self, handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, ActiveEventLoop<'_>),
     {
+        self.run_with(MapEventHelper::new(handler))
+    }
+
+    #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
+    pub fn run_with<A: ApplicationHandler<T>>(self, mut handler: A) -> Result<(), EventLoopError> {
         self.event_loop
-            .run(move |event, inner| event_handler(event, ActiveEventLoop { inner }))
+            .run(|event, inner| map_event(&mut handler, event, ActiveEventLoop { inner }))
     }
 
     /// Set the initial [`ControlFlow`].

@@ -8,10 +8,11 @@ use web_time as time;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event::{ElementState, KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    handler::ApplicationHandler,
     keyboard::{Key, NamedKey},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder, WindowId},
 };
 
 #[path = "util/fill.rs"]
@@ -27,6 +28,111 @@ enum Mode {
 const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
 const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
 
+struct App {
+    window: Window,
+    mode: Mode,
+    request_redraw: bool,
+    wait_cancelled: bool,
+    close_requested: bool,
+}
+
+impl ApplicationHandler for App {
+    fn window_event(
+        &mut self,
+        _active: ActiveEventLoop<'_>,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        match event {
+            WindowEvent::CloseRequested => {
+                self.close_requested = true;
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        logical_key: key,
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => match key.as_ref() {
+                // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                // See the `key_binding` example
+                Key::Character("1") => {
+                    self.mode = Mode::Wait;
+                    println!("\nmode: {:?}\n", self.mode);
+                }
+                Key::Character("2") => {
+                    self.mode = Mode::WaitUntil;
+                    println!("\nmode: {:?}\n", self.mode);
+                }
+                Key::Character("3") => {
+                    self.mode = Mode::Poll;
+                    println!("\nmode: {:?}\n", self.mode);
+                }
+                Key::Character("r") => {
+                    self.request_redraw = !self.request_redraw;
+                    println!("\nrequest_redraw: {}\n", self.request_redraw);
+                }
+                Key::Named(NamedKey::Escape) => {
+                    self.close_requested = true;
+                }
+                _ => (),
+            },
+            WindowEvent::RedrawRequested => {
+                fill::fill_window(&self.window);
+            }
+            _ => (),
+        }
+    }
+
+    fn start_wait_cancelled(
+        &mut self,
+        _active: ActiveEventLoop<'_>,
+        _start: time::Instant,
+        _requested_resume: Option<time::Instant>,
+    ) {
+        self.wait_cancelled = self.mode == Mode::WaitUntil;
+    }
+
+    fn start_resume_time_reached(
+        &mut self,
+        _active: ActiveEventLoop<'_>,
+        _start: time::Instant,
+        _requested_resume: time::Instant,
+    ) {
+        self.wait_cancelled = false;
+    }
+
+    fn start_poll(&mut self, _active: ActiveEventLoop<'_>) {
+        self.wait_cancelled = false;
+    }
+
+    fn about_to_wait(&mut self, active: ActiveEventLoop<'_>) {
+        if self.request_redraw && !self.wait_cancelled && !self.close_requested {
+            self.window.request_redraw();
+        }
+
+        match self.mode {
+            Mode::Wait => active.set_control_flow(ControlFlow::Wait),
+            Mode::WaitUntil => {
+                if !self.wait_cancelled {
+                    active
+                        .set_control_flow(ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME));
+                }
+            }
+            Mode::Poll => {
+                thread::sleep(POLL_SLEEP_TIME);
+                active.set_control_flow(ControlFlow::Poll);
+            }
+        };
+
+        if self.close_requested {
+            active.exit();
+        }
+    }
+}
+
 fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
 
@@ -37,92 +143,19 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
-        .build(&event_loop)
-        .unwrap();
 
-    let mut mode = Mode::Wait;
-    let mut request_redraw = false;
-    let mut wait_cancelled = false;
-    let mut close_requested = false;
+    let app = App {
+        window: WindowBuilder::new()
+            .with_title(
+                "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
+            )
+            .build(&event_loop)
+            .unwrap(),
+        mode: Mode::Wait,
+        request_redraw: false,
+        wait_cancelled: false,
+        close_requested: false,
+    };
 
-    event_loop.run(move |event, event_loop| {
-        use winit::event::StartCause;
-        println!("{event:?}");
-        match event {
-            Event::NewEvents(start_cause) => {
-                wait_cancelled = match start_cause {
-                    StartCause::WaitCancelled { .. } => mode == Mode::WaitUntil,
-                    _ => false,
-                }
-            }
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    close_requested = true;
-                }
-                WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            logical_key: key,
-                            state: ElementState::Pressed,
-                            ..
-                        },
-                    ..
-                } => match key.as_ref() {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
-                    // See the `key_binding` example
-                    Key::Character("1") => {
-                        mode = Mode::Wait;
-                        println!("\nmode: {mode:?}\n");
-                    }
-                    Key::Character("2") => {
-                        mode = Mode::WaitUntil;
-                        println!("\nmode: {mode:?}\n");
-                    }
-                    Key::Character("3") => {
-                        mode = Mode::Poll;
-                        println!("\nmode: {mode:?}\n");
-                    }
-                    Key::Character("r") => {
-                        request_redraw = !request_redraw;
-                        println!("\nrequest_redraw: {request_redraw}\n");
-                    }
-                    Key::Named(NamedKey::Escape) => {
-                        close_requested = true;
-                    }
-                    _ => (),
-                },
-                WindowEvent::RedrawRequested => {
-                    fill::fill_window(&window);
-                }
-                _ => (),
-            },
-            Event::AboutToWait => {
-                if request_redraw && !wait_cancelled && !close_requested {
-                    window.request_redraw();
-                }
-
-                match mode {
-                    Mode::Wait => event_loop.set_control_flow(ControlFlow::Wait),
-                    Mode::WaitUntil => {
-                        if !wait_cancelled {
-                            event_loop.set_control_flow(ControlFlow::WaitUntil(
-                                time::Instant::now() + WAIT_TIME,
-                            ));
-                        }
-                    }
-                    Mode::Poll => {
-                        thread::sleep(POLL_SLEEP_TIME);
-                        event_loop.set_control_flow(ControlFlow::Poll);
-                    }
-                };
-
-                if close_requested {
-                    event_loop.exit();
-                }
-            }
-            _ => (),
-        }
-    })
+    event_loop.run_with(app)
 }
