@@ -15,6 +15,7 @@ use crate::{
     error::EventLoopError,
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed},
+    handler::ApplicationHandler,
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
         PhysicalKey,
@@ -319,12 +320,11 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn process_event<F>(
-        window_id: WindowId,
         event_option: EventOption,
         event_state: &mut EventState,
         mut event_handler: F,
     ) where
-        F: FnMut(event::Event<T>),
+        F: FnMut(event::WindowEvent),
     {
         match event_option {
             EventOption::Key(KeyEvent {
@@ -336,50 +336,37 @@ impl<T: 'static> EventLoop<T> {
                     let physical_key = convert_scancode(scancode);
                     let modifiers_before = event_state.keyboard;
                     event_state.key(physical_key, pressed);
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId),
-                            event: event::KeyEvent {
-                                logical_key: Key::Unidentified(NativeKey::Unidentified),
-                                physical_key,
-                                location: KeyLocation::Standard,
-                                state: element_state(pressed),
-                                repeat: false,
-                                text: None,
+                    event_handler(event::WindowEvent::KeyboardInput {
+                        device_id: event::DeviceId(DeviceId),
+                        event: event::KeyEvent {
+                            logical_key: Key::Unidentified(NativeKey::Unidentified),
+                            physical_key,
+                            location: KeyLocation::Standard,
+                            state: element_state(pressed),
+                            repeat: false,
+                            text: None,
 
-                                platform_specific: KeyEventExtra {},
-                            },
-                            is_synthetic: false,
+                            platform_specific: KeyEventExtra {},
                         },
+                        is_synthetic: false,
                     });
 
                     // If the state of the modifiers has changed, send the event.
                     if modifiers_before != event_state.keyboard {
-                        event_handler(event::Event::WindowEvent {
-                            window_id: RootWindowId(window_id),
-                            event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
-                        })
+                        event_handler(event::WindowEvent::ModifiersChanged(
+                            event_state.modifiers(),
+                        ))
                     }
                 }
             }
             EventOption::TextInput(TextInputEvent { character }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
-                });
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Ime(Ime::Commit(character.into())),
-                });
+                event_handler(event::WindowEvent::Ime(Ime::Preedit("".into(), None)));
+                event_handler(event::WindowEvent::Ime(Ime::Commit(character.into())));
             }
             EventOption::Mouse(MouseEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CursorMoved {
-                        device_id: event::DeviceId(DeviceId),
-                        position: (x, y).into(),
-                    },
+                event_handler(event::WindowEvent::CursorMoved {
+                    device_id: event::DeviceId(DeviceId),
+                    position: (x, y).into(),
                 });
             }
             EventOption::Button(ButtonEvent {
@@ -388,49 +375,31 @@ impl<T: 'static> EventLoop<T> {
                 right,
             }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::MouseInput {
-                            device_id: event::DeviceId(DeviceId),
-                            state,
-                            button,
-                        },
+                    event_handler(event::WindowEvent::MouseInput {
+                        device_id: event::DeviceId(DeviceId),
+                        state,
+                        button,
                     });
                 }
             }
             EventOption::Scroll(ScrollEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::MouseWheel {
-                        device_id: event::DeviceId(DeviceId),
-                        delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
-                        phase: event::TouchPhase::Moved,
-                    },
+                event_handler(event::WindowEvent::MouseWheel {
+                    device_id: event::DeviceId(DeviceId),
+                    delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
+                    phase: event::TouchPhase::Moved,
                 });
             }
             EventOption::Quit(QuitEvent {}) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CloseRequested,
-                });
+                event_handler(event::WindowEvent::CloseRequested);
             }
             EventOption::Focus(FocusEvent { focused }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Focused(focused),
-                });
+                event_handler(event::WindowEvent::Focused(focused));
             }
             EventOption::Move(MoveEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Moved((x, y).into()),
-                });
+                event_handler(event::WindowEvent::Moved((x, y).into()));
             }
             EventOption::Resize(ResizeEvent { width, height }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Resized((width, height).into()),
-                });
+                event_handler(event::WindowEvent::Resized((width, height).into()));
 
                 // Acknowledge resize after event loop.
                 event_state.resize_opt = Some((width, height));
@@ -438,18 +407,12 @@ impl<T: 'static> EventLoop<T> {
             //TODO: Clipboard
             EventOption::Hover(HoverEvent { entered }) => {
                 if entered {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorEntered {
-                            device_id: event::DeviceId(DeviceId),
-                        },
+                    event_handler(event::WindowEvent::CursorEntered {
+                        device_id: event::DeviceId(DeviceId),
                     });
                 } else {
-                    event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorLeft {
-                            device_id: event::DeviceId(DeviceId),
-                        },
+                    event_handler(event::WindowEvent::CursorLeft {
+                        device_id: event::DeviceId(DeviceId),
                     });
                 }
             }
@@ -459,22 +422,32 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
+    pub fn run<A>(mut self, mut handler: A) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
+        A: ApplicationHandler<T>,
     {
-        let mut event_handler =
-            move |event: event::Event<T>, window_target: &EventLoopWindowTarget| {
-                event_handler_inner(event, window_target);
-            };
-
         let mut start_cause = StartCause::Init;
 
+        let active = crate::event_loop::ActiveEventLoop {
+            inner: &self.window_target,
+        };
+
         loop {
-            event_handler(event::Event::NewEvents(start_cause), &self.window_target);
+            match start_cause {
+                StartCause::Init => handler.init(active),
+                StartCause::Poll => handler.start_poll(active),
+                StartCause::ResumeTimeReached {
+                    start,
+                    requested_resume,
+                } => handler.start_resume_time_reached(active, start, requested_resume),
+                StartCause::WaitCancelled {
+                    start,
+                    requested_resume,
+                } => handler.start_wait_cancelled(active, start, requested_resume),
+            }
 
             if start_cause == StartCause::Init {
-                event_handler(event::Event::Resumed, &self.window_target);
+                handler.resume(active);
             }
 
             // Handle window creates.
@@ -493,21 +466,17 @@ impl<T: 'static> EventLoop<T> {
                 self.windows.push((window, EventState::default()));
 
                 // Send resize event on create to indicate first size.
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::Resized((properties.w, properties.h).into()),
-                    },
-                    &self.window_target,
+                handler.window_event(
+                    active,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Resized((properties.w, properties.h).into()),
                 );
 
                 // Send resize event on create to indicate first position.
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::Moved((properties.x, properties.y).into()),
-                    },
-                    &self.window_target,
+                handler.window_event(
+                    active,
+                    RootWindowId(window_id),
+                    event::WindowEvent::Moved((properties.x, properties.y).into()),
                 );
             }
 
@@ -516,12 +485,10 @@ impl<T: 'static> EventLoop<T> {
                 let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(destroy_id),
-                        event: event::WindowEvent::Destroyed,
-                    },
-                    &self.window_target,
+                handler.window_event(
+                    active,
+                    RootWindowId(destroy_id),
+                    event::WindowEvent::Destroyed,
                 );
 
                 self.windows
@@ -548,12 +515,9 @@ impl<T: 'static> EventLoop<T> {
                 };
 
                 for orbital_event in events {
-                    Self::process_event(
-                        window_id,
-                        orbital_event.to_option(),
-                        event_state,
-                        |event| event_handler(event, &self.window_target),
-                    );
+                    Self::process_event(orbital_event.to_option(), event_state, |event| {
+                        handler.window_event(active, RootWindowId(window_id), event)
+                    });
                 }
 
                 if count == event_buf.len() {
@@ -579,7 +543,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             while let Ok(event) = self.user_events_receiver.try_recv() {
-                event_handler(event::Event::UserEvent(event), &self.window_target);
+                handler.user_event(active, event);
             }
 
             // To avoid deadlocks the redraws lock is not held during event processing.
@@ -587,16 +551,14 @@ impl<T: 'static> EventLoop<T> {
                 let mut redraws = self.window_target.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
-                event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::RedrawRequested,
-                    },
-                    &self.window_target,
+                handler.window_event(
+                    active,
+                    RootWindowId(window_id),
+                    event::WindowEvent::RedrawRequested,
                 );
             }
 
-            event_handler(event::Event::AboutToWait, &self.window_target);
+            handler.about_to_wait(active);
 
             if self.window_target.exiting() {
                 break;
@@ -665,7 +627,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        event_handler(event::Event::LoopExiting, &self.window_target);
+        handler.exit(active);
 
         Ok(())
     }
