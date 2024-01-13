@@ -152,8 +152,8 @@ macro_rules! leap {
 
 impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
-    pub(crate) fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {

@@ -16,7 +16,7 @@ pub use proxy::EventLoopProxy;
 pub use window_target::EventLoopWindowTarget;
 
 pub struct EventLoop<T: 'static> {
-    elw: RootEventLoopWindowTarget<T>,
+    elw: RootEventLoopWindowTarget,
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
 }
@@ -40,7 +40,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -77,7 +77,7 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
@@ -105,7 +105,7 @@ impl<T> EventLoop<T> {
         EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
     }
 
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
         &self.elw
     }
 }

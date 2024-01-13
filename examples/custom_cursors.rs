@@ -18,7 +18,7 @@ use {
 #[cfg(wasm_platform)]
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
+fn decode_cursor(bytes: &[u8], window_target: &EventLoopWindowTarget) -> CustomCursor {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();

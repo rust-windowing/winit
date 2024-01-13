@@ -2,7 +2,6 @@ use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
-use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
 
 use web_sys::Element;
@@ -43,28 +42,17 @@ impl Clone for ModifiersShared {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+#[derive(Clone)]
+pub struct EventLoopWindowTarget {
     pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
-    _marker: PhantomData<T>,
 }
 
-impl<T> Clone for EventLoopWindowTarget<T> {
-    fn clone(&self) -> Self {
-        Self {
-            runner: self.runner.clone(),
-            modifiers: self.modifiers.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn new() -> Self {
         Self {
             runner: runner::Shared::new(),
             modifiers: ModifiersShared::default(),
-            _marker: PhantomData,
         }
     }
 
