@@ -108,9 +108,6 @@ enum EventWrapper {
 
 #[derive(Default)]
 struct Handler {
-    stop_app_before_wait: AtomicBool,
-    stop_app_after_wait: AtomicBool,
-    stop_app_on_redraw: AtomicBool,
     in_callback: AtomicBool,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
@@ -142,48 +139,6 @@ impl Handler {
     fn internal_exit(&self) {
         let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
         delegate.internal_exit();
-        self.set_stop_app_on_redraw_requested(false);
-        self.set_stop_app_before_wait(false);
-        self.set_stop_app_after_wait(false);
-    }
-
-    pub fn set_stop_app_before_wait(&self, stop_before_wait: bool) {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_before_wait
-            .store(stop_before_wait, Ordering::Relaxed);
-    }
-
-    pub fn should_stop_app_before_wait(&self) -> bool {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_before_wait.load(Ordering::Relaxed)
-    }
-
-    pub fn set_stop_app_after_wait(&self, stop_after_wait: bool) {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_after_wait
-            .store(stop_after_wait, Ordering::Relaxed);
-    }
-
-    pub fn should_stop_app_after_wait(&self) -> bool {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_after_wait.load(Ordering::Relaxed)
-    }
-
-    pub fn set_stop_app_on_redraw_requested(&self, stop_on_redraw: bool) {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_on_redraw
-            .store(stop_on_redraw, Ordering::Relaxed);
-    }
-
-    pub fn should_stop_app_on_redraw_requested(&self) -> bool {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_on_redraw.load(Ordering::Relaxed)
     }
 
     fn take_events(&self) -> VecDeque<EventWrapper> {
@@ -280,18 +235,6 @@ impl AppState {
         HANDLER.callback.lock().unwrap().take();
     }
 
-    pub fn set_stop_app_before_wait(stop_before_wait: bool) {
-        HANDLER.set_stop_app_before_wait(stop_before_wait);
-    }
-
-    pub fn set_stop_app_after_wait(stop_after_wait: bool) {
-        HANDLER.set_stop_app_after_wait(stop_after_wait);
-    }
-
-    pub fn set_stop_app_on_redraw_requested(stop_on_redraw: bool) {
-        HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
-    }
-
     pub fn internal_exit() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::LoopExiting);
@@ -325,7 +268,7 @@ impl AppState {
             return;
         }
 
-        if HANDLER.should_stop_app_after_wait() {
+        if delegate.stop_after_wait() {
             delegate.stop_app_immediately();
         }
 
@@ -368,6 +311,7 @@ impl AppState {
     }
 
     pub fn handle_redraw(window_id: WindowId) {
+        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
         if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
@@ -379,8 +323,8 @@ impl AppState {
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
             // as a way to ensure that `pump_events` can't block an external loop indefinitely
-            if HANDLER.should_stop_app_on_redraw_requested() {
-                ApplicationDelegate::get(MainThreadMarker::new().unwrap()).stop_app_immediately();
+            if delegate.stop_on_redraw() {
+                delegate.stop_app_immediately();
             }
         }
     }
@@ -460,7 +404,7 @@ impl AppState {
             delegate.stop_app_immediately();
         }
 
-        if HANDLER.should_stop_app_before_wait() {
+        if delegate.stop_before_wait() {
             delegate.stop_app_immediately();
         }
         delegate.update_start_time();

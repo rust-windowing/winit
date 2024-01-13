@@ -20,6 +20,9 @@ pub(super) struct State {
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     stop_on_launch: Cell<bool>,
+    stop_before_wait: Cell<bool>,
+    stop_after_wait: Cell<bool>,
+    stop_on_redraw: Cell<bool>,
     /// Whether `applicationDidFinishLaunching:` has been run or not.
     is_launched: Cell<bool>,
     /// Whether an `EventLoop` is currently running.
@@ -133,8 +136,32 @@ impl ApplicationDelegate {
     /// If `pump_events` is called to progress the event loop then we
     /// bootstrap the event loop via `-[NSAppplication run]` but will use
     /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
-    pub fn request_stop_on_launch(&self) {
+    pub fn set_stop_on_launch(&self) {
         self.ivars().stop_on_launch.set(true);
+    }
+
+    pub fn set_stop_before_wait(&self, value: bool) {
+        self.ivars().stop_before_wait.set(value)
+    }
+
+    pub fn stop_before_wait(&self) -> bool {
+        self.ivars().stop_before_wait.get()
+    }
+
+    pub fn set_stop_after_wait(&self, value: bool) {
+        self.ivars().stop_after_wait.set(value)
+    }
+
+    pub fn stop_after_wait(&self) -> bool {
+        self.ivars().stop_after_wait.get()
+    }
+
+    pub fn set_stop_on_redraw(&self, value: bool) {
+        self.ivars().stop_on_redraw.set(value)
+    }
+
+    pub fn stop_on_redraw(&self) -> bool {
+        self.ivars().stop_on_redraw.get()
     }
 
     pub fn stop_app_immediately(&self) {
@@ -149,6 +176,9 @@ impl ApplicationDelegate {
 
     pub fn internal_exit(&self) {
         self.set_is_running(false);
+        self.set_stop_on_redraw(false);
+        self.set_stop_before_wait(false);
+        self.set_stop_after_wait(false);
         self.set_wait_timeout(None);
     }
 

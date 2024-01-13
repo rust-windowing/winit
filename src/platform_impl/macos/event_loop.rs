@@ -304,9 +304,9 @@ impl<T> EventLoop<T> {
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
                 // clear / normalize pump_events state
                 self.delegate.set_wait_timeout(None);
-                AppState::set_stop_app_before_wait(false);
-                AppState::set_stop_app_after_wait(false);
-                AppState::set_stop_app_on_redraw_requested(false);
+                self.delegate.set_stop_before_wait(false);
+                self.delegate.set_stop_after_wait(false);
+                self.delegate.set_stop_on_redraw(false);
 
                 if self.delegate.is_launched() {
                     debug_assert!(!self.delegate.is_running());
@@ -390,7 +390,7 @@ impl<T> EventLoop<T> {
                 if !self.delegate.is_launched() {
                     debug_assert!(!self.delegate.is_running());
 
-                    self.delegate.request_stop_on_launch();
+                    self.delegate.set_stop_on_launch();
                     unsafe {
                         self.app.run();
                     }
@@ -407,21 +407,21 @@ impl<T> EventLoop<T> {
                     match timeout {
                         Some(Duration::ZERO) => {
                             self.delegate.set_wait_timeout(None);
-                            AppState::set_stop_app_before_wait(true);
+                            self.delegate.set_stop_before_wait(true);
                         }
                         Some(duration) => {
-                            AppState::set_stop_app_before_wait(false);
+                            self.delegate.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
                             self.delegate.set_wait_timeout(Some(timeout));
-                            AppState::set_stop_app_after_wait(true);
+                            self.delegate.set_stop_after_wait(true);
                         }
                         None => {
                             self.delegate.set_wait_timeout(None);
-                            AppState::set_stop_app_before_wait(false);
-                            AppState::set_stop_app_after_wait(true);
+                            self.delegate.set_stop_before_wait(false);
+                            self.delegate.set_stop_after_wait(true);
                         }
                     }
-                    AppState::set_stop_app_on_redraw_requested(true);
+                    self.delegate.set_stop_on_redraw(true);
                     unsafe {
                         self.app.run();
                     }
