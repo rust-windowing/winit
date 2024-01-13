@@ -260,7 +260,7 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootWindowTarget),
     {
-        if AppState::is_running() {
+        if self.delegate.is_running() {
             return Err(EventLoopError::AlreadyRunning);
         }
 
@@ -308,8 +308,9 @@ impl<T> EventLoop<T> {
                 AppState::set_stop_app_on_redraw_requested(false);
 
                 if self.delegate.is_launched() {
-                    debug_assert!(!AppState::is_running());
-                    AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
+                    debug_assert!(!self.delegate.is_running());
+                    self.delegate.set_is_running(true);
+                    AppState::dispatch_init_events(); // dispatch `NewEvents(Init)` + `Resumed`
                 }
                 unsafe { self.app.run() };
 
@@ -386,7 +387,7 @@ impl<T> EventLoop<T> {
                 // As a special case, if the application hasn't been launched yet then we at least run
                 // the loop until it has fully launched.
                 if !self.delegate.is_launched() {
-                    debug_assert!(!AppState::is_running());
+                    debug_assert!(!self.delegate.is_running());
 
                     self.delegate.request_stop_on_launch();
                     unsafe {
@@ -394,11 +395,12 @@ impl<T> EventLoop<T> {
                     }
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application has launched
-                } else if !AppState::is_running() {
+                } else if !self.delegate.is_running() {
                     // Even though the application may have been launched, it's possible we aren't running
                     // if the `EventLoop` was run before and has since exited. This indicates that
                     // we just starting to re-run the same `EventLoop` again.
-                    AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
+                    self.delegate.set_is_running(true);
+                    AppState::dispatch_init_events(); // dispatch `NewEvents(Init)` + `Resumed`
                 } else {
                     // Only run for as long as the given `Duration` allows so we don't block the external loop.
                     match timeout {

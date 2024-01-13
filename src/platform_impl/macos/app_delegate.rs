@@ -20,6 +20,8 @@ pub(super) struct State {
     stop_on_launch: Cell<bool>,
     /// Whether `applicationDidFinishLaunching:` has been run or not.
     is_launched: Cell<bool>,
+    /// Whether an `EventLoop` is currently running.
+    is_running: Cell<bool>,
     waker: RefCell<EventLoopWaker>,
 }
 
@@ -65,7 +67,8 @@ declare_class!(
 
             self.ivars().waker.borrow_mut().start();
 
-            AppState::start_running();
+            self.set_is_running(true);
+            AppState::dispatch_init_events();
 
             // If the application is being launched via `EventLoop::pump_events()` then we'll
             // want to stop the app once it is launched (and return to the external loop)
@@ -138,6 +141,14 @@ impl ApplicationDelegate {
 
     pub fn is_launched(&self) -> bool {
         self.ivars().is_launched.get()
+    }
+
+    pub fn set_is_running(&self, value: bool) {
+        self.ivars().is_running.set(value)
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.ivars().is_running.get()
     }
 
     pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {

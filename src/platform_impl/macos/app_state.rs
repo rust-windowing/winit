@@ -111,7 +111,6 @@ struct Handler {
     stop_app_before_wait: AtomicBool,
     stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
-    running: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     exit: AtomicBool,
@@ -134,25 +133,6 @@ impl Handler {
         self.pending_redraw.lock().unwrap()
     }
 
-    /// `true` if an `EventLoop` is currently running
-    ///
-    /// NB: This is global / `NSApplication` state and may persist beyond the
-    /// lifetime of a running `EventLoop`.
-    ///
-    /// # Caveat
-    /// This is only intended to be called from the main thread
-    fn is_running(&self) -> bool {
-        self.running.load(Ordering::Relaxed)
-    }
-
-    /// Set when an `EventLoop` starts running, after the `NSApplication` is launched
-    ///
-    /// # Caveat
-    /// This is only intended to be called from the main thread
-    fn set_running(&self) {
-        self.running.store(true, Ordering::Relaxed);
-    }
-
     /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits
     ///
     /// Since an `EventLoop` may be run more than once we need make sure to reset the
@@ -164,19 +144,8 @@ impl Handler {
     /// # Caveat
     /// This is only intended to be called from the main thread
     fn internal_exit(&self) {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interiour mutability
-        //
-        // XXX: As an aside; having each individual bit of state for `Handler` be atomic or wrapped in a
-        // `Mutex` for the sake of interior mutability seems a bit odd, and also a potential foot
-        // gun in case the state is unwittingly accessed across threads because the fine-grained locking
-        // wouldn't ensure that there's interior consistency.
-        //
-        // Maybe the whole thing should just be put in a static `Mutex<>` to make it clear
-        // the we can mutate more than one peice of state while maintaining consistency. (though it
-        // looks like there have been recuring re-entrancy issues with callback handling that might
-        // make that awkward)
-        self.running.store(false, Ordering::Relaxed);
+        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
+        delegate.set_is_running(false);
         self.set_stop_app_on_redraw_requested(false);
         self.set_stop_app_before_wait(false);
         self.set_stop_app_after_wait(false);
@@ -353,10 +322,6 @@ impl AppState {
         HANDLER.callback.lock().unwrap().take();
     }
 
-    pub fn is_running() -> bool {
-        HANDLER.is_running()
-    }
-
     pub fn set_stop_app_before_wait(stop_before_wait: bool) {
         HANDLER.set_stop_app_before_wait(stop_before_wait);
     }
@@ -410,15 +375,9 @@ impl AppState {
         HANDLER.set_in_callback(false);
     }
 
-    pub fn start_running() {
-        debug_assert!(ApplicationDelegate::get(MainThreadMarker::new().unwrap()).is_launched());
-
-        HANDLER.set_running();
-        Self::dispatch_init_events()
-    }
-
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
+        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
@@ -427,13 +386,13 @@ impl AppState {
         if panic_info.is_panicking()
             || HANDLER.get_in_callback()
             || !HANDLER.have_callback()
-            || !HANDLER.is_running()
+            || !delegate.is_running()
         {
             return;
         }
 
         if HANDLER.should_stop_app_after_wait() {
-            ApplicationDelegate::get(MainThreadMarker::new().unwrap()).stop_app_immediately();
+            delegate.stop_app_immediately();
         }
 
         let start = HANDLER.get_start_time().unwrap();
@@ -527,7 +486,7 @@ impl AppState {
         if panic_info.is_panicking()
             || HANDLER.get_in_callback()
             || !HANDLER.have_callback()
-            || !HANDLER.is_running()
+            || !delegate.is_running()
         {
             return;
         }
