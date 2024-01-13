@@ -75,6 +75,7 @@ impl PanicInfo {
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget {
+    delegate: Id<ApplicationDelegate>,
     mtm: MainThreadMarker,
 }
 
@@ -118,15 +119,15 @@ impl EventLoopWindowTarget {
     }
 
     pub(crate) fn exit(&self) {
-        AppState::exit()
+        self.delegate.exit()
     }
 
     pub(crate) fn clear_exit(&self) {
-        AppState::clear_exit()
+        self.delegate.clear_exit()
     }
 
     pub(crate) fn exiting(&self) -> bool {
-        AppState::exiting()
+        self.delegate.exiting()
     }
 }
 
@@ -229,11 +230,11 @@ impl<T> EventLoop<T> {
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
             app,
-            delegate,
+            delegate: delegate.clone(),
             sender,
             receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget { mtm },
+                p: EventLoopWindowTarget { delegate, mtm },
                 _marker: PhantomData,
             }),
             panic_info,
@@ -435,7 +436,7 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                if AppState::exiting() {
+                if self.delegate.exiting() {
                     AppState::internal_exit();
                     PumpStatus::Exit(0)
                 } else {

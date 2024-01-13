@@ -22,10 +22,13 @@ pub(super) struct State {
     is_launched: Cell<bool>,
     /// Whether an `EventLoop` is currently running.
     is_running: Cell<bool>,
+    /// Whether the user has requested the event loop to exit.
+    exit: Cell<bool>,
     waker: RefCell<EventLoopWaker>,
 }
 
 declare_class!(
+    #[derive(Debug)]
     pub(super) struct ApplicationDelegate;
 
     unsafe impl ClassType for ApplicationDelegate {
@@ -149,6 +152,18 @@ impl ApplicationDelegate {
 
     pub fn is_running(&self) -> bool {
         self.ivars().is_running.get()
+    }
+
+    pub fn exit(&self) {
+        self.ivars().exit.set(true)
+    }
+
+    pub fn clear_exit(&self) {
+        self.ivars().exit.set(false)
+    }
+
+    pub fn exiting(&self) -> bool {
+        self.ivars().exit.get()
     }
 
     pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {

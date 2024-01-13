@@ -113,7 +113,6 @@ struct Handler {
     stop_app_on_redraw: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
-    exit: AtomicBool,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
@@ -150,18 +149,6 @@ impl Handler {
         self.set_stop_app_before_wait(false);
         self.set_stop_app_after_wait(false);
         self.set_wait_timeout(None);
-    }
-
-    pub fn exit(&self) {
-        self.exit.store(true, Ordering::Relaxed)
-    }
-
-    pub fn clear_exit(&self) {
-        self.exit.store(false, Ordering::Relaxed)
-    }
-
-    pub fn exiting(&self) -> bool {
-        self.exit.load(Ordering::Relaxed)
     }
 
     pub fn set_stop_app_before_wait(&self, stop_before_wait: bool) {
@@ -354,18 +341,6 @@ impl AppState {
         Self::clear_callback();
     }
 
-    pub fn exit() {
-        HANDLER.exit()
-    }
-
-    pub fn clear_exit() {
-        HANDLER.clear_exit()
-    }
-
-    pub fn exiting() -> bool {
-        HANDLER.exiting()
-    }
-
     pub fn dispatch_init_events() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));
@@ -522,7 +497,7 @@ impl AppState {
         HANDLER.handle_nonuser_event(Event::AboutToWait);
         HANDLER.set_in_callback(false);
 
-        if HANDLER.exiting() {
+        if delegate.exiting() {
             delegate.stop_app_immediately();
         }
 
