@@ -111,11 +111,11 @@ impl EventLoopWindowTarget {
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        AppState::set_control_flow(control_flow)
+        self.delegate.set_control_flow(control_flow)
     }
 
     pub(crate) fn control_flow(&self) -> ControlFlow {
-        AppState::control_flow()
+        self.delegate.control_flow()
     }
 
     pub(crate) fn exit(&self) {

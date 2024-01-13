@@ -112,7 +112,6 @@ struct Handler {
     stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
     in_callback: AtomicBool,
-    control_flow: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
@@ -197,14 +196,6 @@ impl Handler {
         // Relaxed ordering because we don't actually have multiple threads involved, we just want
         // interior mutability
         self.stop_app_on_redraw.load(Ordering::Relaxed)
-    }
-
-    fn set_control_flow(&self, new_control_flow: ControlFlow) {
-        *self.control_flow.lock().unwrap() = new_control_flow
-    }
-
-    fn control_flow(&self) -> ControlFlow {
-        *self.control_flow.lock().unwrap()
     }
 
     fn get_start_time(&self) -> Option<Instant> {
@@ -325,14 +316,6 @@ impl AppState {
         HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
     }
 
-    pub fn set_control_flow(control_flow: ControlFlow) {
-        HANDLER.set_control_flow(control_flow)
-    }
-
-    pub fn control_flow() -> ControlFlow {
-        HANDLER.control_flow()
-    }
-
     pub fn internal_exit() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::LoopExiting);
@@ -371,7 +354,7 @@ impl AppState {
         }
 
         let start = HANDLER.get_start_time().unwrap();
-        let cause = match HANDLER.control_flow() {
+        let cause = match delegate.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
             ControlFlow::Wait => StartCause::WaitCancelled {
                 start,
@@ -506,7 +489,7 @@ impl AppState {
         }
         HANDLER.update_start_time();
         let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events
-        let app_timeout = match HANDLER.control_flow() {
+        let app_timeout = match delegate.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),

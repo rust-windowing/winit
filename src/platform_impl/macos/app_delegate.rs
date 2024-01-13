@@ -7,6 +7,8 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
+use crate::event_loop::ControlFlow;
+
 use super::app_state::AppState;
 use super::event::dummy_event;
 use super::menu;
@@ -24,6 +26,7 @@ pub(super) struct State {
     is_running: Cell<bool>,
     /// Whether the user has requested the event loop to exit.
     exit: Cell<bool>,
+    control_flow: Cell<ControlFlow>,
     waker: RefCell<EventLoopWaker>,
 }
 
@@ -164,6 +167,14 @@ impl ApplicationDelegate {
 
     pub fn exiting(&self) -> bool {
         self.ivars().exit.get()
+    }
+
+    pub fn set_control_flow(&self, value: ControlFlow) {
+        self.ivars().control_flow.set(value)
+    }
+
+    pub fn control_flow(&self) -> ControlFlow {
+        self.ivars().control_flow.get()
     }
 
     pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {
