@@ -1,5 +1,5 @@
-use core::cell::Cell;
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, RefCell, RefMut};
+use std::time::Instant;
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
@@ -28,6 +28,8 @@ pub(super) struct State {
     exit: Cell<bool>,
     control_flow: Cell<ControlFlow>,
     waker: RefCell<EventLoopWaker>,
+    start_time: Cell<Option<Instant>>,
+    wait_timeout: Cell<Option<Instant>>,
 }
 
 declare_class!(
@@ -145,6 +147,11 @@ impl ApplicationDelegate {
         });
     }
 
+    pub fn internal_exit(&self) {
+        self.set_is_running(false);
+        self.set_wait_timeout(None);
+    }
+
     pub fn is_launched(&self) -> bool {
         self.ivars().is_launched.get()
     }
@@ -179,6 +186,22 @@ impl ApplicationDelegate {
 
     pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {
         self.ivars().waker.borrow_mut()
+    }
+
+    pub fn update_start_time(&self) {
+        self.ivars().start_time.set(Some(Instant::now()))
+    }
+
+    pub fn start_time(&self) -> Option<Instant> {
+        self.ivars().start_time.get()
+    }
+
+    pub fn set_wait_timeout(&self, value: Option<Instant>) {
+        self.ivars().wait_timeout.set(value)
+    }
+
+    pub fn wait_timeout(&self) -> Option<Instant> {
+        self.ivars().wait_timeout.get()
     }
 }
 

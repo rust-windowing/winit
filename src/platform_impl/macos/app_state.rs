@@ -112,11 +112,9 @@ struct Handler {
     stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
     in_callback: AtomicBool,
-    start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
-    wait_timeout: Mutex<Option<Instant>>,
 }
 
 unsafe impl Send for Handler {}
@@ -143,11 +141,10 @@ impl Handler {
     /// This is only intended to be called from the main thread
     fn internal_exit(&self) {
         let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
-        delegate.set_is_running(false);
+        delegate.internal_exit();
         self.set_stop_app_on_redraw_requested(false);
         self.set_stop_app_before_wait(false);
         self.set_stop_app_after_wait(false);
-        self.set_wait_timeout(None);
     }
 
     pub fn set_stop_app_before_wait(&self, stop_before_wait: bool) {
@@ -170,15 +167,6 @@ impl Handler {
             .store(stop_after_wait, Ordering::Relaxed);
     }
 
-    pub fn set_wait_timeout(&self, new_timeout: Option<Instant>) {
-        let mut timeout = self.wait_timeout.lock().unwrap();
-        *timeout = new_timeout;
-    }
-
-    pub fn wait_timeout(&self) -> Option<Instant> {
-        *self.wait_timeout.lock().unwrap()
-    }
-
     pub fn should_stop_app_after_wait(&self) -> bool {
         // Relaxed ordering because we don't actually have multiple threads involved, we just want
         // interior mutability
@@ -196,14 +184,6 @@ impl Handler {
         // Relaxed ordering because we don't actually have multiple threads involved, we just want
         // interior mutability
         self.stop_app_on_redraw.load(Ordering::Relaxed)
-    }
-
-    fn get_start_time(&self) -> Option<Instant> {
-        *self.start_time.lock().unwrap()
-    }
-
-    fn update_start_time(&self) {
-        *self.start_time.lock().unwrap() = Some(Instant::now());
     }
 
     fn take_events(&self) -> VecDeque<EventWrapper> {
@@ -308,10 +288,6 @@ impl AppState {
         HANDLER.set_stop_app_after_wait(stop_after_wait);
     }
 
-    pub fn set_wait_timeout(timeout: Option<Instant>) {
-        HANDLER.set_wait_timeout(timeout);
-    }
-
     pub fn set_stop_app_on_redraw_requested(stop_on_redraw: bool) {
         HANDLER.set_stop_app_on_redraw_requested(stop_on_redraw);
     }
@@ -353,7 +329,7 @@ impl AppState {
             delegate.stop_app_immediately();
         }
 
-        let start = HANDLER.get_start_time().unwrap();
+        let start = delegate.start_time().unwrap();
         let cause = match delegate.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
             ControlFlow::Wait => StartCause::WaitCancelled {
@@ -487,8 +463,8 @@ impl AppState {
         if HANDLER.should_stop_app_before_wait() {
             delegate.stop_app_immediately();
         }
-        HANDLER.update_start_time();
-        let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events
+        delegate.update_start_time();
+        let wait_timeout = delegate.wait_timeout(); // configured by pump_events
         let app_timeout = match delegate.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll => Some(Instant::now()),

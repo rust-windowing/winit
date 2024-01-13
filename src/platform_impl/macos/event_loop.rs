@@ -303,7 +303,7 @@ impl<T> EventLoop<T> {
             // (which would leave the global `AppState` in an undefined, unsafe state)
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
                 // clear / normalize pump_events state
-                AppState::set_wait_timeout(None);
+                self.delegate.set_wait_timeout(None);
                 AppState::set_stop_app_before_wait(false);
                 AppState::set_stop_app_after_wait(false);
                 AppState::set_stop_app_on_redraw_requested(false);
@@ -406,17 +406,17 @@ impl<T> EventLoop<T> {
                     // Only run for as long as the given `Duration` allows so we don't block the external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
-                            AppState::set_wait_timeout(None);
+                            self.delegate.set_wait_timeout(None);
                             AppState::set_stop_app_before_wait(true);
                         }
                         Some(duration) => {
                             AppState::set_stop_app_before_wait(false);
                             let timeout = Instant::now() + duration;
-                            AppState::set_wait_timeout(Some(timeout));
+                            self.delegate.set_wait_timeout(Some(timeout));
                             AppState::set_stop_app_after_wait(true);
                         }
                         None => {
-                            AppState::set_wait_timeout(None);
+                            self.delegate.set_wait_timeout(None);
                             AppState::set_stop_app_before_wait(false);
                             AppState::set_stop_app_after_wait(true);
                         }
