@@ -141,6 +141,7 @@ pub fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopWaker {
     timer: CFRunLoopTimerRef,
 

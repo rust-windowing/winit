@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use std::cell::{RefCell, RefMut};
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
@@ -9,6 +10,7 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use super::app_state::AppState;
 use super::event::dummy_event;
 use super::menu;
+use super::observer::EventLoopWaker;
 
 #[derive(Debug, Default)]
 pub(super) struct State {
@@ -18,6 +20,7 @@ pub(super) struct State {
     stop_on_launch: Cell<bool>,
     /// Whether `applicationDidFinishLaunching:` has been run or not.
     is_launched: Cell<bool>,
+    waker: RefCell<EventLoopWaker>,
 }
 
 declare_class!(
@@ -60,7 +63,9 @@ declare_class!(
                 menu::initialize(&app);
             }
 
-            AppState::launched();
+            self.ivars().waker.borrow_mut().start();
+
+            AppState::start_running();
 
             // If the application is being launched via `EventLoop::pump_events()` then we'll
             // want to stop the app once it is launched (and return to the external loop)
@@ -133,6 +138,10 @@ impl ApplicationDelegate {
 
     pub fn is_launched(&self) -> bool {
         self.ivars().is_launched.get()
+    }
+
+    pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {
+        self.ivars().waker.borrow_mut()
     }
 }
 

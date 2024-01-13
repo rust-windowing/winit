@@ -17,8 +17,7 @@ use objc2::rc::Id;
 use once_cell::sync::Lazy;
 
 use super::{
-    app_delegate::ApplicationDelegate, event_loop::PanicInfo, observer::EventLoopWaker,
-    util::Never, window::WinitWindow,
+    app_delegate::ApplicationDelegate, event_loop::PanicInfo, util::Never, window::WinitWindow,
 };
 use crate::{
     dpi::PhysicalSize,
@@ -121,7 +120,6 @@ struct Handler {
     pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     wait_timeout: Mutex<Option<Instant>>,
-    waker: Mutex<EventLoopWaker>,
 }
 
 unsafe impl Send for Handler {}
@@ -134,10 +132,6 @@ impl Handler {
 
     fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
-    }
-
-    fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
-        self.waker.lock().unwrap()
     }
 
     /// `true` if an `EventLoop` is currently running
@@ -423,12 +417,6 @@ impl AppState {
         Self::dispatch_init_events()
     }
 
-    pub fn launched() {
-        HANDLER.waker().start();
-
-        Self::start_running();
-    }
-
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
@@ -589,7 +577,7 @@ impl AppState {
             ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
-        HANDLER
+        delegate
             .waker()
             .start_at(min_timeout(wait_timeout, app_timeout));
     }
