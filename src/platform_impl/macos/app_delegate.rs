@@ -1,3 +1,5 @@
+use core::cell::Cell;
+
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
@@ -7,11 +9,12 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use super::app_state::AppState;
 use super::menu;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct State {
     activation_policy: NSApplicationActivationPolicy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
+    stop_on_launch: Cell<bool>,
 }
 
 declare_class!(
@@ -52,6 +55,20 @@ declare_class!(
             }
 
             AppState::launched();
+
+            // If the application is being launched via `EventLoop::pump_events()` then we'll
+            // want to stop the app once it is launched (and return to the external loop)
+            //
+            // In this case we still want to consider Winit's `EventLoop` to be "running",
+            // so we call `start_running()` above.
+            if self.ivars().stop_on_launch.get() {
+                // Note: the original idea had been to only stop the underlying `RunLoop`
+                // for the app but that didn't work as expected (`-[NSApplication run]`
+                // effectively ignored the attempt to stop the RunLoop and re-started it).
+                //
+                // So we return from `pump_events` by stopping the application.
+                AppState::stop();
+            }
         }
 
         #[method(applicationWillTerminate:)]
@@ -74,8 +91,16 @@ impl ApplicationDelegate {
             activation_policy,
             default_menu,
             activate_ignoring_other_apps,
+            ..Default::default()
         });
         unsafe { msg_send_id![super(this), init] }
+    }
+
+    /// If `pump_events` is called to progress the event loop then we
+    /// bootstrap the event loop via `-[NSAppplication run]` but will use
+    /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
+    pub fn request_stop_on_launch(&self) {
+        self.ivars().stop_on_launch.set(true);
     }
 }
 

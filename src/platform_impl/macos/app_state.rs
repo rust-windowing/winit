@@ -110,7 +110,6 @@ enum EventWrapper {
 
 #[derive(Default)]
 struct Handler {
-    stop_app_on_launch: AtomicBool,
     stop_app_before_wait: AtomicBool,
     stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
@@ -216,18 +215,6 @@ impl Handler {
 
     pub fn exiting(&self) -> bool {
         self.exit.load(Ordering::Relaxed)
-    }
-
-    pub fn request_stop_app_on_launch(&self) {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_on_launch.store(true, Ordering::Relaxed);
-    }
-
-    pub fn should_stop_app_on_launch(&self) -> bool {
-        // Relaxed ordering because we don't actually have multiple threads involved, we just want
-        // interior mutability
-        self.stop_app_on_launch.load(Ordering::Relaxed)
     }
 
     pub fn set_stop_app_before_wait(&self, stop_before_wait: bool) {
@@ -396,13 +383,6 @@ impl AppState {
         HANDLER.is_running()
     }
 
-    // If `pump_events` is called to progress the event loop then we bootstrap the event
-    // loop via `-[NSAppplication run]` but will use `CFRunLoopRunInMode` for subsequent calls to
-    // `pump_events`
-    pub fn request_stop_on_launch() {
-        HANDLER.request_stop_app_on_launch();
-    }
-
     pub fn set_stop_app_before_wait(stop_before_wait: bool) {
         HANDLER.set_stop_app_before_wait(stop_before_wait);
     }
@@ -468,20 +448,6 @@ impl AppState {
         HANDLER.waker().start();
 
         Self::start_running();
-
-        // If the application is being launched via `EventLoop::pump_events()` then we'll
-        // want to stop the app once it is launched (and return to the external loop)
-        //
-        // In this case we still want to consider Winit's `EventLoop` to be "running",
-        // so we call `start_running()` above.
-        if HANDLER.should_stop_app_on_launch() {
-            // Note: the original idea had been to only stop the underlying `RunLoop`
-            // for the app but that didn't work as expected (`-[NSApplication run]`
-            // effectively ignored the attempt to stop the RunLoop and re-started it).
-            //
-            // So we return from `pump_events` by stopping the application.
-            Self::stop();
-        }
     }
 
     // Called by RunLoopObserver after finishing waiting for new events

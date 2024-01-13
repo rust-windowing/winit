@@ -154,9 +154,11 @@ pub struct EventLoop<T: 'static> {
     /// We intentially don't store `WinitApplication` since we want to have
     /// the possiblity of swapping that out at some point.
     app: Id<NSApplication>,
-    /// The delegate is only weakly referenced by NSApplication, so we keep
-    /// it around here as well.
-    _delegate: Id<ApplicationDelegate>,
+    /// The application delegate that we've registered.
+    ///
+    /// The delegate is only weakly referenced by NSApplication, so we must
+    /// keep it around here as well.
+    delegate: Id<ApplicationDelegate>,
 
     // Event sender and receiver, used for EventLoopProxy.
     sender: mpsc::Sender<T>,
@@ -227,7 +229,7 @@ impl<T> EventLoop<T> {
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
             app,
-            _delegate: delegate,
+            delegate,
             sender,
             receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
@@ -386,7 +388,7 @@ impl<T> EventLoop<T> {
                 if !AppState::is_launched() {
                     debug_assert!(!AppState::is_running());
 
-                    AppState::request_stop_on_launch();
+                    self.delegate.request_stop_on_launch();
                     unsafe {
                         self.app.run();
                     }
