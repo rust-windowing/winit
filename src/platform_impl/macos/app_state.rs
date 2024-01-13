@@ -12,14 +12,13 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy};
+use icrate::AppKit::NSApplication;
 use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
-use log::trace;
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
 
 use super::{
-    event::dummy_event, event_loop::PanicInfo, menu, observer::EventLoopWaker, util::Never,
+    event::dummy_event, event_loop::PanicInfo, observer::EventLoopWaker, util::Never,
     window::WinitWindow,
 };
 use crate::{
@@ -464,29 +463,9 @@ impl AppState {
         Self::dispatch_init_events()
     }
 
-    pub fn launched(
-        activation_policy: NSApplicationActivationPolicy,
-        create_default_menu: bool,
-        activate_ignoring_other_apps: bool,
-    ) {
-        let mtm = MainThreadMarker::new().unwrap();
-        let app = NSApplication::sharedApplication(mtm);
-        // We need to delay setting the activation policy and activating the app
-        // until `applicationDidFinishLaunching` has been called. Otherwise the
-        // menu bar is initially unresponsive on macOS 10.15.
-        app.setActivationPolicy(activation_policy);
-
-        window_activation_hack(&app);
-        #[allow(deprecated)]
-        app.activateIgnoringOtherApps(activate_ignoring_other_apps);
-
+    pub fn launched() {
         HANDLER.set_launched();
         HANDLER.waker().start();
-        if create_default_menu {
-            // The menubar initialization should be before the `NewEvents` event, to allow
-            // overriding of the default menu even if it's created
-            menu::initialize(&app);
-        }
 
         Self::start_running();
 
@@ -685,28 +664,5 @@ impl AppState {
 fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
     a.map_or(b, |a_timeout| {
         b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
-    })
-}
-
-/// A hack to make activation of multiple windows work when creating them before
-/// `applicationDidFinishLaunching:` / `Event::Event::NewEvents(StartCause::Init)`.
-///
-/// Alternative to this would be the user calling `window.set_visible(true)` in
-/// `StartCause::Init`.
-///
-/// If this becomes too bothersome to maintain, it can probably be removed
-/// without too much damage.
-fn window_activation_hack(app: &NSApplication) {
-    // TODO: Proper ordering of the windows
-    app.windows().into_iter().for_each(|window| {
-        // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
-        // This way we preserve the user's desired initial visiblity status
-        // TODO: Also filter on the type/"level" of the window, and maybe other things?
-        if window.isVisible() {
-            trace!("Activating visible window");
-            window.makeKeyAndOrderFront(None);
-        } else {
-            trace!("Skipping activating invisible window");
-        }
     })
 }

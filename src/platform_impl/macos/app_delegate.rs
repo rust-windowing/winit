@@ -1,10 +1,11 @@
-use icrate::AppKit::{NSApplicationActivationPolicy, NSApplicationDelegate};
+use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::AppState;
+use super::menu;
 
 #[derive(Debug)]
 pub(super) struct State {
@@ -32,11 +33,25 @@ declare_class!(
         #[method(applicationDidFinishLaunching:)]
         fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationDidFinishLaunching:");
-            AppState::launched(
-                self.ivars().activation_policy,
-                self.ivars().default_menu,
-                self.ivars().activate_ignoring_other_apps,
-            );
+
+            let mtm = MainThreadMarker::from(self);
+            let app = NSApplication::sharedApplication(mtm);
+            // We need to delay setting the activation policy and activating the app
+            // until `applicationDidFinishLaunching` has been called. Otherwise the
+            // menu bar is initially unresponsive on macOS 10.15.
+            app.setActivationPolicy(self.ivars().activation_policy);
+
+            window_activation_hack(&app);
+            #[allow(deprecated)]
+            app.activateIgnoringOtherApps(self.ivars().activate_ignoring_other_apps);
+
+            if self.ivars().default_menu {
+                // The menubar initialization should be before the `NewEvents` event, to allow
+                // overriding of the default menu even if it's created
+                menu::initialize(&app);
+            }
+
+            AppState::launched();
         }
 
         #[method(applicationWillTerminate:)]
@@ -62,4 +77,27 @@ impl ApplicationDelegate {
         });
         unsafe { msg_send_id![super(this), init] }
     }
+}
+
+/// A hack to make activation of multiple windows work when creating them before
+/// `applicationDidFinishLaunching:` / `Event::Event::NewEvents(StartCause::Init)`.
+///
+/// Alternative to this would be the user calling `window.set_visible(true)` in
+/// `StartCause::Init`.
+///
+/// If this becomes too bothersome to maintain, it can probably be removed
+/// without too much damage.
+fn window_activation_hack(app: &NSApplication) {
+    // TODO: Proper ordering of the windows
+    app.windows().into_iter().for_each(|window| {
+        // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
+        // This way we preserve the user's desired initial visiblity status
+        // TODO: Also filter on the type/"level" of the window, and maybe other things?
+        if window.isVisible() {
+            log::trace!("Activating visible window");
+            window.makeKeyAndOrderFront(None);
+        } else {
+            log::trace!("Skipping activating invisible window");
+        }
+    })
 }
