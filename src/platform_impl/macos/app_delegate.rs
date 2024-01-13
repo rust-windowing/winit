@@ -2,11 +2,12 @@ use core::cell::Cell;
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
-use objc2::rc::Id;
+use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::AppState;
+use super::event::dummy_event;
 use super::menu;
 
 #[derive(Debug, Default)]
@@ -67,7 +68,7 @@ declare_class!(
                 // effectively ignored the attempt to stop the RunLoop and re-started it).
                 //
                 // So we return from `pump_events` by stopping the application.
-                AppState::stop();
+                self.stop_app_immediately();
             }
         }
 
@@ -96,11 +97,33 @@ impl ApplicationDelegate {
         unsafe { msg_send_id![super(this), init] }
     }
 
+    pub fn get(mtm: MainThreadMarker) -> Id<Self> {
+        let app = NSApplication::sharedApplication(mtm);
+        let delegate =
+            unsafe { app.delegate() }.expect("a delegate was not configured on the application");
+        if delegate.is_kind_of::<Self>() {
+            // SAFETY: Just checked that the delegate is an instance of `ApplicationDelegate`
+            unsafe { Id::cast(delegate) }
+        } else {
+            panic!("tried to get a delegate that was not the one Winit has registered")
+        }
+    }
+
     /// If `pump_events` is called to progress the event loop then we
     /// bootstrap the event loop via `-[NSAppplication run]` but will use
     /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
     pub fn request_stop_on_launch(&self) {
         self.ivars().stop_on_launch.set(true);
+    }
+
+    pub fn stop_app_immediately(&self) {
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+        autoreleasepool(|_| {
+            app.stop(None);
+            // To stop event loop immediately, we need to post some event here.
+            app.postEvent_atStart(&dummy_event().unwrap(), true);
+        });
     }
 }
 

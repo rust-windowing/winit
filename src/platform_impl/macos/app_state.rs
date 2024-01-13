@@ -12,14 +12,13 @@ use std::{
 };
 
 use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use icrate::AppKit::NSApplication;
 use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
-use objc2::rc::{autoreleasepool, Id};
+use objc2::rc::Id;
 use once_cell::sync::Lazy;
 
 use super::{
-    event::dummy_event, event_loop::PanicInfo, observer::EventLoopWaker, util::Never,
-    window::WinitWindow,
+    app_delegate::ApplicationDelegate, event_loop::PanicInfo, observer::EventLoopWaker,
+    util::Never, window::WinitWindow,
 };
 use crate::{
     dpi::PhysicalSize,
@@ -466,7 +465,7 @@ impl AppState {
         }
 
         if HANDLER.should_stop_app_after_wait() {
-            Self::stop();
+            ApplicationDelegate::get(MainThreadMarker::new().unwrap()).stop_app_immediately();
         }
 
         let start = HANDLER.get_start_time().unwrap();
@@ -520,7 +519,7 @@ impl AppState {
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
             // as a way to ensure that `pump_events` can't block an external loop indefinitely
             if HANDLER.should_stop_app_on_redraw_requested() {
-                AppState::stop();
+                ApplicationDelegate::get(MainThreadMarker::new().unwrap()).stop_app_immediately();
             }
         }
     }
@@ -546,18 +545,10 @@ impl AppState {
             });
     }
 
-    pub fn stop() {
-        let mtm = MainThreadMarker::new().unwrap();
-        let app = NSApplication::sharedApplication(mtm);
-        autoreleasepool(|_| {
-            app.stop(None);
-            // To stop event loop immediately, we need to post some event here.
-            app.postEvent_atStart(&dummy_event().unwrap(), true);
-        });
-    }
-
     // Called by RunLoopObserver before waiting for new events
     pub fn cleared(panic_info: Weak<PanicInfo>) {
+        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
+
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
@@ -605,11 +596,11 @@ impl AppState {
         HANDLER.set_in_callback(false);
 
         if HANDLER.exiting() {
-            Self::stop();
+            delegate.stop_app_immediately();
         }
 
         if HANDLER.should_stop_app_before_wait() {
-            Self::stop();
+            delegate.stop_app_immediately();
         }
         HANDLER.update_start_time();
         let wait_timeout = HANDLER.wait_timeout(); // configured by pump_events
