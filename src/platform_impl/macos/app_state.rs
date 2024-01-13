@@ -112,7 +112,6 @@ struct Handler {
     stop_app_before_wait: AtomicBool,
     stop_app_after_wait: AtomicBool,
     stop_app_on_redraw: AtomicBool,
-    launched: AtomicBool,
     running: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
@@ -139,20 +138,6 @@ impl Handler {
 
     fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
         self.waker.lock().unwrap()
-    }
-
-    /// `true` after `ApplicationDelegate::applicationDidFinishLaunching` called
-    ///
-    /// NB: This is global / `NSApplication` state and since the app will only
-    /// be launched once but an `EventLoop` may be run more than once then only
-    /// the first `EventLoop` will observe the application before it is launched.
-    fn is_launched(&self) -> bool {
-        self.launched.load(Ordering::Acquire)
-    }
-
-    /// Set via `ApplicationDelegate::applicationDidFinishLaunching`
-    fn set_launched(&self) {
-        self.launched.store(true, Ordering::Release);
     }
 
     /// `true` if an `EventLoop` is currently running
@@ -374,10 +359,6 @@ impl AppState {
         HANDLER.callback.lock().unwrap().take();
     }
 
-    pub fn is_launched() -> bool {
-        HANDLER.is_launched()
-    }
-
     pub fn is_running() -> bool {
         HANDLER.is_running()
     }
@@ -436,14 +417,13 @@ impl AppState {
     }
 
     pub fn start_running() {
-        debug_assert!(HANDLER.is_launched());
+        debug_assert!(ApplicationDelegate::get(MainThreadMarker::new().unwrap()).is_launched());
 
         HANDLER.set_running();
         Self::dispatch_init_events()
     }
 
     pub fn launched() {
-        HANDLER.set_launched();
         HANDLER.waker().start();
 
         Self::start_running();

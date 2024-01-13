@@ -16,6 +16,8 @@ pub(super) struct State {
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     stop_on_launch: Cell<bool>,
+    /// Whether `applicationDidFinishLaunching:` has been run or not.
+    is_launched: Cell<bool>,
 }
 
 declare_class!(
@@ -34,9 +36,12 @@ declare_class!(
     unsafe impl NSObjectProtocol for ApplicationDelegate {}
 
     unsafe impl NSApplicationDelegate for ApplicationDelegate {
+        // Note: This will, globally, only be run once, no matter how many
+        // `EventLoop`s the user creates.
         #[method(applicationDidFinishLaunching:)]
         fn did_finish_launching(&self, _sender: Option<&AnyObject>) {
             trace_scope!("applicationDidFinishLaunching:");
+            self.ivars().is_launched.set(true);
 
             let mtm = MainThreadMarker::from(self);
             let app = NSApplication::sharedApplication(mtm);
@@ -124,6 +129,10 @@ impl ApplicationDelegate {
             // To stop event loop immediately, we need to post some event here.
             app.postEvent_atStart(&dummy_event().unwrap(), true);
         });
+    }
+
+    pub fn is_launched(&self) -> bool {
+        self.ivars().is_launched.get()
     }
 }
 

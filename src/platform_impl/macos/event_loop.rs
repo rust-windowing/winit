@@ -307,7 +307,7 @@ impl<T> EventLoop<T> {
                 AppState::set_stop_app_after_wait(false);
                 AppState::set_stop_app_on_redraw_requested(false);
 
-                if AppState::is_launched() {
+                if self.delegate.is_launched() {
                     debug_assert!(!AppState::is_running());
                     AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
                 }
@@ -385,7 +385,7 @@ impl<T> EventLoop<T> {
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
                 // As a special case, if the application hasn't been launched yet then we at least run
                 // the loop until it has fully launched.
-                if !AppState::is_launched() {
+                if !self.delegate.is_launched() {
                     debug_assert!(!AppState::is_running());
 
                     self.delegate.request_stop_on_launch();
