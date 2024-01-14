@@ -45,7 +45,7 @@ pub(super) struct State {
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
-    pending_events: RefCell<VecDeque<EventWrapper>>,
+    pending_events: RefCell<VecDeque<QueuedEvent>>,
     pending_redraw: RefCell<Vec<WindowId>>,
 }
 
@@ -256,25 +256,17 @@ impl ApplicationDelegate {
     }
 
     pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        let event = Event::WindowEvent {
-            window_id: RootWindowId(window_id),
-            event,
-        };
         self.ivars()
             .pending_events
             .borrow_mut()
-            .push_back(EventWrapper::StaticEvent(event));
+            .push_back(QueuedEvent::WindowEvent(window_id, event));
     }
 
     pub fn queue_device_event(&self, event: DeviceEvent) {
-        let event = Event::DeviceEvent {
-            device_id: DEVICE_ID,
-            event,
-        };
         self.ivars()
             .pending_events
             .borrow_mut()
-            .push_back(EventWrapper::StaticEvent(event));
+            .push_back(QueuedEvent::DeviceEvent(event));
     }
 
     pub fn queue_static_scale_factor_changed_event(
@@ -286,7 +278,7 @@ impl ApplicationDelegate {
         self.ivars()
             .pending_events
             .borrow_mut()
-            .push_back(EventWrapper::ScaleFactorChanged {
+            .push_back(QueuedEvent::ScaleFactorChanged {
                 window,
                 suggested_size,
                 scale_factor,
@@ -411,10 +403,19 @@ impl ApplicationDelegate {
         let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
         for event in events {
             match event {
-                EventWrapper::StaticEvent(event) => {
-                    self.handle_nonuser_event(event);
+                QueuedEvent::WindowEvent(window_id, event) => {
+                    self.handle_nonuser_event(Event::WindowEvent {
+                        window_id: RootWindowId(window_id),
+                        event,
+                    });
                 }
-                EventWrapper::ScaleFactorChanged {
+                QueuedEvent::DeviceEvent(event) => {
+                    self.handle_nonuser_event(Event::DeviceEvent {
+                        device_id: DEVICE_ID,
+                        event,
+                    });
+                }
+                QueuedEvent::ScaleFactorChanged {
                     window,
                     suggested_size,
                     scale_factor,
@@ -484,8 +485,9 @@ impl ApplicationDelegate {
 }
 
 #[derive(Debug)]
-pub(crate) enum EventWrapper {
-    StaticEvent(Event<Never>),
+pub(crate) enum QueuedEvent {
+    WindowEvent(WindowId, WindowEvent),
+    DeviceEvent(DeviceEvent),
     ScaleFactorChanged {
         window: Id<WinitWindow>,
         suggested_size: PhysicalSize<u32>,
