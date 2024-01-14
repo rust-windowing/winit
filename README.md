@@ -76,7 +76,7 @@ same MSRV policy.
 
 Note that windows don't appear on Wayland until you draw/present to them.
 
-#### WebAssembly
+#### Web
 
 To run the web example: `cargo run-wasm --example web`
 
@@ -87,7 +87,7 @@ either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit
 create a `<canvas>` element which you can then retrieve][web canvas getter] and
 insert it into the DOM yourself.
 
-For the example code using Winit with WebAssembly, check out the [web example]. For
+For the example code using Winit on Web, check out the [web example]. For
 information on using Rust on WebAssembly, check out the [Rust and WebAssembly
 book].
 

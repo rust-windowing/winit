@@ -68,7 +68,7 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-#[cfg(any(ios_platform, wasm_platform, orbital_platform))]
+#[cfg(any(ios_platform, web_platform, orbital_platform))]
 fn main() {
     println!("This platform doesn't support pump_events.");
 }

@@ -4,7 +4,7 @@ pub fn main() {
     println!("This example must be run with cargo run-wasm --example web_aspect_ratio")
 }
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 mod wasm {
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;

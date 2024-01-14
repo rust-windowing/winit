@@ -58,7 +58,7 @@ pub trait EventLoopExtRunOnDemand {
     /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
     ///
     #[cfg_attr(
-        not(wasm_platform),
+        not(web_platform),
         doc = "[^1]: `spawn()` is only available on `wasm` platforms."
     )]
     ///
