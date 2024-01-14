@@ -90,11 +90,7 @@ declare_class!(
         fn window_will_start_live_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillStartLiveResize:");
 
-            let increments = self
-                .ivars()
-                .window
-                .lock_shared_state("window_will_enter_fullscreen")
-                .resize_increments;
+            let increments = self.ivars().window.ivars().resize_increments.get();
             self.ivars().window.set_resize_increments_inner(increments);
         }
 
@@ -147,13 +143,10 @@ declare_class!(
         fn window_will_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillEnterFullScreen:");
 
-            let mut shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("window_will_enter_fullscreen");
-            shared_state.maximized = self.ivars().window.is_zoomed();
-            let fullscreen = shared_state.fullscreen.as_ref();
-            match fullscreen {
+            let window_ivars = self.ivars().window.ivars();
+            window_ivars.maximized.set(self.ivars().window.is_zoomed());
+            let mut fullscreen = window_ivars.fullscreen.borrow_mut();
+            match &*fullscreen {
                 // Exclusive mode sets the state in `set_fullscreen` as the user
                 // can't enter exclusive mode by other means (like the
                 // fullscreen button on the window decorations)
@@ -166,10 +159,10 @@ declare_class!(
                 // on the green fullscreen button. Update state!
                 None => {
                     let current_monitor = self.ivars().window.current_monitor_inner();
-                    shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
+                    *fullscreen = Some(Fullscreen::Borderless(current_monitor));
                 }
             }
-            shared_state.in_fullscreen_transition = true;
+            window_ivars.in_fullscreen_transition.set(true);
         }
 
         /// Invoked when before exit fullscreen
@@ -177,11 +170,11 @@ declare_class!(
         fn window_will_exit_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowWillExitFullScreen:");
 
-            let mut shared_state = self
-                .ivars()
+            self.ivars()
                 .window
-                .lock_shared_state("window_will_exit_fullscreen");
-            shared_state.in_fullscreen_transition = true;
+                .ivars()
+                .in_fullscreen_transition
+                .set(true);
         }
 
         #[method(window:willUseFullScreenPresentationOptions:)]
@@ -200,11 +193,8 @@ declare_class!(
             // we don't, for consistency. If we do, it should be documented that the
             // user-provided options are ignored in exclusive fullscreen.
             let mut options = proposed_options;
-            let shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("window_will_use_fullscreen_presentation_options");
-            if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
+            let fullscreen = self.ivars().window.ivars().fullscreen.borrow();
+            if let Some(Fullscreen::Exclusive(_)) = &*fullscreen {
                 options = NSApplicationPresentationFullScreen
                     | NSApplicationPresentationHideDock
                     | NSApplicationPresentationHideMenuBar;
@@ -218,14 +208,9 @@ declare_class!(
         fn window_did_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidEnterFullScreen:");
             self.ivars().initial_fullscreen.set(false);
-            let mut shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("window_did_enter_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            let target_fullscreen = shared_state.target_fullscreen.take();
-            drop(shared_state);
-            if let Some(target_fullscreen) = target_fullscreen {
+            let window_ivars = self.ivars().window.ivars();
+            window_ivars.in_fullscreen_transition.set(false);
+            if let Some(target_fullscreen) = window_ivars.target_fullscreen.take() {
                 self.ivars().window.set_fullscreen(target_fullscreen);
             }
         }
@@ -236,14 +221,9 @@ declare_class!(
             trace_scope!("windowDidExitFullScreen:");
 
             self.ivars().window.restore_state_from_fullscreen();
-            let mut shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("window_did_exit_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            let target_fullscreen = shared_state.target_fullscreen.take();
-            drop(shared_state);
-            if let Some(target_fullscreen) = target_fullscreen {
+            let window_ivars = self.ivars().window.ivars();
+            window_ivars.in_fullscreen_transition.set(false);
+            if let Some(target_fullscreen) = window_ivars.target_fullscreen.take() {
                 self.ivars().window.set_fullscreen(target_fullscreen);
             }
         }
@@ -267,12 +247,9 @@ declare_class!(
         #[method(windowDidFailToEnterFullScreen:)]
         fn window_did_fail_to_enter_fullscreen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidFailToEnterFullScreen:");
-            let mut shared_state = self
-                .ivars()
-                .window
-                .lock_shared_state("window_did_fail_to_enter_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            shared_state.target_fullscreen = None;
+            let window_ivars = self.ivars().window.ivars();
+            window_ivars.in_fullscreen_transition.set(false);
+            window_ivars.target_fullscreen.replace(None);
             if self.ivars().initial_fullscreen.get() {
                 #[allow(clippy::let_unit_value)]
                 unsafe {
@@ -300,11 +277,7 @@ declare_class!(
         #[method(windowDidChangeScreen:)]
         fn window_did_change_screen(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeScreen:");
-            let is_simple_fullscreen = self
-                .ivars()
-                .window
-                .lock_shared_state("window_did_change_screen")
-                .is_simple_fullscreen;
+            let is_simple_fullscreen = self.ivars().window.ivars().is_simple_fullscreen.get();
             if is_simple_fullscreen {
                 if let Some(screen) = self.ivars().window.screen() {
                     self.ivars().window.setFrame_display(screen.frame(), true);
@@ -396,14 +369,13 @@ declare_class!(
         fn effective_appearance_did_changed_on_main_thread(&self, _: Option<&AnyObject>) {
             let mtm = MainThreadMarker::from(self);
             let theme = get_ns_theme(mtm);
-            let mut shared_state = self
+            let old_theme = self
                 .ivars()
                 .window
-                .lock_shared_state("effective_appearance_did_change");
-            let current_theme = shared_state.current_theme;
-            shared_state.current_theme = Some(theme);
-            drop(shared_state);
-            if current_theme != Some(theme) {
+                .ivars()
+                .current_theme
+                .replace(Some(theme));
+            if old_theme != Some(theme) {
                 self.queue_event(WindowEvent::ThemeChanged(theme));
             }
         }
