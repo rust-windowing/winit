@@ -460,6 +460,15 @@ impl<T> EventLoop<T> {
     }
 }
 
+pub(super) fn stop_app_immediately(app: &NSApplication) {
+    autoreleasepool(|_| {
+        app.stop(None);
+        // To stop event loop immediately, we need to post some event here.
+        // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
+        app.postEvent_atStart(&dummy_event().unwrap(), true);
+    });
+}
+
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
 #[inline]
@@ -480,10 +489,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 panic_info.set_panic(e);
             }
             let app = NSApplication::sharedApplication(mtm);
-            app.stop(None);
-            // Posting a dummy event to get `stop` to take effect immediately.
-            // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-            app.postEvent_atStart(&dummy_event().unwrap(), true);
+            stop_app_immediately(&app);
             None
         }
     }

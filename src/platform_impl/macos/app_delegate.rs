@@ -8,12 +8,11 @@ use std::time::Instant;
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
-use objc2::rc::{autoreleasepool, Id};
+use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
-use super::event::dummy_event;
-use super::event_loop::PanicInfo;
+use super::event_loop::{stop_app_immediately, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::util::Never;
 use super::window::WinitWindow;
@@ -107,7 +106,8 @@ declare_class!(
                 // effectively ignored the attempt to stop the RunLoop and re-started it).
                 //
                 // So we return from `pump_events` by stopping the application.
-                self.stop_app_immediately();
+                let app = NSApplication::sharedApplication(mtm);
+                stop_app_immediately(&app);
             }
         }
 
@@ -202,16 +202,6 @@ impl ApplicationDelegate {
         self.ivars().wait_timeout.set(value)
     }
 
-    pub fn stop_app_immediately(&self) {
-        let mtm = MainThreadMarker::from(self);
-        let app = NSApplication::sharedApplication(mtm);
-        autoreleasepool(|_| {
-            app.stop(None);
-            // To stop event loop immediately, we need to post some event here.
-            app.postEvent_atStart(&dummy_event().unwrap(), true);
-        });
-    }
-
     /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits.
     ///
     /// Note: that if the `NSApplication` has been launched then that state is preserved,
@@ -304,6 +294,7 @@ impl ApplicationDelegate {
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
+        let mtm = MainThreadMarker::from(self);
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
         if !self.ivars().in_callback.get() {
@@ -316,7 +307,8 @@ impl ApplicationDelegate {
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
             // as a way to ensure that `pump_events` can't block an external loop indefinitely
             if self.ivars().stop_on_redraw.get() {
-                self.stop_app_immediately();
+                let app = NSApplication::sharedApplication(mtm);
+                stop_app_immediately(&app);
             }
         }
     }
@@ -347,6 +339,7 @@ impl ApplicationDelegate {
 
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(&self, panic_info: Weak<PanicInfo>) {
+        let mtm = MainThreadMarker::from(self);
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
@@ -361,7 +354,8 @@ impl ApplicationDelegate {
         }
 
         if self.ivars().stop_after_wait.get() {
-            self.stop_app_immediately();
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
         }
 
         let start = self.ivars().start_time.get().unwrap();
@@ -393,6 +387,7 @@ impl ApplicationDelegate {
 
     // Called by RunLoopObserver before waiting for new events
     pub fn cleared(&self, panic_info: Weak<PanicInfo>) {
+        let mtm = MainThreadMarker::from(self);
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
@@ -466,11 +461,13 @@ impl ApplicationDelegate {
         self.set_in_callback(false);
 
         if self.exiting() {
-            self.stop_app_immediately();
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
         }
 
         if self.ivars().stop_before_wait.get() {
-            self.stop_app_immediately();
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
         }
         self.ivars().start_time.set(Some(Instant::now()));
         let wait_timeout = self.ivars().wait_timeout.get(); // configured by pump_events
