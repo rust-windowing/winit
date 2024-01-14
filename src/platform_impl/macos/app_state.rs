@@ -1,236 +1,20 @@
-use std::{
-    cell::{RefCell, RefMut},
-    fmt::{self, Debug},
-    rc::{Rc, Weak},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex,
-    },
-    time::Instant,
-};
+use std::{rc::Weak, time::Instant};
 
-use icrate::Foundation::{MainThreadMarker, NSSize};
-use objc2::rc::Id;
-use once_cell::sync::Lazy;
+use icrate::Foundation::MainThreadMarker;
 
 use super::{
-    app_delegate::ApplicationDelegate, event_loop::PanicInfo, util::Never, window::WinitWindow,
+    app_delegate::{ApplicationDelegate, EventWrapper},
+    event_loop::PanicInfo,
 };
 use crate::{
-    dpi::PhysicalSize,
-    event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    event::{Event, StartCause, WindowEvent},
+    event_loop::ControlFlow,
     window::WindowId,
 };
-
-static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
-
-impl<Never> Event<Never> {
-    fn userify<T: 'static>(self) -> Event<T> {
-        self.map_nonuser_event()
-            // `Never` can't be constructed, so the `UserEvent` variant can't
-            // be present here.
-            .unwrap_or_else(|_| unreachable!())
-    }
-}
-
-pub trait EventHandler: Debug {
-    // Not sure probably it should accept Event<'static, Never>
-    fn handle_nonuser_event(&mut self, event: Event<Never>);
-    fn handle_user_events(&mut self);
-}
-
-pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>;
-
-struct EventLoopHandler<T: 'static> {
-    callback: Weak<Callback<T>>,
-    window_target: Rc<RootWindowTarget>,
-    receiver: Rc<mpsc::Receiver<T>>,
-}
-
-impl<T> EventLoopHandler<T> {
-    fn with_callback<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget)>),
-    {
-        // `NSApplication` and our `HANDLER` are global state and so it's possible
-        // that we could get a delegate callback after the application has exit an
-        // `EventLoop`. If the loop has been exit then our weak `self.callback`
-        // will fail to upgrade.
-        //
-        // We don't want to panic or output any verbose logging if we fail to
-        // upgrade the weak reference since it might be valid that the application
-        // re-starts the `NSApplication` after exiting a Winit `EventLoop`
-        if let Some(callback) = self.callback.upgrade() {
-            let callback = callback.borrow_mut();
-            (f)(self, callback);
-        }
-    }
-}
-
-impl<T> Debug for EventLoopHandler<T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("EventLoopHandler")
-            .field("window_target", &self.window_target)
-            .finish()
-    }
-}
-
-impl<T> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>) {
-        self.with_callback(|this, mut callback| {
-            (callback)(event.userify(), &this.window_target);
-        });
-    }
-
-    fn handle_user_events(&mut self) {
-        self.with_callback(|this, mut callback| {
-            for event in this.receiver.try_iter() {
-                (callback)(Event::UserEvent(event), &this.window_target);
-            }
-        });
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum EventWrapper {
-    StaticEvent(Event<Never>),
-    ScaleFactorChanged {
-        window: Id<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    },
-}
-
-#[derive(Default)]
-struct Handler {
-    in_callback: AtomicBool,
-    callback: Mutex<Option<Box<dyn EventHandler>>>,
-}
-
-unsafe impl Send for Handler {}
-unsafe impl Sync for Handler {}
-
-impl Handler {
-    /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits
-    ///
-    /// Since an `EventLoop` may be run more than once we need make sure to reset the
-    /// `control_flow` state back to `Poll` each time the loop exits.
-    ///
-    /// Note: that if the `NSApplication` has been launched then that state is preserved,
-    /// and we won't need to re-launch the app if subsequent EventLoops are run.
-    ///
-    /// # Caveat
-    /// This is only intended to be called from the main thread
-    fn internal_exit(&self) {
-        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
-        delegate.internal_exit();
-    }
-
-    fn get_in_callback(&self) -> bool {
-        self.in_callback.load(Ordering::Acquire)
-    }
-
-    fn set_in_callback(&self, in_callback: bool) {
-        self.in_callback.store(in_callback, Ordering::Release);
-    }
-
-    fn have_callback(&self) -> bool {
-        self.callback.lock().unwrap().is_some()
-    }
-
-    fn handle_nonuser_event(&self, event: Event<Never>) {
-        if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_nonuser_event(event)
-        }
-    }
-
-    fn handle_user_events(&self) {
-        if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events();
-        }
-    }
-
-    fn handle_scale_factor_changed_event(
-        &self,
-        window: &WinitWindow,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
-        if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            let new_inner_size = Arc::new(Mutex::new(suggested_size));
-            let scale_factor_changed_event = Event::WindowEvent {
-                window_id: WindowId(window.id()),
-                event: WindowEvent::ScaleFactorChanged {
-                    scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
-                },
-            };
-
-            callback.handle_nonuser_event(scale_factor_changed_event);
-
-            let physical_size = *new_inner_size.lock().unwrap();
-            drop(new_inner_size);
-            let logical_size = physical_size.to_logical(scale_factor);
-            let size = NSSize::new(logical_size.width, logical_size.height);
-            window.setContentSize(size);
-
-            let resized_event = Event::WindowEvent {
-                window_id: WindowId(window.id()),
-                event: WindowEvent::Resized(physical_size),
-            };
-            callback.handle_nonuser_event(resized_event);
-        }
-    }
-}
 
 pub(crate) enum AppState {}
 
 impl AppState {
-    /// Associate the application's event callback with the (global static) Handler state
-    ///
-    /// # Safety
-    /// This is ignoring the lifetime of the application callback (which may not be 'static)
-    /// and can lead to undefined behaviour if the callback is not cleared before the end of
-    /// its real lifetime.
-    ///
-    /// All public APIs that take an event callback (`run`, `run_on_demand`,
-    /// `pump_events`) _must_ pair a call to `set_callback` with
-    /// a call to `clear_callback` before returning to avoid undefined behaviour.
-    pub unsafe fn set_callback<T>(
-        callback: Weak<Callback<T>>,
-        window_target: Rc<RootWindowTarget>,
-        receiver: Rc<mpsc::Receiver<T>>,
-    ) {
-        *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
-            callback,
-            window_target,
-            receiver,
-        }));
-    }
-
-    pub fn clear_callback() {
-        HANDLER.callback.lock().unwrap().take();
-    }
-
-    pub fn internal_exit() {
-        HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::LoopExiting);
-        HANDLER.set_in_callback(false);
-        HANDLER.internal_exit();
-        Self::clear_callback();
-    }
-
-    pub fn dispatch_init_events() {
-        HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));
-        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
-        // applications don't themselves have a formal suspend/resume lifecycle.
-        HANDLER.handle_nonuser_event(Event::Resumed);
-        HANDLER.set_in_callback(false);
-    }
-
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
         let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
@@ -240,8 +24,8 @@ impl AppState {
 
         // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking()
-            || HANDLER.get_in_callback()
-            || !HANDLER.have_callback()
+            || delegate.in_callback()
+            || !delegate.have_callback()
             || !delegate.is_running()
         {
             return;
@@ -272,28 +56,9 @@ impl AppState {
                 }
             }
         };
-        HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::NewEvents(cause));
-        HANDLER.set_in_callback(false);
-    }
-
-    pub fn handle_redraw(window_id: WindowId) {
-        let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
-        // Redraw request might come out of order from the OS.
-        // -> Don't go back into the callback when our callstack originates from there
-        if !HANDLER.in_callback.swap(true, Ordering::AcqRel) {
-            HANDLER.handle_nonuser_event(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::RedrawRequested,
-            });
-            HANDLER.set_in_callback(false);
-
-            // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
-            // as a way to ensure that `pump_events` can't block an external loop indefinitely
-            if delegate.stop_on_redraw() {
-                delegate.stop_app_immediately();
-            }
-        }
+        delegate.set_in_callback(true);
+        delegate.handle_nonuser_event(Event::NewEvents(cause));
+        delegate.set_in_callback(false);
     }
 
     // Called by RunLoopObserver before waiting for new events
@@ -308,26 +73,26 @@ impl AppState {
         // XXX: how does it make sense that `get_in_callback()` can ever return `true` here if we're
         // about to return to the `CFRunLoop` to poll for new events?
         if panic_info.is_panicking()
-            || HANDLER.get_in_callback()
-            || !HANDLER.have_callback()
+            || delegate.in_callback()
+            || !delegate.have_callback()
             || !delegate.is_running()
         {
             return;
         }
 
-        HANDLER.set_in_callback(true);
-        HANDLER.handle_user_events();
+        delegate.set_in_callback(true);
+        delegate.handle_user_events();
         for event in delegate.take_pending_events() {
             match event {
                 EventWrapper::StaticEvent(event) => {
-                    HANDLER.handle_nonuser_event(event);
+                    delegate.handle_nonuser_event(event);
                 }
                 EventWrapper::ScaleFactorChanged {
                     window,
                     suggested_size,
                     scale_factor,
                 } => {
-                    HANDLER.handle_scale_factor_changed_event(
+                    delegate.handle_scale_factor_changed_event(
                         &window,
                         suggested_size,
                         scale_factor,
@@ -337,14 +102,14 @@ impl AppState {
         }
 
         for window_id in delegate.take_pending_redraw() {
-            HANDLER.handle_nonuser_event(Event::WindowEvent {
+            delegate.handle_nonuser_event(Event::WindowEvent {
                 window_id: WindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
         }
 
-        HANDLER.handle_nonuser_event(Event::AboutToWait);
-        HANDLER.set_in_callback(false);
+        delegate.handle_nonuser_event(Event::AboutToWait);
+        delegate.set_in_callback(false);
 
         if delegate.exiting() {
             delegate.stop_app_immediately();
