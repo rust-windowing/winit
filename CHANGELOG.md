@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.10
+
 - On Web, account for canvas being focused already before event loop starts.
 - On Web, increase cursor position accuracy.
 
