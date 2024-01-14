@@ -175,7 +175,7 @@ impl ApplicationDelegate {
         self.ivars().callback.borrow_mut().take();
     }
 
-    pub fn have_callback(&self) -> bool {
+    fn have_callback(&self) -> bool {
         self.ivars().callback.borrow().is_some()
     }
 
@@ -190,24 +190,16 @@ impl ApplicationDelegate {
         self.ivars().stop_before_wait.set(value)
     }
 
-    pub fn stop_before_wait(&self) -> bool {
-        self.ivars().stop_before_wait.get()
-    }
-
     pub fn set_stop_after_wait(&self, value: bool) {
         self.ivars().stop_after_wait.set(value)
-    }
-
-    pub fn stop_after_wait(&self) -> bool {
-        self.ivars().stop_after_wait.get()
     }
 
     pub fn set_stop_on_redraw(&self, value: bool) {
         self.ivars().stop_on_redraw.set(value)
     }
 
-    pub fn stop_on_redraw(&self) -> bool {
-        self.ivars().stop_on_redraw.get()
+    pub fn set_wait_timeout(&self, value: Option<Instant>) {
+        self.ivars().wait_timeout.set(value)
     }
 
     pub fn stop_app_immediately(&self) {
@@ -261,11 +253,7 @@ impl ApplicationDelegate {
         self.ivars().exit.get()
     }
 
-    pub fn in_callback(&self) -> bool {
-        self.ivars().in_callback.get()
-    }
-
-    pub fn set_in_callback(&self, value: bool) {
+    fn set_in_callback(&self, value: bool) {
         self.ivars().in_callback.set(value)
     }
 
@@ -275,26 +263,6 @@ impl ApplicationDelegate {
 
     pub fn control_flow(&self) -> ControlFlow {
         self.ivars().control_flow.get()
-    }
-
-    pub fn waker(&self) -> RefMut<'_, EventLoopWaker> {
-        self.ivars().waker.borrow_mut()
-    }
-
-    pub fn update_start_time(&self) {
-        self.ivars().start_time.set(Some(Instant::now()))
-    }
-
-    pub fn start_time(&self) -> Option<Instant> {
-        self.ivars().start_time.get()
-    }
-
-    pub fn set_wait_timeout(&self, value: Option<Instant>) {
-        self.ivars().wait_timeout.set(value)
-    }
-
-    pub fn wait_timeout(&self) -> Option<Instant> {
-        self.ivars().wait_timeout.get()
     }
 
     pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
@@ -335,23 +303,19 @@ impl ApplicationDelegate {
             });
     }
 
-    pub fn take_pending_events(&self) -> VecDeque<EventWrapper> {
-        mem::take(&mut *self.ivars().pending_events.borrow_mut())
-    }
-
     pub fn handle_redraw(&self, window_id: WindowId) {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
-        if !self.in_callback() {
+        if !self.ivars().in_callback.get() {
             self.handle_nonuser_event(Event::WindowEvent {
                 window_id: RootWindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
-            self.set_in_callback(false);
+            self.ivars().in_callback.set(false);
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
             // as a way to ensure that `pump_events` can't block an external loop indefinitely
-            if self.stop_on_redraw() {
+            if self.ivars().stop_on_redraw.get() {
                 self.stop_app_immediately();
             }
         }
@@ -365,51 +329,9 @@ impl ApplicationDelegate {
         unsafe { RunLoop::get() }.wakeup();
     }
 
-    pub fn take_pending_redraw(&self) -> Vec<WindowId> {
-        mem::take(&mut *self.ivars().pending_redraw.borrow_mut())
-    }
-
-    pub fn handle_nonuser_event(&self, event: Event<Never>) {
+    fn handle_nonuser_event(&self, event: Event<Never>) {
         if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
             callback.handle_nonuser_event(event)
-        }
-    }
-
-    pub fn handle_user_events(&self) {
-        if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-            callback.handle_user_events();
-        }
-    }
-
-    pub fn handle_scale_factor_changed_event(
-        &self,
-        window: &WinitWindow,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
-        if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-            let new_inner_size = Arc::new(Mutex::new(suggested_size));
-            let scale_factor_changed_event = Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
-                event: WindowEvent::ScaleFactorChanged {
-                    scale_factor,
-                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
-                },
-            };
-
-            callback.handle_nonuser_event(scale_factor_changed_event);
-
-            let physical_size = *new_inner_size.lock().unwrap();
-            drop(new_inner_size);
-            let logical_size = physical_size.to_logical(scale_factor);
-            let size = NSSize::new(logical_size.width, logical_size.height);
-            window.setContentSize(size);
-
-            let resized_event = Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
-                event: WindowEvent::Resized(physical_size),
-            };
-            callback.handle_nonuser_event(resized_event);
         }
     }
 
@@ -431,18 +353,18 @@ impl ApplicationDelegate {
 
         // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking()
-            || self.in_callback()
+            || self.ivars().in_callback.get()
             || !self.have_callback()
             || !self.is_running()
         {
             return;
         }
 
-        if self.stop_after_wait() {
+        if self.ivars().stop_after_wait.get() {
             self.stop_app_immediately();
         }
 
-        let start = self.start_time().unwrap();
+        let start = self.ivars().start_time.get().unwrap();
         let cause = match self.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
             ControlFlow::Wait => StartCause::WaitCancelled {
@@ -463,6 +385,7 @@ impl ApplicationDelegate {
                 }
             }
         };
+
         self.set_in_callback(true);
         self.handle_nonuser_event(Event::NewEvents(cause));
         self.set_in_callback(false);
@@ -478,7 +401,7 @@ impl ApplicationDelegate {
         // XXX: how does it make sense that `in_callback()` can ever return `true` here if we're
         // about to return to the `CFRunLoop` to poll for new events?
         if panic_info.is_panicking()
-            || self.in_callback()
+            || self.ivars().in_callback.get()
             || !self.have_callback()
             || !self.is_running()
         {
@@ -486,8 +409,12 @@ impl ApplicationDelegate {
         }
 
         self.set_in_callback(true);
-        self.handle_user_events();
-        for event in self.take_pending_events() {
+        if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
+            callback.handle_user_events();
+        }
+
+        let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
+        for event in events {
             match event {
                 EventWrapper::StaticEvent(event) => {
                     self.handle_nonuser_event(event);
@@ -497,12 +424,38 @@ impl ApplicationDelegate {
                     suggested_size,
                     scale_factor,
                 } => {
-                    self.handle_scale_factor_changed_event(&window, suggested_size, scale_factor);
+                    if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
+                        let new_inner_size = Arc::new(Mutex::new(suggested_size));
+                        let scale_factor_changed_event = Event::WindowEvent {
+                            window_id: RootWindowId(window.id()),
+                            event: WindowEvent::ScaleFactorChanged {
+                                scale_factor,
+                                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                    &new_inner_size,
+                                )),
+                            },
+                        };
+
+                        callback.handle_nonuser_event(scale_factor_changed_event);
+
+                        let physical_size = *new_inner_size.lock().unwrap();
+                        drop(new_inner_size);
+                        let logical_size = physical_size.to_logical(scale_factor);
+                        let size = NSSize::new(logical_size.width, logical_size.height);
+                        window.setContentSize(size);
+
+                        let resized_event = Event::WindowEvent {
+                            window_id: RootWindowId(window.id()),
+                            event: WindowEvent::Resized(physical_size),
+                        };
+                        callback.handle_nonuser_event(resized_event);
+                    }
                 }
             }
         }
 
-        for window_id in self.take_pending_redraw() {
+        let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
+        for window_id in redraw {
             self.handle_nonuser_event(Event::WindowEvent {
                 window_id: RootWindowId(window_id),
                 event: WindowEvent::RedrawRequested,
@@ -516,17 +469,19 @@ impl ApplicationDelegate {
             self.stop_app_immediately();
         }
 
-        if self.stop_before_wait() {
+        if self.ivars().stop_before_wait.get() {
             self.stop_app_immediately();
         }
-        self.update_start_time();
-        let wait_timeout = self.wait_timeout(); // configured by pump_events
+        self.ivars().start_time.set(Some(Instant::now()));
+        let wait_timeout = self.ivars().wait_timeout.get(); // configured by pump_events
         let app_timeout = match self.control_flow() {
             ControlFlow::Wait => None,
             ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
-        self.waker()
+        self.ivars()
+            .waker
+            .borrow_mut()
             .start_at(min_timeout(wait_timeout, app_timeout));
     }
 }
