@@ -1,4 +1,6 @@
 use std::cell::{Cell, RefCell, RefMut};
+use std::collections::VecDeque;
+use std::mem;
 use std::time::Instant;
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
@@ -7,12 +9,15 @@ use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
-use crate::event_loop::ControlFlow;
-
-use super::app_state::AppState;
+use super::app_state::{AppState, EventWrapper};
 use super::event::dummy_event;
-use super::menu;
-use super::observer::EventLoopWaker;
+use super::observer::{EventLoopWaker, RunLoop};
+use super::window::WinitWindow;
+use super::{menu, WindowId, DEVICE_ID};
+use crate::dpi::PhysicalSize;
+use crate::event::{DeviceEvent, Event, WindowEvent};
+use crate::event_loop::ControlFlow;
+use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug, Default)]
 pub(super) struct State {
@@ -33,6 +38,8 @@ pub(super) struct State {
     waker: RefCell<EventLoopWaker>,
     start_time: Cell<Option<Instant>>,
     wait_timeout: Cell<Option<Instant>>,
+    pending_events: RefCell<VecDeque<EventWrapper>>,
+    pending_redraw: RefCell<Vec<WindowId>>,
 }
 
 declare_class!(
@@ -232,6 +239,60 @@ impl ApplicationDelegate {
 
     pub fn wait_timeout(&self) -> Option<Instant> {
         self.ivars().wait_timeout.get()
+    }
+
+    pub fn queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
+        let event = Event::WindowEvent {
+            window_id: RootWindowId(window_id),
+            event,
+        };
+        self.ivars()
+            .pending_events
+            .borrow_mut()
+            .push_back(EventWrapper::StaticEvent(event));
+    }
+
+    pub fn queue_device_event(&self, event: DeviceEvent) {
+        let event = Event::DeviceEvent {
+            device_id: DEVICE_ID,
+            event,
+        };
+        self.ivars()
+            .pending_events
+            .borrow_mut()
+            .push_back(EventWrapper::StaticEvent(event));
+    }
+
+    pub fn queue_static_scale_factor_changed_event(
+        &self,
+        window: Id<WinitWindow>,
+        suggested_size: PhysicalSize<u32>,
+        scale_factor: f64,
+    ) {
+        self.ivars()
+            .pending_events
+            .borrow_mut()
+            .push_back(EventWrapper::ScaleFactorChanged {
+                window,
+                suggested_size,
+                scale_factor,
+            });
+    }
+
+    pub fn take_pending_events(&self) -> VecDeque<EventWrapper> {
+        mem::take(&mut *self.ivars().pending_events.borrow_mut())
+    }
+
+    pub fn queue_redraw(&self, window_id: WindowId) {
+        let mut pending_redraw = self.ivars().pending_redraw.borrow_mut();
+        if !pending_redraw.contains(&window_id) {
+            pending_redraw.push(window_id);
+        }
+        unsafe { RunLoop::get() }.wakeup();
+    }
+
+    pub fn take_pending_redraw(&self) -> Vec<WindowId> {
+        mem::take(&mut *self.ivars().pending_redraw.borrow_mut())
     }
 }
 

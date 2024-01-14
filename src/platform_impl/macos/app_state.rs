@@ -1,18 +1,15 @@
 use std::{
     cell::{RefCell, RefMut},
-    collections::VecDeque,
     fmt::{self, Debug},
-    mem,
     rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex, MutexGuard,
+        mpsc, Arc, Mutex,
     },
     time::Instant,
 };
 
-use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
-use icrate::Foundation::{is_main_thread, MainThreadMarker, NSSize};
+use icrate::Foundation::{MainThreadMarker, NSSize};
 use objc2::rc::Id;
 use once_cell::sync::Lazy;
 
@@ -97,7 +94,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
 }
 
 #[derive(Debug)]
-enum EventWrapper {
+pub(crate) enum EventWrapper {
     StaticEvent(Event<Never>),
     ScaleFactorChanged {
         window: Id<WinitWindow>,
@@ -110,22 +107,12 @@ enum EventWrapper {
 struct Handler {
     in_callback: AtomicBool,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<EventWrapper>>,
-    pending_redraw: Mutex<Vec<WindowId>>,
 }
 
 unsafe impl Send for Handler {}
 unsafe impl Sync for Handler {}
 
 impl Handler {
-    fn events(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
-        self.pending_events.lock().unwrap()
-    }
-
-    fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
-        self.pending_redraw.lock().unwrap()
-    }
-
     /// Clears the `running` state and resets the `control_flow` state when an `EventLoop` exits
     ///
     /// Since an `EventLoop` may be run more than once we need make sure to reset the
@@ -139,14 +126,6 @@ impl Handler {
     fn internal_exit(&self) {
         let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
         delegate.internal_exit();
-    }
-
-    fn take_events(&self) -> VecDeque<EventWrapper> {
-        mem::take(&mut *self.events())
-    }
-
-    fn should_redraw(&self) -> Vec<WindowId> {
-        mem::take(&mut *self.redraw())
     }
 
     fn get_in_callback(&self) -> bool {
@@ -298,18 +277,6 @@ impl AppState {
         HANDLER.set_in_callback(false);
     }
 
-    // This is called from multiple threads at present
-    pub fn queue_redraw(window_id: WindowId) {
-        let mut pending_redraw = HANDLER.redraw();
-        if !pending_redraw.contains(&window_id) {
-            pending_redraw.push(window_id);
-        }
-        unsafe {
-            let rl = CFRunLoopGetMain();
-            CFRunLoopWakeUp(rl);
-        }
-    }
-
     pub fn handle_redraw(window_id: WindowId) {
         let delegate = ApplicationDelegate::get(MainThreadMarker::new().unwrap());
         // Redraw request might come out of order from the OS.
@@ -327,27 +294,6 @@ impl AppState {
                 delegate.stop_app_immediately();
             }
         }
-    }
-
-    pub fn queue_event(event: Event<Never>) {
-        if !is_main_thread() {
-            panic!("Event queued from different thread: {event:#?}");
-        }
-        HANDLER.events().push_back(EventWrapper::StaticEvent(event));
-    }
-
-    pub fn queue_static_scale_factor_changed_event(
-        window: Id<WinitWindow>,
-        suggested_size: PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
-        HANDLER
-            .events()
-            .push_back(EventWrapper::ScaleFactorChanged {
-                window,
-                suggested_size,
-                scale_factor,
-            });
     }
 
     // Called by RunLoopObserver before waiting for new events
@@ -371,7 +317,7 @@ impl AppState {
 
         HANDLER.set_in_callback(true);
         HANDLER.handle_user_events();
-        for event in HANDLER.take_events() {
+        for event in delegate.take_pending_events() {
             match event {
                 EventWrapper::StaticEvent(event) => {
                     HANDLER.handle_nonuser_event(event);
@@ -390,9 +336,9 @@ impl AppState {
             }
         }
 
-        for window_id in HANDLER.should_redraw() {
+        for window_id in delegate.take_pending_redraw() {
             HANDLER.handle_nonuser_event(Event::WindowEvent {
-                window_id,
+                window_id: WindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
         }

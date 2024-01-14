@@ -7,11 +7,6 @@ use std::{
     time::Instant,
 };
 
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop::{stop_app_on_panic, PanicInfo},
-    ffi,
-};
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
@@ -19,9 +14,13 @@ use core_foundation::runloop::{
     CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
     CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
 };
 use icrate::Foundation::MainThreadMarker;
+
+use super::app_state::AppState;
+use super::event_loop::{stop_app_on_panic, PanicInfo};
+use super::ffi;
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
@@ -88,11 +87,15 @@ extern "C" fn control_flow_end_handler(
     }
 }
 
-struct RunLoop(CFRunLoopRef);
+pub struct RunLoop(CFRunLoopRef);
 
 impl RunLoop {
-    unsafe fn get() -> Self {
+    pub unsafe fn get() -> Self {
         RunLoop(unsafe { CFRunLoopGetMain() })
+    }
+
+    pub fn wakeup(&self) {
+        unsafe { CFRunLoopWakeUp(self.0) }
     }
 
     unsafe fn add_observer(
