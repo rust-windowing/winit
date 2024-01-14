@@ -245,7 +245,7 @@ js-sys = "0.3.64"
 pin-project = "1"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-time = "0.2"
+web-time = "1"
 
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 atomic-waker = "1"
