@@ -13,6 +13,7 @@ use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::event::dummy_event;
+use super::event_loop::PanicInfo;
 use super::observer::{EventLoopWaker, RunLoop};
 use super::util::Never;
 use super::window::WinitWindow;
@@ -421,6 +422,113 @@ impl ApplicationDelegate {
         self.handle_nonuser_event(Event::Resumed);
         self.set_in_callback(false);
     }
+
+    // Called by RunLoopObserver after finishing waiting for new events
+    pub fn wakeup(&self, panic_info: Weak<PanicInfo>) {
+        let panic_info = panic_info
+            .upgrade()
+            .expect("The panic info must exist here. This failure indicates a developer error.");
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
+        if panic_info.is_panicking()
+            || self.in_callback()
+            || !self.have_callback()
+            || !self.is_running()
+        {
+            return;
+        }
+
+        if self.stop_after_wait() {
+            self.stop_app_immediately();
+        }
+
+        let start = self.start_time().unwrap();
+        let cause = match self.control_flow() {
+            ControlFlow::Poll => StartCause::Poll,
+            ControlFlow::Wait => StartCause::WaitCancelled {
+                start,
+                requested_resume: None,
+            },
+            ControlFlow::WaitUntil(requested_resume) => {
+                if Instant::now() >= requested_resume {
+                    StartCause::ResumeTimeReached {
+                        start,
+                        requested_resume,
+                    }
+                } else {
+                    StartCause::WaitCancelled {
+                        start,
+                        requested_resume: Some(requested_resume),
+                    }
+                }
+            }
+        };
+        self.set_in_callback(true);
+        self.handle_nonuser_event(Event::NewEvents(cause));
+        self.set_in_callback(false);
+    }
+
+    // Called by RunLoopObserver before waiting for new events
+    pub fn cleared(&self, panic_info: Weak<PanicInfo>) {
+        let panic_info = panic_info
+            .upgrade()
+            .expect("The panic info must exist here. This failure indicates a developer error.");
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
+        // XXX: how does it make sense that `in_callback()` can ever return `true` here if we're
+        // about to return to the `CFRunLoop` to poll for new events?
+        if panic_info.is_panicking()
+            || self.in_callback()
+            || !self.have_callback()
+            || !self.is_running()
+        {
+            return;
+        }
+
+        self.set_in_callback(true);
+        self.handle_user_events();
+        for event in self.take_pending_events() {
+            match event {
+                EventWrapper::StaticEvent(event) => {
+                    self.handle_nonuser_event(event);
+                }
+                EventWrapper::ScaleFactorChanged {
+                    window,
+                    suggested_size,
+                    scale_factor,
+                } => {
+                    self.handle_scale_factor_changed_event(&window, suggested_size, scale_factor);
+                }
+            }
+        }
+
+        for window_id in self.take_pending_redraw() {
+            self.handle_nonuser_event(Event::WindowEvent {
+                window_id: RootWindowId(window_id),
+                event: WindowEvent::RedrawRequested,
+            });
+        }
+
+        self.handle_nonuser_event(Event::AboutToWait);
+        self.set_in_callback(false);
+
+        if self.exiting() {
+            self.stop_app_immediately();
+        }
+
+        if self.stop_before_wait() {
+            self.stop_app_immediately();
+        }
+        self.update_start_time();
+        let wait_timeout = self.wait_timeout(); // configured by pump_events
+        let app_timeout = match self.control_flow() {
+            ControlFlow::Wait => None,
+            ControlFlow::Poll => Some(Instant::now()),
+            ControlFlow::WaitUntil(instant) => Some(instant),
+        };
+        self.waker()
+            .start_at(min_timeout(wait_timeout, app_timeout));
+    }
 }
 
 #[derive(Debug)]
@@ -494,6 +602,15 @@ impl<T> EventHandler for EventLoopHandler<T> {
             }
         });
     }
+}
+
+/// Returns the minimum `Option<Instant>`, taking into account that `None`
+/// equates to an infinite timeout, not a zero timeout (so can't just use
+/// `Option::min`)
+fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
+    a.map_or(b, |a_timeout| {
+        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
+    })
 }
 
 /// A hack to make activation of multiple windows work when creating them before

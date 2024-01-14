@@ -18,9 +18,11 @@ use core_foundation::runloop::{
 };
 use icrate::Foundation::MainThreadMarker;
 
-use super::app_state::AppState;
-use super::event_loop::{stop_app_on_panic, PanicInfo};
 use super::ffi;
+use super::{
+    app_delegate::ApplicationDelegate,
+    event_loop::{stop_app_on_panic, PanicInfo},
+};
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
@@ -55,7 +57,7 @@ extern "C" fn control_flow_begin_handler(
             match activity {
                 kCFRunLoopAfterWaiting => {
                     //trace!("Triggered `CFRunLoopAfterWaiting`");
-                    AppState::wakeup(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
                     //trace!("Completed `CFRunLoopAfterWaiting`");
                 }
                 _ => unreachable!(),
@@ -77,7 +79,7 @@ extern "C" fn control_flow_end_handler(
             match activity {
                 kCFRunLoopBeforeWaiting => {
                     //trace!("Triggered `CFRunLoopBeforeWaiting`");
-                    AppState::cleared(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
                     //trace!("Completed `CFRunLoopBeforeWaiting`");
                 }
                 kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
