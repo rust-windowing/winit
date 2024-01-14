@@ -159,9 +159,9 @@ impl InputMethodResult {
 
 #[derive(Debug, Clone)]
 enum GetXimServersError {
-    XError(XError),
-    GetPropertyError(util::GetPropertyError),
-    InvalidUtf8(IntoStringError),
+    XError(#[allow(dead_code)] XError),
+    GetPropertyError(#[allow(dead_code)] util::GetPropertyError),
+    InvalidUtf8(#[allow(dead_code)] IntoStringError),
 }
 
 impl From<util::GetPropertyError> for GetXimServersError {
