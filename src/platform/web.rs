@@ -34,18 +34,18 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
 use crate::cursor::CustomCursorBuilder;
 use crate::event::Event;
 use crate::event_loop::{EventLoop, EventLoopWindowTarget};
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
 use crate::window::{CustomCursor, Window, WindowBuilder};
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 #[doc(hidden)]
 pub struct HtmlCanvasElement;
 
@@ -93,7 +93,7 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// [`None`] by default.
     #[cfg_attr(
-        not(wasm_platform),
+        not(web_platform),
         doc = "",
         doc = "[`HtmlCanvasElement`]: #only-available-on-wasm"
     )]
@@ -150,11 +150,11 @@ pub trait EventLoopExtWebSys {
     ///
     /// Unlike
     #[cfg_attr(
-        all(wasm_platform, target_feature = "exception-handling"),
+        all(web_platform, target_feature = "exception-handling"),
         doc = "`run()`"
     )]
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
@@ -166,7 +166,7 @@ pub trait EventLoopExtWebSys {
     /// event loop when switching between tabs on a single page application.
     ///
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]: EventLoop::run()"
     )]
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
@@ -327,7 +327,7 @@ impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
     }
 }
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 struct PlatformCustomCursorFuture;
 
 #[derive(Debug)]

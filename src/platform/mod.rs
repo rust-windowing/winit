@@ -14,7 +14,7 @@ pub mod orbital;
 pub mod startup_notify;
 #[cfg(any(wayland_platform, docsrs))]
 pub mod wayland;
-#[cfg(any(wasm_platform, docsrs))]
+#[cfg(any(web_platform, docsrs))]
 pub mod web;
 #[cfg(any(windows_platform, docsrs))]
 pub mod windows;

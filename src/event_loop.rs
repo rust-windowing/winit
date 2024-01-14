@@ -14,9 +14,9 @@ use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_time::{Duration, Instant};
 
 use crate::error::EventLoopError;
@@ -130,7 +130,7 @@ impl<T> EventLoopBuilder<T> {
         })
     }
 
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     pub(crate) fn allow_event_loop_recreation() {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
@@ -223,10 +223,10 @@ impl<T> EventLoop<T> {
     ///
     ///   Web applications are recommended to use
     #[cfg_attr(
-        wasm_platform,
+        web_platform,
         doc = "[`EventLoopExtWebSys::spawn()`][crate::platform::web::EventLoopExtWebSys::spawn()]"
     )]
-    #[cfg_attr(not(wasm_platform), doc = "`EventLoopExtWebSys::spawn()`")]
+    #[cfg_attr(not(web_platform), doc = "`EventLoopExtWebSys::spawn()`")]
     ///   [^1] instead of [`run()`] to avoid the need
     ///   for the Javascript exception trick, and to make it clearer that the event loop runs
     ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
@@ -236,9 +236,9 @@ impl<T> EventLoop<T> {
     ///
     /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
     /// [`run()`]: Self::run()
-    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on WASM.
+    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on Web.
     #[inline]
-    #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
+    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &EventLoopWindowTarget),

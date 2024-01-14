@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 fn main() -> Result<(), impl std::error::Error> {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
@@ -205,7 +205,7 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 fn main() {
-    panic!("Example not supported on Wasm");
+    panic!("Example not supported on Web");
 }

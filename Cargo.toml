@@ -37,7 +37,7 @@ targets = [
     "x86_64-apple-ios",
     # Android
     "aarch64-linux-android",
-    # WebAssembly
+    # Web
     "wasm32-unknown-unknown",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
