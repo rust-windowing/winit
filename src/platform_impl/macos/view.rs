@@ -34,7 +34,7 @@ use crate::{
         WindowEvent,
     },
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
-    platform::macos::{OptionAsAlt, WindowExtMacOS},
+    platform::macos::OptionAsAlt,
 };
 
 #[derive(Debug)]
@@ -141,6 +141,9 @@ pub struct ViewState {
 
     // Weak reference because the window keeps a strong reference to the view
     _ns_window: WeakId<WinitWindow>,
+
+    /// The state of the `Option` as `Alt`.
+    option_as_alt: Cell<OptionAsAlt>,
 }
 
 declare_class!(
@@ -437,7 +440,7 @@ declare_class!(
             // Get the characters from the event.
             let old_ime_state = self.ivars().ime_state.get();
             self.ivars().forward_key_to_app.set(false);
-            let event = replace_event(event, self.window().option_as_alt());
+            let event = replace_event(event, self.option_as_alt());
 
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
@@ -483,7 +486,7 @@ declare_class!(
         fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
 
-            let event = replace_event(event, self.window().option_as_alt());
+            let event = replace_event(event, self.option_as_alt());
             self.update_modifiers(&event, false);
 
             // We want to send keyboard input when we are currently in the ground state.
@@ -759,11 +762,16 @@ declare_class!(
 );
 
 impl WinitView {
-    pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self> {
+    pub(super) fn new(
+        window: &WinitWindow,
+        accepts_first_mouse: bool,
+        option_as_alt: OptionAsAlt,
+    ) -> Id<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
+            option_as_alt: Cell::new(option_as_alt),
             ..Default::default()
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
@@ -881,6 +889,14 @@ impl WinitView {
             self.ivars().modifiers.set(Modifiers::default());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
+    }
+
+    pub(super) fn set_option_as_alt(&self, value: OptionAsAlt) {
+        self.ivars().option_as_alt.set(value)
+    }
+
+    pub(super) fn option_as_alt(&self) -> OptionAsAlt {
+        self.ivars().option_as_alt.get()
     }
 
     /// Update modifiers if `event` has something different

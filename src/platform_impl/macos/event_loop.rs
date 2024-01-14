@@ -75,7 +75,7 @@ impl PanicInfo {
 #[derive(Debug)]
 pub struct EventLoopWindowTarget {
     delegate: Id<ApplicationDelegate>,
-    mtm: MainThreadMarker,
+    pub(super) mtm: MainThreadMarker,
 }
 
 impl EventLoopWindowTarget {
