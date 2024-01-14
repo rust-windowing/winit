@@ -19,26 +19,22 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
+use super::app_delegate::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
-use super::event::{code_to_key, code_to_location};
-use super::event::{lalt_pressed, ralt_pressed};
-use crate::platform_impl::scancode_to_physicalkey;
+use super::event::{
+    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
+    scancode_to_physicalkey,
+};
+use super::window::WinitWindow;
+use super::{util, DEVICE_ID};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
-        DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
-        TouchPhase, WindowEvent,
+        DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+        WindowEvent,
     },
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
     platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{create_key_event, event_mods},
-        util,
-        window::WinitWindow,
-        DEVICE_ID,
-    },
-    window::WindowId,
 };
 
 #[derive(Debug)]
@@ -207,7 +203,8 @@ declare_class!(
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                AppState::handle_redraw(WindowId(window.id()));
+                let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+                app_delegate.handle_redraw(window.id());
             }
 
             #[allow(clippy::let_unit_value)]
@@ -805,24 +802,14 @@ impl WinitView {
             .expect("view to have a window")
     }
 
-    fn window_id(&self) -> WindowId {
-        WindowId(self.window().id())
-    }
-
     fn queue_event(&self, event: WindowEvent) {
-        let event = Event::WindowEvent {
-            window_id: self.window_id(),
-            event,
-        };
-        AppState::queue_event(event);
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
-        let event = Event::DeviceEvent {
-            device_id: DEVICE_ID,
-            event,
-        };
-        AppState::queue_event(event);
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_device_event(event);
     }
 
     fn scale_factor(&self) -> f64 {

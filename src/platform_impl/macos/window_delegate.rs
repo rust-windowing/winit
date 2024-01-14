@@ -16,16 +16,15 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
+use super::app_delegate::ApplicationDelegate;
 use super::monitor::flip_window_screen_coordinates;
 use super::{
-    app_state::AppState,
     window::{get_ns_theme, WinitWindow},
     Fullscreen,
 };
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{Event, WindowEvent},
-    window::WindowId,
+    event::WindowEvent,
 };
 
 #[derive(Debug)]
@@ -446,11 +445,8 @@ impl WinitWindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        let event = Event::WindowEvent {
-            window_id: WindowId(self.ivars().window.id()),
-            event,
-        };
-        AppState::queue_event(event);
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_window_event(self.ivars().window.id(), event);
     }
 
     fn queue_static_scale_factor_changed_event(&self) {
@@ -463,7 +459,9 @@ impl WinitWindowDelegate {
         self.ivars().previous_scale_factor.set(scale_factor);
         let content_size = window.contentRectForFrameRect(window.frame()).size;
         let content_size = LogicalSize::new(content_size.width, content_size.height);
-        AppState::queue_static_scale_factor_changed_event(
+
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_static_scale_factor_changed_event(
             window.clone(),
             content_size.to_physical(scale_factor),
             scale_factor,

@@ -29,6 +29,12 @@ use objc2::{
 };
 
 use super::event::dummy_event;
+use super::{
+    app::WinitApplication,
+    app_delegate::{ApplicationDelegate, Callback},
+    monitor::{self, MonitorHandle},
+    observer::setup_control_flow_observers,
+};
 use crate::{
     error::EventLoopError,
     event::Event,
@@ -36,13 +42,6 @@ use crate::{
         ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget,
     },
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
-    platform_impl::platform::{
-        app::WinitApplication,
-        app_delegate::ApplicationDelegate,
-        app_state::{AppState, Callback},
-        monitor::{self, MonitorHandle},
-        observer::setup_control_flow_observers,
-    },
 };
 
 #[derive(Default)]
@@ -75,6 +74,7 @@ impl PanicInfo {
 
 #[derive(Debug)]
 pub struct EventLoopWindowTarget {
+    delegate: Id<ApplicationDelegate>,
     mtm: MainThreadMarker,
 }
 
@@ -110,23 +110,23 @@ impl EventLoopWindowTarget {
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
-        AppState::set_control_flow(control_flow)
+        self.delegate.set_control_flow(control_flow)
     }
 
     pub(crate) fn control_flow(&self) -> ControlFlow {
-        AppState::control_flow()
+        self.delegate.control_flow()
     }
 
     pub(crate) fn exit(&self) {
-        AppState::exit()
+        self.delegate.exit()
     }
 
     pub(crate) fn clear_exit(&self) {
-        AppState::clear_exit()
+        self.delegate.clear_exit()
     }
 
     pub(crate) fn exiting(&self) -> bool {
-        AppState::exiting()
+        self.delegate.exiting()
     }
 }
 
@@ -154,9 +154,11 @@ pub struct EventLoop<T: 'static> {
     /// We intentially don't store `WinitApplication` since we want to have
     /// the possiblity of swapping that out at some point.
     app: Id<NSApplication>,
-    /// The delegate is only weakly referenced by NSApplication, so we keep
-    /// it around here as well.
-    _delegate: Id<ApplicationDelegate>,
+    /// The application delegate that we've registered.
+    ///
+    /// The delegate is only weakly referenced by NSApplication, so we must
+    /// keep it around here as well.
+    delegate: Id<ApplicationDelegate>,
 
     // Event sender and receiver, used for EventLoopProxy.
     sender: mpsc::Sender<T>,
@@ -227,11 +229,11 @@ impl<T> EventLoop<T> {
         let (sender, receiver) = mpsc::channel();
         Ok(EventLoop {
             app,
-            _delegate: delegate,
+            delegate: delegate.clone(),
             sender,
             receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget { mtm },
+                p: EventLoopWindowTarget { delegate, mtm },
                 _marker: PhantomData,
             }),
             panic_info,
@@ -258,18 +260,18 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootWindowTarget),
     {
-        if AppState::is_running() {
+        if self.delegate.is_running() {
             return Err(EventLoopError::AlreadyRunning);
         }
 
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
-        // can (temporarily) store it within 'static global `AppState` that's
+        // can (temporarily) store it within 'static app delegate that's
         // accessible to objc delegate callbacks.
         //
         // The safety of this depends on on making sure to also clear the callback
-        // from the global `AppState` before we return from here, ensuring that
-        // we don't retain a reference beyond the real lifetime of the callback.
+        // from the app delegate before we return from here, ensuring that we don't
+        // retain a reference beyond the real lifetime of the callback.
 
         let callback = unsafe {
             mem::transmute::<
@@ -287,9 +289,9 @@ impl<T> EventLoop<T> {
             drop(callback);
 
             // # Safety
-            // We make sure to call `AppState::clear_callback` before returning
+            // We make sure to call `delegate.clear_callback` before returning
             unsafe {
-                AppState::set_callback(
+                self.delegate.set_callback(
                     weak_cb,
                     Rc::clone(&self.window_target),
                     Rc::clone(&self.receiver),
@@ -297,17 +299,18 @@ impl<T> EventLoop<T> {
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
-            // (which would leave the global `AppState` in an undefined, unsafe state)
+            // (which would leave the app delegate in an undefined, unsafe state)
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
                 // clear / normalize pump_events state
-                AppState::set_wait_timeout(None);
-                AppState::set_stop_app_before_wait(false);
-                AppState::set_stop_app_after_wait(false);
-                AppState::set_stop_app_on_redraw_requested(false);
+                self.delegate.set_wait_timeout(None);
+                self.delegate.set_stop_before_wait(false);
+                self.delegate.set_stop_after_wait(false);
+                self.delegate.set_stop_on_redraw(false);
 
-                if AppState::is_launched() {
-                    debug_assert!(!AppState::is_running());
-                    AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
+                if self.delegate.is_launched() {
+                    debug_assert!(!self.delegate.is_running());
+                    self.delegate.set_is_running(true);
+                    self.delegate.dispatch_init_events();
                 }
                 unsafe { self.app.run() };
 
@@ -320,15 +323,14 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                AppState::internal_exit()
+                self.delegate.internal_exit()
             }));
 
             // # Safety
             // This pairs up with the `unsafe` call to `set_callback` above and ensures that
-            // we always clear the application callback from the global `AppState` before
-            // returning
+            // we always clear the application callback from the app delegate before returning.
             drop(self._callback.take());
-            AppState::clear_callback();
+            self.delegate.clear_callback();
 
             if let Err(payload) = catch_result {
                 resume_unwind(payload)
@@ -344,12 +346,12 @@ impl<T> EventLoop<T> {
     {
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
-        // can (temporarily) store it within 'static global `AppState` that's
+        // can (temporarily) store it within 'static global app delegate that's
         // accessible to objc delegate callbacks.
         //
         // The safety of this depends on on making sure to also clear the callback
-        // from the global `AppState` before we return from here, ensuring that
-        // we don't retain a reference beyond the real lifetime of the callback.
+        // from the app delegate before we return from here, ensuring that we don't
+        // retain a reference beyond the real lifetime of the callback.
 
         let callback = unsafe {
             mem::transmute::<
@@ -367,11 +369,11 @@ impl<T> EventLoop<T> {
             drop(callback);
 
             // # Safety
-            // We will make sure to call `AppState::clear_callback` before returning
+            // We will make sure to call `delegate.clear_callback` before returning
             // to ensure that we don't hold on to the callback beyond its (erased)
             // lifetime
             unsafe {
-                AppState::set_callback(
+                self.delegate.set_callback(
                     weak_cb,
                     Rc::clone(&self.window_target),
                     Rc::clone(&self.receiver),
@@ -379,44 +381,45 @@ impl<T> EventLoop<T> {
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
-            // (which would leave the global `AppState` in an undefined, unsafe state)
+            // (which would leave the app delegate in an undefined, unsafe state)
             let catch_result = catch_unwind(AssertUnwindSafe(|| {
                 // As a special case, if the application hasn't been launched yet then we at least run
                 // the loop until it has fully launched.
-                if !AppState::is_launched() {
-                    debug_assert!(!AppState::is_running());
+                if !self.delegate.is_launched() {
+                    debug_assert!(!self.delegate.is_running());
 
-                    AppState::request_stop_on_launch();
+                    self.delegate.set_stop_on_launch();
                     unsafe {
                         self.app.run();
                     }
 
                     // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application has launched
-                } else if !AppState::is_running() {
+                } else if !self.delegate.is_running() {
                     // Even though the application may have been launched, it's possible we aren't running
                     // if the `EventLoop` was run before and has since exited. This indicates that
                     // we just starting to re-run the same `EventLoop` again.
-                    AppState::start_running(); // Set is_running = true + dispatch `NewEvents(Init)` + `Resumed`
+                    self.delegate.set_is_running(true);
+                    self.delegate.dispatch_init_events();
                 } else {
                     // Only run for as long as the given `Duration` allows so we don't block the external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
-                            AppState::set_wait_timeout(None);
-                            AppState::set_stop_app_before_wait(true);
+                            self.delegate.set_wait_timeout(None);
+                            self.delegate.set_stop_before_wait(true);
                         }
                         Some(duration) => {
-                            AppState::set_stop_app_before_wait(false);
+                            self.delegate.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
-                            AppState::set_wait_timeout(Some(timeout));
-                            AppState::set_stop_app_after_wait(true);
+                            self.delegate.set_wait_timeout(Some(timeout));
+                            self.delegate.set_stop_after_wait(true);
                         }
                         None => {
-                            AppState::set_wait_timeout(None);
-                            AppState::set_stop_app_before_wait(false);
-                            AppState::set_stop_app_after_wait(true);
+                            self.delegate.set_wait_timeout(None);
+                            self.delegate.set_stop_before_wait(false);
+                            self.delegate.set_stop_after_wait(true);
                         }
                     }
-                    AppState::set_stop_app_on_redraw_requested(true);
+                    self.delegate.set_stop_on_redraw(true);
                     unsafe {
                         self.app.run();
                     }
@@ -431,8 +434,8 @@ impl<T> EventLoop<T> {
                     resume_unwind(panic);
                 }
 
-                if AppState::exiting() {
-                    AppState::internal_exit();
+                if self.delegate.exiting() {
+                    self.delegate.internal_exit();
                     PumpStatus::Exit(0)
                 } else {
                     PumpStatus::Continue
@@ -441,9 +444,8 @@ impl<T> EventLoop<T> {
 
             // # Safety
             // This pairs up with the `unsafe` call to `set_callback` above and ensures that
-            // we always clear the application callback from the global `AppState` before
-            // returning
-            AppState::clear_callback();
+            // we always clear the application callback from the app delegate before returning
+            self.delegate.clear_callback();
             drop(self._callback.take());
 
             match catch_result {
@@ -456,6 +458,15 @@ impl<T> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy::new(self.sender.clone())
     }
+}
+
+pub(super) fn stop_app_immediately(app: &NSApplication) {
+    autoreleasepool(|_| {
+        app.stop(None);
+        // To stop event loop immediately, we need to post some event here.
+        // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
+        app.postEvent_atStart(&dummy_event().unwrap(), true);
+    });
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -478,10 +489,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 panic_info.set_panic(e);
             }
             let app = NSApplication::sharedApplication(mtm);
-            app.stop(None);
-            // Posting a dummy event to get `stop` to take effect immediately.
-            // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-            app.postEvent_atStart(&dummy_event().unwrap(), true);
+            stop_app_immediately(&app);
             None
         }
     }

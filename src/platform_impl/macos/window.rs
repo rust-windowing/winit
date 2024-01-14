@@ -5,29 +5,6 @@ use std::f64;
 use std::ops;
 use std::sync::{Mutex, MutexGuard};
 
-use crate::{
-    cursor::Cursor,
-    dpi::{
-        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
-    },
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::WindowEvent,
-    icon::Icon,
-    platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform_impl::platform::{
-        app_state::AppState,
-        event_loop::EventLoopWindowTarget,
-        ffi,
-        monitor::{self, MonitorHandle, VideoModeHandle},
-        view::WinitView,
-        window_delegate::WinitWindowDelegate,
-        Fullscreen, OsError,
-    },
-    window::{
-        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowId as RootWindowId, WindowLevel,
-    },
-};
 use core_graphics::display::{CGDisplay, CGPoint};
 use icrate::AppKit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
@@ -50,10 +27,32 @@ use log::trace;
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
+use super::app_delegate::ApplicationDelegate;
 use super::cursor::cursor_from_icon;
-use super::ffi::kCGFloatingWindowLevel;
-use super::ffi::{kCGNormalWindowLevel, CGSMainConnectionID, CGSSetWindowBackgroundBlurRadius};
+use super::event_loop::EventLoopWindowTarget;
+use super::ffi::{
+    self, kCGFloatingWindowLevel, kCGNormalWindowLevel, CGSMainConnectionID,
+    CGSSetWindowBackgroundBlurRadius,
+};
+use super::monitor::{self, MonitorHandle, VideoModeHandle};
 use super::monitor::{flip_window_screen_coordinates, get_display_id};
+use super::view::WinitView;
+use super::window_delegate::WinitWindowDelegate;
+use super::{Fullscreen, OsError};
+use crate::{
+    cursor::Cursor,
+    dpi::{
+        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
+    },
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::WindowEvent,
+    icon::Icon,
+    platform::macos::{OptionAsAlt, WindowExtMacOS},
+    window::{
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
+    },
+};
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -616,7 +615,8 @@ impl WinitWindow {
     }
 
     pub fn request_redraw(&self) {
-        AppState::queue_redraw(RootWindowId(self.id()));
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_redraw(self.id());
     }
 
     #[inline]
