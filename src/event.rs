@@ -455,6 +455,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS** and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled with [`WindowExtIOS::recognize_pinch_gesture`]
     PinchGesture {
         device_id: DeviceId,
         delta: f64,
@@ -478,6 +479,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled with [`WindowExtIOS::recognize_doubletap_gesture`]
     DoubleTapGesture { device_id: DeviceId },
 
     /// Two-finger rotation gesture.
@@ -488,6 +490,7 @@ pub enum WindowEvent {
     /// ## Platform-specific
     ///
     /// - Only available on **macOS** and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled with [`WindowExtIOS::recognize_rotation_gesture`]
     RotationGesture {
         device_id: DeviceId,
         delta: f32,
