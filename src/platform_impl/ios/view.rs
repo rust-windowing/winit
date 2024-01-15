@@ -17,12 +17,12 @@ use super::uikit::{
 use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
-    event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
+    event::{Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::ValidOrientations,
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
-        DeviceId, Fullscreen,
+        Fullscreen, DEVICE_ID,
     },
     window::{WindowAttributes, WindowId as RootWindowId},
 };
@@ -199,7 +199,6 @@ impl WinitView {
 
     fn handle_touches(&self, touches: &NSSet<UITouch>) {
         let window = self.window().unwrap();
-        let uiscreen = window.screen();
         let mut touch_events = Vec::new();
         let os_supports_force = app_state::os_capabilities().force_touch;
         for touch in touches {
@@ -252,9 +251,7 @@ impl WinitView {
             touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Touch(Touch {
-                    device_id: RootDeviceId(DeviceId {
-                        uiscreen: Id::as_ptr(&uiscreen),
-                    }),
+                    device_id: DEVICE_ID,
                     id: touch_id,
                     location: physical_location,
                     force,
