@@ -31,20 +31,22 @@ unsafe impl Encode for UIGestureRecognizer {
 }
 
 // https://developer.apple.com/documentation/uikit/uigesturerecognizer/state
-#[derive(Debug)]
-#[allow(dead_code)]
-#[repr(isize)]
-pub enum UIGestureRecognizerState {
-    Possible = 0,
-    Began,
-    Changed,
-    Ended,
-    Cancelled,
-    Failed,
-}
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIGestureRecognizerState(NSInteger);
 
 unsafe impl Encode for UIGestureRecognizerState {
     const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[allow(dead_code)]
+impl UIGestureRecognizerState {
+    pub const Possible: Self = Self(0);
+    pub const Began: Self = Self(1);
+    pub const Changed: Self = Self(2);
+    pub const Ended: Self = Self(3);
+    pub const Cancelled: Self = Self(4);
+    pub const Failed: Self = Self(5);
 }
 
 // https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer
