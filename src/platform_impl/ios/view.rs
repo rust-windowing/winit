@@ -294,10 +294,8 @@ impl WinitView {
                 self.addGestureRecognizer(pinch.as_super());
                 self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
             }
-        } else {
-            if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
-                self.removeGestureRecognizer(&recognizer);
-            }
+        } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
         }
     }
 
