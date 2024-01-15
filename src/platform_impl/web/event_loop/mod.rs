@@ -12,8 +12,8 @@ pub(crate) mod runner;
 mod state;
 mod window_target;
 
-pub use proxy::EventLoopProxy;
-pub use window_target::EventLoopWindowTarget;
+pub(crate) use proxy::EventLoopProxy;
+pub(crate) use window_target::{EventLoopWindowTarget, OwnedDisplayHandle};
 
 pub struct EventLoop<T: 'static> {
     elw: RootEventLoopWindowTarget,

@@ -902,12 +902,82 @@ impl EventLoopWindowTarget {
         x11_or_wayland!(match self; Self(evlp) => evlp.exiting())
     }
 
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(conn) => OwnedDisplayHandle::X(conn.x_connection().clone()),
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => OwnedDisplayHandle::Wayland(conn.connection.clone()),
+        }
+    }
+
     fn set_exit_code(&self, code: i32) {
         x11_or_wayland!(match self; Self(evlp) => evlp.set_exit_code(code))
     }
 
     fn exit_code(&self) -> Option<i32> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub(crate) enum OwnedDisplayHandle {
+    #[cfg(x11_platform)]
+    X(Arc<XConnection>),
+    #[cfg(wayland_platform)]
+    Wayland(wayland_client::Connection),
+}
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(xconn) => {
+                let mut xlib_handle = rwh_05::XlibDisplayHandle::empty();
+                xlib_handle.display = xconn.display.cast();
+                xlib_handle.screen = xconn.default_screen_index() as _;
+                xlib_handle.into()
+            }
+
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => {
+                use sctk::reexports::client::Proxy;
+
+                let mut wayland_handle = rwh_05::WaylandDisplayHandle::empty();
+                wayland_handle.display = conn.display().id().as_ptr() as *mut _;
+                wayland_handle.into()
+            }
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use std::ptr::NonNull;
+
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(xconn) => Ok(rwh_06::XlibDisplayHandle::new(
+                NonNull::new(xconn.display.cast()),
+                xconn.default_screen_index() as _,
+            )
+            .into()),
+
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => {
+                use sctk::reexports::client::Proxy;
+
+                Ok(rwh_06::WaylandDisplayHandle::new(
+                    NonNull::new(conn.display().id().as_ptr().cast()).unwrap(),
+                )
+                .into())
+            }
+        }
     }
 }
 
