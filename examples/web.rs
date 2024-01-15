@@ -11,18 +11,18 @@ pub fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new().unwrap();
 
     let builder = WindowBuilder::new().with_title("A fantastic window!");
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     let builder = {
         use winit::platform::web::WindowBuilderExtWebSys;
         builder.with_append(true)
     };
     let window = builder.build(&event_loop).unwrap();
 
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     let log_list = wasm::insert_canvas_and_create_log_list(&window);
 
     event_loop.run(move |event, elwt| {
-        #[cfg(wasm_platform)]
+        #[cfg(web_platform)]
         wasm::log_event(&log_list, &event);
 
         match event {
@@ -57,7 +57,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 mod wasm {
     use std::num::NonZeroU32;
 

@@ -2,8 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
-use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
+
+use web_sys::Element;
 
 use super::runner::{EventWrapper, Execution};
 use super::{
@@ -41,28 +42,17 @@ impl Clone for ModifiersShared {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+#[derive(Clone)]
+pub struct EventLoopWindowTarget {
     pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
-    _marker: PhantomData<T>,
 }
 
-impl<T> Clone for EventLoopWindowTarget<T> {
-    fn clone(&self) -> Self {
-        Self {
-            runner: self.runner.clone(),
-            modifiers: self.modifiers.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn new() -> Self {
         Self {
             runner: runner::Shared::new(),
             modifiers: ModifiersShared::default(),
-            _marker: PhantomData,
         }
     }
 
@@ -117,6 +107,25 @@ impl<T> EventLoopWindowTarget<T> {
                 });
             }
         });
+
+        // It is possible that at this point the canvas has
+        // been focused before the callback can be called.
+        let focused = canvas
+            .document()
+            .active_element()
+            .filter(|element| {
+                let canvas: &Element = canvas.raw();
+                element == canvas
+            })
+            .is_some();
+
+        if focused {
+            canvas.has_focus.set(true);
+            self.runner.send_event(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::Focused(true),
+            })
+        }
 
         let runner = self.runner.clone();
         let modifiers = self.modifiers.clone();

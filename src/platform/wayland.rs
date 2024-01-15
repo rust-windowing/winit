@@ -12,7 +12,7 @@ pub trait EventLoopWindowTargetExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()

@@ -6,12 +6,12 @@ use icrate::AppKit::{
     NSEventTypeOtherMouseDown, NSEventTypeOtherMouseDragged, NSEventTypeOtherMouseUp,
     NSEventTypeRightMouseDown, NSEventTypeRightMouseDragged, NSEventTypeRightMouseUp, NSResponder,
 };
-use icrate::Foundation::NSObject;
+use icrate::Foundation::{MainThreadMarker, NSObject};
 use objc2::{declare_class, msg_send, mutability, ClassType, DeclaredClass};
 
+use super::app_delegate::ApplicationDelegate;
 use super::event::flags_contains;
-use super::{app_state::AppState, DEVICE_ID};
-use crate::event::{DeviceEvent, ElementState, Event};
+use crate::event::{DeviceEvent, ElementState};
 
 declare_class!(
     pub(super) struct WinitApplication;
@@ -43,14 +43,15 @@ declare_class!(
                     key_window.sendEvent(event);
                 }
             } else {
-                maybe_dispatch_device_event(event);
+                let delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+                maybe_dispatch_device_event(&delegate, event);
                 unsafe { msg_send![super(self), sendEvent: event] }
             }
         }
     }
 );
 
-fn maybe_dispatch_device_event(event: &NSEvent) {
+fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) {
     let event_type = unsafe { event.r#type() };
     #[allow(non_upper_case_globals)]
     match event_type {
@@ -62,45 +63,37 @@ fn maybe_dispatch_device_event(event: &NSEvent) {
             let delta_y = unsafe { event.deltaY() } as f64;
 
             if delta_x != 0.0 {
-                queue_device_event(DeviceEvent::Motion {
+                delegate.queue_device_event(DeviceEvent::Motion {
                     axis: 0,
                     value: delta_x,
                 });
             }
 
             if delta_y != 0.0 {
-                queue_device_event(DeviceEvent::Motion {
+                delegate.queue_device_event(DeviceEvent::Motion {
                     axis: 1,
                     value: delta_y,
                 })
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                queue_device_event(DeviceEvent::MouseMotion {
+                delegate.queue_device_event(DeviceEvent::MouseMotion {
                     delta: (delta_x, delta_y),
                 });
             }
         }
         NSEventTypeLeftMouseDown | NSEventTypeRightMouseDown | NSEventTypeOtherMouseDown => {
-            queue_device_event(DeviceEvent::Button {
+            delegate.queue_device_event(DeviceEvent::Button {
                 button: unsafe { event.buttonNumber() } as u32,
                 state: ElementState::Pressed,
             });
         }
         NSEventTypeLeftMouseUp | NSEventTypeRightMouseUp | NSEventTypeOtherMouseUp => {
-            queue_device_event(DeviceEvent::Button {
+            delegate.queue_device_event(DeviceEvent::Button {
                 button: unsafe { event.buttonNumber() } as u32,
                 state: ElementState::Released,
             });
         }
         _ => (),
     }
-}
-
-fn queue_device_event(event: DeviceEvent) {
-    let event = Event::DeviceEvent {
-        device_id: DEVICE_ID,
-        event,
-    };
-    AppState::queue_event(event);
 }

@@ -23,7 +23,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     fn spawn_child_window(
         parent: &Window,
-        event_loop: &EventLoopWindowTarget<()>,
+        event_loop: &EventLoopWindowTarget,
         windows: &mut HashMap<WindowId, Window>,
     ) {
         let parent = parent.raw_window_handle().unwrap();

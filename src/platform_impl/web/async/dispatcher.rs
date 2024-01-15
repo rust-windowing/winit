@@ -1,11 +1,11 @@
 use super::super::main_thread::MainThreadMarker;
-use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
+use super::{channel, Receiver, Sender, Wrapper};
 use std::{
     cell::Ref,
     sync::{Arc, Condvar, Mutex},
 };
 
-pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
+pub struct Dispatcher<T: 'static>(Wrapper<true, T, Sender<Closure<T>>, Closure<T>>);
 
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
@@ -85,8 +85,8 @@ impl<T> Dispatcher<T> {
 }
 
 pub struct DispatchRunner<T: 'static> {
-    wrapper: Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>,
-    receiver: AsyncReceiver<Closure<T>>,
+    wrapper: Wrapper<true, T, Sender<Closure<T>>, Closure<T>>,
+    receiver: Receiver<Closure<T>>,
 }
 
 impl<T> DispatchRunner<T> {

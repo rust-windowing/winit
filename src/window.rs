@@ -531,10 +531,7 @@ impl WindowBuilder {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
-    pub fn build<T: 'static>(
-        self,
-        window_target: &EventLoopWindowTarget<T>,
-    ) -> Result<Window, OsError> {
+    pub fn build(self, window_target: &EventLoopWindowTarget) -> Result<Window, OsError> {
         let window =
             platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)?;
         window.maybe_queue_on_main(|w| w.request_redraw());
@@ -558,7 +555,7 @@ impl Window {
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
     #[inline]
-    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
         builder.build(event_loop)
     }

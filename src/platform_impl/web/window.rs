@@ -28,8 +28,8 @@ pub struct Inner {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        target: &EventLoopWindowTarget,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
@@ -39,7 +39,6 @@ impl Window {
         let document = target.runner.document();
         let canvas = backend::Canvas::create(
             target.runner.main_thread(),
-            target.runner.weak(),
             id,
             window.clone(),
             document.clone(),

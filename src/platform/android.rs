@@ -30,7 +30,7 @@ impl WindowExtAndroid for Window {
     }
 }
 
-impl<T> EventLoopWindowTargetExtAndroid for EventLoopWindowTarget<T> {}
+impl EventLoopWindowTargetExtAndroid for EventLoopWindowTarget {}
 
 /// Additional methods on [`WindowBuilder`] that are specific to Android.
 pub trait WindowBuilderExtAndroid {}

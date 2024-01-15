@@ -24,10 +24,7 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build<T>(
-        cursor: OnlyCursorImageBuilder,
-        _: &EventLoopWindowTarget<T>,
-    ) -> CustomCursor {
+    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget) -> CustomCursor {
         Self(cursor_from_image(&cursor.0))
     }
 }

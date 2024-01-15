@@ -3,7 +3,6 @@ mod util;
 
 mod app;
 mod app_delegate;
-mod app_state;
 mod cursor;
 mod event;
 mod event_loop;
@@ -23,7 +22,8 @@ pub(crate) use self::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
-    window::{PlatformSpecificWindowBuilderAttributes, WindowId},
+    window::WindowId,
+    window_delegate::PlatformSpecificWindowBuilderAttributes,
 };
 use crate::event::DeviceId as RootDeviceId;
 

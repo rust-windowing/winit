@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.29.9"
+version = "0.29.10"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -37,7 +37,7 @@ targets = [
     "x86_64-apple-ios",
     # Android
     "aarch64-linux-android",
-    # WebAssembly
+    # Web
     "wasm32-unknown-unknown",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -192,8 +192,8 @@ x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsaf
 xkbcommon-dl = "0.4.0"
 
 [target.'cfg(target_os = "redox")'.dependencies]
-orbclient = { version = "0.3.42", default-features = false }
-redox_syscall = "0.3"
+orbclient = { version = "0.3.47", default-features = false }
+redox_syscall = "0.4.1"
 
 [target.'cfg(target_family = "wasm")'.dependencies.web_sys]
 package = "web-sys"
@@ -205,6 +205,7 @@ features = [
     'console',
     'CssStyleDeclaration',
     'Document',
+    'DomException',
     'DomRect',
     'DomRectReadOnly',
     'Element',
@@ -240,11 +241,15 @@ features = [
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-atomic-waker = "1"
 js-sys = "0.3.64"
+pin-project = "1"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-time = "0.2"
+web-time = "1"
+
+[target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
+atomic-waker = "1"
+concurrent-queue = { version = "2", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_log = "1"

@@ -388,7 +388,7 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtMacOS for EventLoopWindowTarget {
     fn hide_application(&self) {
         self.p.hide_application()
     }

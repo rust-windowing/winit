@@ -158,7 +158,7 @@ pub(crate) enum ProcResult {
 pub struct EventLoop<T: 'static> {
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
-    window_target: RootELW<T>,
+    window_target: RootELW,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -178,11 +178,10 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     thread_id: u32,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
-    _marker: PhantomData<T>,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -223,7 +222,6 @@ impl<T: 'static> EventLoop<T> {
                     thread_id,
                     thread_msg_target,
                     runner_shared,
-                    _marker: PhantomData,
                 },
                 _marker: PhantomData,
             },
@@ -231,20 +229,20 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn window_target(&self) -> &RootELW<T> {
+    pub fn window_target(&self) -> &RootELW {
         &self.window_target
     }
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -309,7 +307,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -529,7 +527,7 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
@@ -983,7 +981,7 @@ unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
+pub(super) unsafe extern "system" fn public_window_callback(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
@@ -994,7 +992,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
             let createstruct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
-            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>) };
+            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_>) };
 
             let result = match unsafe { initdata.on_nccreate(window) } {
                 Some(userdata) => unsafe {
@@ -1012,7 +1010,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
         (_, WM_CREATE) => unsafe {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
             let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+            let initdata = &mut *(initdata as *mut InitData<'_>);
 
             initdata.on_create();
             return DefWindowProcW(window, msg, wparam, lparam);

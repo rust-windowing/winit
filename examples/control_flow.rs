@@ -1,9 +1,9 @@
 #![allow(clippy::single_match)]
 
 use std::thread;
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use std::time;
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_time as time;
 
 use simple_logger::SimpleLogger;

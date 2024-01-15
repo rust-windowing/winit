@@ -11,12 +11,14 @@ Unreleased` header.
 
 # Unreleased
 
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
   - Add `CustomCursor`
   - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
   - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
+  - Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors from other `CustomCursor`s.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
@@ -30,6 +32,11 @@ Unreleased` header.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+
+# 0.29.10
+
+- On Web, account for canvas being focused already before event loop starts.
+- On Web, increase cursor position accuracy.
 
 # 0.29.9
 

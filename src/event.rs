@@ -34,13 +34,13 @@
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use std::time::Instant;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_time::Instant;
 
 use crate::error::ExternalError;

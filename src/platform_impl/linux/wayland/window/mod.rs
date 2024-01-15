@@ -81,8 +81,8 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop_window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop_window_target: &EventLoopWindowTarget,
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {

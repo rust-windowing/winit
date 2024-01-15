@@ -19,26 +19,22 @@ use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
+use super::app_delegate::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
-use super::event::{code_to_key, code_to_location};
-use super::event::{lalt_pressed, ralt_pressed};
-use crate::platform_impl::scancode_to_physicalkey;
+use super::event::{
+    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
+    scancode_to_physicalkey,
+};
+use super::window::WinitWindow;
+use super::{util, DEVICE_ID};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
-        DeviceEvent, ElementState, Event, Ime, Modifiers, MouseButton, MouseScrollDelta,
-        TouchPhase, WindowEvent,
+        DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+        WindowEvent,
     },
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
-    platform::macos::{OptionAsAlt, WindowExtMacOS},
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{create_key_event, event_mods},
-        util,
-        window::WinitWindow,
-        DEVICE_ID,
-    },
-    window::WindowId,
+    platform::macos::OptionAsAlt,
 };
 
 #[derive(Debug)]
@@ -145,6 +141,9 @@ pub struct ViewState {
 
     // Weak reference because the window keeps a strong reference to the view
     _ns_window: WeakId<WinitWindow>,
+
+    /// The state of the `Option` as `Alt`.
+    option_as_alt: Cell<OptionAsAlt>,
 }
 
 declare_class!(
@@ -207,7 +206,8 @@ declare_class!(
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                AppState::handle_redraw(WindowId(window.id()));
+                let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+                app_delegate.handle_redraw(window.id());
             }
 
             #[allow(clippy::let_unit_value)]
@@ -440,7 +440,7 @@ declare_class!(
             // Get the characters from the event.
             let old_ime_state = self.ivars().ime_state.get();
             self.ivars().forward_key_to_app.set(false);
-            let event = replace_event(event, self.window().option_as_alt());
+            let event = replace_event(event, self.option_as_alt());
 
             // The `interpretKeyEvents` function might call
             // `setMarkedText`, `insertText`, and `doCommandBySelector`.
@@ -486,7 +486,7 @@ declare_class!(
         fn key_up(&self, event: &NSEvent) {
             trace_scope!("keyUp:");
 
-            let event = replace_event(event, self.window().option_as_alt());
+            let event = replace_event(event, self.option_as_alt());
             self.update_modifiers(&event, false);
 
             // We want to send keyboard input when we are currently in the ground state.
@@ -762,11 +762,16 @@ declare_class!(
 );
 
 impl WinitView {
-    pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self> {
+    pub(super) fn new(
+        window: &WinitWindow,
+        accepts_first_mouse: bool,
+        option_as_alt: OptionAsAlt,
+    ) -> Id<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
+            option_as_alt: Cell::new(option_as_alt),
             ..Default::default()
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
@@ -805,24 +810,14 @@ impl WinitView {
             .expect("view to have a window")
     }
 
-    fn window_id(&self) -> WindowId {
-        WindowId(self.window().id())
-    }
-
     fn queue_event(&self, event: WindowEvent) {
-        let event = Event::WindowEvent {
-            window_id: self.window_id(),
-            event,
-        };
-        AppState::queue_event(event);
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
-        let event = Event::DeviceEvent {
-            device_id: DEVICE_ID,
-            event,
-        };
-        AppState::queue_event(event);
+        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
+        app_delegate.queue_device_event(event);
     }
 
     fn scale_factor(&self) -> f64 {
@@ -894,6 +889,14 @@ impl WinitView {
             self.ivars().modifiers.set(Modifiers::default());
             self.queue_event(WindowEvent::ModifiersChanged(self.ivars().modifiers.get()));
         }
+    }
+
+    pub(super) fn set_option_as_alt(&self, value: OptionAsAlt) {
+        self.ivars().option_as_alt.set(value)
+    }
+
+    pub(super) fn option_as_alt(&self) -> OptionAsAlt {
+        self.ivars().option_as_alt.get()
     }
 
     /// Update modifiers if `event` has something different
