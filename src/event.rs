@@ -461,7 +461,7 @@ pub enum WindowEvent {
         phase: TouchPhase,
     },
 
-    /// Smart magnification event.
+    /// Double tap gesture.
     ///
     /// On a Mac, smart magnification is triggered by a double tap with two fingers
     /// on the trackpad and is commonly used to zoom on a certain object
@@ -480,7 +480,7 @@ pub enum WindowEvent {
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     DoubleTapGesture { device_id: DeviceId },
 
-    /// Touchpad rotation event with two-finger rotation gesture.
+    /// Two-finger rotation gesture.
     ///
     /// Positive delta values indicate rotation counterclockwise and
     /// negative delta values indicate rotation clockwise.
