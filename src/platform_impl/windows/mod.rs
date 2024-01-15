@@ -8,7 +8,8 @@ use windows_sys::Win32::{
 
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
     keyboard::{physicalkey_to_scancode, scancode_to_physicalkey},

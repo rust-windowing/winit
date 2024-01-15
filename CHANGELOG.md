@@ -30,6 +30,7 @@ Unreleased` header.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
 
 # 0.29.10
 
