@@ -288,12 +288,16 @@ impl WinitView {
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        if should_recognize && self.ivars().pinch_gesture_recognizer.borrow().is_none() {
-            let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
-            self.addGestureRecognizer(pinch.as_super());
-            self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
-        } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
-            self.removeGestureRecognizer(&recognizer);
+        if should_recognize {
+            if self.ivars().pinch_gesture_recognizer.borrow().is_none() {
+                let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
+                self.addGestureRecognizer(pinch.as_super());
+                self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
+            }
+        } else {
+            if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
+                self.removeGestureRecognizer(&recognizer);
+            }
         }
     }
 
