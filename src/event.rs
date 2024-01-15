@@ -447,7 +447,7 @@ pub enum WindowEvent {
         button: MouseButton,
     },
 
-    /// Two-finger pinch gesture, often use for magnification.
+    /// Two-finger pinch gesture, often used for magnification.
     ///
     /// Positive delta values indicate magnification (zooming in) and
     /// negative delta values indicate shrinking (zooming out).

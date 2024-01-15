@@ -205,7 +205,7 @@ declare_class!(
             let window = self.window().unwrap();
             let uiscreen = window.screen();
 
-            if matches!(recognizer.state(), UIGestureRecognizerState::Ended) {
+            if recognizer.state() == UIGestureRecognizerState::Ended {
                 let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::DoubleTapGesture {
@@ -309,11 +309,9 @@ impl WinitView {
     pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         if should_recognize && self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
             let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
-            unsafe {
-                let _: () = msg_send![&tap, setNumberOfTapsRequired: 2_u64];
-                let _: () = msg_send![&tap, setNumberOfTouchesRequired: 1_u64];
-            }
-            self.addGestureRecognizer(tap.as_super());
+            tap.setNumberOfTapsRequired(2);
+            tap.setNumberOfTouchesRequired(1);
+            self.addGestureRecognizer(&tap);
             self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
         } else if let Some(recognizer) = self.ivars().doubletap_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
