@@ -1,9 +1,12 @@
 use crate::platform_impl::platform::view::WinitView;
 use icrate::Foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
-use objc2::encode::{Encode, Encoding};
-use objc2::rc::Id;
-use objc2::runtime::Sel;
-use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
+use objc2::{
+    encode::{Encode, Encoding},
+    extern_class, extern_methods, msg_send_id, mutability,
+    rc::Id,
+    runtime::Sel,
+    ClassType,
+};
 
 // https://developer.apple.com/documentation/uikit/uigesturerecognizer
 extern_class!(
