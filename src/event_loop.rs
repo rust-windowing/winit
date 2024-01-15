@@ -409,6 +409,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
 /// - A reference-counted pointer to the underlying type.
 #[derive(Clone)]
 pub struct OwnedDisplayHandle {
+    #[cfg_attr(not(any(feature = "rwh_05", feature = "rwh_06")), allow(dead_code))]
     platform: platform_impl::OwnedDisplayHandle,
 }
 

@@ -4,7 +4,6 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::ptr::NonNull;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::VecDeque, env, fmt};
@@ -958,6 +957,8 @@ impl OwnedDisplayHandle {
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use std::ptr::NonNull;
+
         match self {
             #[cfg(x11_platform)]
             Self::X(xconn) => Ok(rwh_06::XlibDisplayHandle::new(
