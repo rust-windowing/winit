@@ -19,7 +19,8 @@ use std::fmt;
 pub(crate) use self::{
     event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra},
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
     window::WindowId,

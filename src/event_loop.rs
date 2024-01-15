@@ -367,6 +367,15 @@ impl EventLoopWindowTarget {
     pub fn exiting(&self) -> bool {
         self.p.exiting()
     }
+
+    /// Gets a persistent reference to the underlying platform display.
+    ///
+    /// See the [`OwnedDisplayHandle`] type for more information.
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle {
+            platform: self.p.owned_display_handle(),
+        }
+    }
 }
 
 #[cfg(feature = "rwh_06")]
@@ -383,6 +392,51 @@ unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.p.raw_display_handle_rwh_05()
+    }
+}
+
+/// A proxy for the underlying display handle.
+///
+/// The purpose of this type is to provide a cheaply clonable handle to the underlying
+/// display handle. This is often used by graphics APIs to connect to the underlying APIs.
+/// It is difficult to keep a handle to the [`EventLoop`] type or the [`EventLoopWindowTarget`]
+/// type. In contrast, this type involves no lifetimes and can be persisted for as long as
+/// needed.
+///
+/// For all platforms, this is one of the following:
+///
+/// - A zero-sized type that is likely optimized out.
+/// - A reference-counted pointer to the underlying type.
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    platform: platform_impl::OwnedDisplayHandle,
+}
+
+impl fmt::Debug for OwnedDisplayHandle {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OwnedDisplayHandle").finish_non_exhaustive()
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
+    #[inline]
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.platform.raw_display_handle_rwh_06()?;
+
+        // SAFETY: The underlying display handle should be safe.
+        let handle = unsafe { rwh_06::DisplayHandle::borrow_raw(raw) };
+
+        Ok(handle)
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawDisplayHandle for OwnedDisplayHandle {
+    #[inline]
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
+        self.platform.raw_display_handle_rwh_05()
     }
 }
 

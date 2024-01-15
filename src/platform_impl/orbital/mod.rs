@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+};
 mod event_loop;
 
 pub use self::window::Window;
