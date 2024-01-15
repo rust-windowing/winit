@@ -30,6 +30,10 @@ Unreleased` header.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+
+# 0.29.10
+
+- On Web, account for canvas being focused already before event loop starts.
 - On Web, increase cursor position accuracy.
 
 # 0.29.9
