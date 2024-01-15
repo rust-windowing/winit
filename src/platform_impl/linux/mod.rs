@@ -921,6 +921,7 @@ impl EventLoopWindowTarget {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub(crate) enum OwnedDisplayHandle {
     #[cfg(x11_platform)]
     X(Arc<XConnection>),
