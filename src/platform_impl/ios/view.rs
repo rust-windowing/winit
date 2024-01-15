@@ -173,7 +173,6 @@ declare_class!(
         #[method(pinchGesture:)]
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let window = self.window().unwrap();
-            let uiscreen = window.screen();
 
             let phase = match recognizer.state() {
                 UIGestureRecognizerState::Began => TouchPhase::Started,
@@ -188,9 +187,7 @@ declare_class!(
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
-                    device_id: RootDeviceId(DeviceId {
-                        uiscreen: Id::as_ptr(&uiscreen),
-                    }),
+                    device_id: DEVICE_ID,
                     delta: recognizer.velocity(),
                     phase,
                 },
@@ -203,15 +200,12 @@ declare_class!(
         #[method(doubleTapGesture:)]
         fn double_tap_gesture(&self, recognizer: &UITapGestureRecognizer) {
             let window = self.window().unwrap();
-            let uiscreen = window.screen();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
                 let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::DoubleTapGesture {
-                        device_id: RootDeviceId(DeviceId {
-                            uiscreen: Id::as_ptr(&uiscreen),
-                        }),
+                        device_id: DEVICE_ID,
                     },
                 });
 
@@ -223,7 +217,6 @@ declare_class!(
         #[method(rotationGesture:)]
         fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
             let window = self.window().unwrap();
-            let uiscreen = window.screen();
 
             let phase = match recognizer.state() {
                 UIGestureRecognizerState::Began => TouchPhase::Started,
@@ -238,9 +231,7 @@ declare_class!(
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
-                    device_id: RootDeviceId(DeviceId {
-                        uiscreen: Id::as_ptr(&uiscreen),
-                    }),
+                    device_id: DEVICE_ID,
                     delta: recognizer.velocity() as f32,
                     phase,
                 },
