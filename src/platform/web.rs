@@ -39,7 +39,7 @@ use web_sys::HtmlCanvasElement;
 
 use crate::cursor::CustomCursorBuilder;
 use crate::event::Event;
-use crate::event_loop::{EventLoop, EventLoopWindowTarget};
+use crate::event_loop::{ActiveEventLoop, EventLoop, MaybeActiveEventLoop};
 #[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
@@ -172,21 +172,22 @@ pub trait EventLoopExtWebSys {
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: 'static + FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn<F>(self, event_handler: F)
+    fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: 'static + FnMut(Event<Self::UserEvent>, ActiveEventLoop<'_>),
     {
-        self.event_loop.spawn(event_handler)
+        self.event_loop
+            .spawn(move |event, inner| event_handler(event, ActiveEventLoop::new(inner)))
     }
 }
 
-pub trait EventLoopWindowTargetExtWebSys {
+pub trait ActiveEventLoopExtWebSys {
     /// Sets the strategy for [`ControlFlow::Poll`].
     ///
     /// See [`PollStrategy`].
@@ -202,15 +203,15 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
+impl ActiveEventLoopExtWebSys for ActiveEventLoop<'_> {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
-        self.p.set_poll_strategy(strategy);
+        self.inner.set_poll_strategy(strategy);
     }
 
     #[inline]
     fn poll_strategy(&self) -> PollStrategy {
-        self.p.poll_strategy()
+        self.inner.poll_strategy()
     }
 }
 
@@ -315,14 +316,17 @@ impl Error for BadAnimation {}
 pub trait CustomCursorBuilderExtWebSys {
     /// Async version of [`CustomCursorBuilder::build()`] which waits until the
     /// cursor has completely finished loading.
-    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture;
+    fn build_async<'a>(self, window_target: impl MaybeActiveEventLoop<'a>) -> CustomCursorFuture;
 }
 
 impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
-    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture {
+    fn build_async<'a>(
+        self,
+        mut window_target: impl MaybeActiveEventLoop<'a>,
+    ) -> CustomCursorFuture {
         CustomCursorFuture(PlatformCustomCursor::build_async(
             self.inner,
-            &window_target.p,
+            window_target.__inner(),
         ))
     }
 }

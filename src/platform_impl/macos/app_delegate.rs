@@ -16,10 +16,10 @@ use super::event_loop::{stop_app_immediately, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::util::Never;
 use super::window::WinitWindow;
-use super::{menu, WindowId, DEVICE_ID};
+use super::{menu, EventLoopWindowTarget, WindowId, DEVICE_ID};
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget};
+use crate::event_loop::ControlFlow;
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug, Default)]
@@ -161,7 +161,7 @@ impl ApplicationDelegate {
     pub unsafe fn set_callback<T>(
         &self,
         callback: Weak<Callback<T>>,
-        window_target: Rc<RootWindowTarget>,
+        window_target: Rc<EventLoopWindowTarget>,
         receiver: Rc<mpsc::Receiver<T>>,
     ) {
         *self.ivars().callback.borrow_mut() = Some(Box::new(EventLoopHandler {
@@ -501,11 +501,11 @@ trait EventHandler: fmt::Debug {
     fn handle_user_events(&mut self);
 }
 
-pub(super) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>;
+pub(super) type Callback<T> = RefCell<dyn FnMut(Event<T>, &EventLoopWindowTarget)>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
-    window_target: Rc<RootWindowTarget>,
+    window_target: Rc<EventLoopWindowTarget>,
     receiver: Rc<mpsc::Receiver<T>>,
 }
 
@@ -521,7 +521,10 @@ impl<T> fmt::Debug for EventLoopHandler<T> {
 impl<T> EventLoopHandler<T> {
     fn with_callback<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget)>),
+        F: FnOnce(
+            &mut EventLoopHandler<T>,
+            RefMut<'_, dyn FnMut(Event<T>, &EventLoopWindowTarget)>,
+        ),
     {
         // `NSApplication` and our app delegate are global state and so it's possible
         // that we could get a delegate callback after the application has exit an

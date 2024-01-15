@@ -21,10 +21,10 @@ use super::{
     Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
+use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
-    event_loop::EventLoopWindowTarget as RootELW,
     keyboard::ModifiersState,
     platform_impl::platform::common::{keymap, xkb_state::KbdState},
 };
@@ -44,7 +44,7 @@ pub(super) struct EventProcessor {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: ExtensionInformation,
     pub(super) xkbext: ExtensionInformation,
-    pub(super) target: Rc<RootELW>,
+    pub(super) target: Rc<PlatformEventLoopWindowTarget>,
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,

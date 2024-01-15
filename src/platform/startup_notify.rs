@@ -24,7 +24,7 @@
 use std::env;
 
 use crate::error::NotSupportedError;
-use crate::event_loop::{AsyncRequestSerial, EventLoopWindowTarget};
+use crate::event_loop::{ActiveEventLoop, AsyncRequestSerial, EventLoop};
 use crate::window::{ActivationToken, Window, WindowBuilder};
 
 /// The variable which is used mostly on X11.
@@ -55,13 +55,24 @@ pub trait WindowBuilderExtStartupNotify {
     fn with_activation_token(self, token: ActivationToken) -> Self;
 }
 
-impl EventLoopExtStartupNotify for EventLoopWindowTarget {
+impl<T> EventLoopExtStartupNotify for EventLoop<T> {
     fn read_token_from_env(&self) -> Option<ActivationToken> {
-        match self.p {
-            #[cfg(wayland_platform)]
-            crate::platform_impl::EventLoopWindowTarget::Wayland(_) => env::var(WAYLAND_VAR),
-            #[cfg(x11_platform)]
-            crate::platform_impl::EventLoopWindowTarget::X(_) => env::var(X11_VAR),
+        if self.event_loop.window_target().is_wayland() {
+            env::var(WAYLAND_VAR)
+        } else {
+            env::var(X11_VAR)
+        }
+        .ok()
+        .map(ActivationToken::_new)
+    }
+}
+
+impl EventLoopExtStartupNotify for ActiveEventLoop<'_> {
+    fn read_token_from_env(&self) -> Option<ActivationToken> {
+        if self.inner.is_wayland() {
+            env::var(WAYLAND_VAR)
+        } else {
+            env::var(X11_VAR)
         }
         .ok()
         .map(ActivationToken::_new)

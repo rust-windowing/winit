@@ -11,7 +11,9 @@ Unreleased` header.
 
 # Unreleased
 
-- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
+- **Breaking:** Removed `EventLoopWindowTarget<T>`, and replaced it with `ActiveEventLoop<'app>`, which allows Winit to clearly define a boundary between what is possible when the application is not running, and when it is.
+- Added `MaybeActiveEventLoop<'app>` trait to help be generic over `EventLoop<T>` and `ActiveEventLoop<'app>`.
+- Added `ActiveEventLoopExtWayland` and `ActiveEventLoopExtX11` to mimic the similar traits on the `EventLoop`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`

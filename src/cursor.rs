@@ -5,7 +5,7 @@ use std::{error::Error, hash::Hash};
 
 use cursor_icon::CursorIcon;
 
-use crate::event_loop::EventLoopWindowTarget;
+use crate::event_loop::MaybeActiveEventLoop;
 use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
 
 /// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
@@ -111,9 +111,9 @@ pub struct CustomCursorBuilder {
 }
 
 impl CustomCursorBuilder {
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> CustomCursor {
+    pub fn build<'a>(self, mut event_loop: impl MaybeActiveEventLoop<'a>) -> CustomCursor {
         CustomCursor {
-            inner: PlatformCustomCursor::build(self.inner, &window_target.p),
+            inner: PlatformCustomCursor::build(self.inner, event_loop.__inner()),
         }
     }
 }
@@ -213,7 +213,7 @@ impl Eq for OnlyCursorImage {}
 
 #[allow(dead_code)]
 impl OnlyCursorImage {
-    fn build(builder: OnlyCursorImageBuilder, _: &platform_impl::EventLoopWindowTarget) -> Self {
+    fn build(builder: OnlyCursorImageBuilder, _: platform_impl::ActiveEventLoop<'_>) -> Self {
         Self(Arc::new(builder.0))
     }
 }
@@ -293,7 +293,7 @@ impl NoCustomCursor {
         Ok(Self)
     }
 
-    fn build(self, _: &platform_impl::EventLoopWindowTarget) -> NoCustomCursor {
+    fn build(self, _: platform_impl::ActiveEventLoop<'_>) -> NoCustomCursor {
         self
     }
 }

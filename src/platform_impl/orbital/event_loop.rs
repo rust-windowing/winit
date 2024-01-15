@@ -1,7 +1,6 @@
 use std::{
     cell::Cell,
     collections::VecDeque,
-    marker::PhantomData,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
     time::Instant,
@@ -16,7 +15,7 @@ use orbclient::{
 use crate::{
     error::EventLoopError,
     event::{self, Ime, Modifiers, StartCause},
-    event_loop::{self, ControlFlow, DeviceEvents},
+    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed},
     keyboard::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
         PhysicalKey,
@@ -274,7 +273,7 @@ impl EventState {
 
 pub struct EventLoop<T> {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::EventLoopWindowTarget,
+    window_target: EventLoopWindowTarget,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
 }
@@ -306,17 +305,14 @@ impl<T: 'static> EventLoop<T> {
 
         Ok(Self {
             windows: Vec::new(),
-            window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    control_flow: Cell::new(ControlFlow::default()),
-                    exit: Cell::new(false),
-                    creates: Mutex::new(VecDeque::new()),
-                    redraws: Arc::new(Mutex::new(VecDeque::new())),
-                    destroys: Arc::new(Mutex::new(VecDeque::new())),
-                    event_socket,
-                    wake_socket,
-                },
-                _marker: PhantomData,
+            window_target: EventLoopWindowTarget {
+                control_flow: Cell::new(ControlFlow::default()),
+                exit: Cell::new(false),
+                creates: Mutex::new(VecDeque::new()),
+                redraws: Arc::new(Mutex::new(VecDeque::new())),
+                destroys: Arc::new(Mutex::new(VecDeque::new())),
+                event_socket,
+                wake_socket,
             },
             user_events_sender,
             user_events_receiver,
@@ -466,10 +462,10 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget| {
+            move |event: event::Event<T>, window_target: &EventLoopWindowTarget| {
                 event_handler_inner(event, window_target);
             };
 
@@ -484,7 +480,7 @@ impl<T: 'static> EventLoop<T> {
 
             // Handle window creates.
             while let Some(window) = {
-                let mut creates = self.window_target.p.creates.lock().unwrap();
+                let mut creates = self.window_target.creates.lock().unwrap();
                 creates.pop_front()
             } {
                 let window_id = WindowId {
@@ -518,7 +514,7 @@ impl<T: 'static> EventLoop<T> {
 
             // Handle window destroys.
             while let Some(destroy_id) = {
-                let mut destroys = self.window_target.p.destroys.lock().unwrap();
+                let mut destroys = self.window_target.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
                 event_handler(
@@ -573,7 +569,7 @@ impl<T: 'static> EventLoop<T> {
                         .expect("failed to acknowledge resize");
 
                     // Require redraw after resize.
-                    let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                    let mut redraws = self.window_target.redraws.lock().unwrap();
                     if !redraws.contains(&window_id) {
                         redraws.push_back(window_id);
                     }
@@ -589,7 +585,7 @@ impl<T: 'static> EventLoop<T> {
 
             // To avoid deadlocks the redraws lock is not held during event processing.
             while let Some(window_id) = {
-                let mut redraws = self.window_target.p.redraws.lock().unwrap();
+                let mut redraws = self.window_target.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
                 event_handler(
@@ -603,11 +599,11 @@ impl<T: 'static> EventLoop<T> {
 
             event_handler(event::Event::AboutToWait, &self.window_target);
 
-            if self.window_target.p.exiting() {
+            if self.window_target.exiting() {
                 break;
             }
 
-            let requested_resume = match self.window_target.p.control_flow() {
+            let requested_resume = match self.window_target.control_flow() {
                 ControlFlow::Poll => {
                     start_cause = StartCause::Poll;
                     continue;
@@ -621,7 +617,6 @@ impl<T: 'static> EventLoop<T> {
             let timeout_socket = TimeSocket::open().unwrap();
 
             self.window_target
-                .p
                 .event_socket
                 .write(&syscall::Event {
                     id: timeout_socket.0.fd,
@@ -649,7 +644,7 @@ impl<T: 'static> EventLoop<T> {
 
             // Wait for event if needed.
             let mut event = syscall::Event::default();
-            self.window_target.p.event_socket.read(&mut event).unwrap();
+            self.window_target.event_socket.read(&mut event).unwrap();
 
             // TODO: handle spurious wakeups (redraw caused wakeup but redraw already handled)
             match requested_resume {
@@ -676,14 +671,14 @@ impl<T: 'static> EventLoop<T> {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         &self.window_target
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.window_target.p.wake_socket.clone(),
+            wake_socket: self.window_target.wake_socket.clone(),
         }
     }
 }
@@ -694,10 +689,10 @@ pub struct EventLoopProxy<T: 'static> {
 }
 
 impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.user_events_sender
             .send(event)
-            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
+            .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
 
         self.wake_socket.wake().unwrap();
 
@@ -715,6 +710,8 @@ impl<T> Clone for EventLoopProxy<T> {
 }
 
 impl<T> Unpin for EventLoopProxy<T> {}
+
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
 
 pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,

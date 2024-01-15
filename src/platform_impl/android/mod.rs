@@ -4,7 +4,6 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     hash::Hash,
-    marker::PhantomData,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc, Mutex, RwLock,
@@ -24,7 +23,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, Force, InnerSizeWriter, StartCause},
-    event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
+    event_loop::{self, ControlFlow, DeviceEvents},
     platform::pump_events::PumpStatus,
     window::{
         self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
@@ -141,7 +140,7 @@ pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
     android_app: AndroidApp,
-    window_target: event_loop::EventLoopWindowTarget,
+    window_target: EventLoopWindowTarget,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
@@ -179,17 +178,11 @@ impl<T: 'static> EventLoop<T> {
 
         Ok(Self {
             android_app: android_app.clone(),
-            window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    app: android_app.clone(),
-                    control_flow: Cell::new(ControlFlow::default()),
-                    exit: Cell::new(false),
-                    redraw_requester: RedrawRequester::new(
-                        &redraw_flag,
-                        android_app.create_waker(),
-                    ),
-                },
-                _marker: PhantomData,
+            window_target: EventLoopWindowTarget {
+                app: android_app.clone(),
+                control_flow: Cell::new(ControlFlow::default()),
+                exit: Cell::new(false),
+                redraw_requester: RedrawRequester::new(&redraw_flag, android_app.create_waker()),
             },
             redraw_flag,
             user_events_sender,
@@ -205,7 +198,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         trace!("Mainloop iteration");
 
@@ -377,7 +370,7 @@ impl<T: 'static> EventLoop<T> {
         callback: &mut F,
     ) -> InputStatus
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         let mut input_status = InputStatus::Handled;
         match event {
@@ -482,14 +475,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -512,7 +505,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -545,7 +538,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &EventLoopWindowTarget),
     {
         let start = Instant::now();
 
@@ -621,7 +614,7 @@ impl<T: 'static> EventLoop<T> {
         });
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &EventLoopWindowTarget {
         &self.window_target
     }
 
@@ -633,11 +626,11 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.window_target.p.control_flow()
+        self.window_target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.window_target.p.exiting()
+        self.window_target.exiting()
     }
 }
 
@@ -664,6 +657,8 @@ impl<T> EventLoopProxy<T> {
         Ok(())
     }
 }
+
+pub type ActiveEventLoop<'a> = &'a EventLoopWindowTarget;
 
 pub struct EventLoopWindowTarget {
     app: AndroidApp,
