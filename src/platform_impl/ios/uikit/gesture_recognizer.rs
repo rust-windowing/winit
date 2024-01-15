@@ -169,7 +169,6 @@ unsafe impl Encode for UIPinchGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIRotationGestureRecognizer;
