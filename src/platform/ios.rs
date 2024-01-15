@@ -6,7 +6,7 @@ use objc2::rc::Id;
 use crate::{
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoModeHandle},
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 /// Additional methods on [`EventLoop`] that are specific to iOS.
@@ -129,8 +129,8 @@ impl WindowExtIOS for Window {
     }
 }
 
-/// Additional methods on [`WindowBuilder`] that are specific to iOS.
-pub trait WindowBuilderExtIOS {
+/// Additional methods on [`WindowAttributes`] that are specific to iOS.
+pub trait WindowAttributesExtIOS {
     /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
@@ -184,42 +184,41 @@ pub trait WindowBuilderExtIOS {
     fn with_preferred_status_bar_style(self, status_bar_style: StatusBarStyle) -> Self;
 }
 
-impl WindowBuilderExtIOS for WindowBuilder {
+impl WindowAttributesExtIOS for WindowAttributes {
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> Self {
-        self.window.platform_specific.scale_factor = Some(scale_factor);
+        self.platform_specific.scale_factor = Some(scale_factor);
         self
     }
 
     #[inline]
     fn with_valid_orientations(mut self, valid_orientations: ValidOrientations) -> Self {
-        self.window.platform_specific.valid_orientations = valid_orientations;
+        self.platform_specific.valid_orientations = valid_orientations;
         self
     }
 
     #[inline]
     fn with_prefers_home_indicator_hidden(mut self, hidden: bool) -> Self {
-        self.window.platform_specific.prefers_home_indicator_hidden = hidden;
+        self.platform_specific.prefers_home_indicator_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_screen_edges_deferring_system_gestures(mut self, edges: ScreenEdge) -> Self {
-        self.window
-            .platform_specific
+        self.platform_specific
             .preferred_screen_edges_deferring_system_gestures = edges;
         self
     }
 
     #[inline]
     fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> Self {
-        self.window.platform_specific.prefers_status_bar_hidden = hidden;
+        self.platform_specific.prefers_status_bar_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
-        self.window.platform_specific.preferred_status_bar_style = status_bar_style;
+        self.platform_specific.preferred_status_bar_style = status_bar_style;
         self
     }
 }

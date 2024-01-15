@@ -13,7 +13,7 @@ pub fn main() -> Result<(), impl std::error::Error> {
     let builder = WindowBuilder::new().with_title("A fantastic window!");
     #[cfg(wasm_platform)]
     let builder = {
-        use winit::platform::web::WindowBuilderExtWebSys;
+        use winit::platform::web::WindowAttributesExtWebSys;
         builder.with_append(true)
     };
     let window = builder.build(&event_loop).unwrap();

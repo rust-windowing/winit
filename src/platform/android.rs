@@ -1,6 +1,6 @@
 use crate::{
     event_loop::{EventLoop, EventLoopBuilder, EventLoopWindowTarget},
-    window::{Window, WindowBuilder},
+    window::Window,
 };
 
 use android_activity::{AndroidApp, ConfigurationRef, Rect};
@@ -31,11 +31,6 @@ impl WindowExtAndroid for Window {
 }
 
 impl<T> EventLoopWindowTargetExtAndroid for EventLoopWindowTarget<T> {}
-
-/// Additional methods on [`WindowBuilder`] that are specific to Android.
-pub trait WindowBuilderExtAndroid {}
-
-impl WindowBuilderExtAndroid for WindowBuilder {}
 
 pub trait EventLoopBuilderExtAndroid {
     /// Associates the `AndroidApp` that was passed to `android_main()` with the event loop

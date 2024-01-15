@@ -12,7 +12,7 @@ mod example {
     use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
     use winit::event_loop::EventLoop;
     use winit::platform::startup_notify::{
-        EventLoopExtStartupNotify, WindowBuilderExtStartupNotify, WindowExtStartupNotify,
+        EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
     };
     use winit::window::{Window, WindowBuilder, WindowId};
 

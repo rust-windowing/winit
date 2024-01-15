@@ -33,7 +33,7 @@ use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
 use crate::platform_impl::PlatformCustomCursorBuilder;
 use crate::window::CustomCursor;
-use crate::window::{Window, WindowBuilder};
+use crate::window::{Window, WindowAttributes};
 
 use web_sys::HtmlCanvasElement;
 
@@ -73,7 +73,7 @@ impl WindowExtWebSys for Window {
     }
 }
 
-pub trait WindowBuilderExtWebSys {
+pub trait WindowAttributesExtWebSys {
     /// Pass an [`HtmlCanvasElement`] to be used for this [`Window`]. If [`None`],
     /// [`WindowBuilder::build()`] will create one.
     ///
@@ -102,24 +102,24 @@ pub trait WindowBuilderExtWebSys {
     fn with_append(self, append: bool) -> Self;
 }
 
-impl WindowBuilderExtWebSys for WindowBuilder {
+impl WindowAttributesExtWebSys for WindowAttributes {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.window.platform_specific.set_canvas(canvas);
+        self.platform_specific.set_canvas(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
-        self.window.platform_specific.prevent_default = prevent_default;
+        self.platform_specific.prevent_default = prevent_default;
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
-        self.window.platform_specific.focusable = focusable;
+        self.platform_specific.focusable = focusable;
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
-        self.window.platform_specific.append = append;
+        self.platform_specific.append = append;
         self
     }
 }

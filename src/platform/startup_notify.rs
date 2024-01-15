@@ -25,7 +25,7 @@ use std::env;
 
 use crate::error::NotSupportedError;
 use crate::event_loop::{AsyncRequestSerial, EventLoopWindowTarget};
-use crate::window::{ActivationToken, Window, WindowBuilder};
+use crate::window::{ActivationToken, Window, WindowAttributes};
 
 /// The variable which is used mostly on X11.
 const X11_VAR: &str = "DESKTOP_STARTUP_ID";
@@ -47,7 +47,7 @@ pub trait WindowExtStartupNotify {
     fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError>;
 }
 
-pub trait WindowBuilderExtStartupNotify {
+pub trait WindowAttributesExtStartupNotify {
     /// Use this [`ActivationToken`] during window creation.
     ///
     /// Not using such a token upon a window could make your window not gaining
@@ -74,9 +74,9 @@ impl WindowExtStartupNotify for Window {
     }
 }
 
-impl WindowBuilderExtStartupNotify for WindowBuilder {
+impl WindowAttributesExtStartupNotify for WindowAttributes {
     fn with_activation_token(mut self, token: ActivationToken) -> Self {
-        self.window.platform_specific.activation_token = Some(token);
+        self.platform_specific.activation_token = Some(token);
         self
     }
 }

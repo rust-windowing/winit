@@ -8,7 +8,7 @@ use crate::{
     monitor::MonitorHandle,
     platform::modifier_supplement::KeyEventExtModifierSupplement,
     platform_impl::WinIcon,
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    window::{BadIcon, Icon, Window, WindowAttributes},
 };
 
 /// Window Handle type used by Win32 API
@@ -160,9 +160,9 @@ impl WindowExtWindows for Window {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to Windows.
+/// Additional methods on `WindowAttributes` that are specific to Windows.
 #[allow(rustdoc::broken_intra_doc_links)]
-pub trait WindowBuilderExtWindows {
+pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
@@ -215,52 +215,52 @@ pub trait WindowBuilderExtWindows {
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
 }
 
-impl WindowBuilderExtWindows for WindowBuilder {
+impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
-        self.window.platform_specific.owner = Some(parent);
+        self.platform_specific.owner = Some(parent);
         self
     }
 
     #[inline]
     fn with_menu(mut self, menu: HMENU) -> Self {
-        self.window.platform_specific.menu = Some(menu);
+        self.platform_specific.menu = Some(menu);
         self
     }
 
     #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
-        self.window.platform_specific.taskbar_icon = taskbar_icon;
+        self.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
     #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
-        self.window.platform_specific.no_redirection_bitmap = flag;
+        self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> Self {
-        self.window.platform_specific.drag_and_drop = flag;
+        self.platform_specific.drag_and_drop = flag;
         self
     }
 
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> Self {
-        self.window.platform_specific.skip_taskbar = skip;
+        self.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
-        self.window.platform_specific.class_name = class_name.into();
+        self.platform_specific.class_name = class_name.into();
         self
     }
 
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
-        self.window.platform_specific.decoration_shadow = shadow;
+        self.platform_specific.decoration_shadow = shadow;
         self
     }
 }

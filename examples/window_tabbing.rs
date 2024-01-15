@@ -10,7 +10,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::{Key, NamedKey},
-    platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS},
+    platform::macos::{WindowAttributesExtMacOS, WindowExtMacOS},
     window::{Window, WindowBuilder},
 };
 

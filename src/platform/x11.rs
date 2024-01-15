@@ -1,7 +1,7 @@
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 use crate::dpi::Size;
@@ -86,8 +86,8 @@ pub trait WindowExtX11 {}
 
 impl WindowExtX11 for Window {}
 
-/// Additional methods on [`WindowBuilder`] that are specific to X11.
-pub trait WindowBuilderExtX11 {
+/// Additional methods on [`WindowAttributes`] that are specific to X11.
+pub trait WindowAttributesExtX11 {
     /// Create this window with a specific X11 visual.
     fn with_x11_visual(self, visual_id: XVisualID) -> Self;
 
@@ -140,47 +140,46 @@ pub trait WindowBuilderExtX11 {
     fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
 }
 
-impl WindowBuilderExtX11 for WindowBuilder {
+impl WindowAttributesExtX11 for WindowAttributes {
     #[inline]
     fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
-        self.window.platform_specific.x11.visual_id = Some(visual_id);
+        self.platform_specific.x11.visual_id = Some(visual_id);
         self
     }
 
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.window.platform_specific.x11.screen_id = Some(screen_id);
+        self.platform_specific.x11.screen_id = Some(screen_id);
         self
     }
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.window.platform_specific.name =
-            Some(ApplicationName::new(general.into(), instance.into()));
+        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
         self
     }
 
     #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
-        self.window.platform_specific.x11.override_redirect = override_redirect;
+        self.platform_specific.x11.override_redirect = override_redirect;
         self
     }
 
     #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
-        self.window.platform_specific.x11.x11_window_types = x11_window_types;
+        self.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }
 
     #[inline]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
-        self.window.platform_specific.x11.base_size = Some(base_size.into());
+        self.platform_specific.x11.base_size = Some(base_size.into());
         self
     }
 
     #[inline]
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
-        self.window.platform_specific.x11.embed_window = Some(parent_window_id);
+        self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
     }
 }

@@ -115,24 +115,12 @@ impl From<u64> for WindowId {
     }
 }
 
-/// Object that allows building windows.
-#[derive(Clone, Default)]
-#[must_use]
-pub struct WindowBuilder {
-    /// The attributes to use to create the window.
-    pub(crate) window: WindowAttributes,
-}
+#[deprecated = "use `WindowAttributes` directly"]
+pub type WindowBuilder = WindowAttributes;
 
-impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.debug_struct("WindowBuilder")
-            .field("window", &self.window)
-            .finish()
-    }
-}
-
-/// Attributes to use when creating a window.
+/// Attributes to use when creating a new window.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
     pub min_inner_size: Option<Size>,
@@ -196,7 +184,7 @@ impl Default for WindowAttributes {
 ///
 /// # Safety
 ///
-/// The user has to account for that when using [`WindowBuilder::with_parent_window()`],
+/// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
 #[derive(Debug, Clone)]
 #[cfg(feature = "rwh_06")]
@@ -215,20 +203,15 @@ impl WindowAttributes {
     }
 }
 
-impl WindowBuilder {
-    /// Initializes a new builder with default values.
+impl WindowAttributes {
+    /// Initializes new attributes with default values.
     #[inline]
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl WindowBuilder {
-    /// Get the current window attributes.
-    pub fn window_attributes(&self) -> &WindowAttributes {
-        &self.window
-    }
-
+impl WindowAttributes {
     /// Requests the window to be of specific dimensions.
     ///
     /// If this is not set, some platform-specific dimensions will be used.
@@ -236,7 +219,7 @@ impl WindowBuilder {
     /// See [`Window::request_inner_size`] for details.
     #[inline]
     pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
-        self.window.inner_size = Some(size.into());
+        self.inner_size = Some(size.into());
         self
     }
 
@@ -248,7 +231,7 @@ impl WindowBuilder {
     /// See [`Window::set_min_inner_size`] for details.
     #[inline]
     pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
-        self.window.min_inner_size = Some(min_size.into());
+        self.min_inner_size = Some(min_size.into());
         self
     }
 
@@ -260,7 +243,7 @@ impl WindowBuilder {
     /// See [`Window::set_max_inner_size`] for details.
     #[inline]
     pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
-        self.window.max_inner_size = Some(max_size.into());
+        self.max_inner_size = Some(max_size.into());
         self
     }
 
@@ -288,7 +271,7 @@ impl WindowBuilder {
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
-        self.window.position = Some(position.into());
+        self.position = Some(position.into());
         self
     }
 
@@ -299,7 +282,7 @@ impl WindowBuilder {
     /// See [`Window::set_resizable`] for details.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
-        self.window.resizable = resizable;
+        self.resizable = resizable;
         self
     }
 
@@ -310,7 +293,7 @@ impl WindowBuilder {
     /// See [`Window::set_enabled_buttons`] for details.
     #[inline]
     pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
-        self.window.enabled_buttons = buttons;
+        self.enabled_buttons = buttons;
         self
     }
 
@@ -321,7 +304,7 @@ impl WindowBuilder {
     /// See [`Window::set_title`] for details.
     #[inline]
     pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
-        self.window.title = title.into();
+        self.title = title.into();
         self
     }
 
@@ -332,7 +315,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.fullscreen = fullscreen;
         self
     }
 
@@ -343,7 +326,7 @@ impl WindowBuilder {
     /// See [`Window::set_maximized`] for details.
     #[inline]
     pub fn with_maximized(mut self, maximized: bool) -> Self {
-        self.window.maximized = maximized;
+        self.maximized = maximized;
         self
     }
 
@@ -354,7 +337,7 @@ impl WindowBuilder {
     /// See [`Window::set_visible`] for details.
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
-        self.window.visible = visible;
+        self.visible = visible;
         self
     }
 
@@ -368,7 +351,7 @@ impl WindowBuilder {
     /// The default is `false`.
     #[inline]
     pub fn with_transparent(mut self, transparent: bool) -> Self {
-        self.window.transparent = transparent;
+        self.transparent = transparent;
         self
     }
 
@@ -379,14 +362,14 @@ impl WindowBuilder {
     /// See [`Window::set_blur`] for details.
     #[inline]
     pub fn with_blur(mut self, blur: bool) -> Self {
-        self.window.blur = blur;
+        self.blur = blur;
         self
     }
 
     /// Get whether the window will support transparency.
     #[inline]
     pub fn transparent(&self) -> bool {
-        self.window.transparent
+        self.transparent
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
@@ -396,7 +379,7 @@ impl WindowBuilder {
     /// See [`Window::set_decorations`] for details.
     #[inline]
     pub fn with_decorations(mut self, decorations: bool) -> Self {
-        self.window.decorations = decorations;
+        self.decorations = decorations;
         self
     }
 
@@ -409,7 +392,7 @@ impl WindowBuilder {
     /// See [`WindowLevel`] for details.
     #[inline]
     pub fn with_window_level(mut self, level: WindowLevel) -> Self {
-        self.window.window_level = level;
+        self.window_level = level;
         self
     }
 
@@ -420,7 +403,7 @@ impl WindowBuilder {
     /// See [`Window::set_window_icon`] for details.
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
-        self.window.window_icon = window_icon;
+        self.window_icon = window_icon;
         self
     }
 
@@ -439,7 +422,7 @@ impl WindowBuilder {
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
-        self.window.preferred_theme = theme;
+        self.preferred_theme = theme;
         self
     }
 
@@ -450,7 +433,7 @@ impl WindowBuilder {
     /// See [`Window::set_resize_increments`] for details.
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
-        self.window.resize_increments = Some(resize_increments.into());
+        self.resize_increments = Some(resize_increments.into());
         self
     }
 
@@ -467,7 +450,7 @@ impl WindowBuilder {
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
-        self.window.content_protected = protected;
+        self.content_protected = protected;
         self
     }
 
@@ -483,7 +466,7 @@ impl WindowBuilder {
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
-        self.window.active = active;
+        self.active = active;
         self
     }
 
@@ -494,7 +477,7 @@ impl WindowBuilder {
     /// See [`Window::set_cursor()`] for more details.
     #[inline]
     pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
-        self.window.cursor = cursor.into();
+        self.cursor = cursor.into();
         self
     }
 
@@ -519,7 +502,7 @@ impl WindowBuilder {
         mut self,
         parent_window: Option<rwh_06::RawWindowHandle>,
     ) -> Self {
-        self.window.parent_window = parent_window.map(SendSyncRawWindowHandle);
+        self.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
     }
 
@@ -536,7 +519,7 @@ impl WindowBuilder {
         self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        let window = platform_impl::Window::new(&window_target.p, self.window)?;
+        let window = platform_impl::Window::new(&window_target.p, self)?;
         window.maybe_queue_on_main(|w| w.request_redraw());
         Ok(Window { window })
     }
@@ -546,7 +529,7 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to [`WindowBuilder::new().build(event_loop)`].
+    /// This function is equivalent to [`WindowAttributes::new().build(event_loop)`].
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
@@ -556,10 +539,10 @@ impl Window {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
-    /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
+    /// [`WindowAttributes::new().build(event_loop)`]: WindowAttributes::build
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
-        let builder = WindowBuilder::new();
+        let builder = WindowAttributes::new();
         builder.build(event_loop)
     }
 
@@ -929,12 +912,12 @@ impl Window {
     /// the content of your window and this hint may result in
     /// visual artifacts.
     ///
-    /// The default value follows the [`WindowBuilder::with_transparent`].
+    /// The default value follows the [`WindowAttributes::with_transparent`].
     ///
     /// ## Platform-specific
     ///
     /// - **Web / iOS / Android / Orbital:** Unsupported.
-    /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
+    /// - **X11:** Can only be set while creating the window, with [`WindowAttributes::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window

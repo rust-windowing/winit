@@ -11,7 +11,7 @@ mod imple {
     use winit::{
         event::{Event, WindowEvent},
         event_loop::EventLoop,
-        platform::x11::WindowBuilderExtX11,
+        platform::x11::WindowAttributesExtX11,
         window::WindowBuilder,
     };
 

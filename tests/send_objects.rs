@@ -17,8 +17,8 @@ fn window_send() {
 }
 
 #[test]
-fn window_builder_send() {
-    needs_send::<winit::window::WindowBuilder>();
+fn window_attributes_send() {
+    needs_send::<winit::window::WindowAttributes>();
 }
 
 #[test]

@@ -13,7 +13,7 @@ mod wasm {
         dpi::PhysicalSize,
         event::{Event, WindowEvent},
         event_loop::EventLoop,
-        platform::web::WindowBuilderExtWebSys,
+        platform::web::WindowAttributesExtWebSys,
         window::{Window, WindowBuilder},
     };
 
