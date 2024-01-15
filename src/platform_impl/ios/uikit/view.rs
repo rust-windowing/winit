@@ -5,6 +5,8 @@ use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
 use super::{UICoordinateSpace, UIResponder, UIViewController};
 
+use super::UIGestureRecognizer;
+
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIView;
@@ -65,6 +67,9 @@ extern_methods!(
 
         #[method(setNeedsDisplay)]
         pub fn setNeedsDisplay(&self);
+
+        #[method(addGestureRecognizer:)]
+        pub(crate) fn addGestureRecognizer(&self, gestureRecognizer: &UIGestureRecognizer);
     }
 );
 

@@ -9,13 +9,13 @@ mod platform;
 mod platform;
 #[cfg(macos_platform)]
 #[path = "macos/mod.rs"]
-mod platform;
+pub mod platform;
 #[cfg(android_platform)]
 #[path = "android/mod.rs"]
 mod platform;
 #[cfg(ios_platform)]
 #[path = "ios/mod.rs"]
-mod platform;
+pub mod platform;
 #[cfg(wasm_platform)]
 #[path = "web/mod.rs"]
 mod platform;

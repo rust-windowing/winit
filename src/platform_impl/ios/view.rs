@@ -3,16 +3,16 @@ use std::cell::Cell;
 
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::rc::Id;
-use objc2::runtime::AnyClass;
+use objc2::runtime::{AnyClass};
 use objc2::{
-    declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType, DeclaredClass,
+    declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType, DeclaredClass, sel
 };
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
     UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
     UIResponder, UIStatusBarStyle, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView,
-    UIViewController, UIWindow,
+    UIViewController, UIWindow, UIRotationGestureRecognizer
 };
 use super::window::WindowId;
 use crate::{
@@ -22,10 +22,12 @@ use crate::{
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         window::PlatformSpecificWindowBuilderAttributes,
-        DeviceId, Fullscreen,
+        DeviceId, Fullscreen
     },
     window::{WindowAttributes, WindowId as RootWindowId},
 };
+
+use log::debug;
 
 declare_class!(
     pub(crate) struct WinitView;
@@ -159,6 +161,12 @@ declare_class!(
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
+
+        #[method(handleRotation:)]
+        fn handle_rotation(_recognizer: &UIRotationGestureRecognizer)
+        {
+            debug!("Got rotation");
+        }
     }
 );
 
@@ -193,6 +201,11 @@ impl WinitView {
         if let Some(scale_factor) = platform_attributes.scale_factor {
             this.setContentScaleFactor(scale_factor as _);
         }
+
+        let rotation_recognizer : Id<UIRotationGestureRecognizer> =
+            UIRotationGestureRecognizer::initWithTarget_action(UIRotationGestureRecognizer::alloc(), &this, sel!(handleRotation:));
+
+        this.addGestureRecognizer(&rotation_recognizer);
 
         this
     }
