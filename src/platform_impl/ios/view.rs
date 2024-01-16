@@ -300,25 +300,29 @@ impl WinitView {
     }
 
     pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        if should_recognize && self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
-            let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
-            tap.setNumberOfTapsRequired(2);
-            tap.setNumberOfTouchesRequired(1);
-            self.addGestureRecognizer(&tap);
-            self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
+        if should_recognize {
+            if self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
+                let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
+                tap.setNumberOfTapsRequired(2);
+                tap.setNumberOfTouchesRequired(1);
+                self.addGestureRecognizer(&tap);
+                self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
+            }
         } else if let Some(recognizer) = self.ivars().doubletap_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
     }
 
     pub(crate) fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        if should_recognize && self.ivars().rotation_gesture_recognizer.borrow().is_none() {
-            let rotation =
-                UIRotationGestureRecognizer::init_with_target(self, sel!(rotationGesture:));
-            self.addGestureRecognizer(rotation.as_super());
-            self.ivars()
-                .rotation_gesture_recognizer
-                .replace(Some(rotation));
+        if should_recognize {
+            if self.ivars().rotation_gesture_recognizer.borrow().is_none() {
+                let rotation =
+                    UIRotationGestureRecognizer::init_with_target(self, sel!(rotationGesture:));
+                self.addGestureRecognizer(rotation.as_super());
+                self.ivars()
+                    .rotation_gesture_recognizer
+                    .replace(Some(rotation));
+            }
         } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
