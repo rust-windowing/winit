@@ -187,7 +187,7 @@ declare_class!(
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
-                    delta: recognizer.velocity(),
+                    delta: recognizer.velocity() as _,
                     phase,
                 },
             });
@@ -231,7 +231,7 @@ declare_class!(
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
-                    delta: recognizer.velocity() as f32,
+                    delta: recognizer.velocity() as _,
                     phase,
                 },
             });
