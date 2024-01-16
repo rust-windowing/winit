@@ -5,8 +5,7 @@ use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectPr
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{
-    declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType,
-    DeclaredClass, Encode, Encoding,
+    declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
 use super::app_state::{self, EventWrapper};
@@ -259,10 +258,6 @@ extern_methods!(
         pub(crate) fn layerClass() -> &'static AnyClass;
     }
 );
-
-unsafe impl Encode for WinitView {
-    const ENCODING: Encoding = Encoding::Object;
-}
 
 impl WinitView {
     pub(crate) fn new(
