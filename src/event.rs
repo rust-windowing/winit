@@ -487,6 +487,11 @@ pub enum WindowEvent {
         location: PhysicalPosition<f64>,
     },
 
+    /// Long press gesture.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - On iOS, not recognized by default. It must be enabled when needed.
     LongPressGesture {
         device_id: DeviceId,
         location: PhysicalPosition<f64>,

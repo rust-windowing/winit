@@ -205,6 +205,7 @@ declare_class!(
             };
 
             let delta = recognizer.scale() as _;
+            // Flip the velocity to match macOS.
             let velocity = -recognizer.velocity() as _;
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
