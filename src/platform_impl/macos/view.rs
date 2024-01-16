@@ -698,6 +698,7 @@ declare_class!(
             self.queue_event(WindowEvent::PinchGesture {
                 device_id: DEVICE_ID,
                 delta: unsafe { event.magnification() },
+                velocity: 0.0,
                 phase,
             });
         }
@@ -727,6 +728,7 @@ declare_class!(
             self.queue_event(WindowEvent::RotationGesture {
                 device_id: DEVICE_ID,
                 delta: unsafe { event.rotation() },
+                velocity: 0.0,
                 phase,
             });
         }

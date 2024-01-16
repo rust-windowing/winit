@@ -1,12 +1,6 @@
-# Core maintainers:
-# - @msiglreith
-# - @kchibisov
-# - @madsmtm
-# - @maroider
-
 # Android
-/src/platform/android.rs            @msiglreith
-/src/platform_impl/android          @msiglreith
+/src/platform/android.rs            @msiglreith @MarijnS95
+/src/platform_impl/android          @msiglreith @MarijnS95
 
 # iOS
 /src/platform/ios.rs                @madsmtm
@@ -20,14 +14,14 @@
 /src/platform_impl/linux/wayland    @kchibisov
 
 # X11
-/src/platform/x11.rs                @kchibisov
-/src/platform_impl/linux/x11        @kchibisov
+/src/platform/x11.rs                @kchibisov @notgull
+/src/platform_impl/linux/x11        @kchibisov @notgull
 
 # macOS
 /src/platform/macos.rs              @madsmtm
 /src/platform_impl/macos            @madsmtm
 
-# Web (no maintainer)
+# Web
 /src/platform/web.rs                @daxpedda
 /src/platform_impl/web              @daxpedda
 

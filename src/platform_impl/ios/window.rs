@@ -17,7 +17,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
+    platform::ios::{Gesture, ScreenEdge, StatusBarStyle, ValidOrientations},
     platform_impl::platform::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
@@ -572,16 +572,9 @@ impl Inner {
             .set_preferred_status_bar_style(status_bar_style.into());
     }
 
-    pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        self.view.recognize_pinch_gesture(should_recognize);
-    }
-
-    pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        self.view.recognize_doubletap_gesture(should_recognize);
-    }
-
-    pub fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        self.view.recognize_rotation_gesture(should_recognize);
+    pub fn enable_recognize_gestures(&self, gestures: Gesture, use_default_delegate: bool) {
+        self.view
+            .enable_recognize_gestures(gestures, use_default_delegate);
     }
 }
 
