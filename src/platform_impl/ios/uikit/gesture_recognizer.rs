@@ -1,13 +1,8 @@
 use icrate::Foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
 use objc2::{
     encode::{Encode, Encoding},
-    extern_class, extern_methods, msg_send_id, mutability,
-    rc::Id,
-    runtime::{AnyObject, Sel},
-    ClassType,
+    extern_class, extern_methods, mutability, ClassType,
 };
-
-use super::UIView;
 
 // https://developer.apple.com/documentation/uikit/uigesturerecognizer
 extern_class!(
@@ -24,9 +19,6 @@ extern_methods!(
     unsafe impl UIGestureRecognizer {
         #[method(state)]
         pub fn state(&self) -> UIGestureRecognizerState;
-
-        #[method(initWithTarget:action:)]
-        pub unsafe fn initWithTarget_action(&self, target: &AnyObject, action: Sel);
     }
 );
 
@@ -78,12 +70,6 @@ unsafe impl Encode for UIPinchGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-impl UIPinchGestureRecognizer {
-    pub(crate) fn init_with_target(target: &UIView, action: Sel) -> Id<Self> {
-        unsafe { msg_send_id![Self::alloc(), initWithTarget: target, action: action] }
-    }
-}
-
 // https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -109,12 +95,6 @@ unsafe impl Encode for UIRotationGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-impl UIRotationGestureRecognizer {
-    pub(crate) fn init_with_target(target: &UIView, action: Sel) -> Id<Self> {
-        unsafe { msg_send_id![Self::alloc(), initWithTarget: target, action: action] }
-    }
-}
-
 // https://developer.apple.com/documentation/uikit/uitapgesturerecognizer
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -138,10 +118,4 @@ extern_methods!(
 
 unsafe impl Encode for UITapGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
-}
-
-impl UITapGestureRecognizer {
-    pub(crate) fn init_with_target(target: &UIView, action: Sel) -> Id<Self> {
-        unsafe { msg_send_id![Self::alloc(), initWithTarget: target, action: action] }
-    }
 }

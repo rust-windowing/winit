@@ -285,8 +285,10 @@ impl WinitView {
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
         if should_recognize {
             if self.ivars().pinch_gesture_recognizer.borrow().is_none() {
-                let pinch = UIPinchGestureRecognizer::init_with_target(self, sel!(pinchGesture:));
-                self.addGestureRecognizer(pinch.as_super());
+                let pinch: Id<UIPinchGestureRecognizer> = unsafe {
+                    msg_send_id![UIPinchGestureRecognizer::alloc(), initWithTarget: self, action: sel!(pinchGesture:)]
+                };
+                self.addGestureRecognizer(&pinch);
                 self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
             }
         } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
@@ -297,7 +299,9 @@ impl WinitView {
     pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         if should_recognize {
             if self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
-                let tap = UITapGestureRecognizer::init_with_target(self, sel!(doubleTapGesture:));
+                let tap: Id<UITapGestureRecognizer> = unsafe {
+                    msg_send_id![UITapGestureRecognizer::alloc(), initWithTarget: self, action: sel!(doubleTapGesture:)]
+                };
                 tap.setNumberOfTapsRequired(2);
                 tap.setNumberOfTouchesRequired(1);
                 self.addGestureRecognizer(&tap);
@@ -311,9 +315,10 @@ impl WinitView {
     pub(crate) fn recognize_rotation_gesture(&self, should_recognize: bool) {
         if should_recognize {
             if self.ivars().rotation_gesture_recognizer.borrow().is_none() {
-                let rotation =
-                    UIRotationGestureRecognizer::init_with_target(self, sel!(rotationGesture:));
-                self.addGestureRecognizer(rotation.as_super());
+                let rotation: Id<UIRotationGestureRecognizer> = unsafe {
+                    msg_send_id![UIRotationGestureRecognizer::alloc(), initWithTarget: self, action: sel!(rotationGesture:)]
+                };
+                self.addGestureRecognizer(&rotation);
                 self.ivars()
                     .rotation_gesture_recognizer
                     .replace(Some(rotation));
