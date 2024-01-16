@@ -447,21 +447,23 @@ pub enum WindowEvent {
         button: MouseButton,
     },
 
-    /// Touchpad magnification event with two-finger pinch gesture.
-    ///
-    /// Positive delta values indicate magnification (zooming in) and
-    /// negative delta values indicate shrinking (zooming out).
+    /// Two-finger pinch gesture, often used for magnification.
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
-    TouchpadMagnify {
+    /// - Only available on **macOS** and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    PinchGesture {
         device_id: DeviceId,
+        /// Positive values indicate magnification (zooming in) and  negative
+        /// values indicate shrinking (zooming out).
+        ///
+        /// This value may be NaN.
         delta: f64,
         phase: TouchPhase,
     },
 
-    /// Smart magnification event.
+    /// Double tap gesture.
     ///
     /// On a Mac, smart magnification is triggered by a double tap with two fingers
     /// on the trackpad and is commonly used to zoom on a certain object
@@ -477,18 +479,20 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS 10.8** and later.
-    SmartMagnify { device_id: DeviceId },
+    /// - Only available on **macOS 10.8** and later, and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    DoubleTapGesture { device_id: DeviceId },
 
-    /// Touchpad rotation event with two-finger rotation gesture.
+    /// Two-finger rotation gesture.
     ///
     /// Positive delta values indicate rotation counterclockwise and
     /// negative delta values indicate rotation clockwise.
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
-    TouchpadRotate {
+    /// - Only available on **macOS** and **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    RotationGesture {
         device_id: DeviceId,
         delta: f32,
         phase: TouchPhase,
@@ -1201,13 +1205,13 @@ mod tests {
                     state: event::ElementState::Pressed,
                     button: event::MouseButton::Other(0),
                 });
-                with_window_event(TouchpadMagnify {
+                with_window_event(PinchGesture {
                     device_id: did,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(SmartMagnify { device_id: did });
-                with_window_event(TouchpadRotate {
+                with_window_event(DoubleTapGesture { device_id: did });
+                with_window_event(RotationGesture {
                     device_id: did,
                     delta: 0.0,
                     phase: event::TouchPhase::Started,

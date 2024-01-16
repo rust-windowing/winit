@@ -1,18 +1,19 @@
 #![allow(clippy::unnecessary_cast)]
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{
-    declare_class, extern_methods, msg_send, msg_send_id, mutability, ClassType, DeclaredClass,
+    declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
-    UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIInterfaceOrientationMask,
-    UIResponder, UIStatusBarStyle, UITouch, UITouchPhase, UITouchType, UITraitCollection, UIView,
-    UIViewController, UIWindow,
+    UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIGestureRecognizerState,
+    UIInterfaceOrientationMask, UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer,
+    UIStatusBarStyle, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
+    UITraitCollection, UIView, UIViewController, UIWindow,
 };
 use super::window::WindowId;
 use crate::{
@@ -27,6 +28,12 @@ use crate::{
     window::{WindowAttributes, WindowId as RootWindowId},
 };
 
+pub struct WinitViewState {
+    pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
+    doubletap_gesture_recognizer: RefCell<Option<Id<UITapGestureRecognizer>>>,
+    rotation_gesture_recognizer: RefCell<Option<Id<UIRotationGestureRecognizer>>>,
+}
+
 declare_class!(
     pub(crate) struct WinitView;
 
@@ -37,7 +44,9 @@ declare_class!(
         const NAME: &'static str = "WinitUIView";
     }
 
-    impl DeclaredClass for WinitView {}
+    impl DeclaredClass for WinitView {
+        type Ivars = WinitViewState;
+    }
 
     unsafe impl WinitView {
         #[method(drawRect:)]
@@ -159,6 +168,79 @@ declare_class!(
         fn touches_cancelled(&self, touches: &NSSet<UITouch>, _event: Option<&UIEvent>) {
             self.handle_touches(touches)
         }
+
+        #[method(pinchGesture:)]
+        fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
+            let window = self.window().unwrap();
+
+            let phase = match recognizer.state() {
+                UIGestureRecognizerState::Began => TouchPhase::Started,
+                UIGestureRecognizerState::Changed => TouchPhase::Moved,
+                UIGestureRecognizerState::Ended => TouchPhase::Ended,
+                UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
+                    TouchPhase::Cancelled
+                }
+                state => panic!("unexpected recognizer state: {:?}", state),
+            };
+
+            // Flip the velocity to match macOS.
+            let delta = -recognizer.velocity() as _;
+            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::PinchGesture {
+                    device_id: DEVICE_ID,
+                    delta,
+                    phase,
+                },
+            });
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, gesture_event);
+        }
+
+        #[method(doubleTapGesture:)]
+        fn double_tap_gesture(&self, recognizer: &UITapGestureRecognizer) {
+            let window = self.window().unwrap();
+
+            if recognizer.state() == UIGestureRecognizerState::Ended {
+                let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.id()),
+                    event: WindowEvent::DoubleTapGesture {
+                        device_id: DEVICE_ID,
+                    },
+                });
+
+                let mtm = MainThreadMarker::new().unwrap();
+                app_state::handle_nonuser_event(mtm, gesture_event);
+            }
+        }
+
+        #[method(rotationGesture:)]
+        fn rotation_gesture(&self, recognizer: &UIRotationGestureRecognizer) {
+            let window = self.window().unwrap();
+
+            let phase = match recognizer.state() {
+                UIGestureRecognizerState::Began => TouchPhase::Started,
+                UIGestureRecognizerState::Changed => TouchPhase::Moved,
+                UIGestureRecognizerState::Ended => TouchPhase::Ended,
+                UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
+                    TouchPhase::Cancelled
+                }
+                state => panic!("unexpected recognizer state: {:?}", state),
+            };
+
+            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::RotationGesture {
+                    device_id: DEVICE_ID,
+                    delta: recognizer.velocity() as _,
+                    phase,
+                },
+            });
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, gesture_event);
+        }
     }
 );
 
@@ -186,7 +268,12 @@ impl WinitView {
         platform_attributes: &PlatformSpecificWindowBuilderAttributes,
         frame: CGRect,
     ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
+        let this = Self::alloc().set_ivars(WinitViewState {
+            pinch_gesture_recognizer: RefCell::new(None),
+            doubletap_gesture_recognizer: RefCell::new(None),
+            rotation_gesture_recognizer: RefCell::new(None),
+        });
+        let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -195,6 +282,52 @@ impl WinitView {
         }
 
         this
+    }
+
+    pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        if should_recognize {
+            if self.ivars().pinch_gesture_recognizer.borrow().is_none() {
+                let pinch: Id<UIPinchGestureRecognizer> = unsafe {
+                    msg_send_id![UIPinchGestureRecognizer::alloc(), initWithTarget: self, action: sel!(pinchGesture:)]
+                };
+                self.addGestureRecognizer(&pinch);
+                self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
+            }
+        } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
+        }
+    }
+
+    pub(crate) fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        if should_recognize {
+            if self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
+                let tap: Id<UITapGestureRecognizer> = unsafe {
+                    msg_send_id![UITapGestureRecognizer::alloc(), initWithTarget: self, action: sel!(doubleTapGesture:)]
+                };
+                tap.setNumberOfTapsRequired(2);
+                tap.setNumberOfTouchesRequired(1);
+                self.addGestureRecognizer(&tap);
+                self.ivars().doubletap_gesture_recognizer.replace(Some(tap));
+            }
+        } else if let Some(recognizer) = self.ivars().doubletap_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
+        }
+    }
+
+    pub(crate) fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        if should_recognize {
+            if self.ivars().rotation_gesture_recognizer.borrow().is_none() {
+                let rotation: Id<UIRotationGestureRecognizer> = unsafe {
+                    msg_send_id![UIRotationGestureRecognizer::alloc(), initWithTarget: self, action: sel!(rotationGesture:)]
+                };
+                self.addGestureRecognizer(&rotation);
+                self.ivars()
+                    .rotation_gesture_recognizer
+                    .replace(Some(rotation));
+            }
+        } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
+        }
     }
 
     fn handle_touches(&self, touches: &NSSet<UITouch>) {
