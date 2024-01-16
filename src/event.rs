@@ -449,15 +449,16 @@ pub enum WindowEvent {
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
-    /// Positive delta values indicate magnification (zooming in) and
-    /// negative delta values indicate shrinking (zooming out).
-    ///
     /// ## Platform-specific
     ///
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
         device_id: DeviceId,
+        /// Positive values indicate magnification (zooming in) and  negative
+        /// values indicate shrinking (zooming out).
+        ///
+        /// This value may be NaN.
         delta: f64,
         phase: TouchPhase,
     },
