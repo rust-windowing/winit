@@ -7,7 +7,6 @@ use objc2::{declare_class, mutability, ClassType, DeclaredClass};
 
 use super::event_loop::EventLoopWindowTarget;
 use super::window_delegate::WindowDelegate;
-use super::PlatformSpecificWindowBuilderAttributes;
 use crate::error::OsError as RootOsError;
 use crate::window::WindowAttributes;
 
@@ -28,10 +27,9 @@ impl Window {
     pub(crate) fn new(
         window_target: &EventLoopWindowTarget,
         attributes: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = window_target.mtm;
-        let delegate = autoreleasepool(|_| WindowDelegate::new(attributes, pl_attribs, mtm))?;
+        let delegate = autoreleasepool(|_| WindowDelegate::new(attributes, mtm))?;
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
