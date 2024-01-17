@@ -213,7 +213,10 @@ impl Eq for OnlyCursorImage {}
 
 #[allow(dead_code)]
 impl OnlyCursorImage {
-    fn build(builder: OnlyCursorImageBuilder, _: &platform_impl::EventLoopWindowTarget) -> Self {
+    pub(crate) fn build(
+        builder: OnlyCursorImageBuilder,
+        _: &platform_impl::EventLoopWindowTarget,
+    ) -> Self {
         Self(Arc::new(builder.0))
     }
 }

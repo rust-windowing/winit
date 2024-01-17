@@ -21,7 +21,7 @@ use x11rb::{
 };
 
 use crate::{
-    cursor::Cursor,
+    cursor::{Cursor, CustomCursor as RootCustomCursor},
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, InnerSizeWriter, WindowEvent},
@@ -32,8 +32,9 @@ use crate::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
             X11Error,
         },
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoModeHandle as PlatformVideoModeHandle,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
+        PlatformIcon, PlatformSpecificWindowBuilderAttributes,
+        VideoModeHandle as PlatformVideoModeHandle,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -43,7 +44,7 @@ use crate::{
 
 use super::{
     ffi,
-    util::{self, CustomCursor, SelectedCursor},
+    util::{self, SelectedCursor},
     CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
@@ -1552,16 +1553,20 @@ impl UnownedWindow {
                     self.xconn.set_cursor_icon(self.xwindow, Some(icon));
                 }
             }
-            Cursor::Custom(cursor) => {
-                let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.inner.0) };
-
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::X(cursor),
+            }) => {
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    self.xconn.set_custom_cursor(self.xwindow, &new_cursor);
+                    self.xconn.set_custom_cursor(self.xwindow, &cursor);
                 }
 
-                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(new_cursor);
+                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
             }
+            #[cfg(wayland_platform)]
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::Wayland(_),
+            }) => log::error!("passed a Wayland cursor to X11 backend"),
         }
     }
 
