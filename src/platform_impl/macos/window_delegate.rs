@@ -43,7 +43,7 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowLevel,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
@@ -445,11 +445,7 @@ declare_class!(
     }
 );
 
-fn new_window(
-    attrs: &WindowAttributes,
-    pl_attrs: &PlatformSpecificWindowBuilderAttributes,
-    mtm: MainThreadMarker,
-) -> Option<Id<WinitWindow>> {
+fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<WinitWindow>> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -487,7 +483,9 @@ fn new_window(
             }
         };
 
-        let mut masks = if (!attrs.decorations && screen.is_none()) || pl_attrs.titlebar_hidden {
+        let mut masks = if (!attrs.decorations && screen.is_none())
+            || attrs.platform_specific.titlebar_hidden
+        {
             // Resizable without a titlebar or borders
             // if decorations is set to false, ignore pl_attrs
             //
@@ -515,7 +513,7 @@ fn new_window(
             masks &= !NSWindowStyleMaskClosable;
         }
 
-        if pl_attrs.fullsize_content_view {
+        if attrs.platform_specific.fullsize_content_view {
             masks |= NSWindowStyleMaskFullSizeContentView;
         }
 
@@ -538,7 +536,7 @@ fn new_window(
         window.setTitle(&NSString::from_str(&attrs.title));
         window.setAcceptsMouseMovedEvents(true);
 
-        if let Some(identifier) = &pl_attrs.tabbing_identifier {
+        if let Some(identifier) = &attrs.platform_specific.tabbing_identifier {
             window.setTabbingIdentifier(&NSString::from_str(identifier));
             window.setTabbingMode(NSWindowTabbingModePreferred);
         }
@@ -547,13 +545,13 @@ fn new_window(
             window.setSharingType(NSWindowSharingNone);
         }
 
-        if pl_attrs.titlebar_transparent {
+        if attrs.platform_specific.titlebar_transparent {
             window.setTitlebarAppearsTransparent(true);
         }
-        if pl_attrs.title_hidden {
+        if attrs.platform_specific.title_hidden {
             window.setTitleVisibility(NSWindowTitleHidden);
         }
-        if pl_attrs.titlebar_buttons_hidden {
+        if attrs.platform_specific.titlebar_buttons_hidden {
             for titlebar_button in &[
                 #[allow(deprecated)]
                 NSWindowFullScreenButton,
@@ -566,7 +564,7 @@ fn new_window(
                 }
             }
         }
-        if pl_attrs.movable_by_window_background {
+        if attrs.platform_specific.movable_by_window_background {
             window.setMovableByWindowBackground(true);
         }
 
@@ -576,7 +574,7 @@ fn new_window(
             }
         }
 
-        if !pl_attrs.has_shadow {
+        if !attrs.platform_specific.has_shadow {
             window.setHasShadow(false);
         }
         if attrs.position.is_none() {
@@ -585,15 +583,15 @@ fn new_window(
 
         let view = WinitView::new(
             &window,
-            pl_attrs.accepts_first_mouse,
-            pl_attrs.option_as_alt,
+            attrs.platform_specific.accepts_first_mouse,
+            attrs.platform_specific.option_as_alt,
         );
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
         // always the default system value in favour of the user's code
         #[allow(deprecated)]
-        view.setWantsBestResolutionOpenGLSurface(!pl_attrs.disallow_hidpi);
+        view.setWantsBestResolutionOpenGLSurface(!attrs.platform_specific.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
         // a window. Changing the layer-backedness of a view breaks the association between
@@ -624,12 +622,8 @@ fn new_window(
 }
 
 impl WindowDelegate {
-    pub fn new(
-        attrs: WindowAttributes,
-        pl_attrs: PlatformSpecificWindowBuilderAttributes,
-        mtm: MainThreadMarker,
-    ) -> Result<Id<Self>, RootOsError> {
-        let window = new_window(&attrs, &pl_attrs, mtm)
+    pub fn new(attrs: WindowAttributes, mtm: MainThreadMarker) -> Result<Id<Self>, RootOsError> {
+        let window = new_window(&attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]

@@ -788,7 +788,6 @@ impl Window {
     pub(crate) fn new(
         el: &EventLoopWindowTarget,
         _window_attrs: window::WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
 
