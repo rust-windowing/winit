@@ -35,7 +35,6 @@ use crate::{
 };
 
 pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -637,6 +636,29 @@ impl Window {
 pub struct KeyEventExtra {
     pub text_with_all_modifiers: Option<SmolStr>,
     pub key_without_modifiers: Key,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum PlatformCustomCursor {
+    #[cfg(wayland_platform)]
+    Wayland(wayland::CustomCursor),
+    #[cfg(x11_platform)]
+    X(x11::CustomCursor),
+}
+impl PlatformCustomCursor {
+    pub(crate) fn build(
+        builder: PlatformCustomCursorBuilder,
+        p: &EventLoopWindowTarget,
+    ) -> PlatformCustomCursor {
+        match p {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(_) => {
+                Self::Wayland(wayland::CustomCursor::build(builder, p))
+            }
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
+        }
+    }
 }
 
 /// Hooks for X11 errors.

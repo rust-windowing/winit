@@ -171,7 +171,7 @@ impl Window {
 
         match attributes.cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
         }
 
         // Activate the window when the token is passed.
@@ -514,7 +514,7 @@ impl Window {
 
         match cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
         }
     }
 

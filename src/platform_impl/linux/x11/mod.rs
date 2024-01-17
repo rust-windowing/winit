@@ -60,6 +60,7 @@ use x11rb::{
     xcb_ffi::ReplyOrIdError,
 };
 
+pub(super) use self::util::CustomCursor;
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
