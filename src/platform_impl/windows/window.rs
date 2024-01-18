@@ -1319,16 +1319,16 @@ impl<'a> InitData<'a> {
             win.set_outer_position(position);
         }
 
-        if let Some(color) = self.pl_attribs.border_color {
+        if let Some(color) = self.attributes.platform_specific.border_color {
             win.set_border_color(color);
         }
-        if let Some(color) = self.pl_attribs.title_background_color {
+        if let Some(color) = self.attributes.platform_specific.title_background_color {
             win.set_title_background_color(color);
         }
-        if let Some(color) = self.pl_attribs.title_text_color {
+        if let Some(color) = self.attributes.platform_specific.title_text_color {
             win.set_title_text_color(color);
         }
-        if let Some(corner) = self.pl_attribs.corner_preference {
+        if let Some(corner) = self.attributes.platform_specific.corner_preference {
             win.set_corner_preference(corner);
         }
     }

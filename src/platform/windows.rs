@@ -387,25 +387,25 @@ impl WindowBuilderExtWindows for WindowBuilder {
 
     #[inline]
     fn with_border_color(mut self, color: Option<Color>) -> Self {
-        self.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
+        self.window.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
     #[inline]
     fn with_title_background_color(mut self, color: Option<Color>) -> Self {
-        self.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
+        self.window.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
     #[inline]
     fn with_title_text_color(mut self, color: Color) -> Self {
-        self.platform_specific.title_text_color = Some(color);
+        self.window.platform_specific.title_text_color = Some(color);
         self
     }
 
     #[inline]
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
-        self.platform_specific.corner_preference = Some(corners);
+        self.window.platform_specific.corner_preference = Some(corners);
         self
     }
 }
