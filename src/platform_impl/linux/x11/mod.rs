@@ -60,6 +60,7 @@ use x11rb::{
     xcb_ffi::ReplyOrIdError,
 };
 
+pub(super) use self::util::CustomCursor;
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
@@ -71,10 +72,7 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
-    platform_impl::{
-        platform::{min_timeout, WindowId},
-        PlatformSpecificWindowBuilderAttributes,
-    },
+    platform_impl::platform::{min_timeout, WindowId},
     window::WindowAttributes,
 };
 
@@ -842,9 +840,8 @@ impl Window {
     pub(crate) fn new(
         event_loop: &EventLoopWindowTarget,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs, pl_attribs)?);
+        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
         event_loop
             .windows
             .borrow_mut()

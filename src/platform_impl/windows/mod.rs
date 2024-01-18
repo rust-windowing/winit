@@ -27,7 +27,7 @@ use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{Color, CornerPreference};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,

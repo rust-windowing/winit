@@ -28,7 +28,7 @@ use sctk::shm::Shm;
 use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
-use crate::cursor::CursorImage;
+use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::event::WindowEvent;
@@ -36,7 +36,7 @@ use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::wayland::{logical_to_physical_rounded, make_wid};
-use crate::platform_impl::WindowId;
+use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
 use crate::platform_impl::wayland::seat::{
@@ -726,10 +726,23 @@ impl WindowState {
     }
 
     /// Set the custom cursor icon.
-    pub(crate) fn set_custom_cursor(&mut self, cursor: &CursorImage) {
+    pub(crate) fn set_custom_cursor(&mut self, cursor: RootCustomCursor) {
+        let cursor = match cursor {
+            RootCustomCursor {
+                inner: PlatformCustomCursor::Wayland(cursor),
+            } => cursor.0,
+            #[cfg(x11_platform)]
+            RootCustomCursor {
+                inner: PlatformCustomCursor::X(_),
+            } => {
+                log::error!("passed a X11 cursor to Wayland backend");
+                return;
+            }
+        };
+
         let cursor = {
             let mut pool = self.custom_cursor_pool.lock().unwrap();
-            CustomCursor::new(&mut pool, cursor)
+            CustomCursor::new(&mut pool, &cursor)
         };
 
         if self.cursor_visible {

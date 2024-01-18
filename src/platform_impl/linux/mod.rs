@@ -35,7 +35,6 @@ use crate::{
 };
 
 pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -72,7 +71,7 @@ impl ApplicationName {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
@@ -80,7 +79,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11: X11WindowBuilderAttributes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg(x11_platform)]
 pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
@@ -289,16 +288,15 @@ impl Window {
     pub(crate) fn new(
         window_target: &EventLoopWindowTarget,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref window_target) => {
-                wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
+                wayland::Window::new(window_target, attribs).map(Window::Wayland)
             }
             #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref window_target) => {
-                x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
+                x11::Window::new(window_target, attribs).map(Window::X)
             }
         }
     }
@@ -637,6 +635,29 @@ impl Window {
 pub struct KeyEventExtra {
     pub text_with_all_modifiers: Option<SmolStr>,
     pub key_without_modifiers: Key,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum PlatformCustomCursor {
+    #[cfg(wayland_platform)]
+    Wayland(wayland::CustomCursor),
+    #[cfg(x11_platform)]
+    X(x11::CustomCursor),
+}
+impl PlatformCustomCursor {
+    pub(crate) fn build(
+        builder: PlatformCustomCursorBuilder,
+        p: &EventLoopWindowTarget,
+    ) -> PlatformCustomCursor {
+        match p {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(_) => {
+                Self::Wayland(wayland::CustomCursor::build(builder, p))
+            }
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
+        }
+    }
 }
 
 /// Hooks for X11 errors.

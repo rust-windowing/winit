@@ -21,7 +21,7 @@ use x11rb::{
 };
 
 use crate::{
-    cursor::Cursor,
+    cursor::{Cursor, CustomCursor as RootCustomCursor},
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, InnerSizeWriter, WindowEvent},
@@ -32,8 +32,8 @@ use crate::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
             X11Error,
         },
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoModeHandle as PlatformVideoModeHandle,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
+        PlatformIcon, VideoModeHandle as PlatformVideoModeHandle,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -43,7 +43,7 @@ use crate::{
 
 use super::{
     ffi,
-    util::{self, CustomCursor, SelectedCursor},
+    util::{self, SelectedCursor},
     CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
@@ -155,7 +155,6 @@ impl UnownedWindow {
     pub(crate) fn new(
         event_loop: &EventLoopWindowTarget,
         window_attrs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
@@ -228,7 +227,7 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match pl_attribs.x11.screen_id {
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
             Some(id) => id,
             None => xconn.default_screen_index() as c_int,
         };
@@ -248,7 +247,11 @@ impl UnownedWindow {
             });
 
         // creating
-        let (visualtype, depth, require_colormap) = match pl_attribs.x11.visual_id {
+        let (visualtype, depth, require_colormap) = match window_attrs
+            .platform_specific
+            .x11
+            .visual_id
+        {
             Some(vi) => {
                 // Find this specific visual.
                 let (visualtype, depth) = all_visuals
@@ -290,12 +293,12 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if pl_attribs.x11.override_redirect {
+            if window_attrs.platform_specific.x11.override_redirect {
                 aux = aux.override_redirect(true as u32);
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match pl_attribs.x11.visual_id {
+            let colormap_visual = match window_attrs.platform_specific.x11.visual_id {
                 Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
@@ -318,7 +321,11 @@ impl UnownedWindow {
         };
 
         // Figure out the window's parent.
-        let parent = pl_attribs.x11.embed_window.unwrap_or(root);
+        let parent = window_attrs
+            .platform_specific
+            .x11
+            .embed_window
+            .unwrap_or(root);
 
         // finally creating the window
         let xwindow = {
@@ -380,7 +387,7 @@ impl UnownedWindow {
         }
 
         // Embed the window if needed.
-        if pl_attribs.x11.embed_window.is_some() {
+        if window_attrs.platform_specific.x11.embed_window.is_some() {
             window.embed_window()?;
         }
 
@@ -401,7 +408,7 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (class, instance) = if let Some(name) = pl_attribs.name {
+                let (class, instance) = if let Some(name) = window_attrs.platform_specific.name {
                     (name.instance, name.general)
                 } else {
                     let class = env::args_os()
@@ -434,7 +441,8 @@ impl UnownedWindow {
                 flusher.ignore_error()
             }
 
-            leap!(window.set_window_types(pl_attribs.x11.x11_window_types)).ignore_error();
+            leap!(window.set_window_types(window_attrs.platform_specific.x11.x11_window_types))
+                .ignore_error();
 
             // Set size hints.
             let mut min_inner_size = window_attrs
@@ -457,7 +465,7 @@ impl UnownedWindow {
             shared_state.min_inner_size = min_inner_size.map(Into::into);
             shared_state.max_inner_size = max_inner_size.map(Into::into);
             shared_state.resize_increments = window_attrs.resize_increments;
-            shared_state.base_size = pl_attribs.x11.base_size;
+            shared_state.base_size = window_attrs.platform_specific.x11.base_size;
 
             let normal_hints = WmSizeHints {
                 position: position.map(|PhysicalPosition { x, y }| {
@@ -473,7 +481,8 @@ impl UnownedWindow {
                 size_increment: window_attrs
                     .resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
-                base_size: pl_attribs
+                base_size: window_attrs
+                    .platform_specific
                     .x11
                     .base_size
                     .map(|size| cast_size_to_hint(size, scale_factor)),
@@ -579,7 +588,7 @@ impl UnownedWindow {
         window.set_cursor(window_attrs.cursor);
 
         // Remove the startup notification if we have one.
-        if let Some(startup) = pl_attribs.activation_token.as_ref() {
+        if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
             leap!(xconn.remove_activation_token(xwindow, &startup._token));
         }
 
@@ -1552,16 +1561,20 @@ impl UnownedWindow {
                     self.xconn.set_cursor_icon(self.xwindow, Some(icon));
                 }
             }
-            Cursor::Custom(cursor) => {
-                let new_cursor = unsafe { CustomCursor::new(&self.xconn, &cursor.inner.0) };
-
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::X(cursor),
+            }) => {
                 #[allow(clippy::mutex_atomic)]
                 if *self.cursor_visible.lock().unwrap() {
-                    self.xconn.set_custom_cursor(self.xwindow, &new_cursor);
+                    self.xconn.set_custom_cursor(self.xwindow, &cursor);
                 }
 
-                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(new_cursor);
+                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
             }
+            #[cfg(wayland_platform)]
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::Wayland(_),
+            }) => log::error!("passed a Wayland cursor to X11 backend"),
         }
     }
 
