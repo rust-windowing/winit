@@ -55,7 +55,8 @@ use windows_sys::Win32::{
 };
 
 use log::warn;
-use windows_sys::Win32::Graphics::Dwm::{DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR};
+use windows_sys::Win32::Foundation::COLORREF;
+use windows_sys::Win32::Graphics::Dwm::{DWM_WINDOW_CORNER_PREFERENCE, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE};
 
 use crate::{
     cursor::Cursor,
@@ -83,7 +84,7 @@ use crate::{
         WindowButtons, WindowLevel,
     },
 };
-use crate::platform::windows::Color;
+use crate::platform::windows::{Color, CornerPreference};
 
 /// The Win32 implementation of the main `Window` object.
 pub(crate) struct Window {
@@ -1094,6 +1095,17 @@ impl Window {
                 DWMWA_TEXT_COLOR,
                 &color as *const _ as _,
                 mem::size_of::<Color>() as _);
+        }
+    }
+
+    #[inline]
+    pub fn set_corner_preference(&self, preference: CornerPreference) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
+                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _);
         }
     }
 }

@@ -16,16 +16,20 @@ pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
 
+/// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Color(u32);
 
 impl Color {
+
+    /// Use the system's default color
     pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
 
     //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
     const NONE: Color = Color(0xFFFFFFFE);
 
+    /// Create a new color from the given RGB values
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
         Self((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
     }
@@ -35,6 +39,37 @@ impl Default for Color {
     fn default() -> Self {
         Self::SYSTEM_DEFAULT
     }
+}
+
+/// Describes how the corners of a window should look like.
+///
+/// For a detailed explanation, see [`DWM_WINDOW_CORNER_PREFERENCE docs`].
+///
+/// [`DWM_WINDOW_CORNER_PREFERENCE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_window_corner_preference
+#[repr(i32)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CornerPreference {
+
+    /// Corresponds to `DWMWCP_DEFAULT`.
+    ///
+    /// Let the system decide when to round window corners.
+    #[default]
+    Default = 0,
+
+    /// Corresponds to `DWMWCP_DONOTROUND`.
+    ///
+    /// Never round window corners.
+    DoNotRound = 1,
+
+    /// Corresponds to `DWMWCP_ROUND`.
+    ///
+    /// Round the corners, if appropriate.
+    Round = 2,
+
+    /// Corresponds to `DWMWCP_ROUNDSMALL`.
+    ///
+    /// Round the corners if appropriate, with a small radius.
+    RoundSmall = 3,
 }
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -161,6 +196,8 @@ pub trait WindowExtWindows {
     fn set_title_background_color(&self, color: Color);
 
     fn set_title_text_color(&self, color: Color);
+
+    fn set_corner_preference(&self, preference: CornerPreference);
 }
 
 impl WindowExtWindows for Window {
@@ -197,6 +234,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_title_text_color(&self, color: Color) {
         self.window.set_title_text_color(color)
+    }
+
+    #[inline]
+    fn set_corner_preference(&self, preference: CornerPreference) {
+        self.window.set_corner_preference(preference)
     }
 }
 
