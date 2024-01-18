@@ -15,6 +15,25 @@ pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
 
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Color(u32);
+
+impl Color {
+    pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
+    const NONE: Color = Color(0xFFFFFFFE);
+
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::SYSTEM_DEFAULT
+    }
+}
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
     /// Whether to allow the event loop to be created off of the main thread.
@@ -133,6 +152,8 @@ pub trait WindowExtWindows {
     ///
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
+
+    fn set_border_color(&self, color: Option<Color>);
 }
 
 impl WindowExtWindows for Window {
@@ -154,6 +175,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
+    }
+
+    #[inline]
+    fn set_border_color(&self, color: Option<Color>) {
+        self.window.set_border_color(color.unwrap_or(Color::NONE))
     }
 }
 

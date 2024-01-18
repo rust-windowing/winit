@@ -14,7 +14,7 @@ use windows_sys::Win32::{
         HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
     },
     Graphics::{
-        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
+        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DwmSetWindowAttribute, DWMWA_BORDER_COLOR},
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
             RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
@@ -82,6 +82,7 @@ use crate::{
         WindowButtons, WindowLevel,
     },
 };
+use crate::platform::windows::Color;
 
 /// The Win32 implementation of the main `Window` object.
 pub(crate) struct Window {
@@ -1059,6 +1060,17 @@ impl Window {
                 char_buff.len() as i32,
                 0,
             );
+        }
+    }
+
+    #[inline]
+    pub fn set_border_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_BORDER_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _);
         }
     }
 }
