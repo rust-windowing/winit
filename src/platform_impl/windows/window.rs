@@ -55,6 +55,7 @@ use windows_sys::Win32::{
 };
 
 use log::warn;
+use windows_sys::Win32::Graphics::Dwm::{DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR};
 
 use crate::{
     cursor::Cursor,
@@ -1069,6 +1070,28 @@ impl Window {
             DwmSetWindowAttribute(
                 self.hwnd(),
                 DWMWA_BORDER_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _);
+        }
+    }
+
+    #[inline]
+    pub fn set_title_background_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CAPTION_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _);
+        }
+    }
+
+    #[inline]
+    pub fn set_title_text_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_TEXT_COLOR,
                 &color as *const _ as _,
                 mem::size_of::<Color>() as _);
         }

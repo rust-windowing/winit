@@ -1,4 +1,5 @@
-use std::{ffi::c_void, path::Path};
+use std::{ffi::c_void, mem, path::Path};
+use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR};
 
 use crate::{
     dpi::PhysicalSize,
@@ -21,6 +22,8 @@ pub struct Color(u32);
 
 impl Color {
     pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
+
+    //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
     const NONE: Color = Color(0xFFFFFFFE);
 
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
@@ -154,6 +157,10 @@ pub trait WindowExtWindows {
     fn set_undecorated_shadow(&self, shadow: bool);
 
     fn set_border_color(&self, color: Option<Color>);
+
+    fn set_title_background_color(&self, color: Color);
+
+    fn set_title_text_color(&self, color: Color);
 }
 
 impl WindowExtWindows for Window {
@@ -180,6 +187,16 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_border_color(&self, color: Option<Color>) {
         self.window.set_border_color(color.unwrap_or(Color::NONE))
+    }
+
+    #[inline]
+    fn set_title_background_color(&self, color: Color) {
+        self.window.set_title_background_color(color)
+    }
+
+    #[inline]
+    fn set_title_text_color(&self, color: Color) {
+        self.window.set_title_text_color(color)
     }
 }
 
