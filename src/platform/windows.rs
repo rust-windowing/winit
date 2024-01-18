@@ -188,12 +188,24 @@ pub trait WindowExtWindows {
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
 
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
     fn set_border_color(&self, color: Option<Color>);
 
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
     fn set_title_background_color(&self, color: Option<Color>);
 
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
     fn set_title_text_color(&self, color: Color);
 
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
     fn set_corner_preference(&self, preference: CornerPreference);
 }
 
@@ -302,6 +314,26 @@ pub trait WindowBuilderExtWindows {
     /// The shadow is hidden by default.
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
+
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_border_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_background_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_text_color(self, color: Color) -> Self;
+
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_corner_preference(self, corners: CornerPreference) -> Self;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -350,6 +382,30 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_border_color(mut self, color: Option<Color>) -> Self {
+        self.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_background_color(mut self, color: Option<Color>) -> Self {
+        self.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_text_color(mut self, color: Color) -> Self {
+        self.platform_specific.title_text_color = Some(color);
+        self
+    }
+
+    #[inline]
+    fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
+        self.platform_specific.corner_preference = Some(corners);
         self
     }
 }

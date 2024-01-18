@@ -25,6 +25,7 @@ use crate::platform_impl::Fullscreen;
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
+use crate::platform::windows::{Color, CornerPreference};
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -36,6 +37,10 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub skip_taskbar: bool,
     pub class_name: String,
     pub decoration_shadow: bool,
+    pub border_color: Option<Color>,
+    pub title_background_color: Option<Color>,
+    pub title_text_color: Option<Color>,
+    pub corner_preference: Option<CornerPreference>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -49,6 +54,10 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             skip_taskbar: false,
             class_name: "Window Class".to_string(),
             decoration_shadow: false,
+            border_color: None,
+            title_background_color: None,
+            title_text_color: None,
+            corner_preference: None,
         }
     }
 }
