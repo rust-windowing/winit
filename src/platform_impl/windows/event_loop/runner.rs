@@ -16,6 +16,7 @@ use crate::{
     platform_impl::platform::{
         event_loop::{WindowData, GWL_USERDATA},
         get_window_long,
+        window_state::WindowFlags,
     },
     window::WindowId,
 };
@@ -414,12 +415,23 @@ impl<T> BufferedEvent<T> {
                 let inner_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
 
-                let window_flags = unsafe {
+                let (window_flags, is_maximized) = unsafe {
                     let userdata =
                         get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
-                    (*userdata).window_state_lock().window_flags
+                    let mut window_state = (*userdata).window_state_lock();
+                    let window_flags = window_state.window_flags;
+
+                    let is_maximized = window_flags.contains(WindowFlags::MAXIMIZED);
+                    if is_maximized {
+                        window_state.buffered_size = Some(inner_size);
+                    }
+
+                    (window_flags, is_maximized)
                 };
-                window_flags.set_size((window_id.0).0, inner_size);
+
+                if !is_maximized {
+                    window_flags.set_size((window_id.0).0, inner_size);
+                }
             }
         }
     }

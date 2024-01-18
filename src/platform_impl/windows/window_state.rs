@@ -59,6 +59,8 @@ pub(crate) struct WindowState {
     pub dragging: bool,
 
     pub skip_taskbar: bool,
+
+    pub buffered_size: Option<PhysicalSize<u32>>,
 }
 
 #[derive(Clone)]
@@ -175,6 +177,8 @@ impl WindowState {
             dragging: false,
 
             skip_taskbar: false,
+
+            buffered_size: None,
         }
     }
 
@@ -476,7 +480,7 @@ impl WindowFlags {
         PhysicalSize::new(outer_x as _, outer_y as _)
     }
 
-    pub fn set_size(self, hwnd: HWND, size: PhysicalSize<u32>) {
+    pub fn set_size(self, hwnd: HWND, size: PhysicalSize<u32>) -> (u32, u32) {
         unsafe {
             let (width, height): (u32, u32) = self.adjust_size(hwnd, size).into();
             SetWindowPos(
@@ -489,6 +493,7 @@ impl WindowFlags {
                 SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
             );
             InvalidateRgn(hwnd, 0, false.into());
+            (width, height)
         }
     }
 }
