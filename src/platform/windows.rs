@@ -1,5 +1,4 @@
-use std::{ffi::c_void, mem, path::Path};
-use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR};
+use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
@@ -22,7 +21,6 @@ pub type HMONITOR = isize;
 pub struct Color(u32);
 
 impl Color {
-
     /// Use the system's default color
     pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
 
@@ -49,7 +47,6 @@ impl Default for Color {
 #[repr(i32)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CornerPreference {
-
     /// Corresponds to `DWMWCP_DEFAULT`.
     ///
     /// Let the system decide when to round window corners.
@@ -230,7 +227,8 @@ impl WindowExtWindows for Window {
     fn set_title_background_color(&self, color: Option<Color>) {
         // The windows docs don't mention NONE as a valid options but it works in practice and is useful
         // to circumvent the Windows option "Show accent color on title bars and window borders"
-        self.window.set_title_background_color(color.unwrap_or(Color::NONE))
+        self.window
+            .set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
