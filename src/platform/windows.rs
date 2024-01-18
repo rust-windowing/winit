@@ -193,7 +193,7 @@ pub trait WindowExtWindows {
 
     fn set_border_color(&self, color: Option<Color>);
 
-    fn set_title_background_color(&self, color: Color);
+    fn set_title_background_color(&self, color: Option<Color>);
 
     fn set_title_text_color(&self, color: Color);
 
@@ -227,8 +227,10 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn set_title_background_color(&self, color: Color) {
-        self.window.set_title_background_color(color)
+    fn set_title_background_color(&self, color: Option<Color>) {
+        // The windows docs don't mention NONE as a valid options but it works in practice and is useful
+        // to circumvent the Windows option "Show accent color on title bars and window borders"
+        self.window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
