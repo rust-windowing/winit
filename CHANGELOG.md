@@ -33,6 +33,7 @@ Unreleased` header.
 - Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- on Windows: add `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 
 # 0.29.10
 
