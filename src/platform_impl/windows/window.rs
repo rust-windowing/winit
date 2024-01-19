@@ -14,7 +14,11 @@ use windows_sys::Win32::{
         HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
     },
     Graphics::{
-        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
+        Dwm::{
+            DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR,
+            DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE,
+            DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_WINDOW_CORNER_PREFERENCE,
+        },
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
             RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
@@ -56,6 +60,7 @@ use windows_sys::Win32::{
 
 use log::warn;
 
+use crate::platform::windows::{Color, CornerPreference};
 use crate::{
     cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -1060,6 +1065,54 @@ impl Window {
             );
         }
     }
+
+    #[inline]
+    pub fn set_border_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_BORDER_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_background_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CAPTION_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_text_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_TEXT_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_corner_preference(&self, preference: CornerPreference) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
+                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
+            );
+        }
+    }
 }
 
 impl Drop for Window {
@@ -1264,6 +1317,19 @@ impl<'a> InitData<'a> {
 
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
+        }
+
+        if let Some(color) = self.attributes.platform_specific.border_color {
+            win.set_border_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_background_color {
+            win.set_title_background_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_text_color {
+            win.set_title_text_color(color);
+        }
+        if let Some(corner) = self.attributes.platform_specific.corner_preference {
+            win.set_corner_preference(corner);
         }
     }
 }
