@@ -33,6 +33,7 @@ Unreleased` header.
 - Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- On Windows, buffer `ScaleFactorChanged` new size if window is maximized until exiting maximzed state.
 
 # 0.29.10
 
