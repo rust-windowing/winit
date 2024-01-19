@@ -210,3 +210,45 @@ extern "C" {
         unicodeString: *mut UniChar,
     ) -> OSStatus;
 }
+
+// CGWindowLevel.h
+//
+// Note: There are two different things at play in this header:
+// `CGWindowLevel` and `CGWindowLevelKey`.
+//
+// It seems like there was a push towards using "key" values instead of the
+// raw window level values, and then you were supposed to use
+// `CGWindowLevelForKey` to get the actual level.
+//
+// But the values that `NSWindowLevel` has are compiled in, and as such has
+// to remain ABI compatible, so they're safe for us to hardcode as well.
+#[allow(dead_code, non_upper_case_globals)]
+mod window_level {
+    const kCGNumReservedWindowLevels: i32 = 16;
+    const kCGNumReservedBaseWindowLevels: i32 = 5;
+
+    pub const kCGBaseWindowLevel: i32 = i32::MIN;
+    pub const kCGMinimumWindowLevel: i32 = kCGBaseWindowLevel + kCGNumReservedBaseWindowLevels;
+    pub const kCGMaximumWindowLevel: i32 = i32::MAX - kCGNumReservedWindowLevels;
+
+    pub const kCGDesktopWindowLevel: i32 = kCGMinimumWindowLevel + 20;
+    pub const kCGDesktopIconWindowLevel: i32 = kCGDesktopWindowLevel + 20;
+    pub const kCGBackstopMenuLevel: i32 = -20;
+    pub const kCGNormalWindowLevel: i32 = 0;
+    pub const kCGFloatingWindowLevel: i32 = 3;
+    pub const kCGTornOffMenuWindowLevel: i32 = 3;
+    pub const kCGModalPanelWindowLevel: i32 = 8;
+    pub const kCGUtilityWindowLevel: i32 = 19;
+    pub const kCGDockWindowLevel: i32 = 20;
+    pub const kCGMainMenuWindowLevel: i32 = 24;
+    pub const kCGStatusWindowLevel: i32 = 25;
+    pub const kCGPopUpMenuWindowLevel: i32 = 101;
+    pub const kCGOverlayWindowLevel: i32 = 102;
+    pub const kCGHelpWindowLevel: i32 = 200;
+    pub const kCGDraggingWindowLevel: i32 = 500;
+    pub const kCGScreenSaverWindowLevel: i32 = 1000;
+    pub const kCGAssistiveTechHighWindowLevel: i32 = 1500;
+    pub const kCGCursorWindowLevel: i32 = kCGMaximumWindowLevel - 1;
+}
+
+pub use window_level::*;

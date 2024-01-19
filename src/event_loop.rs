@@ -14,9 +14,9 @@ use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{error, fmt};
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use std::time::{Duration, Instant};
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_time::{Duration, Instant};
 
 use crate::error::EventLoopError;
@@ -48,8 +48,8 @@ pub struct EventLoop<T: 'static> {
 /// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
-pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
+pub struct EventLoopWindowTarget {
+    pub(crate) p: platform_impl::EventLoopWindowTarget,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -130,7 +130,7 @@ impl<T> EventLoopBuilder<T> {
         })
     }
 
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     pub(crate) fn allow_event_loop_recreation() {
         EVENT_LOOP_CREATED.store(false, Ordering::Relaxed);
     }
@@ -142,7 +142,7 @@ impl<T> fmt::Debug for EventLoop<T> {
     }
 }
 
-impl<T> fmt::Debug for EventLoopWindowTarget<T> {
+impl fmt::Debug for EventLoopWindowTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("EventLoopWindowTarget { .. }")
     }
@@ -211,9 +211,6 @@ impl<T> EventLoop<T> {
     /// Runs the event loop in the calling thread and calls the given `event_handler` closure
     /// to dispatch any pending events.
     ///
-    /// Since the closure is `'static`, it must be a `move` closure if it needs to
-    /// access any data from the calling context.
-    ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
     ///
     /// ## Platform-specific
@@ -226,10 +223,10 @@ impl<T> EventLoop<T> {
     ///
     ///   Web applications are recommended to use
     #[cfg_attr(
-        wasm_platform,
+        web_platform,
         doc = "[`EventLoopExtWebSys::spawn()`][crate::platform::web::EventLoopExtWebSys::spawn()]"
     )]
-    #[cfg_attr(not(wasm_platform), doc = "`EventLoopExtWebSys::spawn()`")]
+    #[cfg_attr(not(web_platform), doc = "`EventLoopExtWebSys::spawn()`")]
     ///   [^1] instead of [`run()`] to avoid the need
     ///   for the Javascript exception trick, and to make it clearer that the event loop runs
     ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
@@ -239,12 +236,12 @@ impl<T> EventLoop<T> {
     ///
     /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
     /// [`run()`]: Self::run()
-    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on WASM.
+    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on Web.
     #[inline]
-    #[cfg(not(all(wasm_platform, target_feature = "exception-handling")))]
+    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &EventLoopWindowTarget),
     {
         self.event_loop.run(event_handler)
     }
@@ -301,13 +298,13 @@ impl<T> AsRawFd for EventLoop<T> {
 }
 
 impl<T> Deref for EventLoop<T> {
-    type Target = EventLoopWindowTarget<T>;
-    fn deref(&self) -> &EventLoopWindowTarget<T> {
+    type Target = EventLoopWindowTarget;
+    fn deref(&self) -> &EventLoopWindowTarget {
         self.event_loop.window_target()
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
@@ -370,10 +367,19 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn exiting(&self) -> bool {
         self.p.exiting()
     }
+
+    /// Gets a persistent reference to the underlying platform display.
+    ///
+    /// See the [`OwnedDisplayHandle`] type for more information.
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle {
+            platform: self.p.owned_display_handle(),
+        }
+    }
 }
 
 #[cfg(feature = "rwh_06")]
-impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
+impl rwh_06::HasDisplayHandle for EventLoopWindowTarget {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.p.raw_display_handle_rwh_06()?;
         // SAFETY: The display will never be deallocated while the event loop is alive.
@@ -382,10 +388,56 @@ impl<T> rwh_06::HasDisplayHandle for EventLoopWindowTarget<T> {
 }
 
 #[cfg(feature = "rwh_05")]
-unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoopWindowTarget<T> {
+unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.p.raw_display_handle_rwh_05()
+    }
+}
+
+/// A proxy for the underlying display handle.
+///
+/// The purpose of this type is to provide a cheaply clonable handle to the underlying
+/// display handle. This is often used by graphics APIs to connect to the underlying APIs.
+/// It is difficult to keep a handle to the [`EventLoop`] type or the [`EventLoopWindowTarget`]
+/// type. In contrast, this type involves no lifetimes and can be persisted for as long as
+/// needed.
+///
+/// For all platforms, this is one of the following:
+///
+/// - A zero-sized type that is likely optimized out.
+/// - A reference-counted pointer to the underlying type.
+#[derive(Clone)]
+pub struct OwnedDisplayHandle {
+    #[cfg_attr(not(any(feature = "rwh_05", feature = "rwh_06")), allow(dead_code))]
+    platform: platform_impl::OwnedDisplayHandle,
+}
+
+impl fmt::Debug for OwnedDisplayHandle {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OwnedDisplayHandle").finish_non_exhaustive()
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl rwh_06::HasDisplayHandle for OwnedDisplayHandle {
+    #[inline]
+    fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
+        let raw = self.platform.raw_display_handle_rwh_06()?;
+
+        // SAFETY: The underlying display handle should be safe.
+        let handle = unsafe { rwh_06::DisplayHandle::borrow_raw(raw) };
+
+        Ok(handle)
+    }
+}
+
+#[cfg(feature = "rwh_05")]
+unsafe impl rwh_05::HasRawDisplayHandle for OwnedDisplayHandle {
+    #[inline]
+    fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
+        self.platform.raw_display_handle_rwh_05()
     }
 }
 

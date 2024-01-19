@@ -34,7 +34,6 @@ skip = [
     { name = "raw-window-handle" },    # we intentionally have multiple versions of this
     { name = "bitflags" },             # the ecosystem is in the process of migrating.
     { name = "libloading" },           # x11rb uses a different version until the next update
-    { name = "redox_syscall" },        # https://gitlab.redox-os.org/redox-os/orbclient/-/issues/46
 ]
 skip-tree = []
 

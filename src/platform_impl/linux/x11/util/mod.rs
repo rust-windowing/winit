@@ -13,7 +13,7 @@ mod randr;
 mod window_property;
 mod wm;
 
-pub use self::{geometry::*, hint::*, input::*, window_property::*, wm::*};
+pub use self::{cursor::*, geometry::*, hint::*, input::*, window_property::*, wm::*};
 
 use std::{
     mem::{self, MaybeUninit},

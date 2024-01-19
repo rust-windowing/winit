@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{
+    cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     platform_impl::Fullscreen,
@@ -12,8 +13,7 @@ use crate::{
 };
 
 use super::{
-    EventLoopWindowTarget, MonitorHandle, PlatformSpecificWindowBuilderAttributes, RedoxSocket,
-    TimeSocket, WindowId, WindowProperties,
+    EventLoopWindowTarget, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -33,10 +33,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        el: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        el: &EventLoopWindowTarget,
         attrs: window::WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         let scale = MonitorHandle.scale_factor();
 
@@ -350,7 +349,7 @@ impl Window {
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     #[inline]
-    pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
+    pub fn set_cursor(&self, _: Cursor) {}
 
     #[inline]
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {

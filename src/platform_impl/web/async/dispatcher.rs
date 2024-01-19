@@ -1,19 +1,21 @@
-use super::{channel, AsyncReceiver, AsyncSender, Wrapper};
+use super::super::main_thread::MainThreadMarker;
+use super::{channel, Receiver, Sender, Wrapper};
 use std::{
     cell::Ref,
     sync::{Arc, Condvar, Mutex},
 };
 
-pub struct Dispatcher<T: 'static>(Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>);
+pub struct Dispatcher<T: 'static>(Wrapper<true, T, Sender<Closure<T>>, Closure<T>>);
 
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
 impl<T> Dispatcher<T> {
     #[track_caller]
-    pub fn new(value: T) -> Option<(Self, DispatchRunner<T>)> {
+    pub fn new(main_thread: MainThreadMarker, value: T) -> Option<(Self, DispatchRunner<T>)> {
         let (sender, receiver) = channel::<Closure<T>>();
 
         Wrapper::new(
+            main_thread,
             value,
             |value, Closure(closure)| {
                 // SAFETY: The given `Closure` here isn't really `'static`, so we shouldn't do anything
@@ -82,15 +84,9 @@ impl<T> Dispatcher<T> {
     }
 }
 
-impl<T> Drop for Dispatcher<T> {
-    fn drop(&mut self) {
-        self.0.with_sender_data(|sender| sender.close())
-    }
-}
-
 pub struct DispatchRunner<T: 'static> {
-    wrapper: Wrapper<true, T, AsyncSender<Closure<T>>, Closure<T>>,
-    receiver: AsyncReceiver<Closure<T>>,
+    wrapper: Wrapper<true, T, Sender<Closure<T>>, Closure<T>>,
+    receiver: Receiver<Closure<T>>,
 }
 
 impl<T> DispatchRunner<T> {

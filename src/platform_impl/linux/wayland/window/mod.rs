@@ -15,16 +15,17 @@ use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
 
+use log::warn;
+
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-    PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowLevel,
 };
 
@@ -79,10 +80,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop_window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop_window_target: &EventLoopWindowTarget,
         attributes: WindowAttributes,
-        platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
@@ -132,7 +132,7 @@ impl Window {
         window_state.set_decorate(attributes.decorations);
 
         // Set the app_id.
-        if let Some(name) = platform_attributes.name.map(|name| name.general) {
+        if let Some(name) = attributes.platform_specific.name.map(|name| name.general) {
             window.set_app_id(name);
         }
 
@@ -150,7 +150,7 @@ impl Window {
         window_state.set_resizable(attributes.resizable);
 
         // Set startup mode.
-        match attributes.fullscreen.0.map(Into::into) {
+        match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             }
@@ -167,10 +167,15 @@ impl Window {
             _ => (),
         };
 
+        match attributes.cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
+        }
+
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (
             xdg_activation.as_ref(),
-            platform_attributes.activation_token,
+            attributes.platform_specific.activation_token,
         ) {
             xdg_activation.activate(token._token, &surface);
         }
@@ -280,7 +285,7 @@ impl Window {
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        window_state.inner_size().to_physical(scale_factor)
+        super::logical_to_physical_rounded(window_state.inner_size(), scale_factor)
     }
 
     #[inline]
@@ -308,7 +313,7 @@ impl Window {
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         let window_state = self.window_state.lock().unwrap();
         let scale_factor = window_state.scale_factor();
-        window_state.outer_size().to_physical(scale_factor)
+        super::logical_to_physical_rounded(window_state.outer_size(), scale_factor)
     }
 
     #[inline]
@@ -502,8 +507,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state.lock().unwrap().set_cursor(cursor);
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let window_state = &mut self.window_state.lock().unwrap();
+
+        match cursor {
+            Cursor::Icon(icon) => window_state.set_cursor(icon),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
+        }
     }
 
     #[inline]

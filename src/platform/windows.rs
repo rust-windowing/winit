@@ -2,12 +2,9 @@ use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
-    event::{DeviceId, KeyEvent},
+    event::DeviceId,
     event_loop::EventLoopBuilder,
-    keyboard::Key,
     monitor::MonitorHandle,
-    platform::modifier_supplement::KeyEventExtModifierSupplement,
-    platform_impl::WinIcon,
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -185,7 +182,14 @@ pub trait WindowBuilderExtWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
     /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     ///
-    /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
+    #[cfg_attr(
+        platform_windows,
+        doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
+    )]
+    #[cfg_attr(
+        not(platform_windows),
+        doc = "[`CreateMenu`]: #only-available-on-windows"
+    )]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -221,49 +225,49 @@ pub trait WindowBuilderExtWindows {
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
-        self.platform_specific.owner = Some(parent);
+        self.window.platform_specific.owner = Some(parent);
         self
     }
 
     #[inline]
     fn with_menu(mut self, menu: HMENU) -> Self {
-        self.platform_specific.menu = Some(menu);
+        self.window.platform_specific.menu = Some(menu);
         self
     }
 
     #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
-        self.platform_specific.taskbar_icon = taskbar_icon;
+        self.window.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
     #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
-        self.platform_specific.no_redirection_bitmap = flag;
+        self.window.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> Self {
-        self.platform_specific.drag_and_drop = flag;
+        self.window.platform_specific.drag_and_drop = flag;
         self
     }
 
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> Self {
-        self.platform_specific.skip_taskbar = skip;
+        self.window.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
-        self.platform_specific.class_name = class_name.into();
+        self.window.platform_specific.class_name = class_name.into();
         self
     }
 
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
-        self.platform_specific.decoration_shadow = shadow;
+        self.window.platform_specific.decoration_shadow = shadow;
         self
     }
 
@@ -337,27 +341,12 @@ impl IconExtWindows for Icon {
         path: P,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_path(path, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }
 
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
-    }
-}
-
-impl KeyEventExtModifierSupplement for KeyEvent {
-    #[inline]
-    fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific
-            .text_with_all_modifers
-            .as_ref()
-            .map(|s| s.as_str())
-    }
-
-    #[inline]
-    fn key_without_modifiers(&self) -> Key {
-        self.platform_specific.key_without_modifiers.clone()
     }
 }

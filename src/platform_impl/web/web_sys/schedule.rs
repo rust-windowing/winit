@@ -1,5 +1,5 @@
 use js_sys::{Function, Object, Promise, Reflect};
-use once_cell::unsync::OnceCell;
+use std::cell::OnceCell;
 use std::time::Duration;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;

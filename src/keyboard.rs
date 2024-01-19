@@ -69,6 +69,9 @@
 //
 // --------- END OF W3C SHORT NOTICE ---------------------------------------------------------------
 
+use bitflags::bitflags;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 pub use smol_str::SmolStr;
 
 /// Contains the platform-native physical key identifier

@@ -2,11 +2,13 @@
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
+[![Master Docs](https://img.shields.io/github/actions/workflow/status/rust-windowing/winit/docs.yml?branch=master&label=master%20docs
+)](https://rust-windowing.github.io/winit/winit/index.html)
 [![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
 
 ```toml
 [dependencies]
-winit = "0.29.4"
+winit = "0.29.10"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -42,7 +44,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ## MSRV Policy
 
-This crate's Minimum Supported Rust Version (MSRV) is **1.65**. Changes to
+This crate's Minimum Supported Rust Version (MSRV) is **1.70**. Changes to
 the MSRV will be accompanied by a minor version bump.
 
 As a **tentative** policy, the upper bound of the MSRV is given by the following
@@ -74,7 +76,7 @@ same MSRV policy.
 
 Note that windows don't appear on Wayland until you draw/present to them.
 
-#### WebAssembly
+#### Web
 
 To run the web example: `cargo run-wasm --example web`
 
@@ -85,7 +87,7 @@ either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit
 create a `<canvas>` element which you can then retrieve][web canvas getter] and
 insert it into the DOM yourself.
 
-For the example code using Winit with WebAssembly, check out the [web example]. For
+For the example code using Winit on Web, check out the [web example]. For
 information on using Rust on WebAssembly, check out the [Rust and WebAssembly
 book].
 
@@ -156,7 +158,7 @@ For more details, refer to these `android-activity` [example applications](https
 
 If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk`, then the minimal changes would be:
 1. Remove `ndk-glue` from your `Cargo.toml`
-2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.4", features = [ "android-native-activity" ] }`
+2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.10", features = [ "android-native-activity" ] }`
 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize logging as above).
 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your event loop (as shown above).
 

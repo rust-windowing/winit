@@ -3,9 +3,9 @@
 //! Example for focusing a window.
 
 use simple_logger::SimpleLogger;
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use std::time;
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_time as time;
 use winit::{
     event::{Event, StartCause, WindowEvent},

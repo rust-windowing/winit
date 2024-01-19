@@ -12,22 +12,22 @@ mod window;
 mod xdisplay;
 
 pub(crate) use self::{
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::UnownedWindow,
-    xdisplay::XConnection,
+    xdisplay::{XConnection, XError, XNotSupported},
 };
-
-pub use self::xdisplay::{XError, XNotSupported};
 
 use calloop::generic::Generic;
 use calloop::EventLoop as Loop;
 use calloop::{ping::Ping, Readiness};
+use log::warn;
 
 use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
+    marker::PhantomData,
     mem::MaybeUninit,
     ops::Deref,
     os::{
@@ -60,6 +60,7 @@ use x11rb::{
     xcb_ffi::ReplyOrIdError,
 };
 
+pub(super) use self::util::CustomCursor;
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
@@ -71,10 +72,7 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
-    platform_impl::{
-        platform::{min_timeout, WindowId},
-        PlatformSpecificWindowBuilderAttributes,
-    },
+    platform_impl::platform::{min_timeout, WindowId},
     window::WindowAttributes,
 };
 
@@ -143,7 +141,7 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
-pub struct EventLoopWindowTarget<T> {
+pub struct EventLoopWindowTarget {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
@@ -156,19 +154,18 @@ pub struct EventLoopWindowTarget<T> {
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
     device_events: Cell<DeviceEvents>,
-    _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
     loop_running: bool,
     event_loop: Loop<'static, EventLoopState>,
     waker: calloop::ping::Ping,
-    event_processor: EventProcessor<T>,
+    event_processor: EventProcessor,
     redraw_receiver: PeekableReceiver<WindowId>,
     user_receiver: PeekableReceiver<T>,
     activation_receiver: PeekableReceiver<ActivationToken>,
     user_sender: Sender<T>,
-    target: Rc<RootELW<T>>,
+    target: Rc<RootELW>,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -308,7 +305,6 @@ impl<T: 'static> EventLoop<T> {
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             windows: Default::default(),
-            _marker: ::std::marker::PhantomData,
             ime_sender,
             xconn,
             wm_delete_window,
@@ -329,7 +325,7 @@ impl<T: 'static> EventLoop<T> {
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(window_target),
-            _marker: ::std::marker::PhantomData,
+            _marker: PhantomData,
         });
 
         let event_processor = EventProcessor {
@@ -346,6 +342,7 @@ impl<T: 'static> EventLoop<T> {
             held_key_press: None,
             first_touch: None,
             active_window: None,
+            modifiers: Default::default(),
             is_composing: false,
         };
 
@@ -364,7 +361,9 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY
+                    | xkb::EventType::MAP_NOTIFY
+                    | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
@@ -395,13 +394,13 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub(crate) fn window_target(&self) -> &RootELW<T> {
+    pub(crate) fn window_target(&self) -> &RootELW {
         &self.target
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -435,7 +434,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -468,7 +467,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         let start = Instant::now();
 
@@ -546,7 +545,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         callback(crate::event::Event::NewEvents(cause), &self.target);
 
@@ -620,7 +619,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn drain_events<F>(&mut self, callback: &mut F)
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
@@ -671,7 +670,7 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
+pub(crate) fn get_xtarget(target: &RootELW) -> &EventLoopWindowTarget {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
         #[cfg(wayland_platform)]
@@ -679,7 +678,7 @@ pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     /// Returns the `XConnection` of this events loop.
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
@@ -750,6 +749,10 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub(crate) fn exit(&self) {
         self.exit.set(Some(0))
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(None)
     }
 
     pub(crate) fn exiting(&self) -> bool {
@@ -834,12 +837,11 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(event_loop, attribs, pl_attribs)?);
+        let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
         event_loop
             .windows
             .borrow_mut()

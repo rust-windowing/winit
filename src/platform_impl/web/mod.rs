@@ -18,10 +18,12 @@
 // compliant way.
 
 mod r#async;
+mod cursor;
 mod device;
 mod error;
 mod event_loop;
 mod keyboard;
+mod main_thread;
 mod monitor;
 mod window;
 
@@ -31,11 +33,15 @@ mod backend;
 pub use self::device::DeviceId;
 pub use self::error::OsError;
 pub(crate) use self::event_loop::{
-    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+    PlatformSpecificEventLoopAttributes,
 };
-pub use self::monitor::{MonitorHandle, VideoMode};
+pub use self::monitor::{MonitorHandle, VideoModeHandle};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
+pub(crate) use cursor::CustomCursor as PlatformCustomCursor;
+pub(crate) use cursor::CustomCursorBuilder as PlatformCustomCursorBuilder;
+pub(crate) use cursor::CustomCursorFuture;

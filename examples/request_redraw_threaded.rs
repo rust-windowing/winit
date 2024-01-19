@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 fn main() -> Result<(), impl std::error::Error> {
     use std::{sync::Arc, thread, time};
 
@@ -53,7 +53,7 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 fn main() {
     unimplemented!() // `Window` can't be sent between threads
 }

@@ -10,9 +10,9 @@ use windows_sys::Win32::{
     UI::{
         Input::Ime::{
             ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
-            ImmSetCandidateWindow, ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM,
-            CFS_EXCLUDE, GCS_COMPATTR, GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN,
-            IACE_DEFAULT,
+            ImmSetCandidateWindow, ImmSetCompositionWindow, ATTR_TARGET_CONVERTED,
+            ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM,
+            GCS_COMPATTR, GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
         },
         WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
     },
@@ -124,7 +124,7 @@ impl ImeContext {
             left: x,
             top: y,
             right: x + width,
-            bottom: y - height,
+            bottom: y + height,
         };
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
@@ -132,8 +132,16 @@ impl ImeContext {
             ptCurrentPos: POINT { x, y },
             rcArea: rc_area,
         };
+        let composition_form = COMPOSITIONFORM {
+            dwStyle: CFS_POINT,
+            ptCurrentPos: POINT { x, y: y + height },
+            rcArea: rc_area,
+        };
 
-        unsafe { ImmSetCandidateWindow(self.himc, &candidate_form) };
+        unsafe {
+            ImmSetCompositionWindow(self.himc, &composition_form);
+            ImmSetCandidateWindow(self.himc, &candidate_form);
+        }
     }
 
     pub unsafe fn set_ime_allowed(hwnd: HWND, allowed: bool) {

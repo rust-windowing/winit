@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+};
 mod event_loop;
 
 pub use self::window::Window;
@@ -193,6 +195,8 @@ impl Display for OsError {
     }
 }
 
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -220,11 +224,11 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        std::iter::once(VideoModeHandle {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
@@ -234,14 +238,14 @@ impl MonitorHandle {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     size: (u32, u32),
     bit_depth: u16,
     refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }

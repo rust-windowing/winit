@@ -106,6 +106,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Cursor locking**: Locking the cursor inside the window so it cannot move.
 - **Cursor confining**: Confining the cursor to the window bounds so it cannot leave them.
 - **Cursor icon**: Changing the cursor icon or hiding the cursor.
+- **Cursor image**: Changing the cursor to your own image.
 - **Cursor hittest**: Handle or ignore mouse events for a window.
 - **Touch events**: Single-touch events.
 - **Touch pressure**: Touch events contain information about the amount of force being applied.
@@ -206,6 +207,7 @@ Legend:
 |Cursor locking          |❌       |✔️      |❌       |✔️          |**N/A**|**N/A**|✔️        |❌      |
 |Cursor confining        |✔️       |❌      |✔️       |✔️          |**N/A**|**N/A**|❌       |❌      |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |**N/A** |
+|Cursor image            |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|✔️        |**N/A** |
 |Cursor hittest          |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|❌        |❌      |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |**N/A** |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |**N/A** |

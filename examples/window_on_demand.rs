@@ -40,6 +40,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         window_id,
                     } if window.id() == window_id => {
                         println!("--------------------------------------------------------- Window {idx} CloseRequested");
+                        fill::cleanup_window(window);
                         app.window = None;
                     }
                     Event::AboutToWait => window.request_redraw(),

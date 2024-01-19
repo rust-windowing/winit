@@ -1,6 +1,7 @@
 use std::os::raw::c_void;
 
-use objc2::rc::Id;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
@@ -211,61 +212,62 @@ pub trait WindowBuilderExtMacOS {
 impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
-        self.platform_specific.movable_by_window_background = movable_by_window_background;
+        self.window.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 
     #[inline]
     fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
-        self.platform_specific.titlebar_transparent = titlebar_transparent;
+        self.window.platform_specific.titlebar_transparent = titlebar_transparent;
         self
     }
 
     #[inline]
     fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
-        self.platform_specific.titlebar_hidden = titlebar_hidden;
+        self.window.platform_specific.titlebar_hidden = titlebar_hidden;
         self
     }
 
     #[inline]
     fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
-        self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
+        self.window.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
         self
     }
 
     #[inline]
     fn with_title_hidden(mut self, title_hidden: bool) -> Self {
-        self.platform_specific.title_hidden = title_hidden;
+        self.window.platform_specific.title_hidden = title_hidden;
         self
     }
 
     #[inline]
     fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
-        self.platform_specific.fullsize_content_view = fullsize_content_view;
+        self.window.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 
     #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
-        self.platform_specific.disallow_hidpi = disallow_hidpi;
+        self.window.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> Self {
-        self.platform_specific.has_shadow = has_shadow;
+        self.window.platform_specific.has_shadow = has_shadow;
         self
     }
 
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self.window.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 
     #[inline]
     fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
-        self.platform_specific
+        self.window
+            .platform_specific
             .tabbing_identifier
             .replace(tabbing_identifier.to_string());
         self
@@ -273,7 +275,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 
     #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
-        self.platform_specific.option_as_alt = option_as_alt;
+        self.window.platform_specific.option_as_alt = option_as_alt;
         self
     }
 }
@@ -365,7 +367,11 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 
     fn ns_screen(&self) -> Option<*mut c_void> {
-        self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
+        // SAFETY: We only use the marker to get a pointer
+        let mtm = unsafe { icrate::Foundation::MainThreadMarker::new_unchecked() };
+        self.inner
+            .ns_screen(mtm)
+            .map(|s| objc2::rc::Id::as_ptr(&s) as _)
     }
 }
 
@@ -383,7 +389,7 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtMacOS for EventLoopWindowTarget {
     fn hide_application(&self) {
         self.p.hide_application()
     }

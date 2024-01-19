@@ -1,7 +1,7 @@
 use super::{util, X11Error, XConnection};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::VideoMode as PlatformVideoMode,
+    platform_impl::VideoModeHandle as PlatformVideoModeHandle,
 };
 use x11rb::{
     connection::RequestConnection,
@@ -22,7 +22,7 @@ impl XConnection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate_millihertz: u32,
@@ -30,7 +30,7 @@ pub struct VideoMode {
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
@@ -71,7 +71,7 @@ pub struct MonitorHandle {
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoMode>,
+    video_modes: Vec<VideoModeHandle>,
 }
 
 impl PartialEq for MonitorHandle {
@@ -191,11 +191,11 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = PlatformVideoModeHandle> {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
             x.monitor = Some(monitor.clone());
-            PlatformVideoMode::X(x)
+            PlatformVideoModeHandle::X(x)
         })
     }
 }
@@ -234,7 +234,8 @@ impl XConnection {
 
     fn query_monitor_list(&self) -> Result<Vec<MonitorHandle>, X11Error> {
         let root = self.default_root();
-        let resources = ScreenResources::from_connection(self.xcb_connection(), root)?;
+        let resources =
+            ScreenResources::from_connection(self.xcb_connection(), root, self.randr_version())?;
 
         // Pipeline all of the get-crtc requests.
         let mut crtc_cookies = Vec::with_capacity(resources.crtcs().len());
@@ -284,22 +285,16 @@ impl XConnection {
 
     pub fn available_monitors(&self) -> Result<Vec<MonitorHandle>, X11Error> {
         let mut monitors_lock = self.monitor_handles.lock().unwrap();
-        (*monitors_lock)
-            .as_ref()
-            .cloned()
-            .map(Ok)
-            .or_else(|| {
-                self.query_monitor_list()
-                    .map(|mon_list| {
-                        let monitors = Some(mon_list);
-                        if !DISABLE_MONITOR_LIST_CACHING {
-                            (*monitors_lock) = monitors.clone();
-                        }
-                        monitors
-                    })
-                    .transpose()
-            })
-            .unwrap()
+        match *monitors_lock {
+            Some(ref monitors) => Ok(monitors.clone()),
+            None => {
+                let monitors = self.query_monitor_list()?;
+                if !DISABLE_MONITOR_LIST_CACHING {
+                    *monitors_lock = Some(monitors.clone());
+                }
+                Ok(monitors)
+            }
+        }
     }
 
     #[inline]
@@ -349,10 +344,9 @@ impl ScreenResources {
     pub(crate) fn from_connection(
         conn: &impl x11rb::connection::Connection,
         root: &x11rb::protocol::xproto::Screen,
+        (major_version, minor_version): (u32, u32),
     ) -> Result<Self, X11Error> {
-        let version = conn.randr_query_version(0, 0)?.reply()?;
-
-        if (version.major_version == 1 && version.minor_version >= 3) || version.major_version > 1 {
+        if (major_version == 1 && minor_version >= 3) || major_version > 1 {
             let reply = conn
                 .randr_get_screen_resources_current(root.root)?
                 .reply()?;

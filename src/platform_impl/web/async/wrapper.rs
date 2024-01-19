@@ -1,9 +1,8 @@
+use super::super::main_thread::MainThreadMarker;
 use std::cell::{Ref, RefCell};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{JsCast, JsValue};
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
@@ -34,36 +33,15 @@ unsafe impl<const SYNC: bool, V> Send for Value<SYNC, V> {}
 unsafe impl<V> Sync for Value<true, V> {}
 
 impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
-    thread_local! {
-        static MAIN_THREAD: bool = {
-            #[wasm_bindgen]
-            extern "C" {
-                #[derive(Clone)]
-                type Global;
-
-                #[wasm_bindgen(method, getter, js_name = Window)]
-                fn window(this: &Global) -> JsValue;
-            }
-
-            let global: Global = js_sys::global().unchecked_into();
-            !global.window().is_undefined()
-        };
-    }
-
     #[track_caller]
     pub fn new<R: Future<Output = ()>>(
+        _: MainThreadMarker,
         value: V,
         handler: fn(&RefCell<Option<V>>, E),
         receiver: impl 'static + FnOnce(Arc<RefCell<Option<V>>>) -> R,
         sender_data: S,
         sender_handler: fn(&S, E),
     ) -> Option<Self> {
-        Self::MAIN_THREAD.with(|safe| {
-            if !safe {
-                panic!("only callable from inside the `Window`")
-            }
-        });
-
         let value = Arc::new(RefCell::new(Some(value)));
 
         wasm_bindgen_futures::spawn_local({
@@ -86,29 +64,16 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     }
 
     pub fn send(&self, event: E) {
-        Self::MAIN_THREAD.with(|is_main_thread| {
-            if *is_main_thread {
-                (self.handler)(&self.value.value, event)
-            } else {
-                (self.sender_handler)(&self.sender_data, event)
-            }
-        })
-    }
-
-    pub fn is_main_thread(&self) -> bool {
-        Self::MAIN_THREAD.with(|is_main_thread| *is_main_thread)
+        if MainThreadMarker::new().is_some() {
+            (self.handler)(&self.value.value, event)
+        } else {
+            (self.sender_handler)(&self.sender_data, event)
+        }
     }
 
     pub fn value(&self) -> Option<Ref<'_, V>> {
-        Self::MAIN_THREAD.with(|is_main_thread| {
-            if *is_main_thread {
-                Some(Ref::map(self.value.value.borrow(), |value| {
-                    value.as_ref().unwrap()
-                }))
-            } else {
-                None
-            }
-        })
+        MainThreadMarker::new()
+            .map(|_| Ref::map(self.value.value.borrow(), |value| value.as_ref().unwrap()))
     }
 
     pub fn with_sender_data<T>(&self, f: impl FnOnce(&S) -> T) -> T {

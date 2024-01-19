@@ -7,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use bitflags::bitflags;
 use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
     ResizeEvent, ScrollEvent, TextInputEvent,
@@ -271,9 +272,9 @@ impl EventState {
     }
 }
 
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop<T> {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::EventLoopWindowTarget<T>,
+    window_target: event_loop::EventLoopWindowTarget,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
 }
@@ -314,7 +315,6 @@ impl<T: 'static> EventLoop<T> {
                     destroys: Arc::new(Mutex::new(VecDeque::new())),
                     event_socket,
                     wake_socket,
-                    p: PhantomData,
                 },
                 _marker: PhantomData,
             },
@@ -459,17 +459,17 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
             other => {
-                warn!("unhandled event: {:?}", other);
+                log::warn!("unhandled event: {:?}", other);
             }
         }
     }
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget<T>| {
+            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget| {
                 event_handler_inner(event, window_target);
             };
 
@@ -676,7 +676,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
         &self.window_target
     }
 
@@ -716,7 +716,7 @@ impl<T> Clone for EventLoopProxy<T> {
 
 impl<T> Unpin for EventLoopProxy<T> {}
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
@@ -724,10 +724,9 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(super) destroys: Arc<Mutex<VecDeque<WindowId>>>,
     pub(super) event_socket: Arc<RedoxSocket>,
     pub(super) wake_socket: Arc<TimeSocket>,
-    p: PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }
@@ -771,5 +770,28 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
     pub(crate) fn exiting(&self) -> bool {
         self.exit.get()
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::OrbitalDisplayHandle::empty().into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::OrbitalDisplayHandle::new().into())
     }
 }
