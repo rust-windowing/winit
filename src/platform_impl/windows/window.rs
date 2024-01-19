@@ -1301,7 +1301,10 @@ unsafe fn init(
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
-    window_flags.set(WindowFlags::CLIP_CHILDREN, pl_attribs.clip_children);
+    window_flags.set(
+        WindowFlags::CLIP_CHILDREN,
+        attributes.platform_specific.clip_children,
+    );
 
     let mut fallback_parent = || match attributes.platform_specific.owner {
         Some(parent) => {

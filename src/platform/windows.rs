@@ -273,7 +273,7 @@ impl WindowBuilderExtWindows for WindowBuilder {
 
     #[inline]
     fn with_clip_children(mut self, flag: bool) -> Self {
-        self.platform_specific.clip_children = flag;
+        self.window.platform_specific.clip_children = flag;
         self
     }
 }
