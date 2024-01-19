@@ -1,6 +1,6 @@
 #![allow(clippy::single_match, clippy::disallowed_methods)]
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
@@ -8,17 +8,17 @@ use winit::{
     keyboard::Key,
     window::{CursorIcon, CustomCursor, WindowBuilder},
 };
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use {
     std::sync::atomic::{AtomicU64, Ordering},
     std::time::Duration,
     winit::platform::web::CustomCursorExtWebSys,
 };
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> CustomCursor {
+fn decode_cursor(bytes: &[u8], window_target: &EventLoopWindowTarget) -> CustomCursor {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
@@ -28,22 +28,22 @@ fn decode_cursor<T>(bytes: &[u8], window_target: &EventLoopWindowTarget<T>) -> C
     builder.build(window_target)
 }
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 #[path = "util/fill.rs"]
 mod fill;
 
 fn main() -> Result<(), impl std::error::Error> {
-    #[cfg(not(wasm_platform))]
+    #[cfg(not(web_platform))]
     SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
         .init()
         .unwrap();
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     console_log::init_with_level(log::Level::Debug).unwrap();
 
     let event_loop = EventLoop::new().unwrap();
     let builder = WindowBuilder::new().with_title("A fantastic window!");
-    #[cfg(wasm_platform)]
+    #[cfg(web_platform)]
     let builder = {
         use winit::platform::web::WindowBuilderExtWebSys;
         builder.with_append(true)
@@ -83,7 +83,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     log::debug!("Setting cursor visibility to {:?}", cursor_visible);
                     window.set_cursor_visible(cursor_visible);
                 }
-                #[cfg(wasm_platform)]
+                #[cfg(web_platform)]
                 Key::Character("4") => {
                     log::debug!("Setting cursor to a random image from an URL");
                     window.set_cursor(
@@ -98,7 +98,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         .build(_elwt),
                     );
                 }
-                #[cfg(wasm_platform)]
+                #[cfg(web_platform)]
                 Key::Character("5") => {
                     log::debug!("Setting cursor to an animation");
                     window.set_cursor(
@@ -125,11 +125,11 @@ fn main() -> Result<(), impl std::error::Error> {
                 _ => {}
             },
             WindowEvent::RedrawRequested => {
-                #[cfg(not(wasm_platform))]
+                #[cfg(not(web_platform))]
                 fill::fill_window(&window);
             }
             WindowEvent::CloseRequested => {
-                #[cfg(not(wasm_platform))]
+                #[cfg(not(web_platform))]
                 _elwt.exit();
             }
             _ => (),

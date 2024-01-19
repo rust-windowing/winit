@@ -3,7 +3,6 @@ mod util;
 
 mod app;
 mod app_delegate;
-mod app_state;
 mod cursor;
 mod event;
 mod event_loop;
@@ -20,10 +19,12 @@ use std::fmt;
 pub(crate) use self::{
     event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra},
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
-    window::{PlatformSpecificWindowBuilderAttributes, WindowId},
+    window::WindowId,
+    window_delegate::PlatformSpecificWindowBuilderAttributes,
 };
 use crate::event::DeviceId as RootDeviceId;
 

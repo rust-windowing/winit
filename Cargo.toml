@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.29.9"
+version = "0.29.10"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -37,7 +37,7 @@ targets = [
     "x86_64-apple-ios",
     # Android
     "aarch64-linux-android",
-    # WebAssembly
+    # Web
     "wasm32-unknown-unknown",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -245,7 +245,7 @@ js-sys = "0.3.64"
 pin-project = "1"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-time = "0.2"
+web-time = "1"
 
 [target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
 atomic-waker = "1"

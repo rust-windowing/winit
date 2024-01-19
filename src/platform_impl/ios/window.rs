@@ -398,10 +398,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         window_attributes: WindowAttributes,
-        platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
 
@@ -439,7 +438,7 @@ impl Window {
             None => screen_bounds,
         };
 
-        let view = WinitView::new(mtm, &window_attributes, &platform_attributes, frame);
+        let view = WinitView::new(mtm, &window_attributes, frame);
 
         let gl_or_metal_backed = unsafe {
             let layer_class = WinitView::layerClass();
@@ -448,15 +447,8 @@ impl Window {
             is_metal || is_gl
         };
 
-        let view_controller =
-            WinitViewController::new(mtm, &window_attributes, &platform_attributes, &view);
-        let window = WinitUIWindow::new(
-            mtm,
-            &window_attributes,
-            &platform_attributes,
-            frame,
-            &view_controller,
-        );
+        let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
+        let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
 
         app_state::set_key_window(mtm, &window);
 
@@ -571,6 +563,18 @@ impl Inner {
         self.view_controller
             .set_preferred_status_bar_style(status_bar_style.into());
     }
+
+    pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        self.view.recognize_pinch_gesture(should_recognize);
+    }
+
+    pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        self.view.recognize_doubletap_gesture(should_recognize);
+    }
+
+    pub fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        self.view.recognize_rotation_gesture(should_recognize);
+    }
 }
 
 impl Inner {
@@ -673,7 +677,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

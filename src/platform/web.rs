@@ -34,18 +34,18 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
 use crate::cursor::CustomCursorBuilder;
 use crate::event::Event;
 use crate::event_loop::{EventLoop, EventLoopWindowTarget};
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
 use crate::window::{CustomCursor, Window, WindowBuilder};
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 #[doc(hidden)]
 pub struct HtmlCanvasElement;
 
@@ -93,7 +93,7 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// [`None`] by default.
     #[cfg_attr(
-        not(wasm_platform),
+        not(web_platform),
         doc = "",
         doc = "[`HtmlCanvasElement`]: #only-available-on-wasm"
     )]
@@ -121,22 +121,22 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.set_canvas(canvas);
+        self.window.platform_specific.set_canvas(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
-        self.platform_specific.prevent_default = prevent_default;
+        self.window.platform_specific.prevent_default = prevent_default;
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
-        self.platform_specific.focusable = focusable;
+        self.window.platform_specific.focusable = focusable;
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
-        self.platform_specific.append = append;
+        self.window.platform_specific.append = append;
         self
     }
 }
@@ -150,11 +150,11 @@ pub trait EventLoopExtWebSys {
     ///
     /// Unlike
     #[cfg_attr(
-        all(wasm_platform, target_feature = "exception-handling"),
+        all(web_platform, target_feature = "exception-handling"),
         doc = "`run()`"
     )]
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
@@ -166,13 +166,13 @@ pub trait EventLoopExtWebSys {
     /// event loop when switching between tabs on a single page application.
     ///
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]: EventLoop::run()"
     )]
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -180,7 +180,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
     {
         self.event_loop.spawn(event_handler)
     }
@@ -202,7 +202,7 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.p.set_poll_strategy(strategy);
@@ -315,11 +315,11 @@ impl Error for BadAnimation {}
 pub trait CustomCursorBuilderExtWebSys {
     /// Async version of [`CustomCursorBuilder::build()`] which waits until the
     /// cursor has completely finished loading.
-    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture;
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture;
 }
 
 impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
-    fn build_async<T>(self, window_target: &EventLoopWindowTarget<T>) -> CustomCursorFuture {
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture {
         CustomCursorFuture(PlatformCustomCursor::build_async(
             self.inner,
             &window_target.p,
@@ -327,7 +327,7 @@ impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
     }
 }
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 struct PlatformCustomCursorFuture;
 
 #[derive(Debug)]

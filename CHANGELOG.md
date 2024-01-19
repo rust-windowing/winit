@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
@@ -29,6 +30,14 @@ Unreleased` header.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
+- **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- on Windows: add `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
+
+# 0.29.10
+
+- On Web, account for canvas being focused already before event loop starts.
 - On Web, increase cursor position accuracy.
 
 # 0.29.9

@@ -85,6 +85,21 @@ pub trait WindowExtIOS {
     /// [`setNeedsStatusBarAppearanceUpdate()`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc)
     /// is also called for you.
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle);
+
+    /// Sets whether the [`Window`] should recognize pinch gestures.
+    ///
+    /// The default is to not recognize gestures.
+    fn recognize_pinch_gesture(&self, should_recognize: bool);
+
+    /// Sets whether the [`Window`] should recognize double tap gestures.
+    ///
+    /// The default is to not recognize gestures.
+    fn recognize_doubletap_gesture(&self, should_recognize: bool);
+
+    /// Sets whether the [`Window`] should recognize rotation gestures.
+    ///
+    /// The default is to not recognize gestures.
+    fn recognize_rotation_gesture(&self, should_recognize: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -123,6 +138,24 @@ impl WindowExtIOS for Window {
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.window
             .maybe_queue_on_main(move |w| w.set_preferred_status_bar_style(status_bar_style))
+    }
+
+    #[inline]
+    fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
+    }
+
+    #[inline]
+    fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
+    }
+
+    #[inline]
+    fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
     }
 }
 
@@ -184,38 +217,39 @@ pub trait WindowBuilderExtIOS {
 impl WindowBuilderExtIOS for WindowBuilder {
     #[inline]
     fn with_scale_factor(mut self, scale_factor: f64) -> Self {
-        self.platform_specific.scale_factor = Some(scale_factor);
+        self.window.platform_specific.scale_factor = Some(scale_factor);
         self
     }
 
     #[inline]
     fn with_valid_orientations(mut self, valid_orientations: ValidOrientations) -> Self {
-        self.platform_specific.valid_orientations = valid_orientations;
+        self.window.platform_specific.valid_orientations = valid_orientations;
         self
     }
 
     #[inline]
     fn with_prefers_home_indicator_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_home_indicator_hidden = hidden;
+        self.window.platform_specific.prefers_home_indicator_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_screen_edges_deferring_system_gestures(mut self, edges: ScreenEdge) -> Self {
-        self.platform_specific
+        self.window
+            .platform_specific
             .preferred_screen_edges_deferring_system_gestures = edges;
         self
     }
 
     #[inline]
     fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> Self {
-        self.platform_specific.prefers_status_bar_hidden = hidden;
+        self.window.platform_specific.prefers_status_bar_hidden = hidden;
         self
     }
 
     #[inline]
     fn with_preferred_status_bar_style(mut self, status_bar_style: StatusBarStyle) -> Self {
-        self.platform_specific.preferred_status_bar_style = status_bar_style;
+        self.window.platform_specific.preferred_status_bar_style = status_bar_style;
         self
     }
 }

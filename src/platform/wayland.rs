@@ -12,7 +12,7 @@ pub trait EventLoopWindowTargetExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
@@ -65,7 +65,7 @@ pub trait WindowBuilderExtWayland {
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+        self.window.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
             general.into(),
             instance.into(),
         ));

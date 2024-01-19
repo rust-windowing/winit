@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-#[cfg(not(wasm_platform))]
+#[cfg(not(web_platform))]
 fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
     use winit::{
@@ -56,7 +56,7 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 fn main() {
     panic!("This example is not supported on web.");
 }

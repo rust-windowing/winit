@@ -75,9 +75,9 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build<T>(
+    pub(crate) fn build(
         builder: CustomCursorBuilder,
-        window_target: &EventLoopWindowTarget<T>,
+        window_target: &EventLoopWindowTarget,
     ) -> Self {
         match builder {
             CustomCursorBuilder::Image(image) => Self::build_spawn(
@@ -110,8 +110,8 @@ impl CustomCursor {
         }
     }
 
-    fn build_spawn<T, F, S>(
-        window_target: &EventLoopWindowTarget<T>,
+    fn build_spawn<F, S>(
+        window_target: &EventLoopWindowTarget,
         task: F,
         animation: bool,
     ) -> CustomCursor
@@ -170,9 +170,9 @@ impl CustomCursor {
         this
     }
 
-    pub(crate) fn build_async<T>(
+    pub(crate) fn build_async(
         builder: CustomCursorBuilder,
-        window_target: &EventLoopWindowTarget<T>,
+        window_target: &EventLoopWindowTarget,
     ) -> CustomCursorFuture {
         let CustomCursor { animation, state } = Self::build(builder, window_target);
         let binding = state.get(window_target.runner.main_thread()).borrow();

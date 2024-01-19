@@ -35,7 +35,6 @@ use crate::{
 };
 
 pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -72,7 +71,7 @@ impl ApplicationName {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
@@ -80,7 +79,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11: X11WindowBuilderAttributes,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg(x11_platform)]
 pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
@@ -286,19 +285,18 @@ impl VideoModeHandle {
 
 impl Window {
     #[inline]
-    pub(crate) fn new<T>(
-        window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        window_target: &EventLoopWindowTarget,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             #[cfg(wayland_platform)]
             EventLoopWindowTarget::Wayland(ref window_target) => {
-                wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
+                wayland::Window::new(window_target, attribs).map(Window::Wayland)
             }
             #[cfg(x11_platform)]
             EventLoopWindowTarget::X(ref window_target) => {
-                x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
+                x11::Window::new(window_target, attribs).map(Window::X)
             }
         }
     }
@@ -639,6 +637,29 @@ pub struct KeyEventExtra {
     pub key_without_modifiers: Key,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum PlatformCustomCursor {
+    #[cfg(wayland_platform)]
+    Wayland(wayland::CustomCursor),
+    #[cfg(x11_platform)]
+    X(x11::CustomCursor),
+}
+impl PlatformCustomCursor {
+    pub(crate) fn build(
+        builder: PlatformCustomCursorBuilder,
+        p: &EventLoopWindowTarget,
+    ) -> PlatformCustomCursor {
+        match p {
+            #[cfg(wayland_platform)]
+            EventLoopWindowTarget::Wayland(_) => {
+                Self::Wayland(wayland::CustomCursor::build(builder, p))
+            }
+            #[cfg(x11_platform)]
+            EventLoopWindowTarget::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
+        }
+    }
+}
+
 /// Hooks for X11 errors.
 #[cfg(x11_platform)]
 pub(crate) static mut XLIB_ERROR_HOOKS: Lazy<Mutex<Vec<XlibErrorHook>>> =
@@ -781,26 +802,26 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         self.run_on_demand(callback)
     }
 
     pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
     }
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>),
+        F: FnMut(crate::event::Event<T>, &RootELW),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
@@ -823,14 +844,14 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-pub enum EventLoopWindowTarget<T> {
+pub enum EventLoopWindowTarget {
     #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopWindowTarget<T>),
+    Wayland(wayland::EventLoopWindowTarget),
     #[cfg(x11_platform)]
-    X(x11::EventLoopWindowTarget<T>),
+    X(x11::EventLoopWindowTarget),
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline]
     pub fn is_wayland(&self) -> bool {
         match *self {
@@ -902,12 +923,82 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exiting())
     }
 
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(conn) => OwnedDisplayHandle::X(conn.x_connection().clone()),
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => OwnedDisplayHandle::Wayland(conn.connection.clone()),
+        }
+    }
+
     fn set_exit_code(&self, code: i32) {
         x11_or_wayland!(match self; Self(evlp) => evlp.set_exit_code(code))
     }
 
     fn exit_code(&self) -> Option<i32> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub(crate) enum OwnedDisplayHandle {
+    #[cfg(x11_platform)]
+    X(Arc<XConnection>),
+    #[cfg(wayland_platform)]
+    Wayland(wayland_client::Connection),
+}
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(xconn) => {
+                let mut xlib_handle = rwh_05::XlibDisplayHandle::empty();
+                xlib_handle.display = xconn.display.cast();
+                xlib_handle.screen = xconn.default_screen_index() as _;
+                xlib_handle.into()
+            }
+
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => {
+                use sctk::reexports::client::Proxy;
+
+                let mut wayland_handle = rwh_05::WaylandDisplayHandle::empty();
+                wayland_handle.display = conn.display().id().as_ptr() as *mut _;
+                wayland_handle.into()
+            }
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        use std::ptr::NonNull;
+
+        match self {
+            #[cfg(x11_platform)]
+            Self::X(xconn) => Ok(rwh_06::XlibDisplayHandle::new(
+                NonNull::new(xconn.display.cast()),
+                xconn.default_screen_index() as _,
+            )
+            .into()),
+
+            #[cfg(wayland_platform)]
+            Self::Wayland(conn) => {
+                use sctk::reexports::client::Proxy;
+
+                Ok(rwh_06::WaylandDisplayHandle::new(
+                    NonNull::new(conn.display().id().as_ptr().cast()).unwrap(),
+                )
+                .into())
+            }
+        }
     }
 }
 

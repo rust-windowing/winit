@@ -9,6 +9,7 @@ use sctk::reexports::client::globals::{BindError, GlobalError};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
 
+pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
 pub use crate::platform_impl::platform::{OsError, WindowId};
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
