@@ -1385,9 +1385,11 @@ unsafe fn init(
     let parent = fallback_parent();
 
     let menu = attributes.platform_specific.menu;
+    let fullscreen = attributes.fullscreen.clone();
+    let maximized = attributes.maximized;
     let mut initdata = InitData {
         event_loop,
-        attributes: attributes.clone(),
+        attributes,
         window_flags,
         window: None,
     };
@@ -1425,10 +1427,10 @@ unsafe fn init(
 
     // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
     // This is because if the size is changed in WM_CREATE, the restored size will be stored in that size.
-    if attributes.fullscreen.is_some() {
-        win.set_fullscreen(attributes.fullscreen.map(Into::into));
+    if fullscreen.is_some() {
+        win.set_fullscreen(fullscreen.map(Into::into));
         unsafe { force_window_active(win.window) };
-    } else if attributes.maximized {
+    } else if maximized {
         win.set_maximized(true);
     }
 
