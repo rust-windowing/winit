@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
+use log::{debug, warn};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
@@ -11,6 +12,7 @@ use super::app_state::EventWrapper;
 use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
 use super::view::{WinitUIWindow, WinitView, WinitViewController};
 use crate::{
+    cursor::Cursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
@@ -20,8 +22,8 @@ use crate::{
         app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowId as RootWindowId, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
 
@@ -173,8 +175,8 @@ impl Inner {
         self.view.contentScaleFactor() as _
     }
 
-    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        debug!("`Window::set_cursor_icon` ignored on iOS")
+    pub fn set_cursor(&self, _cursor: Cursor) {
+        debug!("`Window::set_cursor` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
@@ -355,23 +357,14 @@ impl Inner {
     }
 
     #[cfg(feature = "rwh_06")]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
             let ui_view = Id::as_ptr(&self.view) as _;
             std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
         });
         window_handle.ui_view_controller =
             std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
-        Ok(rwh_06::RawWindowHandle::UiKit(window_handle))
-    }
-
-    #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::UiKit(
-            rwh_06::UiKitDisplayHandle::new(),
-        ))
+        rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 
     pub fn theme(&self) -> Option<Theme> {
@@ -405,10 +398,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         window_attributes: WindowAttributes,
-        platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
 
@@ -422,7 +414,7 @@ impl Window {
         // TODO: transparency, visible
 
         let main_screen = UIScreen::main(mtm);
-        let fullscreen = window_attributes.fullscreen.0.clone().map(Into::into);
+        let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
             Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(mtm),
@@ -446,7 +438,7 @@ impl Window {
             None => screen_bounds,
         };
 
-        let view = WinitView::new(mtm, &window_attributes, &platform_attributes, frame);
+        let view = WinitView::new(mtm, &window_attributes, frame);
 
         let gl_or_metal_backed = unsafe {
             let layer_class = WinitView::layerClass();
@@ -455,15 +447,8 @@ impl Window {
             is_metal || is_gl
         };
 
-        let view_controller =
-            WinitViewController::new(mtm, &window_attributes, &platform_attributes, &view);
-        let window = WinitUIWindow::new(
-            mtm,
-            &window_attributes,
-            &platform_attributes,
-            frame,
-            &view_controller,
-        );
+        let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
+        let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);
 
         app_state::set_key_window(mtm, &window);
 
@@ -516,7 +501,29 @@ impl Window {
     }
 
     pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Inner) -> R + Send) -> R {
-        self.inner.get_on_main(|inner, _mtm| f(inner))
+        self.inner.get_on_main(|inner| f(inner))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_window_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        if let Some(mtm) = MainThreadMarker::new() {
+            Ok(self.inner.get(mtm).raw_window_handle_rwh_06())
+        } else {
+            Err(rwh_06::HandleError::Unavailable)
+        }
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::UiKit(
+            rwh_06::UiKitDisplayHandle::new(),
+        ))
     }
 }
 
@@ -555,6 +562,18 @@ impl Inner {
     pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.view_controller
             .set_preferred_status_bar_style(status_bar_style.into());
+    }
+
+    pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
+        self.view.recognize_pinch_gesture(should_recognize);
+    }
+
+    pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
+        self.view.recognize_doubletap_gesture(should_recognize);
+    }
+
+    pub fn recognize_rotation_gesture(&self, should_recognize: bool) {
+        self.view.recognize_rotation_gesture(should_recognize);
     }
 }
 
@@ -658,7 +677,7 @@ impl From<&AnyObject> for WindowId {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,

@@ -68,33 +68,35 @@ mod window;
 
 use std::fmt;
 
+use crate::event::DeviceId as RootDeviceId;
+
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
-    monitor::{MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoModeHandle},
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
-
-use self::uikit::UIScreen;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
+/// There is no way to detect which device that performed a certain event in
+/// UIKit (i.e. you can't differentiate between different external keyboards,
+/// or wether it was the main touchscreen, assistive technologies, or some
+/// other pointer device that caused a touch event).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId {
-    uiscreen: *const UIScreen,
-}
+pub struct DeviceId;
 
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
-        DeviceId {
-            uiscreen: std::ptr::null(),
-        }
+        DeviceId
     }
 }
 
-unsafe impl Send for DeviceId {}
-unsafe impl Sync for DeviceId {}
+pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {}

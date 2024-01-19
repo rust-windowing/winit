@@ -39,7 +39,7 @@ extern_methods!(
     }
 );
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Clone, Copy)]
     pub struct UIInterfaceOrientationMask: NSUInteger {
         const Portrait = 1 << 1;

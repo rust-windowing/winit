@@ -2,8 +2,9 @@ use std::{env, str, str::FromStr};
 
 use super::*;
 use crate::platform_impl::platform::x11::monitor;
-use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
+use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoModeHandle};
 
+use log::warn;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
@@ -38,14 +39,14 @@ impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub fn get_xft_dpi(&self) -> Option<f64> {
         self.database()
-            .get_string("Xfi.dpi", "")
+            .get_string("Xft.dpi", "")
             .and_then(|s| f64::from_str(s).ok())
     }
     pub fn get_output_info(
         &self,
         resources: &monitor::ScreenResources,
         crtc: &randr::GetCrtcInfoReply,
-    ) -> Option<(String, f64, Vec<VideoMode>)> {
+    ) -> Option<(String, f64, Vec<VideoModeHandle>)> {
         let output_info = match self
             .xcb_connection()
             .randr_get_output_info(crtc.outputs[0], x11rb::CURRENT_TIME)
@@ -69,7 +70,7 @@ impl XConnection {
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
             .map(|mode| {
-                VideoMode {
+                VideoModeHandle {
                     size: (mode.width.into(), mode.height.into()),
                     refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
                         .unwrap_or(0),

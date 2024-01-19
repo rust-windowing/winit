@@ -5,17 +5,21 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{MonitorHandle, VideoMode},
-    platform_impl, SendSyncWrapper,
+    monitor::{MonitorHandle, VideoModeHandle},
+    platform_impl::{self, PlatformSpecificWindowBuilderAttributes},
 };
 
+pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Represents a window.
 ///
+/// The window is closed when dropped.
 ///
 /// # Threading
 ///
@@ -26,7 +30,6 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 /// interactions on the main thread, so on those platforms, if you use the
 /// window from a thread other than the main, the code is scheduled to run on
 /// the main thread, and your thread may be blocked until that completes.
-///
 ///
 /// # Example
 ///
@@ -51,6 +54,11 @@ pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 ///     }
 /// });
 /// ```
+///
+/// ## Platform-specific
+///
+/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
+/// not be closed by dropping the [`Window`].
 pub struct Window {
     pub(crate) window: platform_impl::Window,
 }
@@ -62,6 +70,9 @@ impl fmt::Debug for Window {
 }
 
 impl Drop for Window {
+    /// This will close the [`Window`].
+    ///
+    /// See [`Window`] for more details.
     fn drop(&mut self) {
         self.window.maybe_wait_on_main(|w| {
             // If the window is in exclusive fullscreen, we must restore the desktop
@@ -118,9 +129,6 @@ impl From<u64> for WindowId {
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub(crate) window: WindowAttributes,
-
-    // Platform-specific configuration.
-    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
 impl fmt::Debug for WindowBuilder {
@@ -152,9 +160,13 @@ pub struct WindowAttributes {
     pub content_protected: bool,
     pub window_level: WindowLevel,
     pub active: bool,
+    pub cursor: Cursor,
     #[cfg(feature = "rwh_06")]
-    pub(crate) parent_window: SendSyncWrapper<Option<rwh_06::RawWindowHandle>>,
-    pub(crate) fullscreen: SendSyncWrapper<Option<Fullscreen>>,
+    pub(crate) parent_window: Option<SendSyncRawWindowHandle>,
+    pub fullscreen: Option<Fullscreen>,
+    // Platform-specific configuration.
+    #[allow(dead_code)]
+    pub(crate) platform_specific: PlatformSpecificWindowBuilderAttributes,
 }
 
 impl Default for WindowAttributes {
@@ -169,7 +181,7 @@ impl Default for WindowAttributes {
             enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
-            fullscreen: SendSyncWrapper(None),
+            fullscreen: None,
             visible: true,
             transparent: false,
             blur: false,
@@ -179,23 +191,35 @@ impl Default for WindowAttributes {
             preferred_theme: None,
             resize_increments: None,
             content_protected: false,
+            cursor: Cursor::default(),
             #[cfg(feature = "rwh_06")]
-            parent_window: SendSyncWrapper(None),
+            parent_window: None,
             active: true,
+            platform_specific: Default::default(),
         }
     }
 }
+
+/// Wrapper for [`rwh_06::RawWindowHandle`] for [`WindowAttributes::parent_window`].
+///
+/// # Safety
+///
+/// The user has to account for that when using [`WindowBuilder::with_parent_window()`],
+/// which is `unsafe`.
+#[derive(Debug, Clone)]
+#[cfg(feature = "rwh_06")]
+pub(crate) struct SendSyncRawWindowHandle(pub(crate) rwh_06::RawWindowHandle);
+
+#[cfg(feature = "rwh_06")]
+unsafe impl Send for SendSyncRawWindowHandle {}
+#[cfg(feature = "rwh_06")]
+unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
     /// Get the parent window stored on the attributes.
     #[cfg(feature = "rwh_06")]
     pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
-        self.parent_window.0.as_ref()
-    }
-
-    /// Get `Fullscreen` option stored on the attributes.
-    pub fn fullscreen(&self) -> Option<&Fullscreen> {
-        self.fullscreen.0.as_ref()
+        self.parent_window.as_ref().map(|handle| &handle.0)
     }
 }
 
@@ -316,7 +340,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = SendSyncWrapper(fullscreen);
+        self.window.fullscreen = fullscreen;
         self
     }
 
@@ -471,6 +495,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Modifies the cursor icon of the window.
+    ///
+    /// The default is [`CursorIcon::Default`].
+    ///
+    /// See [`Window::set_cursor()`] for more details.
+    #[inline]
+    pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
+        self.window.cursor = cursor.into();
+        self
+    }
+
     /// Build window with parent window.
     ///
     /// The default is `None`.
@@ -492,7 +527,7 @@ impl WindowBuilder {
         mut self,
         parent_window: Option<rwh_06::RawWindowHandle>,
     ) -> Self {
-        self.window.parent_window = SendSyncWrapper(parent_window);
+        self.window.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
     }
 
@@ -505,12 +540,8 @@ impl WindowBuilder {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
-    pub fn build<T: 'static>(
-        self,
-        window_target: &EventLoopWindowTarget<T>,
-    ) -> Result<Window, OsError> {
-        let window =
-            platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)?;
+    pub fn build(self, window_target: &EventLoopWindowTarget) -> Result<Window, OsError> {
+        let window = platform_impl::Window::new(&window_target.p, self.window)?;
         window.maybe_queue_on_main(|w| w.request_redraw());
         Ok(Window { window })
     }
@@ -532,7 +563,7 @@ impl Window {
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
     #[inline]
-    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
         builder.build(event_loop)
     }
@@ -1077,8 +1108,7 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android / Orbital:** Unsupported.
-    /// - **Web:** Does nothing without a [transient activation], but queues the request
-    ///   for the next activation.
+    /// - **Web:** Does nothing without a [transient activation].
     ///
     /// [transient activation]: https://developer.mozilla.org/en-US/docs/Glossary/Transient_activation
     #[inline]
@@ -1340,10 +1370,20 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **Web:** Custom cursors have to be loaded and decoded first, until
+    ///   then the previous cursor is shown.
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+    pub fn set_cursor(&self, cursor: impl Into<Cursor>) {
+        let cursor = cursor.into();
         self.window
-            .maybe_queue_on_main(move |w| w.set_cursor_icon(cursor))
+            .maybe_queue_on_main(move |w| w.set_cursor(cursor))
+    }
+
+    /// Deprecated! Use [`Window::set_cursor()`] instead.
+    #[deprecated = "Renamed to `set_cursor`"]
+    #[inline]
+    pub fn set_cursor_icon(&self, icon: CursorIcon) {
+        self.set_cursor(icon)
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -1475,10 +1515,6 @@ impl Window {
     /// Returns the monitor on which the window currently resides.
     ///
     /// Returns `None` if current monitor can't be detected.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window
@@ -1488,10 +1524,6 @@ impl Window {
     /// Returns the list of all the monitors available on the system.
     ///
     /// This is the same as [`EventLoopWindowTarget::available_monitors`], and is provided for convenience.
-    ///
-    /// ## Platform-specific
-    ///
-    /// **iOS:** Can only be called on the main thread.
     ///
     /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
@@ -1511,8 +1543,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **iOS:** Can only be called on the main thread.
-    /// **Wayland:** Always returns `None`.
+    /// **Wayland / Web:** Always returns `None`.
     ///
     /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
@@ -1525,12 +1556,10 @@ impl Window {
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasWindowHandle for Window {
     fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
-        let raw = self
-            .window
-            .maybe_wait_on_main(|w| w.raw_window_handle_rwh_06().map(SendSyncWrapper))?
-            .0;
+        let raw = self.window.raw_window_handle_rwh_06()?;
 
-        // SAFETY: The window handle will never be deallocated while the window is alive.
+        // SAFETY: The window handle will never be deallocated while the window is alive,
+        // and the main thread safety requirements are upheld internally by each platform.
         Ok(unsafe { rwh_06::WindowHandle::borrow_raw(raw) })
     }
 }
@@ -1538,21 +1567,30 @@ impl rwh_06::HasWindowHandle for Window {
 #[cfg(feature = "rwh_06")]
 impl rwh_06::HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        let raw = self
-            .window
-            .maybe_wait_on_main(|w| w.raw_display_handle_rwh_06().map(SendSyncWrapper))?
-            .0;
+        let raw = self.window.raw_display_handle_rwh_06()?;
 
-        // SAFETY: The window handle will never be deallocated while the window is alive.
+        // SAFETY: The window handle will never be deallocated while the window is alive,
+        // and the main thread safety requirements are upheld internally by each platform.
         Ok(unsafe { rwh_06::DisplayHandle::borrow_raw(raw) })
     }
 }
+
+/// Wrapper to make objects `Send`.
+///
+/// # Safety
+///
+/// This is not safe! This is only used for `RawWindowHandle`, which only has unsafe getters.
+#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
+struct UnsafeSendWrapper<T>(T);
+
+#[cfg(any(feature = "rwh_05", feature = "rwh_04"))]
+unsafe impl<T> Send for UnsafeSendWrapper<T> {}
 
 #[cfg(feature = "rwh_05")]
 unsafe impl rwh_05::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> rwh_05::RawWindowHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_05()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_05()))
             .0
     }
 }
@@ -1565,7 +1603,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for Window {
     /// [`EventLoop`]: crate::event_loop::EventLoop
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_display_handle_rwh_05()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_display_handle_rwh_05()))
             .0
     }
 }
@@ -1574,7 +1612,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for Window {
 unsafe impl rwh_04::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> rwh_04::RawWindowHandle {
         self.window
-            .maybe_wait_on_main(|w| SendSyncWrapper(w.raw_window_handle_rwh_04()))
+            .maybe_wait_on_main(|w| UnsafeSendWrapper(w.raw_window_handle_rwh_04()))
             .0
     }
 }
@@ -1643,7 +1681,7 @@ impl From<ResizeDirection> for CursorIcon {
 /// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fullscreen {
-    Exclusive(VideoMode),
+    Exclusive(VideoModeHandle),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),
@@ -1682,7 +1720,7 @@ pub enum UserAttentionType {
     Informational,
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowButtons: u32 {
         const CLOSE  = 1 << 0;

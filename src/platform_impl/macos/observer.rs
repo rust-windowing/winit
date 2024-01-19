@@ -7,11 +7,6 @@ use std::{
     time::Instant,
 };
 
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop::{stop_app_on_panic, PanicInfo},
-    ffi,
-};
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
@@ -19,7 +14,14 @@ use core_foundation::runloop::{
     CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
     CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
+};
+use icrate::Foundation::MainThreadMarker;
+
+use super::ffi;
+use super::{
+    app_delegate::ApplicationDelegate,
+    event_loop::{stop_app_on_panic, PanicInfo},
 };
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
@@ -36,7 +38,8 @@ where
     // However we want to keep that weak reference around after the function.
     std::mem::forget(info_from_raw);
 
-    stop_app_on_panic(Weak::clone(&panic_info), move || {
+    let mtm = MainThreadMarker::new().unwrap();
+    stop_app_on_panic(mtm, Weak::clone(&panic_info), move || {
         let _ = &panic_info;
         f(panic_info.0)
     });
@@ -54,7 +57,7 @@ extern "C" fn control_flow_begin_handler(
             match activity {
                 kCFRunLoopAfterWaiting => {
                     //trace!("Triggered `CFRunLoopAfterWaiting`");
-                    AppState::wakeup(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
                     //trace!("Completed `CFRunLoopAfterWaiting`");
                 }
                 _ => unreachable!(),
@@ -76,7 +79,7 @@ extern "C" fn control_flow_end_handler(
             match activity {
                 kCFRunLoopBeforeWaiting => {
                     //trace!("Triggered `CFRunLoopBeforeWaiting`");
-                    AppState::cleared(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
                     //trace!("Completed `CFRunLoopBeforeWaiting`");
                 }
                 kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
@@ -86,11 +89,15 @@ extern "C" fn control_flow_end_handler(
     }
 }
 
-struct RunLoop(CFRunLoopRef);
+pub struct RunLoop(CFRunLoopRef);
 
 impl RunLoop {
-    unsafe fn get() -> Self {
+    pub unsafe fn get() -> Self {
         RunLoop(unsafe { CFRunLoopGetMain() })
+    }
+
+    pub fn wakeup(&self) {
+        unsafe { CFRunLoopWakeUp(self.0) }
     }
 
     unsafe fn add_observer(
@@ -139,6 +146,7 @@ pub fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopWaker {
     timer: CFRunLoopTimerRef,
 

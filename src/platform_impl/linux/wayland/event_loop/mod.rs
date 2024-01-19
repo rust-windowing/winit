@@ -16,7 +16,7 @@ use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, QueueHandle};
 
-use crate::dpi::{LogicalSize, PhysicalSize};
+use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{
@@ -34,7 +34,7 @@ use sink::EventSink;
 
 use super::state::{WindowCompositorUpdate, WinitState};
 use super::window::state::FrameCallbackState;
-use super::{DeviceId, WaylandError, WindowId};
+use super::{logical_to_physical_rounded, DeviceId, WaylandError, WindowId};
 
 type WaylandDispatcher = calloop::Dispatcher<'static, WaylandSource<WinitState>, WinitState>;
 
@@ -63,7 +63,7 @@ pub struct EventLoop<T: 'static> {
     connection: Connection,
 
     /// Event loop window target.
-    window_target: RootEventLoopWindowTarget<T>,
+    window_target: RootEventLoopWindowTarget,
 
     // XXX drop after everything else, just to be safe.
     /// Calloop's event loop.
@@ -167,7 +167,6 @@ impl<T: 'static> EventLoop<T> {
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
             state: RefCell::new(winit_state),
-            _marker: PhantomData,
         };
 
         let event_loop = Self {
@@ -191,7 +190,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -222,7 +221,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -249,7 +248,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         let cause = loop {
             let start = Instant::now();
@@ -325,7 +324,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         // NOTE currently just indented to simplify the diff
 
@@ -356,15 +355,13 @@ impl<T: 'static> EventLoop<T> {
 
         for mut compositor_update in compositor_updates.drain(..) {
             let window_id = compositor_update.window_id;
-            if let Some(scale_factor) = compositor_update.scale_factor {
-                let physical_size = self.with_state(|state| {
+            if compositor_update.scale_changed {
+                let (physical_size, scale_factor) = self.with_state(|state| {
                     let windows = state.windows.get_mut();
-                    let mut window = windows.get(&window_id).unwrap().lock().unwrap();
-
-                    // Set the new scale factor.
-                    window.set_scale_factor(scale_factor);
-                    let window_size = compositor_update.size.unwrap_or(window.inner_size());
-                    logical_to_physical_rounded(window_size, scale_factor)
+                    let window = windows.get(&window_id).unwrap().lock().unwrap();
+                    let scale_factor = window.scale_factor();
+                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
+                    (size, scale_factor)
                 });
 
                 // Stash the old window size.
@@ -386,30 +383,32 @@ impl<T: 'static> EventLoop<T> {
 
                 let physical_size = *new_inner_size.lock().unwrap();
                 drop(new_inner_size);
-                let new_logical_size = physical_size.to_logical(scale_factor);
 
                 // Resize the window when user altered the size.
                 if old_physical_size != physical_size {
                     self.with_state(|state| {
                         let windows = state.windows.get_mut();
                         let mut window = windows.get(&window_id).unwrap().lock().unwrap();
+
+                        let new_logical_size: LogicalSize<f64> =
+                            physical_size.to_logical(scale_factor);
                         window.request_inner_size(new_logical_size.into());
                     });
-                }
 
-                // Make it queue resize.
-                compositor_update.size = Some(new_logical_size);
+                    // Make it queue resize.
+                    compositor_update.resized = true;
+                }
             }
 
-            if let Some(size) = compositor_update.size.take() {
+            // NOTE: Rescale changed the physical size which winit operates in, thus we should
+            // resize.
+            if compositor_update.resized || compositor_update.scale_changed {
                 let physical_size = self.with_state(|state| {
                     let windows = state.windows.get_mut();
                     let window = windows.get(&window_id).unwrap().lock().unwrap();
 
                     let scale_factor = window.scale_factor();
-                    let physical_size = logical_to_physical_rounded(size, scale_factor);
-
-                    // TODO could probably bring back size reporting optimization.
+                    let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
 
                     // Mark the window as needed a redraw.
                     state
@@ -420,7 +419,7 @@ impl<T: 'static> EventLoop<T> {
                         .redraw_requested
                         .store(true, Ordering::Relaxed);
 
-                    physical_size
+                    size
                 });
 
                 callback(
@@ -467,44 +466,44 @@ impl<T: 'static> EventLoop<T> {
         });
 
         for window_id in window_ids.drain(..) {
-            let request_redraw = self.with_state(|state| {
+            let event = self.with_state(|state| {
                 let window_requests = state.window_requests.get_mut();
                 if window_requests.get(&window_id).unwrap().take_closed() {
                     mem::drop(window_requests.remove(&window_id));
                     mem::drop(state.windows.get_mut().remove(&window_id));
-                    false
-                } else {
-                    let mut window = state
-                        .windows
-                        .get_mut()
-                        .get_mut(&window_id)
-                        .unwrap()
-                        .lock()
-                        .unwrap();
-
-                    if window.frame_callback_state() == FrameCallbackState::Requested {
-                        false
-                    } else {
-                        // Reset the frame callbacks state.
-                        window.frame_callback_reset();
-                        let mut redraw_requested = window_requests
-                            .get(&window_id)
-                            .unwrap()
-                            .take_redraw_requested();
-
-                        // Redraw the frame while at it.
-                        redraw_requested |= window.refresh_frame();
-
-                        redraw_requested
-                    }
+                    return Some(WindowEvent::Destroyed);
                 }
+
+                let mut window = state
+                    .windows
+                    .get_mut()
+                    .get_mut(&window_id)
+                    .unwrap()
+                    .lock()
+                    .unwrap();
+
+                if window.frame_callback_state() == FrameCallbackState::Requested {
+                    return None;
+                }
+
+                // Reset the frame callbacks state.
+                window.frame_callback_reset();
+                let mut redraw_requested = window_requests
+                    .get(&window_id)
+                    .unwrap()
+                    .take_redraw_requested();
+
+                // Redraw the frame while at it.
+                redraw_requested |= window.refresh_frame();
+
+                redraw_requested.then_some(WindowEvent::RedrawRequested)
             });
 
-            if request_redraw {
+            if let Some(event) = event {
                 callback(
                     Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::RedrawRequested,
+                        event,
                     },
                     &self.window_target,
                 );
@@ -530,7 +529,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
         &self.window_target
     }
 
@@ -552,7 +551,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         self.event_loop.dispatch(timeout, state).map_err(|error| {
-            error!("Error dispatching event loop: {}", error);
+            log::error!("Error dispatching event loop: {}", error);
             error.into()
         })
     }
@@ -602,7 +601,7 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-pub struct EventLoopWindowTarget<T> {
+pub struct EventLoopWindowTarget {
     /// The event loop wakeup source.
     pub event_loop_awakener: calloop::ping::Ping,
 
@@ -624,11 +623,37 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Connection to the wayland server.
     pub connection: Connection,
-
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.control_flow.set(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.exit.set(Some(0))
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(None)
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.exit.get().is_some()
+    }
+
+    pub(crate) fn set_exit_code(&self, code: i32) {
+        self.exit.set(Some(code))
+    }
+
+    pub(crate) fn exit_code(&self) -> Option<i32> {
+        self.exit.get()
+    }
+
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
@@ -655,11 +680,4 @@ impl<T> EventLoopWindowTarget<T> {
         })
         .into())
     }
-}
-
-// The default routine does floor, but we need round on Wayland.
-fn logical_to_physical_rounded(size: LogicalSize<u32>, scale_factor: f64) -> PhysicalSize<u32> {
-    let width = size.width as f64 * scale_factor;
-    let height = size.height as f64 * scale_factor;
-    (width.round(), height.round()).into()
 }

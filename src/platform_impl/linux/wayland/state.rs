@@ -19,24 +19,23 @@ use sctk::seat::SeatState;
 use sctk::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use sctk::shell::xdg::XdgShell;
 use sctk::shell::WaylandSurface;
+use sctk::shm::slot::SlotPool;
 use sctk::shm::{Shm, ShmHandler};
 use sctk::subcompositor::SubcompositorState;
 
-use crate::dpi::LogicalSize;
-use crate::platform_impl::OsError;
-
-use super::event_loop::sink::EventSink;
-use super::output::MonitorHandle;
-use super::seat::{
+use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::output::MonitorHandle;
+use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
 };
-use super::types::kwin_blur::KWinBlurManager;
-use super::types::wp_fractional_scaling::FractionalScalingManager;
-use super::types::wp_viewporter::ViewporterState;
-use super::types::xdg_activation::XdgActivationState;
-use super::window::{WindowRequests, WindowState};
-use super::{WaylandError, WindowId};
+use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
+use crate::platform_impl::wayland::types::wp_viewporter::ViewporterState;
+use crate::platform_impl::wayland::types::xdg_activation::XdgActivationState;
+use crate::platform_impl::wayland::window::{WindowRequests, WindowState};
+use crate::platform_impl::wayland::{WaylandError, WindowId};
+use crate::platform_impl::OsError;
 
 /// Winit's Wayland state.
 pub struct WinitState {
@@ -50,13 +49,16 @@ pub struct WinitState {
     pub compositor_state: Arc<CompositorState>,
 
     /// The state of the subcompositor.
-    pub subcompositor_state: Arc<SubcompositorState>,
+    pub subcompositor_state: Option<Arc<SubcompositorState>>,
 
     /// The seat state responsible for all sorts of input.
     pub seat_state: SeatState,
 
     /// The shm for software buffers, such as cursors.
     pub shm: Shm,
+
+    /// The pool where custom cursors are allocated.
+    pub custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
     /// The XDG shell that is used for widnows.
     pub xdg_shell: XdgShell,
@@ -124,12 +126,17 @@ impl WinitState {
         let registry_state = RegistryState::new(globals);
         let compositor_state =
             CompositorState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
-        let subcompositor_state = SubcompositorState::bind(
+        let subcompositor_state = match SubcompositorState::bind(
             compositor_state.wl_compositor().clone(),
             globals,
             queue_handle,
-        )
-        .map_err(WaylandError::Bind)?;
+        ) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                log::warn!("Subcompositor protocol not available, ignoring CSD: {e:?}");
+                None
+            }
+        };
 
         let output_state = OutputState::new(globals, queue_handle);
         let monitors = output_state.outputs().map(MonitorHandle::new).collect();
@@ -148,13 +155,17 @@ impl WinitState {
                 (None, None)
             };
 
+        let shm = Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
+        let custom_cursor_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
+
         Ok(Self {
             registry_state,
             compositor_state: Arc::new(compositor_state),
-            subcompositor_state: Arc::new(subcompositor_state),
+            subcompositor_state: subcompositor_state.map(Arc::new),
             output_state,
             seat_state,
-            shm: Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
+            shm,
+            custom_cursor_pool,
 
             xdg_shell: XdgShell::bind(globals, queue_handle).map_err(WaylandError::Bind)?,
             xdg_activation: XdgActivationState::bind(globals, queue_handle).ok(),
@@ -214,7 +225,7 @@ impl WinitState {
 
             // Update the scale factor right away.
             window.lock().unwrap().set_scale_factor(scale_factor);
-            self.window_compositor_updates[pos].scale_factor = Some(scale_factor);
+            self.window_compositor_updates[pos].scale_changed = true;
         } else if let Some(pointer) = self.pointer_surfaces.get(&surface.id()) {
             // Get the window, where the pointer resides right now.
             let focused_window = match pointer.pointer().winit_data().focused_window() {
@@ -278,9 +289,7 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        //
-        // XXX the size on the window will be updated right before dispatching the size to the user.
-        let new_size = self
+        self.window_compositor_updates[pos].resized |= self
             .windows
             .get_mut()
             .get_mut(&window_id)
@@ -293,8 +302,6 @@ impl WindowHandler for WinitState {
                 &self.subcompositor_state,
                 &mut self.events_sink,
             );
-
-        self.window_compositor_updates[pos].size = Some(new_size);
     }
 }
 
@@ -388,10 +395,10 @@ pub struct WindowCompositorUpdate {
     pub window_id: WindowId,
 
     /// New window size.
-    pub size: Option<LogicalSize<u32>>,
+    pub resized: bool,
 
     /// New scale factor.
-    pub scale_factor: Option<f64>,
+    pub scale_changed: bool,
 
     /// Close the window.
     pub close_window: bool,
@@ -401,8 +408,8 @@ impl WindowCompositorUpdate {
     fn new(window_id: WindowId) -> Self {
         Self {
             window_id,
-            size: None,
-            scale_factor: None,
+            resized: false,
+            scale_changed: false,
             close_window: false,
         }
     }

@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
-    Foundation::{BOOL, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
+    Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, RedrawWindow, ScreenToClient,
         ValidateRect, MONITORINFO, MONITOR_DEFAULTTONULL, RDW_INTERNALPAINT, SC_SCREENSAVE,
@@ -35,13 +35,9 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                MapVirtualKeyW, ReleaseCapture, SetCapture, TrackMouseEvent, MAPVK_VK_TO_VSC_EX,
-                TME_LEAVE, TRACKMOUSEEVENT, VK_NUMLOCK, VK_SHIFT,
+                ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
             },
-            Pointer::{
-                POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
-                POINTER_PEN_INFO, POINTER_TOUCH_INFO,
-            },
+            Pointer::{POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE},
             Touch::{
                 CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
                 TOUCHEVENTF_UP, TOUCHINPUT,
@@ -54,20 +50,19 @@ use windows_sys::Win32::{
             RegisterClassExW, RegisterWindowMessageA, SetCursor, SetTimer, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
-            PT_TOUCH, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE,
-            SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-            WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY,
-            WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
-            WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
-            WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
-            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
-            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
-            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-            WS_VISIBLE,
+            PT_TOUCH, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
+            WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
+            WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+            WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE,
+            WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+            WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE,
+            WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
+            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
+            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
+            WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP,
+            WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+            WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
         },
     },
 };
@@ -80,8 +75,8 @@ use crate::{
         WindowEvent,
     },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    keyboard::{KeyCode, ModifiersState, PhysicalKey},
-    platform::{pump_events::PumpStatus, scancode::PhysicalKeyExtScancode},
+    keyboard::ModifiersState,
+    platform::pump_events::PumpStatus,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -101,50 +96,40 @@ use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 use self::runner::RunnerState;
 
-use super::window::set_skip_taskbar;
+use super::{window::set_skip_taskbar, SelectedCursor};
 
-type GetPointerFrameInfoHistory = unsafe extern "system" fn(
-    pointerId: u32,
-    entriesCount: *mut u32,
-    pointerCount: *mut u32,
-    pointerInfo: *mut POINTER_INFO,
-) -> BOOL;
+/// some backends like macos uses an uninhabited `Never` type,
+/// on windows, `UserEvent`s are also dispatched through the
+/// WNDPROC callback, and due to the re-entrant nature of the
+/// callback, recursively delivered events must be queued in a
+/// buffer, the current implementation put this queue in
+/// `EventLoopRunner`, which is shared between the event pumping
+/// loop and the callback. because it's hard to decide from the
+/// outside whether a event needs to be buffered, I decided not
+/// use `Event<Never>` for the shared runner state, but use unit
+/// as a placeholder so user events can be buffered as usual,
+/// the real `UserEvent` is pulled from the mpsc channel directly
+/// when the placeholder event is delivered to the event handler
+pub(crate) struct UserEventPlaceholder;
 
-type SkipPointerFrameMessages = unsafe extern "system" fn(pointerId: u32) -> BOOL;
-type GetPointerDeviceRects = unsafe extern "system" fn(
-    device: HANDLE,
-    pointerDeviceRect: *mut RECT,
-    displayRect: *mut RECT,
-) -> BOOL;
+// here below, the generic `EventLoopRunnerShared<T>` is replaced with
+// `EventLoopRunnerShared<UserEventPlaceholder>` so we can get rid
+// of the generic parameter T in types which don't depend on T.
+// this is the approach which requires minimum changes to current
+// backend implementation. it should be considered transitional
+// and should be refactored and cleaned up eventually, I hope.
 
-type GetPointerTouchInfo =
-    unsafe extern "system" fn(pointerId: u32, touchInfo: *mut POINTER_TOUCH_INFO) -> BOOL;
-
-type GetPointerPenInfo =
-    unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
-
-static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
-static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
-    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
-static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
-static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
-static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
-
-pub(crate) struct WindowData<T: 'static> {
+pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_loop_runner: EventLoopRunnerShared<T>,
+    pub event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
     pub recurse_depth: Cell<u32>,
 }
 
-impl<T> WindowData<T> {
-    fn send_event(&self, event: Event<T>) {
+impl WindowData {
+    fn send_event(&self, event: Event<UserEventPlaceholder>) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -153,13 +138,12 @@ impl<T> WindowData<T> {
     }
 }
 
-struct ThreadMsgTargetData<T: 'static> {
-    event_loop_runner: EventLoopRunnerShared<T>,
-    user_event_receiver: Receiver<T>,
+struct ThreadMsgTargetData {
+    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
 }
 
-impl<T> ThreadMsgTargetData<T> {
-    fn send_event(&self, event: Event<T>) {
+impl ThreadMsgTargetData {
+    fn send_event(&self, event: Event<UserEventPlaceholder>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -172,8 +156,9 @@ pub(crate) enum ProcResult {
 }
 
 pub struct EventLoop<T: 'static> {
-    thread_msg_sender: Sender<T>,
-    window_target: RootELW<T>,
+    user_event_sender: Sender<T>,
+    user_event_receiver: Receiver<T>,
+    window_target: RootELW,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -193,10 +178,10 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     thread_id: u32,
     thread_msg_target: HWND,
-    pub(crate) runner_shared: EventLoopRunnerShared<T>,
+    pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -218,19 +203,20 @@ impl<T: 'static> EventLoop<T> {
             become_dpi_aware();
         }
 
-        let thread_msg_target = create_event_target_window::<T>();
+        let thread_msg_target = create_event_target_window();
 
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target));
 
-        let thread_msg_sender =
-            insert_event_target_window_data::<T>(thread_msg_target, runner_shared.clone());
+        let (user_event_sender, user_event_receiver) = mpsc::channel();
+        insert_event_target_window_data(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(
             thread_msg_target,
             Default::default(),
         );
 
         Ok(EventLoop {
-            thread_msg_sender,
+            user_event_sender,
+            user_event_receiver,
             window_target: RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
@@ -243,20 +229,20 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn window_target(&self) -> &RootELW<T> {
+    pub fn window_target(&self) -> &RootELW {
         &self.window_target
     }
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -265,11 +251,28 @@ impl<T: 'static> EventLoop<T> {
             }
 
             let event_loop_windows_ref = &self.window_target;
+            let user_event_receiver = &self.user_event_receiver;
             // # Safety
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
+                runner.set_event_handler(move |event| {
+                    // the shared `EventLoopRunner` is not parameterized
+                    // `EventLoopProxy::send_event()` calls `PostMessage`
+                    // to wakeup and dispatch a placeholder `UserEvent`,
+                    // when we received the placeholder event here, the
+                    // real UserEvent(T) should already be put in the
+                    // mpsc channel and ready to be pulled
+                    let event = match event.map_nonuser_event() {
+                        Ok(non_user_event) => non_user_event,
+                        Err(_user_event_placeholder) => Event::UserEvent(
+                            user_event_receiver
+                                .try_recv()
+                                .expect("user event signaled but not received"),
+                        ),
+                    };
+                    event_handler(event, event_loop_windows_ref)
+                });
             }
         }
 
@@ -304,11 +307,12 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW<T>),
+        F: FnMut(Event<T>, &RootELW),
     {
         {
             let runner = &self.window_target.p.runner_shared;
             let event_loop_windows_ref = &self.window_target;
+            let user_event_receiver = &self.user_event_receiver;
 
             // # Safety
             // We make sure to call runner.clear_event_handler() before
@@ -318,7 +322,17 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event| event_handler(event, event_loop_windows_ref));
+                runner.set_event_handler(move |event| {
+                    let event = match event.map_nonuser_event() {
+                        Ok(non_user_event) => non_user_event,
+                        Err(_user_event_placeholder) => Event::UserEvent(
+                            user_event_receiver
+                                .recv()
+                                .expect("user event signaled but not received"),
+                        ),
+                    };
+                    event_handler(event, event_loop_windows_ref)
+                });
                 runner.wakeup();
             }
         }
@@ -504,7 +518,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             target_window: self.window_target.p.thread_msg_target,
-            event_send: self.thread_msg_sender.clone(),
+            event_send: self.user_event_sender.clone(),
         }
     }
 
@@ -513,7 +527,7 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
@@ -566,8 +580,35 @@ impl<T> EventLoopWindowTarget<T> {
         self.runner_shared.exit_code().is_some()
     }
 
+    pub(crate) fn clear_exit(&self) {
+        self.runner_shared.clear_exit();
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+
     fn exit_code(&self) -> Option<i32> {
         self.runner_shared.exit_code()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::WindowsDisplayHandle::empty().into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::WindowsDisplayHandle::new().into())
     }
 }
 
@@ -811,14 +852,14 @@ static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
-fn create_event_target_window<T: 'static>() -> HWND {
+fn create_event_target_window() -> HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_VREDRAW;
     unsafe {
         let class = WNDCLASSEXW {
             cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
             style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(thread_event_target_callback::<T>),
+            lpfnWndProc: Some(thread_event_target_callback),
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: util::get_instance_handle(),
@@ -871,21 +912,14 @@ fn create_event_target_window<T: 'static>() -> HWND {
     }
 }
 
-fn insert_event_target_window_data<T>(
+fn insert_event_target_window_data(
     thread_msg_target: HWND,
-    event_loop_runner: EventLoopRunnerShared<T>,
-) -> Sender<T> {
-    let (tx, rx) = mpsc::channel();
-
-    let userdata = ThreadMsgTargetData {
-        event_loop_runner,
-        user_event_receiver: rx,
-    };
+    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+) {
+    let userdata = ThreadMsgTargetData { event_loop_runner };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
     unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
-
-    tx
 }
 
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
@@ -915,7 +949,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
-fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
+fn update_modifiers(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::ModifiersChanged;
 
     let modifiers = {
@@ -937,7 +971,7 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     }
 }
 
-unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::Focused;
 
     update_modifiers(window, userdata);
@@ -948,7 +982,7 @@ unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
     });
 }
 
-unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
     use crate::event::WindowEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
@@ -970,7 +1004,7 @@ unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
+pub(super) unsafe extern "system" fn public_window_callback(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
@@ -981,7 +1015,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
             let createstruct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
-            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>) };
+            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_>) };
 
             let result = match unsafe { initdata.on_nccreate(window) } {
                 Some(userdata) => unsafe {
@@ -999,13 +1033,13 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
         (_, WM_CREATE) => unsafe {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
             let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+            let initdata = &mut *(initdata as *mut InitData<'_>);
 
             initdata.on_create();
             return DefWindowProcW(window, msg, wparam, lparam);
         },
         (0, _) => return unsafe { DefWindowProcW(window, msg, wparam, lparam) },
-        _ => userdata as *mut WindowData<T>,
+        _ => userdata as *mut WindowData,
     };
 
     let (result, userdata_removed, recurse_depth) = {
@@ -1029,12 +1063,12 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     result
 }
 
-unsafe fn public_window_callback_inner<T: 'static>(
+unsafe fn public_window_callback_inner(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
     lparam: LPARAM,
-    userdata: &WindowData<T>,
+    userdata: &WindowData,
 ) -> LRESULT {
     let mut result = ProcResult::DefWindowProc(wparam);
 
@@ -1831,9 +1865,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 Some(SkipPointerFrameMessages),
                 Some(GetPointerDeviceRects),
             ) = (
-                *GET_POINTER_FRAME_INFO_HISTORY,
-                *SKIP_POINTER_FRAME_MESSAGES,
-                *GET_POINTER_DEVICE_RECTS,
+                *util::GET_POINTER_FRAME_INFO_HISTORY,
+                *util::SKIP_POINTER_FRAME_MESSAGES,
+                *util::GET_POINTER_DEVICE_RECTS,
             ) {
                 let pointer_id = super::loword(wparam as u32) as u32;
                 let mut entries_count = 0u32;
@@ -1915,7 +1949,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     let force = match pointer_info.pointerType {
                         PT_TOUCH => {
                             let mut touch_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
+                            util::GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
                                 match unsafe {
                                     GetPointerTouchInfo(
                                         pointer_info.pointerId,
@@ -1931,7 +1965,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         }
                         PT_PEN => {
                             let mut pen_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
+                            util::GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
                                 match unsafe {
                                     GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
                                 } {
@@ -2011,16 +2045,21 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
                 let in_client_area = super::loword(lparam as u32) as u32 == HTCLIENT;
                 if in_client_area {
-                    Some(window_state.mouse.cursor)
+                    Some(window_state.mouse.selected_cursor.clone())
                 } else {
                     None
                 }
             };
 
             match set_cursor_to {
-                Some(cursor) => {
-                    let cursor = unsafe { LoadCursorW(0, util::to_windows_cursor(cursor)) };
-                    unsafe { SetCursor(cursor) };
+                Some(selected_cursor) => {
+                    let hcursor = match selected_cursor {
+                        SelectedCursor::Named(cursor_icon) => unsafe {
+                            LoadCursorW(0, util::to_windows_cursor(cursor_icon))
+                        },
+                        SelectedCursor::Custom(cursor) => cursor.as_raw_handle(),
+                    };
+                    unsafe { SetCursor(hcursor) };
                     result = ProcResult::Value(0);
                 }
                 None => result = ProcResult::DefWindowProc(wparam),
@@ -2326,14 +2365,14 @@ unsafe fn public_window_callback_inner<T: 'static>(
     }
 }
 
-unsafe extern "system" fn thread_event_target_callback<T: 'static>(
+unsafe extern "system" fn thread_event_target_callback(
     window: HWND,
     msg: u32,
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
     let userdata_ptr =
-        unsafe { super::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData<T>;
+        unsafe { super::get_window_long(window, GWL_USERDATA) } as *mut ThreadMsgTargetData;
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.
@@ -2386,9 +2425,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         }
 
         _ if msg == USER_EVENT_MSG_ID.get() => {
-            if let Ok(event) = userdata.user_event_receiver.recv() {
-                userdata.send_event(Event::UserEvent(event));
-            }
+            // synthesis a placeholder UserEvent, so that if the callback is
+            // re-entered it can be buffered for later delivery. the real
+            // user event is still in the mpsc channel and will be pulled
+            // once the placeholder event is delivered to the wrapper
+            // `event_handler`
+            userdata.send_event(Event::UserEvent(UserEventPlaceholder));
             0
         }
         _ if msg == EXEC_MSG_ID.get() => {
@@ -2411,7 +2453,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     result
 }
 
-unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: RAWINPUT) {
+unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
     use crate::event::{
         DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
         ElementState::{Pressed, Released},
@@ -2493,105 +2535,17 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             return;
         }
 
-        let state = if pressed { Pressed } else { Released };
-        let extension = {
-            if util::has_flag(keyboard.Flags, RI_KEY_E0 as _) {
-                0xE000
-            } else if util::has_flag(keyboard.Flags, RI_KEY_E1 as _) {
-                0xE100
-            } else {
-                0x0000
-            }
-        };
-        let scancode = if keyboard.MakeCode == 0 {
-            // In some cases (often with media keys) the device reports a scancode of 0 but a
-            // valid virtual key. In these cases we obtain the scancode from the virtual key.
-            unsafe { MapVirtualKeyW(keyboard.VKey as u32, MAPVK_VK_TO_VSC_EX) as u16 }
-        } else {
-            keyboard.MakeCode | extension
-        };
-        if scancode == 0xE11D || scancode == 0xE02A {
-            // At the hardware (or driver?) level, pressing the Pause key is equivalent to pressing
-            // Ctrl+NumLock.
-            // This equvalence means that if the user presses Pause, the keyboard will emit two
-            // subsequent keypresses:
-            // 1, 0xE11D - Which is a left Ctrl (0x1D) with an extension flag (0xE100)
-            // 2, 0x0045 - Which on its own can be interpreted as Pause
-            //
-            // There's another combination which isn't quite an equivalence:
-            // PrtSc used to be Shift+Asterisk. This means that on some keyboards, presssing
-            // PrtSc (print screen) produces the following sequence:
-            // 1, 0xE02A - Which is a left shift (0x2A) with an extension flag (0xE000)
-            // 2, 0xE037 - Which is a numpad multiply (0x37) with an exteion flag (0xE000). This on
-            //             its own it can be interpreted as PrtSc
-            //
-            // For this reason, if we encounter the first keypress, we simply ignore it, trusting
-            // that there's going to be another event coming, from which we can extract the
-            // appropriate key.
-            // For more on this, read the article by Raymond Chen, titled:
-            // "Why does Ctrl+ScrollLock cancel dialogs?"
-            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            return;
+        if let Some(physical_key) = raw_input::get_keyboard_physical_key(keyboard) {
+            let state = if pressed { Pressed } else { Released };
+
+            userdata.send_event(Event::DeviceEvent {
+                device_id,
+                event: Key(RawKeyEvent {
+                    physical_key,
+                    state,
+                }),
+            });
         }
-        let physical_key = if keyboard.VKey == VK_NUMLOCK {
-            // Historically, the NumLock and the Pause key were one and the same physical key.
-            // The user could trigger Pause by pressing Ctrl+NumLock.
-            // Now these are often physically separate and the two keys can be differentiated by
-            // checking the extension flag of the scancode. NumLock is 0xE045, Pause is 0x0045.
-            //
-            // However in this event, both keys are reported as 0x0045 even on modern hardware.
-            // Therefore we use the virtual key instead to determine whether it's a NumLock and
-            // set the KeyCode accordingly.
-            //
-            // For more on this, read the article by Raymond Chen, titled:
-            // "Why does Ctrl+ScrollLock cancel dialogs?"
-            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            PhysicalKey::Code(KeyCode::NumLock)
-        } else {
-            PhysicalKey::from_scancode(scancode as u32)
-        };
-        if keyboard.VKey == VK_SHIFT {
-            if let PhysicalKey::Code(code) = physical_key {
-                match code {
-                    KeyCode::NumpadDecimal
-                    | KeyCode::Numpad0
-                    | KeyCode::Numpad1
-                    | KeyCode::Numpad2
-                    | KeyCode::Numpad3
-                    | KeyCode::Numpad4
-                    | KeyCode::Numpad5
-                    | KeyCode::Numpad6
-                    | KeyCode::Numpad7
-                    | KeyCode::Numpad8
-                    | KeyCode::Numpad9 => {
-                        // On Windows, holding the Shift key makes numpad keys behave as if NumLock
-                        // wasn't active. The way this is exposed to applications by the system is that
-                        // the application receives a fake key release event for the shift key at the
-                        // moment when the numpad key is pressed, just before receiving the numpad key
-                        // as well.
-                        //
-                        // The issue is that in the raw device event (here), the fake shift release
-                        // event reports the numpad key as the scancode. Unfortunately, the event doesn't
-                        // have any information to tell whether it's the left shift or the right shift
-                        // that needs to get the fake release (or press) event so we don't forward this
-                        // event to the application at all.
-                        //
-                        // For more on this, read the article by Raymond Chen, titled:
-                        // "The shift key overrides NumLock"
-                        // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
-                        return;
-                    }
-                    _ => (),
-                }
-            }
-        }
-        userdata.send_event(Event::DeviceEvent {
-            device_id,
-            event: Key(RawKeyEvent {
-                physical_key,
-                state,
-            }),
-        });
     }
 }
 

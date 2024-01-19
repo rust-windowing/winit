@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     os::raw::{c_char, c_int, c_long, c_ulong},
     rc::Rc,
@@ -36,7 +36,7 @@ use crate::{
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
-pub(super) struct EventProcessor<T: 'static> {
+pub(super) struct EventProcessor {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
     pub(super) ime_event_receiver: ImeEventReceiver,
@@ -44,7 +44,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: ExtensionInformation,
     pub(super) xkbext: ExtensionInformation,
-    pub(super) target: Rc<RootELW<T>>,
+    pub(super) target: Rc<RootELW>,
     pub(super) kb_state: KbdState,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
@@ -56,10 +56,12 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<xproto::Window>,
+    /// Latest modifiers we've sent for the user to trigger change in event.
+    pub(super) modifiers: Cell<ModifiersState>,
     pub(super) is_composing: bool,
 }
 
-impl<T: 'static> EventProcessor<T> {
+impl EventProcessor {
     pub(super) fn init_device(&self, device: xinput::DeviceId) {
         let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
@@ -134,7 +136,7 @@ impl<T: 'static> EventProcessor<T> {
         result != 0
     }
 
-    pub(super) fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
+    pub(super) fn process_event<T: 'static, F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
         F: FnMut(Event<T>),
     {
@@ -994,12 +996,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             let modifiers: crate::keyboard::ModifiersState =
                                 self.kb_state.mods_state().into();
-                            if !modifiers.is_empty() {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::ModifiersChanged(modifiers.into()),
-                                });
-                            }
+                            self.send_modifiers(modifiers, &mut callback);
 
                             // The deviceid for this event is for a keyboard instead of a pointer,
                             // so we have to do a little extra work.
@@ -1061,12 +1058,7 @@ impl<T: 'static> EventProcessor<T> {
                             // window regains focus.
                             self.held_key_press = None;
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ModifiersChanged(
-                                    ModifiersState::empty().into(),
-                                ),
-                            });
+                            self.send_modifiers(ModifiersState::empty(), &mut callback);
 
                             if let Some(window) = self.with_window(window, Arc::clone) {
                                 window.shared_state_lock().has_focus = false;
@@ -1280,7 +1272,13 @@ impl<T: 'static> EventProcessor<T> {
                                 && (keycodes_changed || geometry_changed)
                             {
                                 unsafe { self.kb_state.init_with_x11_keymap() };
+                                let modifiers = self.kb_state.mods_state();
+                                self.send_modifiers(modifiers.into(), &mut callback);
                             }
+                        }
+                        ffi::XkbMapNotify => {
+                            unsafe { self.kb_state.init_with_x11_keymap() };
+                            self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
                         }
                         ffi::XkbStateNotify => {
                             let xev =
@@ -1289,7 +1287,9 @@ impl<T: 'static> EventProcessor<T> {
                             // Set the timestamp.
                             wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                            let prev_mods = self.kb_state.mods_state();
+                            // NOTE: Modifiers could update without a prior event updating them,
+                            // thus diffing the state before and after is not reliable.
+
                             self.kb_state.update_modifiers(
                                 xev.base_mods,
                                 xev.latched_mods,
@@ -1298,17 +1298,8 @@ impl<T: 'static> EventProcessor<T> {
                                 xev.latched_group as u32,
                                 xev.locked_group as u32,
                             );
-                            let new_mods = self.kb_state.mods_state();
-                            if prev_mods != new_mods {
-                                if let Some(window) = self.active_window {
-                                    callback(Event::WindowEvent {
-                                        window_id: mkwid(window),
-                                        event: WindowEvent::ModifiersChanged(
-                                            Into::<ModifiersState>::into(new_mods).into(),
-                                        ),
-                                    });
-                                }
-                            }
+
+                            self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
                         }
                         _ => {}
                     }
@@ -1320,7 +1311,7 @@ impl<T: 'static> EventProcessor<T> {
         }
 
         // Handle IME requests.
-        if let Ok(request) = self.ime_receiver.try_recv() {
+        while let Ok(request) = self.ime_receiver.try_recv() {
             let mut ime = wt.ime.borrow_mut();
             match request {
                 ImeRequest::Position(window_id, x, y) => {
@@ -1332,53 +1323,73 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        let (window, event) = match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => (window as xproto::Window, event),
-            Err(_) => return,
-        };
-
-        match event {
-            ImeEvent::Enabled => {
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Enabled),
-                });
-            }
-            ImeEvent::Start => {
-                self.is_composing = true;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                });
-            }
-            ImeEvent::Update(text, position) => {
-                if self.is_composing {
+        // Drain IME events.
+        while let Ok((window, event)) = self.ime_event_receiver.try_recv() {
+            let window_id = mkwid(window as xproto::Window);
+            match event {
+                ImeEvent::Enabled => {
                     callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Enabled),
                     });
                 }
-            }
-            ImeEvent::End => {
-                self.is_composing = false;
-                // Issue empty preedit on `Done`.
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                });
-            }
-            ImeEvent::Disabled => {
-                self.is_composing = false;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(window),
-                    event: WindowEvent::Ime(Ime::Disabled),
-                });
+                ImeEvent::Start => {
+                    self.is_composing = true;
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                    });
+                }
+                ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
+                        });
+                    }
+                }
+                ImeEvent::End => {
+                    self.is_composing = false;
+                    // Issue empty preedit on `Done`.
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+                ImeEvent::Disabled => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Disabled),
+                    });
+                }
             }
         }
     }
 
-    fn handle_pressed_keys<F>(
-        wt: &super::EventLoopWindowTarget<T>,
+    /// Send modifiers for the active window.
+    ///
+    /// The event won't be send when the `modifiers` match the previosly `sent` modifiers value.
+    fn send_modifiers<T: 'static, F: FnMut(Event<T>)>(
+        &self,
+        modifiers: ModifiersState,
+        callback: &mut F,
+    ) {
+        let window_id = match self.active_window {
+            Some(window) => mkwid(window),
+            None => return,
+        };
+
+        if self.modifiers.replace(modifiers) != modifiers {
+            callback(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
+            });
+        }
+    }
+
+    fn handle_pressed_keys<T: 'static, F>(
+        wt: &super::EventLoopWindowTarget,
         window_id: crate::window::WindowId,
         state: ElementState,
         kb_state: &mut KbdState,
@@ -1408,11 +1419,14 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn process_dpi_change<F>(&self, callback: &mut F)
+    fn process_dpi_change<T: 'static, F>(&self, callback: &mut F)
     where
         F: FnMut(Event<T>),
     {
         let wt = get_xtarget(&self.target);
+        wt.xconn
+            .reload_database()
+            .expect("failed to reload Xft database");
 
         // In the future, it would be quite easy to emit monitor hotplug events.
         let prev_list = {

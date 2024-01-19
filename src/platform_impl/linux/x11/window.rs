@@ -7,9 +7,10 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use log::{debug, info, warn};
 use x11rb::{
     connection::Connection,
-    properties::{WmHints, WmHintsState, WmSizeHints, WmSizeHintsSpecification},
+    properties::{WmHints, WmSizeHints, WmSizeHintsSpecification},
     protocol::{
         randr,
         shape::SK,
@@ -20,26 +21,30 @@ use x11rb::{
 };
 
 use crate::{
+    cursor::{Cursor, CustomCursor as RootCustomCursor},
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, InnerSizeWriter, WindowEvent},
     event_loop::AsyncRequestSerial,
+    platform::x11::WindowType,
     platform_impl::{
         x11::{
             atoms::*, xinput_fp1616_to_float, MonitorHandle as X11MonitorHandle, WakeSender,
             X11Error,
         },
-        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
+        Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformCustomCursor,
+        PlatformIcon, VideoModeHandle as PlatformVideoModeHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-        WindowAttributes, WindowButtons, WindowLevel,
+        CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
+        WindowButtons, WindowLevel,
     },
 };
 
 use super::{
-    ffi, util, CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
+    ffi,
+    util::{self, SelectedCursor},
+    CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
     XConnection,
 };
 
@@ -126,7 +131,7 @@ pub(crate) struct UnownedWindow {
     root: xproto::Window,               // never changes
     #[allow(dead_code)]
     screen_id: i32, // never changes
-    cursor: Mutex<CursorIcon>,
+    selected_cursor: Mutex<SelectedCursor>,
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
     cursor_visible: Mutex<bool>,
@@ -147,15 +152,14 @@ macro_rules! leap {
 
 impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
-    pub(crate) fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         window_attrs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let atoms = xconn.atoms();
         #[cfg(feature = "rwh_06")]
-        let root = match window_attrs.parent_window.0 {
+        let root = match window_attrs.parent_window.as_ref().map(|handle| handle.0) {
             Some(rwh_06::RawWindowHandle::Xlib(handle)) => handle.window as xproto::Window,
             Some(rwh_06::RawWindowHandle::Xcb(handle)) => handle.window.get(),
             Some(raw) => unreachable!("Invalid raw window handle {raw:?} on X11"),
@@ -223,7 +227,7 @@ impl UnownedWindow {
             dimensions
         };
 
-        let screen_id = match pl_attribs.x11.screen_id {
+        let screen_id = match window_attrs.platform_specific.x11.screen_id {
             Some(id) => id,
             None => xconn.default_screen_index() as c_int,
         };
@@ -243,7 +247,11 @@ impl UnownedWindow {
             });
 
         // creating
-        let (visualtype, depth, require_colormap) = match pl_attribs.x11.visual_id {
+        let (visualtype, depth, require_colormap) = match window_attrs
+            .platform_specific
+            .x11
+            .visual_id
+        {
             Some(vi) => {
                 // Find this specific visual.
                 let (visualtype, depth) = all_visuals
@@ -285,12 +293,12 @@ impl UnownedWindow {
 
             aux = aux.event_mask(event_mask).border_pixel(0);
 
-            if pl_attribs.x11.override_redirect {
+            if window_attrs.platform_specific.x11.override_redirect {
                 aux = aux.override_redirect(true as u32);
             }
 
             // Add a colormap if needed.
-            let colormap_visual = match pl_attribs.x11.visual_id {
+            let colormap_visual = match window_attrs.platform_specific.x11.visual_id {
                 Some(vi) => Some(vi),
                 None if require_colormap => Some(visual),
                 _ => None,
@@ -313,7 +321,11 @@ impl UnownedWindow {
         };
 
         // Figure out the window's parent.
-        let parent = pl_attribs.x11.embed_window.unwrap_or(root);
+        let parent = window_attrs
+            .platform_specific
+            .x11
+            .embed_window
+            .unwrap_or(root);
 
         // finally creating the window
         let xwindow = {
@@ -355,7 +367,7 @@ impl UnownedWindow {
             visual,
             root,
             screen_id,
-            cursor: Default::default(),
+            selected_cursor: Default::default(),
             cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
@@ -375,7 +387,7 @@ impl UnownedWindow {
         }
 
         // Embed the window if needed.
-        if pl_attribs.x11.embed_window.is_some() {
+        if window_attrs.platform_specific.x11.embed_window.is_some() {
             window.embed_window()?;
         }
 
@@ -396,7 +408,7 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (class, instance) = if let Some(name) = pl_attribs.name {
+                let (class, instance) = if let Some(name) = window_attrs.platform_specific.name {
                     (name.instance, name.general)
                 } else {
                     let class = env::args_os()
@@ -429,7 +441,8 @@ impl UnownedWindow {
                 flusher.ignore_error()
             }
 
-            leap!(window.set_window_types(pl_attribs.x11.x11_window_types)).ignore_error();
+            leap!(window.set_window_types(window_attrs.platform_specific.x11.x11_window_types))
+                .ignore_error();
 
             // Set size hints.
             let mut min_inner_size = window_attrs
@@ -452,7 +465,7 @@ impl UnownedWindow {
             shared_state.min_inner_size = min_inner_size.map(Into::into);
             shared_state.max_inner_size = max_inner_size.map(Into::into);
             shared_state.resize_increments = window_attrs.resize_increments;
-            shared_state.base_size = pl_attribs.x11.base_size;
+            shared_state.base_size = window_attrs.platform_specific.x11.base_size;
 
             let normal_hints = WmSizeHints {
                 position: position.map(|PhysicalPosition { x, y }| {
@@ -468,7 +481,8 @@ impl UnownedWindow {
                 size_increment: window_attrs
                     .resize_increments
                     .map(|size| cast_size_to_hint(size, scale_factor)),
-                base_size: pl_attribs
+                base_size: window_attrs
+                    .platform_specific
                     .x11
                     .base_size
                     .map(|size| cast_size_to_hint(size, scale_factor)),
@@ -553,10 +567,10 @@ impl UnownedWindow {
             if window_attrs.maximized {
                 leap!(window.set_maximized_inner(window_attrs.maximized)).ignore_error();
             }
-            if window_attrs.fullscreen.0.is_some() {
+            if window_attrs.fullscreen.is_some() {
                 if let Some(flusher) =
                     leap!(window
-                        .set_fullscreen_inner(window_attrs.fullscreen.0.clone().map(Into::into)))
+                        .set_fullscreen_inner(window_attrs.fullscreen.clone().map(Into::into)))
                 {
                     flusher.ignore_error()
                 }
@@ -571,8 +585,10 @@ impl UnownedWindow {
             leap!(window.set_window_level_inner(window_attrs.window_level)).ignore_error();
         }
 
+        window.set_cursor(window_attrs.cursor);
+
         // Remove the startup notification if we have one.
-        if let Some(startup) = pl_attribs.activation_token.as_ref() {
+        if let Some(startup) = window_attrs.platform_specific.activation_token.as_ref() {
             leap!(xconn.remove_activation_token(xwindow, &startup._token));
         }
 
@@ -629,10 +645,7 @@ impl UnownedWindow {
         flusher.map(Some)
     }
 
-    fn set_window_types(
-        &self,
-        window_types: Vec<util::WindowType>,
-    ) -> Result<VoidCookie<'_>, X11Error> {
+    fn set_window_types(&self, window_types: Vec<WindowType>) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
         let hint_atom = atoms[_NET_WM_WINDOW_TYPE];
         let atoms: Vec<_> = window_types
@@ -748,10 +761,10 @@ impl UnownedWindow {
             // fullscreen, so we can restore it upon exit, as XRandR does not
             // provide a mechanism to set this per app-session or restore this
             // to the desktop video mode as macOS and Windows do
-            (&None, &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))))
+            (&None, &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))))
             | (
                 &Some(Fullscreen::Borderless(_)),
-                &Some(Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode))),
+                &Some(Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode))),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode = Some((
@@ -787,7 +800,7 @@ impl UnownedWindow {
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
-                    Fullscreen::Exclusive(PlatformVideoMode::X(ref video_mode)) => {
+                    Fullscreen::Exclusive(PlatformVideoModeHandle::X(ref video_mode)) => {
                         (Some(video_mode), video_mode.monitor.clone().unwrap())
                     }
                     Fullscreen::Borderless(Some(PlatformMonitorHandle::X(monitor))) => {
@@ -987,7 +1000,7 @@ impl UnownedWindow {
                     xproto::EventMask::SUBSTRUCTURE_REDIRECT
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
-                [WmHintsState::Iconic as u32, 0, 0, 0, 0],
+                [3u32, 0, 0, 0, 0],
             )
         } else {
             self.xconn.send_client_msg(
@@ -1377,7 +1390,8 @@ impl UnownedWindow {
             self.xwindow as xproto::Window,
             xproto::AtomEnum::WM_NORMAL_HINTS,
         )?
-        .reply()?;
+        .reply()?
+        .unwrap_or_default();
         callback(&mut normal_hints);
         normal_hints
             .set(
@@ -1430,6 +1444,7 @@ impl UnownedWindow {
         )
         .ok()
         .and_then(|cookie| cookie.reply().ok())
+        .flatten()
         .and_then(|hints| hints.size_increment)
         .map(|(width, height)| (width as u32, height as u32).into())
     }
@@ -1532,11 +1547,34 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let old_cursor = replace(&mut *self.cursor.lock().unwrap(), cursor);
-        #[allow(clippy::mutex_atomic)]
-        if cursor != old_cursor && *self.cursor_visible.lock().unwrap() {
-            self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+    pub fn set_cursor(&self, cursor: Cursor) {
+        match cursor {
+            Cursor::Icon(icon) => {
+                let old_cursor = replace(
+                    &mut *self.selected_cursor.lock().unwrap(),
+                    SelectedCursor::Named(icon),
+                );
+
+                #[allow(clippy::mutex_atomic)]
+                if SelectedCursor::Named(icon) != old_cursor && *self.cursor_visible.lock().unwrap()
+                {
+                    self.xconn.set_cursor_icon(self.xwindow, Some(icon));
+                }
+            }
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::X(cursor),
+            }) => {
+                #[allow(clippy::mutex_atomic)]
+                if *self.cursor_visible.lock().unwrap() {
+                    self.xconn.set_custom_cursor(self.xwindow, &cursor);
+                }
+
+                *self.selected_cursor.lock().unwrap() = SelectedCursor::Custom(cursor);
+            }
+            #[cfg(wayland_platform)]
+            Cursor::Custom(RootCustomCursor {
+                inner: PlatformCustomCursor::Wayland(_),
+            }) => log::error!("passed a Wayland cursor to X11 backend"),
         }
     }
 
@@ -1626,13 +1664,23 @@ impl UnownedWindow {
             return;
         }
         let cursor = if visible {
-            Some(*self.cursor.lock().unwrap())
+            Some((*self.selected_cursor.lock().unwrap()).clone())
         } else {
             None
         };
         *visible_lock = visible;
         drop(visible_lock);
-        self.xconn.set_cursor_icon(self.xwindow, cursor);
+        match cursor {
+            Some(SelectedCursor::Custom(cursor)) => {
+                self.xconn.set_custom_cursor(self.xwindow, &cursor);
+            }
+            Some(SelectedCursor::Named(cursor)) => {
+                self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+            }
+            None => {
+                self.xconn.set_cursor_icon(self.xwindow, None);
+            }
+        }
     }
 
     #[inline]
@@ -1824,6 +1872,7 @@ impl UnownedWindow {
             WmHints::get(self.xconn.xcb_connection(), self.xwindow as xproto::Window)
                 .ok()
                 .and_then(|cookie| cookie.reply().ok())
+                .flatten()
                 .unwrap_or_default();
 
         wm_hints.urgent = request_type.is_some();

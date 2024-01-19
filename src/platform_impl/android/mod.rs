@@ -4,6 +4,7 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     hash::Hash,
+    marker::PhantomData,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc, Mutex, RwLock,
@@ -15,9 +16,11 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
+use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
 
 use crate::{
+    cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, Force, InnerSizeWriter, StartCause},
@@ -138,7 +141,7 @@ pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
     android_app: AndroidApp,
-    window_target: event_loop::EventLoopWindowTarget<T>,
+    window_target: event_loop::EventLoopWindowTarget,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
@@ -185,9 +188,8 @@ impl<T: 'static> EventLoop<T> {
                         &redraw_flag,
                         android_app.create_waker(),
                     ),
-                    _marker: std::marker::PhantomData,
                 },
-                _marker: std::marker::PhantomData,
+                _marker: PhantomData,
             },
             redraw_flag,
             user_events_sender,
@@ -203,7 +205,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         trace!("Mainloop iteration");
 
@@ -375,7 +377,7 @@ impl<T: 'static> EventLoop<T> {
         callback: &mut F,
     ) -> InputStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         let mut input_status = InputStatus::Handled;
         match event {
@@ -480,14 +482,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>),
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
         if self.loop_running {
             return Err(EventLoopError::AlreadyRunning);
@@ -510,7 +512,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -543,7 +545,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<T>, &RootELW<T>),
+        F: FnMut(event::Event<T>, &RootELW),
     {
         let start = Instant::now();
 
@@ -619,7 +621,7 @@ impl<T: 'static> EventLoop<T> {
         });
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
         &self.window_target
     }
 
@@ -663,15 +665,14 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     app: AndroidApp,
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
     }
@@ -713,8 +714,35 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         self.exit.set(true)
     }
 
+    pub(crate) fn clear_exit(&self) {
+        self.exit.set(false)
+    }
+
     pub(crate) fn exiting(&self) -> bool {
         self.exit.get()
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::AndroidDisplayHandle::empty().into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::AndroidDisplayHandle::new().into())
     }
 }
 
@@ -757,10 +785,9 @@ pub(crate) struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        el: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        el: &EventLoopWindowTarget,
         _window_attrs: window::WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
 
@@ -904,7 +931,7 @@ impl Window {
 
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
-    pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
+    pub fn set_cursor(&self, _: Cursor) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
@@ -1031,6 +1058,8 @@ impl Display for OsError {
     }
 }
 
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1082,11 +1111,11 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        std::iter::once(VideoModeHandle {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
@@ -1096,14 +1125,14 @@ impl MonitorHandle {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     size: (u32, u32),
     bit_depth: u16,
     refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }

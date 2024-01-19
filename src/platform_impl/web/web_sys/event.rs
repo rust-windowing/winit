@@ -2,14 +2,14 @@ use crate::dpi::LogicalPosition;
 use crate::event::{MouseButton, MouseScrollDelta};
 use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
-use once_cell::unsync::OnceCell;
 use smol_str::SmolStr;
+use std::cell::OnceCell;
 use std::convert::TryInto;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};
 
-bitflags! {
+bitflags::bitflags! {
     // https://www.w3.org/TR/pointerevents3/#the-buttons-property
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ButtonsState: u16 {
@@ -81,9 +81,22 @@ impl MouseButton {
 }
 
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
+    #[wasm_bindgen]
+    extern "C" {
+        type MouseEventExt;
+
+        #[wasm_bindgen(method, getter, js_name = offsetX)]
+        fn offset_x(this: &MouseEventExt) -> f64;
+
+        #[wasm_bindgen(method, getter, js_name = offsetY)]
+        fn offset_y(this: &MouseEventExt) -> f64;
+    }
+
+    let event: &MouseEventExt = event.unchecked_ref();
+
     LogicalPosition {
-        x: event.offset_x() as f64,
-        y: event.offset_y() as f64,
+        x: event.offset_x(),
+        y: event.offset_y(),
     }
 }
 
@@ -178,7 +191,7 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
         KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
         KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
         location => {
-            warn!("Unexpected key location: {location}");
+            log::warn!("Unexpected key location: {location}");
             KeyLocation::Standard
         }
     }

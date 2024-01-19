@@ -11,13 +11,74 @@ Unreleased` header.
 
 # Unreleased
 
+- On Windows, add `with_system_backdrop`.
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
+- On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
+  - **Breaking:** Remove `Window::set_cursor_icon`
+  - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
+  - Add `CustomCursor`
+  - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
+  - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
+  - Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors from other `CustomCursor`s.
 - On macOS, add services menu.
+- **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
+- On Web, fix setting cursor icon overriding cursor visibility.
+- **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
+- **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
+- **Breaking:** Bump MSRV from `1.65` to `1.70`.
+- On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
+- **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
+- **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- **Breaking:** No longer export `platform::x11::XNotSupported`.
+- **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
+- **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+
+# 0.29.10
+
+- On Web, account for canvas being focused already before event loop starts.
+- On Web, increase cursor position accuracy.
+
+# 0.29.9
+
+- On X11, fix `NotSupported` error not propagated when creating event loop.
+- On Wayland, fix resize not issued when scale changes
+- On X11 and Wayland, fix arrow up on keypad reported as `ArrowLeft`.
+- On macOS, report correct logical key when Ctrl or Cmd is pressed.
+
+# 0.29.8
+
+- On X11, fix IME input lagging behind.
+- On X11, fix `ModifiersChanged` not sent from xdotool-like input
+- On X11, fix keymap not updated from xmodmap.
+- On X11, reduce the amount of time spent fetching screen resources.
+- On Wayland, fix `Window::request_inner_size` being overwritten by resize.
+- On Wayland, fix `Window::inner_size` not using the correct rounding.
+
+# 0.29.7
+
+- On X11, fix `Xft.dpi` reload during runtime.
+- On X11, fix window minimize.
+
+# 0.29.6
+
+- On Web, fix context menu not being disabled by `with_prevent_default(true)`.
+- On Wayland, fix `WindowEvent::Destroyed` not being delivered after destroying window.
+- Fix `EventLoopExtRunOnDemand::run_on_demand` not working for consequent invocation
+
+# 0.29.5
+
 - On macOS, remove spurious error logging when handling `Fn`.
 - On X11, fix an issue where floating point data from the server is
   misinterpreted during a drag and drop operation.
 - On X11, fix a bug where focusing the window would panic.
 - On macOS, fix `refresh_rate_millihertz`.
-- On Windows, add `with_system_backdrop`.
+- On Wayland, disable Client Side Decorations when `wl_subcompositor` is not supported.
+- On X11, fix `Xft.dpi` detection from Xresources.
+- On Windows, fix consecutive calls to `window.set_fullscreen(Some(Fullscreen::Borderless(None)))` resulting in losing previous window state when eventually exiting fullscreen using `window.set_fullscreen(None)`.
+- On Wayland, fix resize being sent on focus change.
+- On Windows, fix `set_ime_cursor_area`.
 
 # 0.29.4
 

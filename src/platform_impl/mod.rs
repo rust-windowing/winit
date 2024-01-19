@@ -1,4 +1,4 @@
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoModeHandle as RootVideoModeHandle};
 use crate::window::Fullscreen as RootFullscreen;
 
 #[cfg(windows_platform)]
@@ -16,7 +16,7 @@ mod platform;
 #[cfg(ios_platform)]
 #[path = "ios/mod.rs"]
 mod platform;
-#[cfg(wasm_platform)]
+#[cfg(web_platform)]
 #[path = "web/mod.rs"]
 mod platform;
 #[cfg(orbital_platform)]
@@ -25,10 +25,10 @@ mod platform;
 
 pub use self::platform::*;
 
-/// Helper for converting between platform-specific and generic VideoMode/MonitorHandle
+/// Helper for converting between platform-specific and generic [`VideoModeHandle`]/[`MonitorHandle`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Fullscreen {
-    Exclusive(VideoMode),
+    Exclusive(VideoModeHandle),
     Borderless(Option<MonitorHandle>),
 }
 
@@ -45,7 +45,9 @@ impl From<RootFullscreen> for Fullscreen {
 impl From<Fullscreen> for RootFullscreen {
     fn from(f: Fullscreen) -> Self {
         match f {
-            Fullscreen::Exclusive(video_mode) => Self::Exclusive(RootVideoMode { video_mode }),
+            Fullscreen::Exclusive(video_mode) => {
+                Self::Exclusive(RootVideoModeHandle { video_mode })
+            }
             Fullscreen::Borderless(Some(inner)) => {
                 Self::Borderless(Some(RootMonitorHandle { inner }))
             }
@@ -61,7 +63,7 @@ impl From<Fullscreen> for RootFullscreen {
     not(android_platform),
     not(x11_platform),
     not(wayland_platform),
-    not(wasm_platform),
+    not(web_platform),
     not(orbital_platform),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

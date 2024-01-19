@@ -27,23 +27,61 @@
 //! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
 //! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
 
-use crate::event::Event;
-use crate::event_loop::EventLoop;
-use crate::event_loop::EventLoopWindowTarget;
-use crate::window::{Window, WindowBuilder};
-use crate::SendSyncWrapper;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::Duration;
 
+#[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
+use crate::cursor::CustomCursorBuilder;
+use crate::event::Event;
+use crate::event_loop::{EventLoop, EventLoopWindowTarget};
+#[cfg(web_platform)]
+use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
+use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
+use crate::window::{CustomCursor, Window, WindowBuilder};
+
+#[cfg(not(web_platform))]
+#[doc(hidden)]
+pub struct HtmlCanvasElement;
+
 pub trait WindowExtWebSys {
-    /// Only returns the canvas if called from inside the window.
+    /// Only returns the canvas if called from inside the window context (the
+    /// main thread).
     fn canvas(&self) -> Option<HtmlCanvasElement>;
+
+    /// Returns [`true`] if calling `event.preventDefault()` is enabled.
+    ///
+    /// See [`Window::set_prevent_default()`] for more details.
+    fn prevent_default(&self) -> bool;
+
+    /// Sets whether `event.preventDefault()` should be called on events on the
+    /// canvas that have side effects.
+    ///
+    /// For example, by default using the mouse wheel would cause the page to scroll, enabling this
+    /// would prevent that.
+    ///
+    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
+    /// context menu with Shift+Rightclick.
+    fn set_prevent_default(&self, prevent_default: bool);
 }
 
 impl WindowExtWebSys for Window {
     #[inline]
     fn canvas(&self) -> Option<HtmlCanvasElement> {
         self.window.canvas()
+    }
+
+    fn prevent_default(&self) -> bool {
+        self.window.prevent_default()
+    }
+
+    fn set_prevent_default(&self, prevent_default: bool) {
+        self.window.set_prevent_default(prevent_default)
     }
 }
 
@@ -54,16 +92,17 @@ pub trait WindowBuilderExtWebSys {
     /// In any case, the canvas won't be automatically inserted into the web page.
     ///
     /// [`None`] by default.
+    #[cfg_attr(
+        not(web_platform),
+        doc = "",
+        doc = "[`HtmlCanvasElement`]: #only-available-on-wasm"
+    )]
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
-    /// Whether `event.preventDefault` should be automatically called to prevent event propagation
-    /// when appropriate.
+    /// Sets whether `event.preventDefault()` should be called on events on the
+    /// canvas that have side effects.
     ///
-    /// For example, mouse wheel events are only handled by the canvas by default. This avoids
-    /// the default behavior of scrolling the page.
-    ///
-    /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
-    /// context menu with Shift+Rightclick.
+    /// See [`Window::set_prevent_default()`] for more details.
     ///
     /// Enabled by default.
     fn with_prevent_default(self, prevent_default: bool) -> Self;
@@ -82,22 +121,22 @@ pub trait WindowBuilderExtWebSys {
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
-        self.platform_specific.canvas = SendSyncWrapper(canvas);
+        self.window.platform_specific.set_canvas(canvas);
         self
     }
 
     fn with_prevent_default(mut self, prevent_default: bool) -> Self {
-        self.platform_specific.prevent_default = prevent_default;
+        self.window.platform_specific.prevent_default = prevent_default;
         self
     }
 
     fn with_focusable(mut self, focusable: bool) -> Self {
-        self.platform_specific.focusable = focusable;
+        self.window.platform_specific.focusable = focusable;
         self
     }
 
     fn with_append(mut self, append: bool) -> Self {
-        self.platform_specific.append = append;
+        self.window.platform_specific.append = append;
         self
     }
 }
@@ -111,11 +150,11 @@ pub trait EventLoopExtWebSys {
     ///
     /// Unlike
     #[cfg_attr(
-        all(wasm_platform, target_feature = "exception-handling"),
+        all(web_platform, target_feature = "exception-handling"),
         doc = "`run()`"
     )]
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
@@ -127,13 +166,13 @@ pub trait EventLoopExtWebSys {
     /// event loop when switching between tabs on a single page application.
     ///
     #[cfg_attr(
-        not(all(wasm_platform, target_feature = "exception-handling")),
+        not(all(web_platform, target_feature = "exception-handling")),
         doc = "[`run()`]: EventLoop::run()"
     )]
     /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>);
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
@@ -141,7 +180,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
 
     fn spawn<F>(self, event_handler: F)
     where
-        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>),
+        F: 'static + FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
     {
         self.event_loop.spawn(event_handler)
     }
@@ -163,7 +202,7 @@ pub trait EventLoopWindowTargetExtWebSys {
     fn poll_strategy(&self) -> PollStrategy;
 }
 
-impl<T> EventLoopWindowTargetExtWebSys for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWebSys for EventLoopWindowTarget {
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.p.set_poll_strategy(strategy);
@@ -199,4 +238,127 @@ pub enum PollStrategy {
     /// [`setTimeout()`]: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
     #[default]
     Scheduler,
+}
+
+pub trait CustomCursorExtWebSys {
+    /// Returns if this cursor is an animation.
+    fn is_animation(&self) -> bool;
+
+    /// Creates a new cursor from a URL pointing to an image.
+    /// It uses the [url css function](https://developer.mozilla.org/en-US/docs/Web/CSS/url),
+    /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
+    ///
+    /// [PNG]: https://en.wikipedia.org/wiki/PNG
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder;
+
+    /// Crates a new animated cursor from multiple [`CustomCursor`]s.
+    /// Supplied `cursors` can't be empty or other animations.
+    fn from_animation(
+        duration: Duration,
+        cursors: Vec<CustomCursor>,
+    ) -> Result<CustomCursorBuilder, BadAnimation>;
+}
+
+impl CustomCursorExtWebSys for CustomCursor {
+    fn is_animation(&self) -> bool {
+        self.inner.animation
+    }
+
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder {
+        CustomCursorBuilder {
+            inner: PlatformCustomCursorBuilder::Url {
+                url,
+                hotspot_x,
+                hotspot_y,
+            },
+        }
+    }
+
+    fn from_animation(
+        duration: Duration,
+        cursors: Vec<CustomCursor>,
+    ) -> Result<CustomCursorBuilder, BadAnimation> {
+        if cursors.is_empty() {
+            return Err(BadAnimation::Empty);
+        }
+
+        if cursors.iter().any(CustomCursor::is_animation) {
+            return Err(BadAnimation::Animation);
+        }
+
+        Ok(CustomCursorBuilder {
+            inner: PlatformCustomCursorBuilder::Animation { duration, cursors },
+        })
+    }
+}
+
+/// An error produced when using [`CustomCursor::from_animation`] with invalid arguments.
+#[derive(Debug, Clone)]
+pub enum BadAnimation {
+    /// Produced when no cursors were supplied.
+    Empty,
+    /// Produced when a supplied cursor is an animation.
+    Animation,
+}
+
+impl fmt::Display for BadAnimation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => write!(f, "No cursors supplied"),
+            Self::Animation => write!(f, "A supplied cursor is an animtion"),
+        }
+    }
+}
+
+impl Error for BadAnimation {}
+
+pub trait CustomCursorBuilderExtWebSys {
+    /// Async version of [`CustomCursorBuilder::build()`] which waits until the
+    /// cursor has completely finished loading.
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture;
+}
+
+impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
+    fn build_async(self, window_target: &EventLoopWindowTarget) -> CustomCursorFuture {
+        CustomCursorFuture(PlatformCustomCursor::build_async(
+            self.inner,
+            &window_target.p,
+        ))
+    }
+}
+
+#[cfg(not(web_platform))]
+struct PlatformCustomCursorFuture;
+
+#[derive(Debug)]
+pub struct CustomCursorFuture(PlatformCustomCursorFuture);
+
+impl Future for CustomCursorFuture {
+    type Output = Result<CustomCursor, CustomCursorError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map_ok(|cursor| CustomCursor { inner: cursor })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CustomCursorError {
+    Blob,
+    Decode(String),
+    Animation,
+}
+
+impl Display for CustomCursorError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Blob => write!(f, "failed to create `Blob`"),
+            Self::Decode(error) => write!(f, "failed to decode image: {error}"),
+            Self::Animation => write!(
+                f,
+                "found `CustomCursor` that is an animation when building an animation"
+            ),
+        }
+    }
 }

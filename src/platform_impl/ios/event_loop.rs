@@ -34,12 +34,11 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct EventLoopWindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget {
     pub(super) mtm: MainThreadMarker,
-    p: PhantomData<T>,
 }
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+impl EventLoopWindowTarget {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::uiscreens(self.mtm)
     }
@@ -78,11 +77,34 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub(crate) fn exit(&self) {
         // https://developer.apple.com/library/archive/qa/qa1561/_index.html
         // it is not possible to quit an iOS app gracefully and programatically
-        warn!("`ControlFlow::Exit` ignored on iOS");
+        log::warn!("`ControlFlow::Exit` ignored on iOS");
     }
 
     pub(crate) fn exiting(&self) -> bool {
         false
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::UiKitDisplayHandle::empty().into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::UiKitDisplayHandle::new().into())
     }
 }
 
@@ -90,7 +112,7 @@ pub struct EventLoop<T: 'static> {
     mtm: MainThreadMarker,
     sender: Sender<T>,
     receiver: Receiver<T>,
-    window_target: RootEventLoopWindowTarget<T>,
+    window_target: RootEventLoopWindowTarget,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -123,10 +145,7 @@ impl<T: 'static> EventLoop<T> {
             sender,
             receiver,
             window_target: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    mtm,
-                    p: PhantomData,
-                },
+                p: EventLoopWindowTarget { mtm },
                 _marker: PhantomData,
             },
         })
@@ -134,7 +153,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
         unsafe {
             let application = UIApplication::shared(self.mtm);
@@ -146,7 +165,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             let event_handler = std::mem::transmute::<
-                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>)>,
+                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget)>,
                 Box<EventHandlerCallback<T>>,
             >(Box::new(event_handler));
 
@@ -175,7 +194,7 @@ impl<T: 'static> EventLoop<T> {
         EventLoopProxy::new(self.sender.clone())
     }
 
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
         &self.window_target
     }
 }
@@ -346,7 +365,7 @@ fn setup_control_flow_observers() {
 #[derive(Debug)]
 pub enum Never {}
 
-type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget<T>) + 'static;
+type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget) + 'static;
 
 pub trait EventHandler: Debug {
     fn handle_nonuser_event(&mut self, event: Event<Never>);
@@ -356,7 +375,7 @@ pub trait EventHandler: Debug {
 struct EventLoopHandler<T: 'static> {
     f: Box<EventHandlerCallback<T>>,
     receiver: Receiver<T>,
-    event_loop: RootEventLoopWindowTarget<T>,
+    event_loop: RootEventLoopWindowTarget,
 }
 
 impl<T: 'static> Debug for EventLoopHandler<T> {

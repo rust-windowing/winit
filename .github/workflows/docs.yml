@@ -1,0 +1,50 @@
+name: Docs
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  docs:
+    name: Documentation
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}winit
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Run Rustdoc
+        env:
+          RUSTDOCFLAGS: --crate-version master --cfg=docsrs
+        run: |
+          cargo doc --no-deps -Z rustdoc-map -Z rustdoc-scrape-examples --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Fix permissions
+        run: |
+          chmod -c -R +rX "target/doc" | while read line; do
+            echo "::warning title=Invalid file permissions automatically fixed::$line"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/doc
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

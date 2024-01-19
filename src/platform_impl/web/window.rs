@@ -2,19 +2,19 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::window::{
-    CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme, UserAttentionType,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
-use crate::SendSyncWrapper;
 
-use web_sys::HtmlCanvasElement;
-
+use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::Dispatcher;
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
+use web_sys::HtmlCanvasElement;
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Window {
     inner: Dispatcher<Inner>,
@@ -24,27 +24,28 @@ pub struct Inner {
     id: WindowId,
     pub window: web_sys::Window,
     canvas: Rc<RefCell<backend::Canvas>>,
-    previous_pointer: RefCell<&'static str>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        target: &EventLoopWindowTarget<T>,
-        attr: WindowAttributes,
-        platform_attr: PlatformSpecificWindowBuilderAttributes,
+    pub(crate) fn new(
+        target: &EventLoopWindowTarget,
+        mut attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
-        let prevent_default = platform_attr.prevent_default;
-
         let window = target.runner.window();
         let document = target.runner.document();
-        let canvas =
-            backend::Canvas::create(id, window.clone(), document.clone(), &attr, platform_attr)?;
+        let canvas = backend::Canvas::create(
+            target.runner.main_thread(),
+            id,
+            window.clone(),
+            document.clone(),
+            &mut attr,
+        )?;
         let canvas = Rc::new(RefCell::new(canvas));
 
-        target.register(&canvas, id, prevent_default);
+        target.register(&canvas, id);
 
         let runner = target.runner.clone();
         let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
@@ -53,7 +54,6 @@ impl Window {
             id,
             window: window.clone(),
             canvas,
-            previous_pointer: RefCell::new("auto"),
             destroy_fn: Some(destroy_fn),
         };
 
@@ -61,9 +61,10 @@ impl Window {
         inner.set_maximized(attr.maximized);
         inner.set_visible(attr.visible);
         inner.set_window_icon(attr.window_icon);
+        inner.set_cursor(attr.cursor);
 
         let canvas = Rc::downgrade(&inner.canvas);
-        let (dispatcher, runner) = Dispatcher::new(inner).unwrap();
+        let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
         target.runner.add_canvas(RootWI(id), canvas, runner);
 
         Ok(Window { inner: dispatcher })
@@ -81,6 +82,42 @@ impl Window {
         self.inner
             .value()
             .map(|inner| inner.canvas.borrow().raw().clone())
+    }
+
+    pub(crate) fn prevent_default(&self) -> bool {
+        self.inner
+            .queue(|inner| inner.canvas.borrow().prevent_default.get())
+    }
+
+    pub(crate) fn set_prevent_default(&self, prevent_default: bool) {
+        self.inner
+            .dispatch(move |inner| inner.canvas.borrow().prevent_default.set(prevent_default))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        self.inner
+            .value()
+            .map(|inner| {
+                let canvas = inner.canvas.borrow();
+                // SAFETY: This will only work if the reference to `HtmlCanvasElement` stays valid.
+                let canvas: &wasm_bindgen::JsValue = canvas.raw();
+                let window_handle =
+                    rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
+                rwh_06::RawWindowHandle::WebCanvas(window_handle)
+            })
+            .ok_or(rwh_06::HandleError::Unavailable)
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub(crate) fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Web(
+            rwh_06::WebDisplayHandle::new(),
+        ))
     }
 }
 
@@ -194,9 +231,8 @@ impl Inner {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        *self.previous_pointer.borrow_mut() = cursor.name();
-        self.canvas.borrow().style().set("cursor", cursor.name());
+    pub fn set_cursor(&self, cursor: Cursor) {
+        self.canvas.borrow_mut().cursor.set_cursor(cursor)
     }
 
     #[inline]
@@ -222,14 +258,7 @@ impl Inner {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        if !visible {
-            self.canvas.borrow().style().set("cursor", "none");
-        } else {
-            self.canvas
-                .borrow()
-                .style()
-                .set("cursor", &self.previous_pointer.borrow());
-        }
+        self.canvas.borrow_mut().cursor.set_cursor_visible(visible)
     }
 
     #[inline]
@@ -378,23 +407,6 @@ impl Inner {
         rwh_05::RawDisplayHandle::Web(rwh_05::WebDisplayHandle::empty())
     }
 
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
-        let window_handle = rwh_06::WebWindowHandle::new(self.id.0);
-        Ok(rwh_06::RawWindowHandle::Web(window_handle))
-    }
-
-    #[cfg(feature = "rwh_06")]
-    #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(
-            rwh_06::WebDisplayHandle::new(),
-        ))
-    }
-
     #[inline]
     pub fn set_theme(&self, _theme: Option<Theme>) {}
 
@@ -453,18 +465,32 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub(crate) canvas: SendSyncWrapper<Option<backend::RawCanvasType>>,
+    pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
 }
 
+impl PlatformSpecificWindowBuilderAttributes {
+    pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
+        let Some(canvas) = canvas else {
+            self.canvas = None;
+            return;
+        };
+
+        let main_thread = MainThreadMarker::new()
+            .expect("received a `HtmlCanvasElement` outside the window context");
+
+        self.canvas = Some(Arc::new(MainThreadSafe::new(main_thread, canvas)));
+    }
+}
+
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            canvas: SendSyncWrapper(None),
+            canvas: None,
             prevent_default: true,
             focusable: true,
             append: false,

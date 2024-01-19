@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.29.4"
+version = "0.29.10"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
-rust-version = "1.65.0"
+rust-version = "1.70.0"
 
 [package.metadata.docs.rs]
 features = [
@@ -18,6 +18,7 @@ features = [
     "rwh_05",
     "rwh_06",
     "serde",
+    "mint",
     # Enabled to get docs to compile
     "android-native-activity",
 ]
@@ -36,7 +37,7 @@ targets = [
     "x86_64-apple-ios",
     # Android
     "aarch64-linux-android",
-    # WebAssembly
+    # Web
     "wasm32-unknown-unknown",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -66,7 +67,7 @@ log = "0.4"
 mint = { version = "0.5.6", optional = true }
 once_cell = "1.12"
 rwh_04 = { package = "raw-window-handle", version = "0.4", optional = true }
-rwh_05 = { package = "raw-window-handle", version = "0.5", features = ["std"], optional = true }
+rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = ["std"], optional = true }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"], optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 smol_str = "0.2.0"
@@ -86,13 +87,13 @@ ndk-sys = "0.5.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = "0.4.1"
+objc2 = "0.5.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]
-version = "0.0.4"
+version = "0.1.0"
 features = [
     "dispatch",
     "Foundation",
@@ -105,10 +106,31 @@ features = [
     "Foundation_NSProcessInfo",
     "Foundation_NSThread",
     "Foundation_NSNumber",
+    "AppKit",
+    "AppKit_NSAppearance",
+    "AppKit_NSApplication",
+    "AppKit_NSBitmapImageRep",
+    "AppKit_NSButton",
+    "AppKit_NSColor",
+    "AppKit_NSControl",
+    "AppKit_NSCursor",
+    "AppKit_NSEvent",
+    "AppKit_NSGraphicsContext",
+    "AppKit_NSImage",
+    "AppKit_NSImageRep",
+    "AppKit_NSMenu",
+    "AppKit_NSMenuItem",
+    "AppKit_NSPasteboard",
+    "AppKit_NSResponder",
+    "AppKit_NSScreen",
+    "AppKit_NSTextInputContext",
+    "AppKit_NSView",
+    "AppKit_NSWindow",
+    "AppKit_NSWindowTabGroup",
 ]
 
 [target.'cfg(target_os = "ios")'.dependencies.icrate]
-version = "0.0.4"
+version = "0.1.0"
 features = [
     "dispatch",
     "Foundation",
@@ -160,18 +182,18 @@ memmap2 = { version = "0.9.0", optional = true }
 percent-encoding = { version = "2.0", optional = true }
 rustix = { version = "0.38.4", default-features = false, features = ["std", "system", "thread", "process"] }
 sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = ["calloop"], optional = true }
-sctk-adwaita = { version = "0.7.0", default_features = false, optional = true }
+sctk-adwaita = { version = "0.8.0", default_features = false, optional = true }
 wayland-backend = { version = "0.3.0", default_features = false, features = ["client_system"], optional = true }
 wayland-client = { version = "0.31.1", optional = true }
 wayland-protocols = { version = "0.31.0", features = [ "staging"], optional = true }
 wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-x11rb = { version = "0.12.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
+x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
 xkbcommon-dl = "0.4.0"
 
 [target.'cfg(target_os = "redox")'.dependencies]
-orbclient = { version = "0.3.42", default-features = false }
-redox_syscall = "0.3"
+orbclient = { version = "0.3.47", default-features = false }
+redox_syscall = "0.4.1"
 
 [target.'cfg(target_family = "wasm")'.dependencies.web_sys]
 package = "web-sys"
@@ -179,9 +201,11 @@ version = "0.3.64"
 features = [
     'AbortController',
     'AbortSignal',
+    'Blob',
     'console',
     'CssStyleDeclaration',
     'Document',
+    'DomException',
     'DomRect',
     'DomRectReadOnly',
     'Element',
@@ -190,6 +214,11 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlElement',
+    'HtmlImageElement',
+    'ImageBitmap',
+    'ImageBitmapOptions',
+    'ImageBitmapRenderingContext',
+    'ImageData',
     'IntersectionObserver',
     'IntersectionObserverEntry',
     'KeyboardEvent',
@@ -199,6 +228,7 @@ features = [
     'Node',
     'PageTransitionEvent',
     'PointerEvent',
+    'PremultiplyAlpha',
     'ResizeObserver',
     'ResizeObserverBoxOptions',
     'ResizeObserverEntry',
@@ -206,15 +236,20 @@ features = [
     'ResizeObserverSize',
     'VisibilityState',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'Url',
 ]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-atomic-waker = "1"
 js-sys = "0.3.64"
+pin-project = "1"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-time = "0.2"
+web-time = "1"
+
+[target.'cfg(all(target_family = "wasm", target_feature = "atomics"))'.dependencies]
+atomic-waker = "1"
+concurrent-queue = { version = "2", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
 console_log = "1"
@@ -224,3 +259,7 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 members = [
     "run-wasm",
 ]
+
+[[example]]
+doc-scrape-examples = true
+name = "window"

@@ -2,9 +2,10 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Size},
     icon::Icon,
     keyboard::ModifiersState,
-    platform_impl::platform::{event_loop, util, Fullscreen},
-    window::{CursorIcon, Theme, WindowAttributes},
+    platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor},
+    window::{Theme, WindowAttributes},
 };
+use bitflags::bitflags;
 use std::io;
 use std::sync::MutexGuard;
 use windows_sys::Win32::{
@@ -67,7 +68,7 @@ pub struct SavedWindow {
 
 #[derive(Clone)]
 pub struct MouseProperties {
-    pub cursor: CursorIcon,
+    pub(crate) selected_cursor: SelectedCursor,
     pub capture_count: u32,
     cursor_flags: CursorFlags,
     pub last_position: Option<PhysicalPosition<f64>>,
@@ -143,7 +144,7 @@ impl WindowState {
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
-                cursor: CursorIcon::default(),
+                selected_cursor: SelectedCursor::default(),
                 capture_count: 0,
                 cursor_flags: CursorFlags::empty(),
                 last_position: None,

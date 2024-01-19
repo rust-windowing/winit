@@ -3,8 +3,7 @@ mod util;
 
 mod app;
 mod app_delegate;
-mod app_state;
-mod appkit;
+mod cursor;
 mod event;
 mod event_loop;
 mod ffi;
@@ -18,16 +17,20 @@ mod window_delegate;
 use std::fmt;
 
 pub(crate) use self::{
-    event::KeyEventExtra,
+    event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra},
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        PlatformSpecificEventLoopAttributes,
     },
-    monitor::{MonitorHandle, VideoMode},
-    window::{PlatformSpecificWindowBuilderAttributes, WindowId},
+    monitor::{MonitorHandle, VideoModeHandle},
+    window::WindowId,
+    window_delegate::PlatformSpecificWindowBuilderAttributes,
 };
 use crate::event::DeviceId as RootDeviceId;
 
+pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::window::Window;
+pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

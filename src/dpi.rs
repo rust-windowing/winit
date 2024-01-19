@@ -104,6 +104,9 @@
 //! [android_1]: https://developer.android.com/training/multiscreen/screendensities
 //! [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 pub trait Pixel: Copy + Into<f64> {
     fn from_f64(f: f64) -> Self;
     fn cast<P: Pixel>(self) -> P {
