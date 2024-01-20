@@ -34,6 +34,7 @@ Unreleased` header.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
 - on Windows: add `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
+- On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
 
 # 0.29.10
 
