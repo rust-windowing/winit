@@ -253,15 +253,9 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
-        let mut style_ex = WS_EX_ACCEPTFILES;
+        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
+        let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
 
-        if self.contains(WindowFlags::CHILD) {
-            style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
-        } else {
-            style |= WS_CAPTION | WS_BORDER;
-            style_ex |= WS_EX_WINDOWEDGE;
-        }
         if self.contains(WindowFlags::RESIZABLE) {
             style |= WS_SIZEBOX;
         }
@@ -282,6 +276,15 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
+        }
+        if self.contains(WindowFlags::CHILD) {
+            style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+
+            // Remove decorations window styles for child
+            if !self.contains(WindowFlags::MARKER_DECORATIONS) {
+                style &= !(WS_CAPTION | WS_BORDER);
+                style_ex &= !WS_EX_WINDOWEDGE;
+            }
         }
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
