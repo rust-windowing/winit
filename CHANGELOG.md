@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On macOS, fix incorrect IME cursor rect origin.
+
 # 0.29.10
 
 - On Web, account for canvas being focused already before event loop starts.

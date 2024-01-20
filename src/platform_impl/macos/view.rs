@@ -410,9 +410,9 @@ declare_class!(
             let content_rect = window.contentRectForFrameRect(window.frame());
             let base_x = content_rect.origin.x as f64;
             let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
-            let x = base_x + self.state.ime_position.get().x;
-            let y = base_y - self.state.ime_position.get().y;
             let LogicalSize { width, height } = self.state.ime_size.get();
+            let x = base_x + self.state.ime_position.get().x;
+            let y = base_y - self.state.ime_position.get().y - height;
             NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(width, height))
         }
 
