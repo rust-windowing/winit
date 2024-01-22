@@ -91,6 +91,7 @@ Unreleased` header.
 - On macOS, send a `Resized` event after each `ScaleFactorChanged` event.
 - On Wayland, fix `wl_surface` being destroyed before associated objects.
 - On macOS, fix assertion when pressing `Fn` key.
+- On Windows, add `WindowBuilderExtWindows::with_clip_children` to control `WS_CLIPCHILDREN` style.
 
 # 0.29.3
 
