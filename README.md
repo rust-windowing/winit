@@ -150,7 +150,7 @@ class. Your application _must_ specify the base class it needs via a feature fla
 [agdk_releases]: https://developer.android.com/games/agdk/download#agdk-libraries
 [Gradle]: https://developer.android.com/studio/build
 
-For more details, refer to these `android-activity` [example applications](https://github.com/rib/android-activity/tree/main/examples).
+For more details, refer to these `android-activity` [example applications](https://github.com/rust-mobile/android-activity/tree/main/examples).
 
 ##### Converting from `ndk-glue` to `android-activity`
 
