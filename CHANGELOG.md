@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On macOS, fix incorrect IME cursor rect origin.
+- On Windows, fixed a race condition when sending an event through the loop proxy.
 
 # 0.29.10
 

@@ -696,14 +696,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        unsafe {
-            if PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) != false.into() {
-                self.event_send.send(event).ok();
-                Ok(())
-            } else {
-                Err(EventLoopClosed(event))
-            }
-        }
+        self.event_send
+            .send(event)
+            .map(|result| {
+                unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
+                result
+            })
+            .map_err(|e| EventLoopClosed(e.0))
     }
 }
 
