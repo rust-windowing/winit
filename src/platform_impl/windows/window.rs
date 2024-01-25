@@ -1020,6 +1020,7 @@ impl Window {
         });
     }
 
+    #[inline]
     pub fn set_system_backdrop(&self, backdrop_type: BackdropType) {
         unsafe {
             DwmSetWindowAttribute(
