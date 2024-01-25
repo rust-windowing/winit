@@ -35,6 +35,7 @@ Unreleased` header.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
 - on Windows: add `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
+- On Windows, fixed a race condition when sending an event through the loop proxy.
 - On Windows, buffer `ScaleFactorChanged` new size if window is maximized until exiting maximzed state.
 
 # 0.29.10
@@ -92,6 +93,7 @@ Unreleased` header.
 - On macOS, send a `Resized` event after each `ScaleFactorChanged` event.
 - On Wayland, fix `wl_surface` being destroyed before associated objects.
 - On macOS, fix assertion when pressing `Fn` key.
+- On Windows, add `WindowBuilderExtWindows::with_clip_children` to control `WS_CLIPCHILDREN` style.
 
 # 0.29.3
 

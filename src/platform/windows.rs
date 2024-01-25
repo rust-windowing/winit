@@ -315,6 +315,9 @@ pub trait WindowBuilderExtWindows {
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
 
+    /// This sets or removes `WS_CLIPCHILDREN` style.
+    fn with_clip_children(self, flag: bool) -> Self;
+
     /// Sets the color of the window border.
     ///
     /// Supported starting with Windows 11 Build 22000.
@@ -382,6 +385,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.window.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_clip_children(mut self, flag: bool) -> Self {
+        self.window.platform_specific.clip_children = flag;
         self
     }
 

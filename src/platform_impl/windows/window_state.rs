@@ -126,6 +126,8 @@ bitflags! {
 
         const MARKER_ACTIVATE = 1 << 21;
 
+        const CLIP_CHILDREN = 1 << 22;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
@@ -257,7 +259,7 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
+        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_SYSMENU;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
 
         if self.contains(WindowFlags::RESIZABLE) {
@@ -301,6 +303,9 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
             style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
+        }
+        if self.contains(WindowFlags::CLIP_CHILDREN) {
+            style |= WS_CLIPCHILDREN;
         }
 
         if self.intersects(
