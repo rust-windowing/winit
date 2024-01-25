@@ -127,6 +127,10 @@ If your PR makes notable changes to Winit's features, please update this section
 * Changing a system-drawn backdrop
 * `WS_EX_NOREDIRECTIONBITMAP` support
 * Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
+* Setting the window border color
+* Setting the title bar background color
+* Setting the title color
+* Setting the corner rounding preference
 
 ### macOS
 * Window activation policy

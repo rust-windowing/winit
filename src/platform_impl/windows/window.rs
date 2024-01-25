@@ -15,8 +15,10 @@ use windows_sys::Win32::{
     },
     Graphics::{
         Dwm::{
-            DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE,
-            DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_SYSTEMBACKDROP_TYPE,
+            DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR,
+            DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+            DWMWA_SYSTEMBACKDROP_TYPE, DWM_SYSTEMBACKDROP_TYPE, DWMWA_WINDOW_CORNER_PREFERENCE,
+            DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_WINDOW_CORNER_PREFERENCE,
         },
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
@@ -64,7 +66,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    platform::windows::BackdropType,
+    platform::windows::{BackdropType, Color, CornerPreference},
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -1075,6 +1077,54 @@ impl Window {
             );
         }
     }
+
+    #[inline]
+    pub fn set_border_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_BORDER_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_background_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CAPTION_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_text_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_TEXT_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_corner_preference(&self, preference: CornerPreference) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
+                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
+            );
+        }
+    }
 }
 
 impl Drop for Window {
@@ -1246,28 +1296,17 @@ impl<'a> InitData<'a> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen.map(Into::into));
-            unsafe { force_window_active(win.window) };
-        } else {
-            let size = attributes
-                .inner_size
-                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-            let max_size = attributes
-                .max_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-            let min_size = attributes
-                .min_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-            let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-            win.request_inner_size(clamped_size);
-
-            if attributes.maximized {
-                // Need to set MAXIMIZED after setting `inner_size` as
-                // `Window::request_inner_size` changes MAXIMIZED to false.
-                win.set_maximized(true);
-            }
-        }
+        let size = attributes
+            .inner_size
+            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let max_size = attributes
+            .max_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+        let min_size = attributes
+            .min_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
+        win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,
@@ -1280,7 +1319,21 @@ impl<'a> InitData<'a> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
+
         win.set_system_backdrop(self.attributes.platform_specific.backdrop_type);
+
+        if let Some(color) = self.attributes.platform_specific.border_color {
+            win.set_border_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_background_color {
+            win.set_title_background_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_text_color {
+            win.set_title_text_color(color);
+        }
+        if let Some(corner) = self.attributes.platform_specific.corner_preference {
+            win.set_corner_preference(corner);
+        }
     }
 }
 unsafe fn init(
@@ -1317,6 +1370,10 @@ unsafe fn init(
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
+    window_flags.set(
+        WindowFlags::CLIP_CHILDREN,
+        attributes.platform_specific.clip_children,
+    );
 
     let mut fallback_parent = || match attributes.platform_specific.owner {
         Some(parent) => {
@@ -1346,6 +1403,8 @@ unsafe fn init(
     let parent = fallback_parent();
 
     let menu = attributes.platform_specific.menu;
+    let fullscreen = attributes.fullscreen.clone();
+    let maximized = attributes.maximized;
     let mut initdata = InitData {
         event_loop,
         attributes,
@@ -1382,7 +1441,18 @@ unsafe fn init(
 
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
-    Ok(initdata.window.unwrap())
+    let win = initdata.window.unwrap();
+
+    // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
+    // This is because if the size is changed in WM_CREATE, the restored size will be stored in that size.
+    if fullscreen.is_some() {
+        win.set_fullscreen(fullscreen.map(Into::into));
+        unsafe { force_window_active(win.window) };
+    } else if maximized {
+        win.set_maximized(true);
+    }
+
+    Ok(win)
 }
 
 unsafe fn register_window_class(class_name: &[u16]) {

@@ -47,6 +47,60 @@ pub enum BackdropType {
     TabbedWindow = 4,
 }
 
+/// Describes a color used by Windows
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Color(u32);
+
+impl Color {
+    /// Use the system's default color
+    pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
+
+    //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
+    const NONE: Color = Color(0xFFFFFFFE);
+
+    /// Create a new color from the given RGB values
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::SYSTEM_DEFAULT
+    }
+}
+
+/// Describes how the corners of a window should look like.
+///
+/// For a detailed explanation, see [`DWM_WINDOW_CORNER_PREFERENCE docs`].
+///
+/// [`DWM_WINDOW_CORNER_PREFERENCE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_window_corner_preference
+#[repr(i32)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CornerPreference {
+    /// Corresponds to `DWMWCP_DEFAULT`.
+    ///
+    /// Let the system decide when to round window corners.
+    #[default]
+    Default = 0,
+
+    /// Corresponds to `DWMWCP_DONOTROUND`.
+    ///
+    /// Never round window corners.
+    DoNotRound = 1,
+
+    /// Corresponds to `DWMWCP_ROUND`.
+    ///
+    /// Round the corners, if appropriate.
+    Round = 2,
+
+    /// Corresponds to `DWMWCP_ROUNDSMALL`.
+    ///
+    /// Round the corners if appropriate, with a small radius.
+    RoundSmall = 3,
+}
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
     /// Whether to allow the event loop to be created off of the main thread.
@@ -170,6 +224,26 @@ pub trait WindowExtWindows {
     ///
     /// Requires Windows 11 build 22523+.
     fn set_system_backdrop(&self, backdrop_type: BackdropType);
+
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_border_color(&self, color: Option<Color>);
+
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_title_background_color(&self, color: Option<Color>);
+
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_title_text_color(&self, color: Color);
+
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_corner_preference(&self, preference: CornerPreference);
 }
 
 impl WindowExtWindows for Window {
@@ -196,6 +270,29 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_system_backdrop(&self, backdrop_type: BackdropType) {
         self.window.set_system_backdrop(backdrop_type)
+    }
+
+    #[inline]
+    fn set_border_color(&self, color: Option<Color>) {
+        self.window.set_border_color(color.unwrap_or(Color::NONE))
+    }
+
+    #[inline]
+    fn set_title_background_color(&self, color: Option<Color>) {
+        // The windows docs don't mention NONE as a valid options but it works in practice and is useful
+        // to circumvent the Windows option "Show accent color on title bars and window borders"
+        self.window
+            .set_title_background_color(color.unwrap_or(Color::NONE))
+    }
+
+    #[inline]
+    fn set_title_text_color(&self, color: Color) {
+        self.window.set_title_text_color(color)
+    }
+
+    #[inline]
+    fn set_corner_preference(&self, preference: CornerPreference) {
+        self.window.set_corner_preference(preference)
     }
 }
 
@@ -264,6 +361,29 @@ pub trait WindowBuilderExtWindows {
     ///
     /// Requires Windows 11 build 22523+.
     fn with_system_backdrop(self, backdrop_type: BackdropType) -> Self;
+
+    /// This sets or removes `WS_CLIPCHILDREN` style.
+    fn with_clip_children(self, flag: bool) -> Self;
+
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_border_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_background_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_text_color(self, color: Color) -> Self;
+
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_corner_preference(self, corners: CornerPreference) -> Self;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -318,6 +438,36 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
         self.window.platform_specific.backdrop_type = backdrop_type;
+        self
+    }
+
+    #[inline]
+    fn with_clip_children(mut self, flag: bool) -> Self {
+        self.window.platform_specific.clip_children = flag;
+        self
+    }
+
+    #[inline]
+    fn with_border_color(mut self, color: Option<Color>) -> Self {
+        self.window.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_background_color(mut self, color: Option<Color>) -> Self {
+        self.window.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_text_color(mut self, color: Color) -> Self {
+        self.window.platform_specific.title_text_color = Some(color);
+        self
+    }
+
+    #[inline]
+    fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
+        self.window.platform_specific.corner_preference = Some(corners);
         self
     }
 }
