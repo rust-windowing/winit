@@ -1280,7 +1280,7 @@ impl<'a> InitData<'a> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
-        win.set_system_backdrop(self.pl_attribs.backdrop_type);
+        win.set_system_backdrop(self.attributes.platform_specific.backdrop_type);
     }
 }
 unsafe fn init(

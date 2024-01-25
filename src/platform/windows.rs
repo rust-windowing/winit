@@ -315,8 +315,9 @@ impl WindowBuilderExtWindows for WindowBuilder {
         self
     }
 
+    #[inline]
     fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
-        self.platform_specific.backdrop_type = backdrop_type;
+        self.window.platform_specific.backdrop_type = backdrop_type;
         self
     }
 }
