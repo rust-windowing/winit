@@ -182,13 +182,11 @@ declare_class!(
                 state => panic!("unexpected recognizer state: {:?}", state),
             };
 
-            // Flip the velocity to match macOS.
-            let delta = -recognizer.velocity() as _;
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
-                    delta,
+                    delta: recognizer.velocity() as _,
                     phase,
                 },
             });
@@ -228,11 +226,13 @@ declare_class!(
                 state => panic!("unexpected recognizer state: {:?}", state),
             };
 
+            // Flip the velocity to match macOS.
+            let delta = -recognizer.velocity() as _;
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
-                    delta: recognizer.velocity() as _,
+                    delta,
                     phase,
                 },
             });
