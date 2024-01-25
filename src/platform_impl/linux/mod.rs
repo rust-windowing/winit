@@ -772,10 +772,15 @@ impl<T: 'static> EventLoop<T> {
             #[cfg(x11_platform)]
             (None, _, true) => Backend::X,
             // No backend is present.
-            _ => {
-                return Err(EventLoopError::Os(os_error!(OsError::Misc(
+            (_, wayland_display, x11_display) => {
+                let msg = if wayland_display && !cfg!(wayland_platform) {
+                    "DISPLAY is not set; note: enable the `winit/wayland` feature to support Wayland"
+                } else if x11_display && !cfg!(x11_platform) {
+                    "WAYLAND_DISPLAY is not set; note: enable the `winit/x11` feature to support X11"
+                } else {
                     "neither WAYLAND_DISPLAY nor DISPLAY is set."
-                ))));
+                };
+                return Err(EventLoopError::Os(os_error!(OsError::Misc(msg))));
             }
         };
 
