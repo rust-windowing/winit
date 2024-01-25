@@ -3,7 +3,7 @@
 use std::{
     cell::{RefCell, RefMut},
     collections::HashSet,
-    mem,
+    fmt, mem,
     os::raw::c_void,
     ptr,
     sync::{Arc, Mutex},
@@ -24,13 +24,12 @@ use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
-use super::event_loop::{EventHandler, Never};
 use super::uikit::UIView;
 use super::view::WinitUIWindow;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    event_loop::ControlFlow,
+    event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget},
     window::WindowId as RootWindowId,
 };
 
@@ -47,8 +46,32 @@ macro_rules! bug_assert {
 }
 
 #[derive(Debug)]
-pub enum EventWrapper {
-    StaticEvent(Event<Never>),
+pub(crate) struct HandlePendingUserEvents;
+
+pub(crate) struct EventLoopHandler {
+    #[allow(clippy::type_complexity)]
+    pub(crate) handler: Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootEventLoopWindowTarget)>,
+    pub(crate) event_loop: RootEventLoopWindowTarget,
+}
+
+impl fmt::Debug for EventLoopHandler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopHandler")
+            .field("handler", &"...")
+            .field("event_loop", &self.event_loop)
+            .finish()
+    }
+}
+
+impl EventLoopHandler {
+    fn handle_event(&mut self, event: Event<HandlePendingUserEvents>) {
+        (self.handler)(event, &self.event_loop)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum EventWrapper {
+    StaticEvent(Event<HandlePendingUserEvents>),
     ScaleFactorChanged(ScaleFactorChanged),
 }
 
@@ -61,7 +84,7 @@ pub struct ScaleFactorChanged {
 
 enum UserCallbackTransitionResult<'a> {
     Success {
-        event_handler: Box<dyn EventHandler>,
+        handler: EventLoopHandler,
         active_control_flow: ControlFlow,
         processing_redraws: bool,
     },
@@ -70,7 +93,7 @@ enum UserCallbackTransitionResult<'a> {
     },
 }
 
-impl Event<Never> {
+impl Event<HandlePendingUserEvents> {
     fn is_redraw(&self) -> bool {
         matches!(
             self,
@@ -94,11 +117,11 @@ enum AppStateImpl {
     Launching {
         queued_windows: Vec<Id<WinitUIWindow>>,
         queued_events: Vec<EventWrapper>,
-        queued_event_handler: Box<dyn EventHandler>,
+        queued_handler: EventLoopHandler,
         queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     ProcessingEvents {
-        event_handler: Box<dyn EventHandler>,
+        handler: EventLoopHandler,
         queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
         active_control_flow: ControlFlow,
     },
@@ -108,15 +131,15 @@ enum AppStateImpl {
         queued_gpu_redraws: HashSet<Id<WinitUIWindow>>,
     },
     ProcessingRedraws {
-        event_handler: Box<dyn EventHandler>,
+        handler: EventLoopHandler,
         active_control_flow: ControlFlow,
     },
     Waiting {
-        waiting_event_handler: Box<dyn EventHandler>,
+        waiting_handler: EventLoopHandler,
         start: Instant,
     },
     PollFinished {
-        waiting_event_handler: Box<dyn EventHandler>,
+        waiting_handler: EventLoopHandler,
     },
     Terminated,
 }
@@ -204,7 +227,7 @@ impl AppState {
         matches!(self.state(), AppStateImpl::Terminated)
     }
 
-    fn will_launch_transition(&mut self, queued_event_handler: Box<dyn EventHandler>) {
+    fn will_launch_transition(&mut self, queued_handler: EventLoopHandler) {
         let (queued_windows, queued_events, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::NotLaunched {
                 queued_windows,
@@ -216,28 +239,28 @@ impl AppState {
         self.set_state(AppStateImpl::Launching {
             queued_windows,
             queued_events,
-            queued_event_handler,
+            queued_handler,
             queued_gpu_redraws,
         });
     }
 
     fn did_finish_launching_transition(&mut self) -> (Vec<Id<WinitUIWindow>>, Vec<EventWrapper>) {
-        let (windows, events, event_handler, queued_gpu_redraws) = match self.take_state() {
+        let (windows, events, handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
                 queued_events,
-                queued_event_handler,
+                queued_handler,
                 queued_gpu_redraws,
             } => (
                 queued_windows,
                 queued_events,
-                queued_event_handler,
+                queued_handler,
                 queued_gpu_redraws,
             ),
             s => bug!("unexpected state {:?}", s),
         };
         self.set_state(AppStateImpl::ProcessingEvents {
-            event_handler,
+            handler,
             active_control_flow: self.control_flow,
             queued_gpu_redraws,
         });
@@ -251,24 +274,19 @@ impl AppState {
             return None;
         }
 
-        let (event_handler, event) = match (self.control_flow, self.take_state()) {
-            (
-                ControlFlow::Poll,
-                AppStateImpl::PollFinished {
-                    waiting_event_handler,
-                },
-            ) => (
-                waiting_event_handler,
+        let (handler, event) = match (self.control_flow, self.take_state()) {
+            (ControlFlow::Poll, AppStateImpl::PollFinished { waiting_handler }) => (
+                waiting_handler,
                 EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
             ),
             (
                 ControlFlow::Wait,
                 AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 },
             ) => (
-                waiting_event_handler,
+                waiting_handler,
                 EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
                     start,
                     requested_resume: None,
@@ -277,7 +295,7 @@ impl AppState {
             (
                 ControlFlow::WaitUntil(requested_resume),
                 AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 },
             ) => {
@@ -292,13 +310,13 @@ impl AppState {
                         requested_resume: Some(requested_resume),
                     }))
                 };
-                (waiting_event_handler, event)
+                (waiting_handler, event)
             }
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
 
         self.set_state(AppStateImpl::ProcessingEvents {
-            event_handler,
+            handler,
             queued_gpu_redraws: Default::default(),
             active_control_flow: self.control_flow,
         });
@@ -343,25 +361,20 @@ impl AppState {
             }
         }
 
-        let (event_handler, queued_gpu_redraws, active_control_flow, processing_redraws) =
+        let (handler, queued_gpu_redraws, active_control_flow, processing_redraws) =
             match self.take_state() {
                 AppStateImpl::Launching { .. }
                 | AppStateImpl::NotLaunched { .. }
                 | AppStateImpl::InUserCallback { .. } => unreachable!(),
                 AppStateImpl::ProcessingEvents {
-                    event_handler,
+                    handler,
                     queued_gpu_redraws,
                     active_control_flow,
-                } => (
-                    event_handler,
-                    queued_gpu_redraws,
-                    active_control_flow,
-                    false,
-                ),
+                } => (handler, queued_gpu_redraws, active_control_flow, false),
                 AppStateImpl::ProcessingRedraws {
-                    event_handler,
+                    handler,
                     active_control_flow,
-                } => (event_handler, Default::default(), active_control_flow, true),
+                } => (handler, Default::default(), active_control_flow, true),
                 AppStateImpl::PollFinished { .. }
                 | AppStateImpl::Waiting { .. }
                 | AppStateImpl::Terminated => unreachable!(),
@@ -371,23 +384,23 @@ impl AppState {
             queued_gpu_redraws,
         });
         UserCallbackTransitionResult::Success {
-            event_handler,
+            handler,
             active_control_flow,
             processing_redraws,
         }
     }
 
     fn main_events_cleared_transition(&mut self) -> HashSet<Id<WinitUIWindow>> {
-        let (event_handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
+        let (handler, queued_gpu_redraws, active_control_flow) = match self.take_state() {
             AppStateImpl::ProcessingEvents {
-                event_handler,
+                handler,
                 queued_gpu_redraws,
                 active_control_flow,
-            } => (event_handler, queued_gpu_redraws, active_control_flow),
+            } => (handler, queued_gpu_redraws, active_control_flow),
             s => bug!("unexpected state {:?}", s),
         };
         self.set_state(AppStateImpl::ProcessingRedraws {
-            event_handler,
+            handler,
             active_control_flow,
         });
         queued_gpu_redraws
@@ -397,11 +410,11 @@ impl AppState {
         if !self.has_launched() || self.has_terminated() {
             return;
         }
-        let (waiting_event_handler, old) = match self.take_state() {
+        let (waiting_handler, old) = match self.take_state() {
             AppStateImpl::ProcessingRedraws {
-                event_handler,
+                handler,
                 active_control_flow,
-            } => (event_handler, active_control_flow),
+            } => (handler, active_control_flow),
             s => bug!("unexpected state {:?}", s),
         };
 
@@ -410,7 +423,7 @@ impl AppState {
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 });
             }
@@ -419,14 +432,14 @@ impl AppState {
             {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 });
             }
             (_, ControlFlow::Wait) => {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 });
                 self.waker.stop()
@@ -434,24 +447,22 @@ impl AppState {
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
                 self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
+                    waiting_handler,
                     start,
                 });
                 self.waker.start_at(new_instant)
             }
             // Unlike on macOS, handle Poll to Poll transition here to call the waker
             (_, ControlFlow::Poll) => {
-                self.set_state(AppStateImpl::PollFinished {
-                    waiting_event_handler,
-                });
+                self.set_state(AppStateImpl::PollFinished { waiting_handler });
                 self.waker.start()
             }
         }
     }
 
-    fn terminated_transition(&mut self) -> Box<dyn EventHandler> {
+    fn terminated_transition(&mut self) -> EventLoopHandler {
         match self.replace_state(AppStateImpl::Terminated) {
-            AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
+            AppStateImpl::ProcessingEvents { handler, .. } => handler,
             s => bug!("`LoopExiting` happened while not processing events {:?}", s),
         }
     }
@@ -516,8 +527,8 @@ pub(crate) fn queue_gl_or_metal_redraw(mtm: MainThreadMarker, window: Id<WinitUI
     }
 }
 
-pub fn will_launch(mtm: MainThreadMarker, queued_event_handler: Box<dyn EventHandler>) {
-    AppState::get_mut(mtm).will_launch_transition(queued_event_handler)
+pub(crate) fn will_launch(mtm: MainThreadMarker, queued_handler: EventLoopHandler) {
+    AppState::get_mut(mtm).will_launch_transition(queued_handler)
 }
 
 pub fn did_finish_launching(mtm: MainThreadMarker) {
@@ -594,17 +605,17 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
         return;
     }
 
-    let (mut event_handler, active_control_flow, processing_redraws) =
+    let (mut handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
             UserCallbackTransitionResult::ReentrancyPrevented { queued_events } => {
                 queued_events.extend(events);
                 return;
             }
             UserCallbackTransitionResult::Success {
-                event_handler,
+                handler,
                 active_control_flow,
                 processing_redraws,
-            } => (event_handler, active_control_flow, processing_redraws),
+            } => (handler, active_control_flow, processing_redraws),
         };
     drop(this);
 
@@ -619,11 +630,9 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                         event
                     );
                 }
-                event_handler.handle_nonuser_event(event)
+                handler.handle_event(event)
             }
-            EventWrapper::ScaleFactorChanged(event) => {
-                handle_hidpi_proxy(&mut event_handler, event)
-            }
+            EventWrapper::ScaleFactorChanged(event) => handle_hidpi_proxy(&mut handler, event),
         }
     }
 
@@ -650,12 +659,12 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                     "redraw queued while processing redraws"
                 );
                 AppStateImpl::ProcessingRedraws {
-                    event_handler,
+                    handler,
                     active_control_flow,
                 }
             } else {
                 AppStateImpl::ProcessingEvents {
-                    event_handler,
+                    handler,
                     queued_gpu_redraws,
                     active_control_flow,
                 }
@@ -675,11 +684,9 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                             event
                         );
                     }
-                    event_handler.handle_nonuser_event(event)
+                    handler.handle_event(event)
                 }
-                EventWrapper::ScaleFactorChanged(event) => {
-                    handle_hidpi_proxy(&mut event_handler, event)
-                }
+                EventWrapper::ScaleFactorChanged(event) => handle_hidpi_proxy(&mut handler, event),
             }
         }
     }
@@ -687,23 +694,23 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
 
 fn handle_user_events(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
-    let (mut event_handler, active_control_flow, processing_redraws) =
+    let (mut handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
             UserCallbackTransitionResult::ReentrancyPrevented { .. } => {
                 bug!("unexpected attempted to process an event")
             }
             UserCallbackTransitionResult::Success {
-                event_handler,
+                handler,
                 active_control_flow,
                 processing_redraws,
-            } => (event_handler, active_control_flow, processing_redraws),
+            } => (handler, active_control_flow, processing_redraws),
         };
     if processing_redraws {
         bug!("user events attempted to be sent out while `ProcessingRedraws`");
     }
     drop(this);
 
-    event_handler.handle_user_events();
+    handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
     loop {
         let mut this = AppState::get_mut(mtm);
@@ -723,7 +730,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
                 _ => unreachable!(),
             };
             this.app_state = Some(AppStateImpl::ProcessingEvents {
-                event_handler,
+                handler,
                 queued_gpu_redraws,
                 active_control_flow,
             });
@@ -733,13 +740,12 @@ fn handle_user_events(mtm: MainThreadMarker) {
 
         for wrapper in queued_events {
             match wrapper {
-                EventWrapper::StaticEvent(event) => event_handler.handle_nonuser_event(event),
-                EventWrapper::ScaleFactorChanged(event) => {
-                    handle_hidpi_proxy(&mut event_handler, event)
-                }
+                EventWrapper::StaticEvent(event) => handler.handle_event(event),
+                EventWrapper::ScaleFactorChanged(event) => handle_hidpi_proxy(&mut handler, event),
             }
         }
-        event_handler.handle_user_events();
+
+        handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
     }
 }
 
@@ -779,13 +785,13 @@ pub fn handle_events_cleared(mtm: MainThreadMarker) {
 
 pub fn terminated(mtm: MainThreadMarker) {
     let mut this = AppState::get_mut(mtm);
-    let mut event_handler = this.terminated_transition();
+    let mut handler = this.terminated_transition();
     drop(this);
 
-    event_handler.handle_nonuser_event(Event::LoopExiting)
+    handler.handle_event(Event::LoopExiting)
 }
 
-fn handle_hidpi_proxy(event_handler: &mut Box<dyn EventHandler>, event: ScaleFactorChanged) {
+fn handle_hidpi_proxy(handler: &mut EventLoopHandler, event: ScaleFactorChanged) {
     let ScaleFactorChanged {
         suggested_size,
         scale_factor,
@@ -799,7 +805,7 @@ fn handle_hidpi_proxy(event_handler: &mut Box<dyn EventHandler>, event: ScaleFac
             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
         },
     };
-    event_handler.handle_nonuser_event(event);
+    handler.handle_event(event);
     let (view, screen_frame) = get_view_and_screen_frame(&window);
     let physical_size = *new_inner_size.lock().unwrap();
     drop(new_inner_size);
