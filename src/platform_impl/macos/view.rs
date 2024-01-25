@@ -28,7 +28,7 @@ use super::event::{
 use super::window::WinitWindow;
 use super::{util, DEVICE_ID};
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
     event::{
         DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
         WindowEvent,
@@ -709,6 +709,7 @@ declare_class!(
 
             self.queue_event(WindowEvent::DoubleTapGesture {
                 device_id: DEVICE_ID,
+                location: PhysicalPosition::new(0.0, 0.0),
             });
         }
 
