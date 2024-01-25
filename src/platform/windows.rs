@@ -15,6 +15,38 @@ pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
 
+/// Describes a system-drawn backdrop material of a window.
+///
+/// For a detailed explanation, see [`DWM_SYSTEMBACKDROP_TYPE docs`].
+///
+/// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BackdropType {
+    /// Corresponds to `DWMSBT_AUTO`.
+    ///
+    /// Usually draws a default backdrop effect on the title bar.
+    #[default]
+    Auto = 0,
+
+    /// Corresponds to `DWMSBT_NONE`.
+    None = 1,
+
+    /// Corresponds to `DWMSBT_MAINWINDOW`.
+    ///
+    /// Draws the Mica backdrop material.
+    MainWindow = 2,
+
+    /// Corresponds to `DWMSBT_TRANSIENTWINDOW`.
+    ///
+    /// Draws the Background Acrylic backdrop material.
+    TransientWindow = 3,
+
+    /// Corresponds to `DWMSBT_TABBEDWINDOW`.
+    ///
+    /// Draws the Alt Mica backdrop material.
+    TabbedWindow = 4,
+}
+
 /// Describes a color used by Windows
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -188,6 +220,11 @@ pub trait WindowExtWindows {
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
 
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn set_system_backdrop(&self, backdrop_type: BackdropType);
+
     /// Sets the color of the window border.
     ///
     /// Supported starting with Windows 11 Build 22000.
@@ -228,6 +265,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
+    }
+
+    #[inline]
+    fn set_system_backdrop(&self, backdrop_type: BackdropType) {
+        self.window.set_system_backdrop(backdrop_type)
     }
 
     #[inline]
@@ -315,6 +357,11 @@ pub trait WindowBuilderExtWindows {
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn with_undecorated_shadow(self, shadow: bool) -> Self;
 
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn with_system_backdrop(self, backdrop_type: BackdropType) -> Self;
+
     /// This sets or removes `WS_CLIPCHILDREN` style.
     fn with_clip_children(self, flag: bool) -> Self;
 
@@ -385,6 +432,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.window.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
+        self.window.platform_specific.backdrop_type = backdrop_type;
         self
     }
 
