@@ -31,7 +31,7 @@ use objc2::{
 use super::event::dummy_event;
 use super::{
     app::WinitApplication,
-    app_delegate::{ApplicationDelegate, Callback},
+    app_delegate::{ApplicationDelegate, HandlePendingUserEvents},
     monitor::{self, MonitorHandle},
     observer::setup_control_flow_observers,
 };
@@ -152,6 +152,20 @@ impl EventLoopWindowTarget {
     }
 }
 
+fn map_user_event<T: 'static>(
+    mut handler: impl FnMut(Event<T>, &RootWindowTarget),
+    receiver: Rc<mpsc::Receiver<T>>,
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget) {
+    move |event, window_target| match event.map_nonuser_event() {
+        Ok(event) => (handler)(event, window_target),
+        Err(_) => {
+            for event in receiver.try_iter() {
+                (handler)(Event::UserEvent(event), window_target);
+            }
+        }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     /// Store a reference to the application for convenience.
     ///
@@ -177,7 +191,8 @@ pub struct EventLoop<T: 'static> {
     /// Every other reference should be a Weak reference which is only upgraded
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
-    _callback: Option<Rc<Callback<T>>>,
+    #[allow(clippy::type_complexity)]
+    _callback: Option<Rc<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -268,6 +283,8 @@ impl<T> EventLoop<T> {
             return Err(EventLoopError::AlreadyRunning);
         }
 
+        let callback = map_user_event(callback, self.receiver.clone());
+
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
         // can (temporarily) store it within 'static app delegate that's
@@ -276,11 +293,10 @@ impl<T> EventLoop<T> {
         // The safety of this depends on on making sure to also clear the callback
         // from the app delegate before we return from here, ensuring that we don't
         // retain a reference beyond the real lifetime of the callback.
-
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -295,11 +311,8 @@ impl<T> EventLoop<T> {
             // # Safety
             // We make sure to call `delegate.clear_callback` before returning
             unsafe {
-                self.delegate.set_callback(
-                    weak_cb,
-                    Rc::clone(&self.window_target),
-                    Rc::clone(&self.receiver),
-                );
+                self.delegate
+                    .set_callback(weak_cb, Rc::clone(&self.window_target));
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
@@ -348,6 +361,8 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootWindowTarget),
     {
+        let callback = map_user_event(callback, self.receiver.clone());
+
         // # Safety
         // We are erasing the lifetime of the application callback here so that we
         // can (temporarily) store it within 'static global app delegate that's
@@ -359,8 +374,8 @@ impl<T> EventLoop<T> {
 
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
-                Rc<RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
+                Rc<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -377,11 +392,8 @@ impl<T> EventLoop<T> {
             // to ensure that we don't hold on to the callback beyond its (erased)
             // lifetime
             unsafe {
-                self.delegate.set_callback(
-                    weak_cb,
-                    Rc::clone(&self.window_target),
-                    Rc::clone(&self.receiver),
-                );
+                self.delegate
+                    .set_callback(weak_cb, Rc::clone(&self.window_target));
             }
 
             // catch panics to make sure we can't unwind without clearing the set callback
