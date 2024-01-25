@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     ffi::c_void,
-    fmt::{self, Debug},
     marker::PhantomData,
     ptr,
     sync::mpsc::{self, Receiver, Sender},
@@ -25,6 +24,7 @@ use crate::{
         EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
+    platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents},
 };
 
 use super::{app_state, monitor, view, MonitorHandle};
@@ -108,6 +108,20 @@ impl OwnedDisplayHandle {
     }
 }
 
+fn map_user_event<T: 'static>(
+    mut handler: impl FnMut(Event<T>, &RootEventLoopWindowTarget),
+    receiver: mpsc::Receiver<T>,
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootEventLoopWindowTarget) {
+    move |event, window_target| match event.map_nonuser_event() {
+        Ok(event) => (handler)(event, window_target),
+        Err(_) => {
+            for event in receiver.try_iter() {
+                (handler)(Event::UserEvent(event), window_target);
+            }
+        }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     mtm: MainThreadMarker,
     sender: Sender<T>,
@@ -151,43 +165,46 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, handler: F) -> !
     where
         F: FnMut(Event<T>, &RootEventLoopWindowTarget),
     {
-        unsafe {
-            let application = UIApplication::shared(self.mtm);
-            assert!(
-                application.is_none(),
-                "\
+        let application = UIApplication::shared(self.mtm);
+        assert!(
+            application.is_none(),
+            "\
                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
-            );
+        );
 
-            let event_handler = std::mem::transmute::<
-                Box<dyn FnMut(Event<T>, &RootEventLoopWindowTarget)>,
-                Box<EventHandlerCallback<T>>,
-            >(Box::new(event_handler));
+        let handler = map_user_event(handler, self.receiver);
 
-            let handler = EventLoopHandler {
-                f: event_handler,
-                receiver: self.receiver,
-                event_loop: self.window_target,
-            };
+        let handler = unsafe {
+            std::mem::transmute::<
+                Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootEventLoopWindowTarget)>,
+                Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootEventLoopWindowTarget)>,
+            >(Box::new(handler))
+        };
 
-            app_state::will_launch(self.mtm, Box::new(handler));
+        let handler = EventLoopHandler {
+            handler,
+            event_loop: self.window_target,
+        };
 
-            // Ensure application delegate is initialized
-            view::WinitApplicationDelegate::class();
+        app_state::will_launch(self.mtm, handler);
 
+        // Ensure application delegate is initialized
+        view::WinitApplicationDelegate::class();
+
+        unsafe {
             UIApplicationMain(
                 0,
                 ptr::null(),
                 None,
                 Some(&NSString::from_str("WinitApplicationDelegate")),
-            );
-            unreachable!()
-        }
+            )
+        };
+        unreachable!()
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -359,41 +376,5 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
         );
         CFRunLoopAddObserver(main_loop, end_observer, kCFRunLoopDefaultMode);
-    }
-}
-
-#[derive(Debug)]
-pub enum Never {}
-
-type EventHandlerCallback<T> = dyn FnMut(Event<T>, &RootEventLoopWindowTarget) + 'static;
-
-pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<Never>);
-    fn handle_user_events(&mut self);
-}
-
-struct EventLoopHandler<T: 'static> {
-    f: Box<EventHandlerCallback<T>>,
-    receiver: Receiver<T>,
-    event_loop: RootEventLoopWindowTarget,
-}
-
-impl<T: 'static> Debug for EventLoopHandler<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoopHandler")
-            .field("event_loop", &self.event_loop)
-            .finish()
-    }
-}
-
-impl<T: 'static> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>) {
-        (self.f)(event.map_nonuser_event().unwrap(), &self.event_loop);
-    }
-
-    fn handle_user_events(&mut self) {
-        for event in self.receiver.try_iter() {
-            (self.f)(Event::UserEvent(event), &self.event_loop);
-        }
     }
 }
