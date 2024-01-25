@@ -279,10 +279,6 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootWindowTarget),
     {
-        if self.delegate.is_running() {
-            return Err(EventLoopError::AlreadyRunning);
-        }
-
         let callback = map_user_event(callback, self.receiver.clone());
 
         // # Safety

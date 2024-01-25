@@ -94,8 +94,6 @@ use crate::{
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
-use self::runner::RunnerState;
-
 use super::{window::set_skip_taskbar, SelectedCursor};
 
 /// some backends like macos uses an uninhabited `Never` type,
@@ -246,9 +244,6 @@ impl<T: 'static> EventLoop<T> {
     {
         {
             let runner = &self.window_target.p.runner_shared;
-            if runner.state() != RunnerState::Uninitialized {
-                return Err(EventLoopError::AlreadyRunning);
-            }
 
             let event_loop_windows_ref = &self.window_target;
             let user_event_receiver = &self.user_event_receiver;
