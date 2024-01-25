@@ -1,10 +1,12 @@
-use icrate::Foundation::{CGFloat, NSInteger, NSObject, NSTimeInterval, NSArray};
-use objc2::{extern_class, extern_methods, mutability, ClassType,
+use icrate::Foundation::{CGFloat, NSArray, NSInteger, NSObject, NSTimeInterval};
+use objc2::{
+    encode::{Encode, Encoding},
+    extern_class, extern_methods, mutability,
     rc::Id,
-    encode::{Encode, Encoding}
+    ClassType,
 };
 
-use super::{UIKey, UIResponder, UIWindow, UIGestureRecognizer};
+use super::{UIGestureRecognizer, UIKey, UIResponder, UIWindow};
 
 extern_class!(
     /// https://developer.apple.com/documentation/uikit/uipress?language=objc

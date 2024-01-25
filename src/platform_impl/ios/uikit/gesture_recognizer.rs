@@ -6,11 +6,12 @@ use objc2::{
     extern_class, extern_methods, extern_protocol, mutability,
     runtime::{AnyProtocol, NSObjectProtocol, ProtocolObject, Sel},
     ClassType, ProtocolType,
+    rc::Id,
 };
 
-// https://developer.apple.com/documentation/uikit/uigesturerecognizer
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
+    /// https://developer.apple.com/documentation/uikit/uigesturerecognizer
     pub(crate) struct UIGestureRecognizer;
 
     unsafe impl ClassType for UIGestureRecognizer {
@@ -20,20 +21,29 @@ extern_class!(
 );
 
 extern_methods!(
+    /// (UIGestureRecognizer)[https://developer.apple.com/documentation/uikit/uigesturerecognizerstate?language=objc]
     unsafe impl UIGestureRecognizer {
-        // https://developer.apple.com/documentation/uikit/uigesturerecognizerstate?language=objc
+
+        /// (state)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1619998-state?language=objc]
+        /// @property(nonatomic, readwrite) UIGestureRecognizerState state;
         #[method(state)]
         pub fn state(&self) -> UIGestureRecognizerState;
 
+        /// (delegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc]
+        /// @property(nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
         #[method(setDelegate:)]
         pub fn set_delegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
 
-        #[method(delegate)]
-        pub fn get_delegate(&self) -> &ProtocolObject<dyn UIGestureRecognizerDelegate>;
+        #[method_id(delegate)]
+        pub fn get_delegate(&self) -> Id<ProtocolObject<dyn UIGestureRecognizerDelegate>>;
 
+        /// (locationInView:)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624219-locationinview?language=objc]
+        /// - (CGPoint)locationInView:(UIView *)view;
         #[method(locationInView:)]
         pub fn location_in_view(&self, view: Option<&UIView>) -> CGPoint;
 
+        /// (locationOfTouch:inView:)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624201-locationoftouch?language=objc]
+        /// - (CGPoint)locationOfTouch:(NSUInteger)touchIndex inView:(UIView *)view;
         #[method(locationOfTouch:inView:)]
         pub fn location_of_touch_in_view(
             &self,
@@ -41,18 +51,28 @@ extern_methods!(
             view: Option<&UIView>,
         ) -> CGPoint;
 
+        /// (numberOfTouches)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624200-numberoftouches?language=objc]
+        /// @property(nonatomic, readonly) NSUInteger numberOfTouches;
         #[method(numberOfTouches)]
         pub fn number_of_touches(&self) -> NSUInteger;
 
+        /// (addTarget:action:)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624230-addtarget?language=objc]
+        /// - (void)addTarget:(id)target action:(SEL)action;
         #[method(addTarget:action:)]
         pub fn add_target_action(&self, target: &NSObject, action: Sel);
 
+        /// (removeTarget:action:)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624226-removetarget?language=objc]
+        /// - (void)removeTarget:(id)target action:(SEL)action;
         #[method(removeTarget:action:)]
         pub fn remove_target_action(&self, target: &NSObject, action: Sel);
 
-        #[method(view)]
-        pub fn view(&self) -> &UIView;
+        /// (view)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624212-view?language=objc]
+        /// @property(nullable, nonatomic, readonly) UIView *view;
+        #[method_id(view)]
+        pub fn view(&self) -> Id<UIView>;
 
+        /// (enabled)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624220-enabled?language=objc]
+        /// @property(nonatomic, getter=isEnabled) BOOL enabled;
         #[method(isEnabled)]
         pub fn is_enabled(&self) -> bool;
     }
@@ -62,33 +82,16 @@ unsafe impl Encode for UIGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// (UIGestureRecognizerDelegate )[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
 extern_protocol!(
+    /// (@protocol UIGestureRecognizerDelegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
     pub(crate) unsafe trait UIGestureRecognizerDelegate: NSObjectProtocol {
-        #[method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)]
-        fn should_recognize_simultaneously(
-            &self,
-            gesture_recognizer: &UIGestureRecognizer,
-            other_gesture_recognizer: &UIGestureRecognizer,
-        ) -> bool;
-
-        #[method(gestureRecognizer:shouldRequireFailureOfGestureRecognizer:)]
-        fn should_require_failure_of_gesture_recognizer(
-            &self,
-            gesture_recognizer: &UIGestureRecognizer,
-            other_gesture_recognizer: &UIGestureRecognizer,
-        ) -> bool;
-
-        #[method(gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:)]
-        fn should_be_required_to_fail_by_gesture_recognizer(
-            &self,
-            gesture_recognizer: &UIGestureRecognizer,
-            other_gesture_recognizer: &UIGestureRecognizer,
-        ) -> bool;
-
+        /// (- gestureRecognizerShouldBegin:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/1624213-gesturerecognizershouldbegin?language=objc]
+        /// - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;
         #[method(gestureRecognizerShouldBegin:)]
         fn should_begin(&self, gesture_recognizer: &UIGestureRecognizer) -> bool;
 
+        /// (- gestureRecognizer:shouldReceiveTouch:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/1624214-gesturerecognizer?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch;
         #[method(gestureRecognizer:shouldReceiveTouch:)]
         fn should_receive_touch(
             &self,
@@ -96,6 +99,8 @@ extern_protocol!(
             touch: &UITouch,
         ) -> bool;
 
+        /// (- gestureRecognizer:shouldReceivePress:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/1624216-gesturerecognizer?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceivePress:(UIPress *)press;
         #[method(gestureRecognizer:shouldReceivePress:)]
         fn should_receive_press(
             &self,
@@ -103,11 +108,40 @@ extern_protocol!(
             press: &UIPress,
         ) -> bool;
 
+        /// (- gestureRecognizer:shouldReceiveEvent:)[ https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/3538976-gesturerecognizer?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveEvent:(UIEvent *)event;
         #[method(gestureRecognizer:shouldReceiveEvent:)]
         fn should_receive_event(
             &self,
             gesture_recognizer: &UIGestureRecognizer,
             event: &UIEvent,
+        ) -> bool;
+
+        /// (- gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/1624208-gesturerecognizer?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
+        #[method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)]
+        fn should_recognize_simultaneously(
+            &self,
+            gesture_recognizer: &UIGestureRecognizer,
+            other_gesture_recognizer: &UIGestureRecognizer,
+        ) -> bool;
+
+        /// (- gestureRecognizer:shouldRequireFailureOfGestureRecognizer:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
+        #[method(gestureRecognizer:shouldRequireFailureOfGestureRecognizer:)]
+        fn should_require_failure_of_gesture_recognizer(
+            &self,
+            gesture_recognizer: &UIGestureRecognizer,
+            other_gesture_recognizer: &UIGestureRecognizer,
+        ) -> bool;
+
+        /// (- gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate/1624222-gesturerecognizer?language=objc]
+        /// - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
+        #[method(gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:)]
+        fn should_be_required_to_fail_by_gesture_recognizer(
+            &self,
+            gesture_recognizer: &UIGestureRecognizer,
+            other_gesture_recognizer: &UIGestureRecognizer,
         ) -> bool;
     }
 
