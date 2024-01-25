@@ -587,6 +587,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_receiver.try_recv() {
+                #[allow(deprecated)]
                 callback(crate::event::Event::UserEvent(event), &self.target);
             }
         }

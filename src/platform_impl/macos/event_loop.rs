@@ -9,13 +9,15 @@ use std::{
     ptr,
     rc::{Rc, Weak},
     sync::mpsc,
+    task::{RawWaker, RawWakerVTable, Waker},
     time::{Duration, Instant},
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
-    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+    CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal,
+    CFRunLoopWakeUp,
 };
 use icrate::AppKit::{
     NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
@@ -152,6 +154,7 @@ impl EventLoopWindowTarget {
     }
 }
 
+#[allow(deprecated)]
 fn map_user_event<T: 'static>(
     mut handler: impl FnMut(Event<T>, &RootWindowTarget),
     receiver: Rc<mpsc::Receiver<T>>,
@@ -472,7 +475,10 @@ impl<T> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.sender.clone())
+        EventLoopProxy {
+            sender: self.sender.clone(),
+            waker: waker(),
+        }
     }
 }
 
@@ -530,67 +536,90 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
-pub struct EventLoopProxy<T> {
-    sender: mpsc::Sender<T>,
-    source: CFRunLoopSourceRef,
-}
+pub fn waker() -> Waker {
+    fn new_raw_waker() -> RawWaker {
+        // just wake up the eventloop
+        extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
 
-unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+        // adding a Source to the main CFRunLoop lets us wake it up and
+        // process user events through the normal OS EventLoop mechanisms.
+        let rl = unsafe { CFRunLoopGetMain() };
+        let mut context = CFRunLoopSourceContext {
+            version: 0,
+            info: ptr::null_mut(),
+            retain: None,
+            release: None,
+            copyDescription: None,
+            equal: None,
+            hash: None,
+            schedule: None,
+            cancel: None,
+            perform: event_loop_proxy_handler,
+        };
+        let source = unsafe {
+            CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context)
+        };
+        unsafe { CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes) };
+        unsafe { CFRunLoopWakeUp(rl) };
+        RawWaker::new(
+            source as *const (),
+            &RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker),
+        )
+    }
 
-impl<T> Drop for EventLoopProxy<T> {
-    fn drop(&mut self) {
+    unsafe fn clone_waker(waker: *const ()) -> RawWaker {
+        let _source = waker as CFRunLoopSourceRef;
+        new_raw_waker()
+    }
+
+    unsafe fn wake(waker: *const ()) {
+        unsafe { wake_by_ref(waker) };
+        unsafe { drop_waker(waker) };
+    }
+
+    unsafe fn wake_by_ref(waker: *const ()) {
+        let source = waker as CFRunLoopSourceRef;
         unsafe {
-            CFRelease(self.source as _);
+            // let the main thread know there's a new event
+            CFRunLoopSourceSignal(source);
+            let rl = CFRunLoopGetMain();
+            CFRunLoopWakeUp(rl);
         }
     }
+
+    unsafe fn drop_waker(waker: *const ()) {
+        let source = waker as CFRunLoopSourceRef;
+        unsafe { CFRunLoopSourceInvalidate(source) };
+        unsafe { CFRelease(source as _) };
+    }
+
+    unsafe { Waker::from_raw(new_raw_waker()) }
+}
+
+pub struct EventLoopProxy<T> {
+    sender: mpsc::Sender<T>,
+    waker: Waker,
 }
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        EventLoopProxy::new(self.sender.clone())
+        Self {
+            sender: self.sender.clone(),
+            waker: self.waker.clone(),
+        }
     }
 }
 
 impl<T> EventLoopProxy<T> {
-    fn new(sender: mpsc::Sender<T>) -> Self {
-        unsafe {
-            // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
-
-            // adding a Source to the main CFRunLoop lets us wake it up and
-            // process user events through the normal OS EventLoop mechanisms.
-            let rl = CFRunLoopGetMain();
-            let mut context = CFRunLoopSourceContext {
-                version: 0,
-                info: ptr::null_mut(),
-                retain: None,
-                release: None,
-                copyDescription: None,
-                equal: None,
-                hash: None,
-                schedule: None,
-                cancel: None,
-                perform: event_loop_proxy_handler,
-            };
-            let source =
-                CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
-            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
-            CFRunLoopWakeUp(rl);
-
-            EventLoopProxy { sender, source }
-        }
-    }
-
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.sender
             .send(event)
             .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
-        unsafe {
-            // let the main thread know there's a new event
-            CFRunLoopSourceSignal(self.source);
-            let rl = CFRunLoopGetMain();
-            CFRunLoopWakeUp(rl);
-        }
+        self.waker.wake_by_ref();
         Ok(())
+    }
+
+    pub fn waker(self) -> Waker {
+        self.waker
     }
 }

@@ -154,6 +154,7 @@ impl Shared {
         Shared(Rc::<Execution>::new_cyclic(|weak| {
             let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, count| {
                 if let Some(runner) = runner.upgrade() {
+                    #[allow(deprecated)]
                     Shared(runner).send_events(iter::repeat(Event::UserEvent(())).take(count))
                 }
             })
@@ -646,6 +647,7 @@ impl Shared {
                 let mut events = self.0.events.borrow_mut();
 
                 // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
+                #[allow(deprecated)]
                 events.extend(
                     iter::repeat(Event::UserEvent(()))
                         .take(self.0.proxy_spawner.fetch())

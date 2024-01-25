@@ -48,6 +48,7 @@ impl<T> EventLoop<T> {
         };
 
         // SAFETY: Don't use `move` to make sure we leak the `event_handler` and `target`.
+        #[allow(deprecated)]
         let handler: Box<dyn FnMut(Event<()>)> = Box::new(|event| {
             let event = match event.map_nonuser_event() {
                 Ok(event) => event,
@@ -85,6 +86,7 @@ impl<T> EventLoop<T> {
         };
 
         self.elw.p.run(
+            #[allow(deprecated)]
             Box::new(move |event| {
                 let event = match event.map_nonuser_event() {
                     Ok(event) => event,

@@ -2,6 +2,8 @@
 
 #[cfg(not(web_platform))]
 fn main() -> Result<(), impl std::error::Error> {
+    use std::sync::mpsc;
+
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
@@ -18,30 +20,35 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event()
-        .build()
-        .unwrap();
+    let event_loop = EventLoopBuilder::new().build().unwrap();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
 
-    // `EventLoopProxy` allows you to dispatch custom events to the main Winit event
-    // loop from any thread.
-    let event_loop_proxy = event_loop.create_proxy();
+    let waker = event_loop.create_proxy().waker();
+
+    let (sender, receiver) = mpsc::channel();
 
     std::thread::spawn(move || {
-        // Wake up the `event_loop` once every second and dispatch a custom event
-        // from a different thread.
+        // Dispatch a custom event from a different thread once every second,
+        // and wake the `event_loop` so that it can handle it.
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
-            event_loop_proxy.send_event(CustomEvent::Timer).ok();
+            if sender.send(CustomEvent::Timer).is_err() {
+                break;
+            }
+            waker.wake_by_ref();
         }
     });
 
     event_loop.run(move |event, elwt| match event {
-        Event::UserEvent(event) => println!("user event: {event:?}"),
+        Event::NewEvents(_) => {
+            for event in receiver.try_iter() {
+                println!("user event: {event:?}");
+            }
+        }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             ..

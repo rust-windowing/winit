@@ -393,6 +393,7 @@ impl ApplicationDelegate {
         }
 
         self.set_in_callback(true);
+        #[allow(deprecated)]
         self.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
         let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
@@ -490,6 +491,7 @@ pub(crate) enum QueuedEvent {
     },
 }
 
+/// The event loop may have queued user events ready.
 #[derive(Debug)]
 pub(crate) struct HandlePendingUserEvents;
 

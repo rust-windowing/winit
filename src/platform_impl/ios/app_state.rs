@@ -45,6 +45,7 @@ macro_rules! bug_assert {
     };
 }
 
+/// The event loop may have queued user events ready.
 #[derive(Debug)]
 pub(crate) struct HandlePendingUserEvents;
 
@@ -710,6 +711,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
     }
     drop(this);
 
+    #[allow(deprecated)]
     handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
     loop {
@@ -745,6 +747,7 @@ fn handle_user_events(mtm: MainThreadMarker) {
             }
         }
 
+        #[allow(deprecated)]
         handler.handle_event(Event::UserEvent(HandlePendingUserEvents));
     }
 }

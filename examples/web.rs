@@ -110,7 +110,7 @@ mod wasm {
         log_list
     }
 
-    pub fn log_event(log_list: &web_sys::Element, event: &Event<()>) {
+    pub fn log_event(log_list: &web_sys::Element, event: &Event) {
         log::debug!("{:?}", event);
 
         // Getting access to browser logs requires a lot of setup on mobile devices.

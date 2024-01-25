@@ -14,6 +14,7 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex, MutexGuard,
     },
+    task::{RawWaker, RawWakerVTable, Waker},
     time::{Duration, Instant},
 };
 
@@ -67,6 +68,8 @@ use windows_sys::Win32::{
     },
 };
 
+use self::runner::{EventLoopRunner, RunnerState};
+use super::{window::set_skip_taskbar, SelectedCursor};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::EventLoopError,
@@ -92,36 +95,32 @@ use crate::{
     },
     window::WindowId as RootWindowId,
 };
-use runner::{EventLoopRunner, EventLoopRunnerShared};
 
-use self::runner::RunnerState;
+/// `EventLoopProxy::waker()` calls `PostMessageW` to wakeup and dispatch a
+/// placeholder event, which we then receive in the mpsc channel here.
+#[allow(deprecated)]
+fn map_user_event<'a, T: 'static>(
+    mut handler: impl FnMut(Event<T>, &RootELW) + 'a,
+    elwt: &'a RootELW,
+    receiver: &'a Receiver<T>,
+) -> impl FnMut(Event<HandlePendingUserEvents>) + 'a {
+    move |event| match event.map_nonuser_event() {
+        Ok(event) => (handler)(event, elwt),
+        Err(_) => {
+            for event in receiver.try_iter() {
+                (handler)(Event::UserEvent(event), elwt);
+            }
+        }
+    }
+}
 
-use super::{window::set_skip_taskbar, SelectedCursor};
-
-/// some backends like macos uses an uninhabited `Never` type,
-/// on windows, `UserEvent`s are also dispatched through the
-/// WNDPROC callback, and due to the re-entrant nature of the
-/// callback, recursively delivered events must be queued in a
-/// buffer, the current implementation put this queue in
-/// `EventLoopRunner`, which is shared between the event pumping
-/// loop and the callback. because it's hard to decide from the
-/// outside whether a event needs to be buffered, I decided not
-/// use `Event<Never>` for the shared runner state, but use unit
-/// as a placeholder so user events can be buffered as usual,
-/// the real `UserEvent` is pulled from the mpsc channel directly
-/// when the placeholder event is delivered to the event handler
-pub(crate) struct UserEventPlaceholder;
-
-// here below, the generic `EventLoopRunnerShared<T>` is replaced with
-// `EventLoopRunnerShared<UserEventPlaceholder>` so we can get rid
-// of the generic parameter T in types which don't depend on T.
-// this is the approach which requires minimum changes to current
-// backend implementation. it should be considered transitional
-// and should be refactored and cleaned up eventually, I hope.
+/// The event loop may have queued user events ready.
+#[derive(Debug)]
+pub(crate) struct HandlePendingUserEvents;
 
 pub(crate) struct WindowData {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    pub event_loop_runner: Rc<EventLoopRunner>,
     pub key_event_builder: KeyEventBuilder,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
@@ -129,7 +128,7 @@ pub(crate) struct WindowData {
 }
 
 impl WindowData {
-    fn send_event(&self, event: Event<UserEventPlaceholder>) {
+    fn send_event(&self, event: Event<HandlePendingUserEvents>) {
         self.event_loop_runner.send_event(event);
     }
 
@@ -139,11 +138,11 @@ impl WindowData {
 }
 
 struct ThreadMsgTargetData {
-    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    event_loop_runner: Rc<EventLoopRunner>,
 }
 
 impl ThreadMsgTargetData {
-    fn send_event(&self, event: Event<UserEventPlaceholder>) {
+    fn send_event(&self, event: Event<HandlePendingUserEvents>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -181,7 +180,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 pub struct EventLoopWindowTarget {
     thread_id: u32,
     thread_msg_target: HWND,
-    pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
+    pub(crate) runner_shared: Rc<EventLoopRunner>,
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -240,7 +239,7 @@ impl<T: 'static> EventLoop<T> {
         self.run_on_demand(event_handler)
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
+    pub fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
         F: FnMut(Event<T>, &RootELW),
     {
@@ -250,29 +249,15 @@ impl<T: 'static> EventLoop<T> {
                 return Err(EventLoopError::AlreadyRunning);
             }
 
-            let event_loop_windows_ref = &self.window_target;
-            let user_event_receiver = &self.user_event_receiver;
             // # Safety
             // We make sure to call runner.clear_event_handler() before
             // returning
             unsafe {
-                runner.set_event_handler(move |event| {
-                    // the shared `EventLoopRunner` is not parameterized
-                    // `EventLoopProxy::send_event()` calls `PostMessage`
-                    // to wakeup and dispatch a placeholder `UserEvent`,
-                    // when we received the placeholder event here, the
-                    // real UserEvent(T) should already be put in the
-                    // mpsc channel and ready to be pulled
-                    let event = match event.map_nonuser_event() {
-                        Ok(non_user_event) => non_user_event,
-                        Err(_user_event_placeholder) => Event::UserEvent(
-                            user_event_receiver
-                                .try_recv()
-                                .expect("user event signaled but not received"),
-                        ),
-                    };
-                    event_handler(event, event_loop_windows_ref)
-                });
+                runner.set_event_handler(map_user_event(
+                    event_handler,
+                    &self.window_target,
+                    &self.user_event_receiver,
+                ));
             }
         }
 
@@ -305,14 +290,12 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
         F: FnMut(Event<T>, &RootELW),
     {
         {
             let runner = &self.window_target.p.runner_shared;
-            let event_loop_windows_ref = &self.window_target;
-            let user_event_receiver = &self.user_event_receiver;
 
             // # Safety
             // We make sure to call runner.clear_event_handler() before
@@ -322,17 +305,11 @@ impl<T: 'static> EventLoop<T> {
             // to leave the runner in an unsound state with an associated
             // event handler.
             unsafe {
-                runner.set_event_handler(move |event| {
-                    let event = match event.map_nonuser_event() {
-                        Ok(non_user_event) => non_user_event,
-                        Err(_user_event_placeholder) => Event::UserEvent(
-                            user_event_receiver
-                                .recv()
-                                .expect("user event signaled but not received"),
-                        ),
-                    };
-                    event_handler(event, event_loop_windows_ref)
-                });
+                runner.set_event_handler(map_user_event(
+                    event_handler,
+                    &self.window_target,
+                    &self.user_event_receiver,
+                ));
                 runner.wakeup();
             }
         }
@@ -517,7 +494,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            target_window: self.window_target.p.thread_msg_target,
+            hwnd: self.window_target.p.thread_msg_target,
             event_send: self.user_event_sender.clone(),
         }
     }
@@ -753,29 +730,56 @@ impl EventLoopThreadExecutor {
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
 pub struct EventLoopProxy<T: 'static> {
-    target_window: HWND,
+    hwnd: HWND,
     event_send: Sender<T>,
 }
-unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         Self {
-            target_window: self.target_window,
+            hwnd: self.hwnd,
             event_send: self.event_send.clone(),
         }
     }
+}
+
+fn wake_with_user_event(hwnd: HWND) {
+    unsafe { PostMessageW(hwnd, USER_EVENT_MSG_ID.get(), 0, 0) };
 }
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_send
             .send(event)
-            .map(|result| {
-                unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
-                result
-            })
-            .map_err(|e| EventLoopClosed(e.0))
+            .map_err(|e| EventLoopClosed(e.0))?;
+        wake_with_user_event(self.hwnd);
+        Ok(())
+    }
+
+    pub fn waker(self) -> Waker {
+        const VTABLE: RawWakerVTable =
+            RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
+
+        unsafe fn clone_waker(waker: *const ()) -> RawWaker {
+            let hwnd = waker as HWND;
+            RawWaker::new(hwnd as *const (), &VTABLE)
+        }
+
+        unsafe fn wake(waker: *const ()) {
+            unsafe { wake_by_ref(waker) };
+            unsafe { drop_waker(waker) };
+        }
+
+        unsafe fn wake_by_ref(waker: *const ()) {
+            let hwnd = waker as HWND;
+            wake_with_user_event(hwnd);
+        }
+
+        unsafe fn drop_waker(_waker: *const ()) {
+            // Do nothing
+        }
+
+        unsafe { Waker::from_raw(RawWaker::new(self.hwnd as *const (), &VTABLE)) }
     }
 }
 
@@ -913,7 +917,7 @@ fn create_event_target_window() -> HWND {
 
 fn insert_event_target_window_data(
     thread_msg_target: HWND,
-    event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+    event_loop_runner: Rc<EventLoopRunner>,
 ) {
     let userdata = ThreadMsgTargetData { event_loop_runner };
     let input_ptr = Box::into_raw(Box::new(userdata));
@@ -2429,7 +2433,8 @@ unsafe extern "system" fn thread_event_target_callback(
             // user event is still in the mpsc channel and will be pulled
             // once the placeholder event is delivered to the wrapper
             // `event_handler`
-            userdata.send_event(Event::UserEvent(UserEventPlaceholder));
+            #[allow(deprecated)]
+            userdata.send_event(Event::UserEvent(HandlePendingUserEvents));
             0
         }
         _ if msg == EXEC_MSG_ID.get() => {

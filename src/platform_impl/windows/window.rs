@@ -1210,6 +1210,7 @@ impl<'a> InitData<'a> {
             let file_drop_handler = FileDropHandler::new(
                 win.window,
                 Box::new(move |event| {
+                    #[allow(deprecated)]
                     if let Ok(e) = event.map_nonuser_event() {
                         file_drop_runner.send_event(e)
                     }

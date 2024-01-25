@@ -347,6 +347,7 @@ impl<T: 'static> EventLoop<T> {
         // Handle pending user events. We don't need back buffer, since we can't dispatch
         // user events indirectly via callback to the user.
         for user_event in self.pending_user_events.borrow_mut().drain(..) {
+            #[allow(deprecated)]
             callback(Event::UserEvent(user_event), &self.window_target);
         }
 
@@ -447,6 +448,7 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.window_events_sink.lock().unwrap());
         });
         for event in buffer_sink.drain() {
+            #[allow(deprecated)]
             let event = event.map_nonuser_event().unwrap();
             callback(event, &self.window_target);
         }
@@ -456,6 +458,7 @@ impl<T: 'static> EventLoop<T> {
             buffer_sink.append(&mut state.events_sink);
         });
         for event in buffer_sink.drain() {
+            #[allow(deprecated)]
             let event = event.map_nonuser_event().unwrap();
             callback(event, &self.window_target);
         }

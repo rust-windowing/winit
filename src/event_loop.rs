@@ -12,6 +12,7 @@ use std::ops::Deref;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::task::Waker;
 use std::{error, fmt};
 
 #[cfg(not(web_platform))]
@@ -67,7 +68,10 @@ impl EventLoopBuilder<()> {
     /// Start building a new event loop.
     #[inline]
     pub fn new() -> Self {
-        Self::with_user_event()
+        Self {
+            platform_specific: Default::default(),
+            _p: PhantomData,
+        }
     }
 }
 
@@ -77,6 +81,7 @@ impl<T> EventLoopBuilder<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
     #[inline]
+    #[deprecated = "use `EventLoopProxy` with your own event channel instead"]
     pub fn with_user_event() -> Self {
         Self {
             platform_specific: Default::default(),
@@ -205,6 +210,7 @@ impl EventLoop<()> {
 impl<T> EventLoop<T> {
     #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
     pub fn with_user_event() -> Result<EventLoop<T>, EventLoopError> {
+        #[allow(deprecated)]
         EventLoopBuilder::<T>::with_user_event().build()
     }
 
@@ -246,7 +252,8 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
-    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
+    /// Creates an [`EventLoopProxy`] that can be used to control the event
+    /// loop from a different thread.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),
@@ -442,7 +449,10 @@ unsafe impl rwh_05::HasRawDisplayHandle for OwnedDisplayHandle {
 }
 
 /// Used to send custom events to [`EventLoop`].
-pub struct EventLoopProxy<T: 'static> {
+///
+/// This has a generic type `T` that represents a user event, but that is
+/// deprecated.
+pub struct EventLoopProxy<T: 'static = ()> {
     event_loop_proxy: platform_impl::EventLoopProxy<T>,
 }
 
@@ -462,8 +472,30 @@ impl<T: 'static> EventLoopProxy<T> {
     /// Returns an `Err` if the associated [`EventLoop`] no longer exists.
     ///
     /// [`UserEvent(event)`]: Event::UserEvent
+    #[deprecated = "get a `waker` and wake that instead"]
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_loop_proxy.send_event(event)
+    }
+
+    /// Create a [`Waker`] that can wake the event loop from any thread.
+    ///
+    /// This is usually used in combination with [`mpsc::channel`] to send the
+    /// data that should be processed by the event loop.
+    ///
+    /// If you do use a channel, the data will be accessible from inside
+    /// [`Event::NewEvents`].
+    ///
+    /// [`mpsc::channel`]: std::sync::mpsc::channel
+    pub fn waker(self) -> Waker {
+        self.event_loop_proxy.waker()
+    }
+}
+
+// Note: This does not have the generic from `EventLoopProxy<T>`, since this
+// is the new API that shouldn't need it.
+impl From<EventLoopProxy> for Waker {
+    fn from(proxy: EventLoopProxy) -> Self {
+        proxy.waker()
     }
 }
 

@@ -58,7 +58,7 @@ use crate::{
 ///
 /// See the module-level docs for more information on the event loop manages each event.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Event<T: 'static> {
+pub enum Event<T: 'static = ()> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This event type is useful as a place to put code that should be done before you start
@@ -80,6 +80,7 @@ pub enum Event<T: 'static> {
     },
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
+    #[deprecated = "use `EventLoopProxy::waker`, and listen for wakeups in `NewEvents`"]
     UserEvent(T),
 
     /// Emitted when the application has been suspended.
@@ -257,9 +258,11 @@ pub enum Event<T: 'static> {
 
 impl<T> Event<T> {
     #[allow(clippy::result_large_err)]
+    #[deprecated = "Event::UserEvent is deprecated, so there is no need for this any more"]
     pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
         use self::Event::*;
         match self {
+            #[allow(deprecated)]
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
@@ -1164,6 +1167,7 @@ mod tests {
 
                 // Mainline events.
                 let wid = unsafe { WindowId::dummy() };
+                #[allow(deprecated)]
                 x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
@@ -1278,6 +1282,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_map_nonuser_event() {
         foreach_event!(|event: event::Event<()>| {
             let is_user = matches!(event, event::Event::UserEvent(()));

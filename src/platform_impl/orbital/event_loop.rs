@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
     mem, slice,
     sync::{mpsc, Arc, Mutex},
+    task::Waker,
     time::Instant,
 };
 
@@ -584,6 +585,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             while let Ok(event) = self.user_events_receiver.try_recv() {
+                #[allow(deprecated)]
                 event_handler(event::Event::UserEvent(event), &self.window_target);
             }
 
@@ -683,14 +685,14 @@ impl<T: 'static> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.window_target.p.wake_socket.clone(),
+            waker: Waker::from(self.window_target.p.wake_socket.clone()),
         }
     }
 }
 
 pub struct EventLoopProxy<T: 'static> {
     user_events_sender: mpsc::Sender<T>,
-    wake_socket: Arc<TimeSocket>,
+    waker: Waker,
 }
 
 impl<T> EventLoopProxy<T> {
@@ -699,9 +701,13 @@ impl<T> EventLoopProxy<T> {
             .send(event)
             .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
 
-        self.wake_socket.wake().unwrap();
+        self.waker.wake_by_ref();
 
         Ok(())
+    }
+
+    pub fn waker(self) -> Waker {
+        self.waker
     }
 }
 
@@ -709,7 +715,7 @@ impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         Self {
             user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.wake_socket.clone(),
+            waker: self.waker.clone(),
         }
     }
 }

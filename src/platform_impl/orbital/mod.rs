@@ -92,6 +92,16 @@ impl TimeSocket {
     }
 }
 
+impl std::task::Wake for TimeSocket {
+    fn wake(self: Arc<TimeSocket>) {
+        TimeSocket::wake(&*self).unwrap();
+    }
+
+    fn wake_by_ref(self: &Arc<TimeSocket>) {
+        TimeSocket::wake(&**self).unwrap();
+    }
+}
+
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
