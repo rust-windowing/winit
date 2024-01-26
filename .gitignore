@@ -1,5 +1,6 @@
 Cargo.lock
 target/
+target/*
 rls/
 .vscode/
 *~

@@ -36,6 +36,8 @@ Unreleased` header.
 - on Windows: add `with_system_backdrop`, `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
+- On iOS: For IOS/UIKit Support UIGestureRecognizerDelegate for simultaneous gesture input as well as missing stock UIGestureRecognizers
+- On macOS: For DoubleTapGesture event add view location to event
 
 # 0.29.10
 
