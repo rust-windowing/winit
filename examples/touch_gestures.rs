@@ -8,7 +8,6 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
-
 fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
@@ -19,8 +18,8 @@ fn main() -> Result<(), impl std::error::Error> {
         .unwrap();
     #[cfg(target_os = "ios")]
     {
-        use winit::platform::ios::WindowExtIOS;
         use winit::platform::ios::Gesture;
+        use winit::platform::ios::WindowExtIOS;
         window.enable_recognize_gestures(Gesture::all(), true);
     }
 
