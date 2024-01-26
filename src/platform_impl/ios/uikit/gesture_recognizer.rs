@@ -5,7 +5,7 @@ use objc2::{
     encode::{Encode, Encoding},
     extern_class, extern_methods, extern_protocol, mutability,
     rc::Id,
-    runtime::{AnyProtocol, NSObjectProtocol, ProtocolObject, Sel},
+    runtime::{NSObjectProtocol, ProtocolObject, Sel},
     ClassType, ProtocolType,
 };
 
@@ -148,11 +148,6 @@ extern_protocol!(
         const NAME: &'static str = "UIGestureRecognizerDelegate";
     }
 );
-
-pub fn register_protocol() {
-    log::debug!("Registering protocol UIGestureRecognizerDelegate");
-    let _: Option<&AnyProtocol> = <dyn UIGestureRecognizerDelegate>::protocol();
-}
 
 unsafe impl Encode for dyn UIGestureRecognizerDelegate {
     const ENCODING: Encoding = Encoding::Object;

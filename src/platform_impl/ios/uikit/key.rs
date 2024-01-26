@@ -1,7 +1,6 @@
 use core_foundation::mach_port::CFIndex;
 use icrate::Foundation::{NSInteger, NSObject, NSString};
-use objc2::{extern_class, extern_methods, mutability, ClassType};
-//use super::{UIGestureRecognizer, UIResponder, UIKey};
+use objc2::{extern_class, extern_methods, mutability, ClassType, rc::Id};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -23,10 +22,10 @@ extern_methods!(
         #[method(modifierFlags)]
         pub fn modifier_flags(&self) -> NSInteger; // -> enum UIKeyModifierFlags
 
-        #[method(characters)]
-        pub fn characters(&self) -> &NSString;
+        #[method_id(characters)]
+        pub fn characters(&self) -> Id<NSString>;
 
-        #[method(charactersIgnoringModifiers)]
-        pub fn characters_ignoring_modifiers(&self) -> &NSString;
+        #[method_id(charactersIgnoringModifiers)]
+        pub fn characters_ignoring_modifiers(&self) -> Id<NSString>;
     }
 );
