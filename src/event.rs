@@ -460,6 +460,7 @@ pub enum WindowEvent {
         ///
         /// This value may be NaN.
         delta: f64,
+        velocity: f64,
         phase: TouchPhase,
     },
 
@@ -481,7 +482,20 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS 10.8** and later, and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    DoubleTapGesture { device_id: DeviceId },
+    DoubleTapGesture {
+        device_id: DeviceId,
+        location: PhysicalPosition<f64>,
+    },
+
+    /// Long press gesture.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    LongPressGesture {
+        device_id: DeviceId,
+        location: PhysicalPosition<f64>,
+    },
 
     /// Two-finger rotation gesture.
     ///
@@ -495,6 +509,20 @@ pub enum WindowEvent {
     RotationGesture {
         device_id: DeviceId,
         delta: f32,
+        velocity: f32,
+        phase: TouchPhase,
+    },
+
+    /// Two-finger pan gesture.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    PanGesture {
+        device_id: DeviceId,
+        delta: PhysicalPosition<f32>,
+        velocity: PhysicalPosition<f32>,
         phase: TouchPhase,
     },
 

@@ -28,7 +28,7 @@ use super::event::{
 use super::window::WinitWindow;
 use super::{util, DEVICE_ID};
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
     event::{
         DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
         WindowEvent,
@@ -698,16 +698,31 @@ declare_class!(
             self.queue_event(WindowEvent::PinchGesture {
                 device_id: DEVICE_ID,
                 delta: unsafe { event.magnification() },
+                velocity: 0.0,
                 phase,
             });
         }
 
         #[method(smartMagnifyWithEvent:)]
-        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+        fn smart_magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("smartMagnifyWithEvent:");
+            let window_point = unsafe { event.locationInWindow() };
+            let view_point = self.convertPoint_fromView(window_point, None);
+            let frame = self.frame();
+
+            if view_point.x.is_sign_negative()
+                || view_point.y.is_sign_negative()
+                || view_point.x > frame.size.width
+                || view_point.y > frame.size.height
+            {
+                return;
+            }
+
+            let event_point = PhysicalPosition::new(view_point.x, view_point.y);
 
             self.queue_event(WindowEvent::DoubleTapGesture {
                 device_id: DEVICE_ID,
+                location: event_point,
             });
         }
 
@@ -727,6 +742,7 @@ declare_class!(
             self.queue_event(WindowEvent::RotationGesture {
                 device_id: DEVICE_ID,
                 delta: unsafe { event.rotation() },
+                velocity: 0.0,
                 phase,
             });
         }

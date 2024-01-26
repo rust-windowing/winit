@@ -623,9 +623,9 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
         match wrapper {
             EventWrapper::StaticEvent(event) => {
                 if !processing_redraws && event.is_redraw() {
-                    log::info!("processing `RedrawRequested` during the main event loop");
+                    log::trace!("processing `RedrawRequested` during the main event loop");
                 } else if processing_redraws && !event.is_redraw() {
-                    log::warn!(
+                    log::trace!(
                         "processing non `RedrawRequested` event after the main event loop: {:#?}",
                         event
                     );

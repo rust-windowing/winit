@@ -86,20 +86,10 @@ pub trait WindowExtIOS {
     /// is also called for you.
     fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle);
 
-    /// Sets whether the [`Window`] should recognize pinch gestures.
+    /// Sets whether the [`Window`] should recognize gestures.
     ///
     /// The default is to not recognize gestures.
-    fn recognize_pinch_gesture(&self, should_recognize: bool);
-
-    /// Sets whether the [`Window`] should recognize double tap gestures.
-    ///
-    /// The default is to not recognize gestures.
-    fn recognize_doubletap_gesture(&self, should_recognize: bool);
-
-    /// Sets whether the [`Window`] should recognize rotation gestures.
-    ///
-    /// The default is to not recognize gestures.
-    fn recognize_rotation_gesture(&self, should_recognize: bool);
+    fn enable_recognize_gestures(&self, gestures: Gesture, use_default_delegate: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -141,21 +131,10 @@ impl WindowExtIOS for Window {
     }
 
     #[inline]
-    fn recognize_pinch_gesture(&self, should_recognize: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
-    }
-
-    #[inline]
-    fn recognize_doubletap_gesture(&self, should_recognize: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.recognize_doubletap_gesture(should_recognize));
-    }
-
-    #[inline]
-    fn recognize_rotation_gesture(&self, should_recognize: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
+    fn enable_recognize_gestures(&self, gestures: Gesture, use_default_delegate: bool) {
+        self.window.maybe_queue_on_main(move |w| {
+            w.enable_recognize_gestures(gestures, use_default_delegate)
+        });
     }
 }
 
@@ -336,4 +315,18 @@ pub enum StatusBarStyle {
     Default,
     LightContent,
     DarkContent,
+}
+
+bitflags::bitflags! {
+    #[repr(transparent)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct Gesture: u64 {
+        const PINCH      = 0b1;
+        const ROTATION   = 0b10;
+        const PAN        = 0b100;
+        const DOUBLE_TAP = 0b1000;
+        const LONG_PRESS = 0b10000;
+
+        const _ = !0;
+    }
 }

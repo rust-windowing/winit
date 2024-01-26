@@ -9,7 +9,9 @@ mod application;
 mod coordinate_space;
 mod device;
 mod event;
-mod gesture_recognizer;
+pub mod gesture_recognizer;
+mod key;
+mod press;
 mod responder;
 mod screen;
 mod screen_mode;
@@ -25,7 +27,8 @@ pub(crate) use self::coordinate_space::UICoordinateSpace;
 pub(crate) use self::device::UIDevice;
 pub(crate) use self::event::UIEvent;
 pub(crate) use self::gesture_recognizer::{
-    UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer,
+    UIGestureRecognizer, UIGestureRecognizerDelegate, UIGestureRecognizerState,
+    UILongPressGestureRecognizer, UIPanGestureRecognizer, UIPinchGestureRecognizer,
     UIRotationGestureRecognizer, UITapGestureRecognizer,
 };
 pub(crate) use self::responder::UIResponder;
@@ -33,6 +36,10 @@ pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};
 pub(crate) use self::screen_mode::UIScreenMode;
 pub(crate) use self::status_bar_style::UIStatusBarStyle;
 pub(crate) use self::touch::{UITouch, UITouchPhase, UITouchType};
+
+pub(crate) use self::key::UIKey;
+#[allow(unused_imports)]
+pub(crate) use self::press::{UIPress, UIPressPhase, UIPressType};
 pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollection};
 #[allow(unused_imports)]
 pub(crate) use self::view::{UIEdgeInsets, UIView};

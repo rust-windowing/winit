@@ -8,6 +8,7 @@ use winit::{
 #[path = "util/fill.rs"]
 mod fill;
 
+
 fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
@@ -19,9 +20,8 @@ fn main() -> Result<(), impl std::error::Error> {
     #[cfg(target_os = "ios")]
     {
         use winit::platform::ios::WindowExtIOS;
-        window.recognize_doubletap_gesture(true);
-        window.recognize_pinch_gesture(true);
-        window.recognize_rotation_gesture(true);
+        use winit::platform::ios::Gesture;
+        window.enable_recognize_gestures(Gesture::all(), true);
     }
 
     println!("Only supported on macOS/iOS at the moment.");
@@ -41,15 +41,24 @@ fn main() -> Result<(), impl std::error::Error> {
                         println!("Zoomed out {delta:.5} (now: {zoom:.5})");
                     }
                 }
-                WindowEvent::DoubleTapGesture { .. } => {
-                    println!("Smart zoom");
+                WindowEvent::PanGesture { delta, velocity, .. } => {
+                    println!("PanGesture in translation:({}, {}) velocity: ({}, {})", delta.x, delta.y, velocity.x, velocity.y);
                 }
-                WindowEvent::RotationGesture { delta, .. } => {
+                WindowEvent::LongPressGesture { location, .. } => {
+                    println!("PanGesture in location:({}, {})", location.x, location.y);
+                }
+                WindowEvent::DoubleTapGesture { location, .. } => {
+                    #[cfg(target_os = "ios")]
+                    println!("Double Tap location: ({}, {})", location.x, location.y);
+                    #[cfg(target_os = "macos")]
+                    println!("SmartZoom location: ({}, {})", location.x, location.y);
+                }
+                WindowEvent::RotationGesture { delta, velocity, .. } => {
                     rotated += delta;
                     if delta > 0.0 {
-                        println!("Rotated counterclockwise {delta:.5} (now: {rotated:.5})");
+                        println!("Rotated counterclockwise delta:{delta:.5} (now: {rotated:.5}), velocity:{velocity}");
                     } else {
-                        println!("Rotated clockwise {delta:.5} (now: {rotated:.5})");
+                        println!("Rotated clockwise delta:{delta:.5} (now: {rotated:.5}), velocity:{velocity}");
                     }
                 }
                 WindowEvent::RedrawRequested => {
