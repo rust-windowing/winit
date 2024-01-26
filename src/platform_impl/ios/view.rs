@@ -79,7 +79,6 @@ declare_class!(
 
         #[method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)]
         fn should_recognize_simultaneously(&self, gesture_recognizer: &UIGestureRecognizer, other_gesture_recognizer: &UIGestureRecognizer) -> bool {
-            log::debug!("called class method should_recognize_simultaneously");
             self.ivars().gesture_recognizer_delegate.should_recognize_simultaneously(gesture_recognizer, other_gesture_recognizer)
         }
 
@@ -355,7 +354,6 @@ impl WinitView {
             rotation_gesture_recognizer: RefCell::new(None),
             pan_gesture_recognizer: RefCell::new(None),
             long_press_gesture_recognizer: RefCell::new(None),
-            // eventually allow passing this from WindowBuilder
             gesture_recognizer_delegate: Box::new(DefaultGestureRecognizerDelegate {}),
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
@@ -408,8 +406,6 @@ impl WinitView {
     }
 
     pub(crate) fn enable_recognize_gestures(&self, gestures: Gesture, use_default_delegate: bool) {
-        super::uikit::gesture_recognizer::register_protocol();
-
         if gestures.contains(Gesture::PINCH) {
             self.recognize_pinch_gesture(true);
         }
