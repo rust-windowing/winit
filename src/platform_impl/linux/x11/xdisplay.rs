@@ -13,7 +13,10 @@ use crate::window::CursorIcon;
 use super::{atoms::Atoms, ffi, monitor::MonitorHandle};
 use x11rb::{
     connection::Connection,
-    protocol::{randr::ConnectionExt as _, xproto},
+    protocol::{
+        randr::ConnectionExt as _,
+        xproto::{self, ConnectionExt},
+    },
     resource_manager,
     xcb_ffi::XCBConnection,
 };
@@ -54,6 +57,9 @@ pub(crate) struct XConnection {
 
     /// RandR version.
     randr_version: (u32, u32),
+
+    /// Atom for the XSettings screen.
+    xsettings_screen: xproto::Atom,
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -102,11 +108,20 @@ impl XConnection {
         // Get the default screen.
         let default_screen = unsafe { (xlib.XDefaultScreen)(display) } as usize;
 
-        // Fetch the atoms.
+        // Fetch the _XSETTINGS_S[screen number] atom.
+        let xsettings_screen = xcb
+            .intern_atom(false, format!("_XSETTINGS_S{}", default_screen).as_bytes())
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+
+        // Fetch the other atoms.
         let atoms = Atoms::new(&xcb)
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+        let xsettings_screen = xsettings_screen
+            .reply()
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .atom;
 
         // Load the database.
         let database = resource_manager::new_from_default(&xcb)
@@ -118,6 +133,24 @@ impl XConnection {
             .expect("failed to request XRandR version")
             .reply()
             .expect("failed to query XRandR version");
+
+        // Get PropertyNotify events from the XSETTINGS window.
+        // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on this window
+        // in order to accomodate for a changed window here.
+        let selector_window = xcb
+            .get_selection_owner(xsettings_screen)
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .reply()
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+            .owner;
+        xcb.change_window_attributes(
+            selector_window,
+            &xproto::ChangeWindowAttributesAux::new()
+                .event_mask(xproto::EventMask::PROPERTY_CHANGE),
+        )
+        .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
+        .check()
+        .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         Ok(XConnection {
             xlib,
@@ -133,6 +166,7 @@ impl XConnection {
             database: RwLock::new(database),
             cursor_cache: Default::default(),
             randr_version: (randr_version.major_version, randr_version.minor_version),
+            xsettings_screen,
         })
     }
 
@@ -220,6 +254,12 @@ impl XConnection {
                 Err(x) => last_timestamp = x,
             }
         }
+    }
+
+    /// Get the atom for Xsettings.
+    #[inline]
+    pub fn xsettings_screen(&self) -> u32 {
+        self.xsettings_screen
     }
 }
 
