@@ -5,9 +5,8 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, Ime, WindowEvent},
+    event_loop::EventLoop,
     keyboard::NamedKey,
-    event_loop::{ControlFlow, EventLoop},
-    keyboard::{Key, KeyCode},
     window::{ImePurpose, Window},
 };
 

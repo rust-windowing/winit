@@ -16,9 +16,8 @@ fn main() -> Result<(), impl std::error::Error> {
     use winit::{
         dpi::{LogicalPosition, LogicalSize, Position},
         event::{ElementState, Event, KeyEvent, WindowEvent},
+        event_loop::{EventLoop, EventLoopWindowTarget},
         raw_window_handle::HasRawWindowHandle,
-        event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-        window::raw_window_handle::HasRawWindowHandle,
         window::{Window, WindowId},
     };
 
