@@ -3,7 +3,7 @@
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::KeyCode,
+    keyboard::Key,
     window::{Fullscreen, Window},
 };
 

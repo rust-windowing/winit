@@ -566,7 +566,7 @@ impl Window {
     ///
     /// [`Window::builder().build(event_loop)`]: WindowBuilder::build
     #[inline]
-    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
         Window::builder().build(event_loop)
     }
 
