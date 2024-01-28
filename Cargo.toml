@@ -78,7 +78,7 @@ simple_logger = { version = "4.2.0", default_features = false }
 winit = { path = ".", features = ["rwh_05"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
-softbuffer = { version = "0.3.0", default-features = false, features = ["x11", "wayland"] }
+softbuffer = { version = "0.3.0", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = "0.5.0"
