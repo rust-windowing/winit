@@ -96,7 +96,7 @@ pub trait WindowBuilderExtX11 {
     /// Build window with the given `general` and `instance` names.
     ///
     /// The `general` sets general class of `WM_CLASS(STRING)`, while `instance` set the
-    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "general", "instance"`.
+    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "instance", "general"`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
