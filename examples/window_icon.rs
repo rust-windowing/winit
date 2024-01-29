@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
-    window::{Icon, WindowBuilder},
+    window::{Icon, Window},
 };
 
 #[path = "util/fill.rs"]
@@ -25,7 +25,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("An iconic window!")
         // At present, this only does anything on Windows and X11, so if you want to save load
         // time, you can put icon loading behind a function that returns `None` on other platforms.

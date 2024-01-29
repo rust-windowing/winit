@@ -10,7 +10,7 @@ use web_time as time;
 use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    window::Window,
 };
 
 #[path = "util/fill.rs"]
@@ -20,7 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
         .build(&event_loop)
