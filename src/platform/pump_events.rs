@@ -51,12 +51,12 @@ pub trait EventLoopExtPumpEvents {
     /// #         event::{Event, WindowEvent},
     /// #         event_loop::EventLoop,
     /// #         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
-    /// #         window::WindowBuilder,
+    /// #         window::Window,
     /// #     };
     ///     let mut event_loop = EventLoop::new().unwrap();
     /// #
     /// #   SimpleLogger::new().init().unwrap();
-    ///     let window = WindowBuilder::new()
+    ///     let window = Window::builder()
     ///         .with_title("A fantastic window!")
     ///         .build(&event_loop)
     ///         .unwrap();

@@ -19,10 +19,9 @@ For features _outside_ the scope of winit, see [Are we GUI Yet?](https://arewegu
 
 ## Contact Us
 
-Join us in any of these:
+Join us in our [![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org) room. If you don't get an answer there, try [![Libera.Chat](https://img.shields.io/badge/libera.chat-%23winit-red.svg)](https://web.libera.chat/#winit).
 
-[![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org)
-[![Libera.Chat](https://img.shields.io/badge/libera.chat-%23winit-red.svg)](https://web.libera.chat/#winit)
+The maintainers have a meeting every friday at UTC 14. The meeting notes can be found [here](https://hackmd.io/@winit-meetings).
 
 ## Usage
 

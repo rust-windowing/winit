@@ -16,8 +16,9 @@ use windows_sys::Win32::{
     Graphics::{
         Dwm::{
             DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR,
-            DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE,
-            DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_WINDOW_CORNER_PREFERENCE,
+            DWMWA_CAPTION_COLOR, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_TEXT_COLOR,
+            DWMWA_WINDOW_CORNER_PREFERENCE, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
+            DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE,
         },
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
@@ -60,12 +61,12 @@ use windows_sys::Win32::{
 
 use log::warn;
 
-use crate::platform::windows::{Color, CornerPreference};
 use crate::{
     cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
+    platform::windows::{BackdropType, Color, CornerPreference},
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -1020,6 +1021,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_system_backdrop(&self, backdrop_type: BackdropType) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_SYSTEMBACKDROP_TYPE,
+                &(backdrop_type as i32) as *const _ as _,
+                mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
+            );
+        }
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         let window_flags = self.window_state_lock().window_flags();
 
@@ -1307,6 +1320,8 @@ impl<'a> InitData<'a> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
+
+        win.set_system_backdrop(self.attributes.platform_specific.backdrop_type);
 
         if let Some(color) = self.attributes.platform_specific.border_color {
             win.set_border_color(color);
