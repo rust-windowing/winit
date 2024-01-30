@@ -43,6 +43,8 @@ Unreleased` header.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
+- On X11, reload dpi on `_XSETTINGS_SETTINGS` update.
+- On X11, fix deadlock when adjusting DPI and resizing at the same time.
 
 # 0.29.10
 

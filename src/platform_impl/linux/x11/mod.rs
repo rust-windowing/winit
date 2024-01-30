@@ -10,6 +10,7 @@ mod monitor;
 pub mod util;
 mod window;
 mod xdisplay;
+mod xsettings;
 
 pub(crate) use self::{
     monitor::{MonitorHandle, VideoModeHandle},
@@ -889,6 +890,9 @@ pub enum X11Error {
 
     /// Could not find a matching X11 visual for this visualid
     NoSuchVisual(xproto::Visualid),
+
+    /// Unable to parse xsettings.
+    XsettingsParse(xsettings::ParserError),
 }
 
 impl fmt::Display for X11Error {
@@ -912,6 +916,9 @@ impl fmt::Display for X11Error {
                     "Could not find a matching X11 visual for ID `{:x}`",
                     visualid
                 )
+            }
+            X11Error::XsettingsParse(err) => {
+                write!(f, "Failed to parse xsettings: {:?}", err)
             }
         }
     }
@@ -978,6 +985,12 @@ impl From<ReplyOrIdError> for X11Error {
             ReplyOrIdError::X11Error(e) => e.into(),
             ReplyOrIdError::IdsExhausted => Self::XidsExhausted(IdsExhausted),
         }
+    }
+}
+
+impl From<xsettings::ParserError> for X11Error {
+    fn from(value: xsettings::ParserError) -> Self {
+        Self::XsettingsParse(value)
     }
 }
 
