@@ -35,8 +35,6 @@ pub enum EventLoopError {
     NotSupported(NotSupportedError),
     /// The OS cannot perform the operation.
     Os(OsError),
-    /// The event loop can't be re-run while it's already running
-    AlreadyRunning,
     /// The event loop can't be re-created.
     RecreationAttempt,
     /// Application has exit with an error status.
@@ -105,7 +103,6 @@ impl fmt::Display for NotSupportedError {
 impl fmt::Display for EventLoopError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            EventLoopError::AlreadyRunning => write!(f, "EventLoop is already running"),
             EventLoopError::RecreationAttempt => write!(f, "EventLoop can't be recreated"),
             EventLoopError::NotSupported(e) => e.fmt(f),
             EventLoopError::Os(e) => e.fmt(f),

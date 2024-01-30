@@ -5,8 +5,8 @@ fn main() -> Result<(), impl std::error::Error> {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::EventLoopBuilder,
-        window::WindowBuilder,
+        event_loop::EventLoop,
+        window::Window,
     };
 
     #[path = "util/fill.rs"]
@@ -18,11 +18,9 @@ fn main() -> Result<(), impl std::error::Error> {
     }
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event()
-        .build()
-        .unwrap();
+    let event_loop = EventLoop::<CustomEvent>::with_user_event().build().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();

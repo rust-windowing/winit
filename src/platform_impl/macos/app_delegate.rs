@@ -1,9 +1,8 @@
-use std::cell::{Cell, RefCell, RefMut};
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::fmt;
 use std::mem;
 use std::rc::{Rc, Weak};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
@@ -14,7 +13,6 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::event_loop::{stop_app_immediately, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
-use super::util::Never;
 use super::window::WinitWindow;
 use super::{menu, WindowId, DEVICE_ID};
 use crate::dpi::PhysicalSize;
@@ -30,7 +28,7 @@ pub(super) struct State {
     /// Whether the application is currently executing a callback.
     in_callback: Cell<bool>,
     /// The lifetime-erased callback.
-    callback: RefCell<Option<Box<dyn EventHandler>>>,
+    callback: RefCell<Option<EventLoopHandler>>,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
     stop_after_wait: Cell<bool>,
@@ -158,17 +156,16 @@ impl ApplicationDelegate {
     /// All public APIs that take an event callback (`run`, `run_on_demand`,
     /// `pump_events`) _must_ pair a call to `set_callback` with
     /// a call to `clear_callback` before returning to avoid undefined behaviour.
-    pub unsafe fn set_callback<T>(
+    #[allow(clippy::type_complexity)]
+    pub unsafe fn set_callback(
         &self,
-        callback: Weak<Callback<T>>,
+        callback: Weak<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
         window_target: Rc<RootWindowTarget>,
-        receiver: Rc<mpsc::Receiver<T>>,
     ) {
-        *self.ivars().callback.borrow_mut() = Some(Box::new(EventLoopHandler {
+        *self.ivars().callback.borrow_mut() = Some(EventLoopHandler {
             callback,
             window_target,
-            receiver,
-        }));
+        });
     }
 
     pub fn clear_callback(&self) {
@@ -208,7 +205,7 @@ impl ApplicationDelegate {
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(&self) {
         self.set_in_callback(true);
-        self.handle_nonuser_event(Event::LoopExiting);
+        self.handle_event(Event::LoopExiting);
         self.set_in_callback(false);
 
         self.set_is_running(false);
@@ -290,7 +287,7 @@ impl ApplicationDelegate {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the callback when our callstack originates from there
         if !self.ivars().in_callback.get() {
-            self.handle_nonuser_event(Event::WindowEvent {
+            self.handle_event(Event::WindowEvent {
                 window_id: RootWindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
@@ -313,19 +310,19 @@ impl ApplicationDelegate {
         unsafe { RunLoop::get() }.wakeup();
     }
 
-    fn handle_nonuser_event(&self, event: Event<Never>) {
+    fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
         if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-            callback.handle_nonuser_event(event)
+            callback.handle_event(event)
         }
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
     pub fn dispatch_init_events(&self) {
         self.set_in_callback(true);
-        self.handle_nonuser_event(Event::NewEvents(StartCause::Init));
+        self.handle_event(Event::NewEvents(StartCause::Init));
         // NB: For consistency all platforms must emit a 'resumed' event even though macOS
         // applications don't themselves have a formal suspend/resume lifecycle.
-        self.handle_nonuser_event(Event::Resumed);
+        self.handle_event(Event::Resumed);
         self.set_in_callback(false);
     }
 
@@ -373,7 +370,7 @@ impl ApplicationDelegate {
         };
 
         self.set_in_callback(true);
-        self.handle_nonuser_event(Event::NewEvents(cause));
+        self.handle_event(Event::NewEvents(cause));
         self.set_in_callback(false);
     }
 
@@ -396,21 +393,19 @@ impl ApplicationDelegate {
         }
 
         self.set_in_callback(true);
-        if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-            callback.handle_user_events();
-        }
+        self.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
         let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
         for event in events {
             match event {
                 QueuedEvent::WindowEvent(window_id, event) => {
-                    self.handle_nonuser_event(Event::WindowEvent {
+                    self.handle_event(Event::WindowEvent {
                         window_id: RootWindowId(window_id),
                         event,
                     });
                 }
                 QueuedEvent::DeviceEvent(event) => {
-                    self.handle_nonuser_event(Event::DeviceEvent {
+                    self.handle_event(Event::DeviceEvent {
                         device_id: DEVICE_ID,
                         event,
                     });
@@ -432,7 +427,7 @@ impl ApplicationDelegate {
                             },
                         };
 
-                        callback.handle_nonuser_event(scale_factor_changed_event);
+                        callback.handle_event(scale_factor_changed_event);
 
                         let physical_size = *new_inner_size.lock().unwrap();
                         drop(new_inner_size);
@@ -444,7 +439,7 @@ impl ApplicationDelegate {
                             window_id: RootWindowId(window.id()),
                             event: WindowEvent::Resized(physical_size),
                         };
-                        callback.handle_nonuser_event(resized_event);
+                        callback.handle_event(resized_event);
                     }
                 }
             }
@@ -452,13 +447,13 @@ impl ApplicationDelegate {
 
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
-            self.handle_nonuser_event(Event::WindowEvent {
+            self.handle_event(Event::WindowEvent {
                 window_id: RootWindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
         }
 
-        self.handle_nonuser_event(Event::AboutToWait);
+        self.handle_event(Event::AboutToWait);
         self.set_in_callback(false);
 
         if self.exiting() {
@@ -495,34 +490,18 @@ pub(crate) enum QueuedEvent {
     },
 }
 
-trait EventHandler: fmt::Debug {
-    // Not sure probably it should accept Event<'static, Never>
-    fn handle_nonuser_event(&mut self, event: Event<Never>);
-    fn handle_user_events(&mut self);
-}
+#[derive(Debug)]
+pub(crate) struct HandlePendingUserEvents;
 
-pub(super) type Callback<T> = RefCell<dyn FnMut(Event<T>, &RootWindowTarget)>;
-
-struct EventLoopHandler<T: 'static> {
-    callback: Weak<Callback<T>>,
+#[derive(Debug)]
+struct EventLoopHandler {
+    #[allow(clippy::type_complexity)]
+    callback: Weak<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
     window_target: Rc<RootWindowTarget>,
-    receiver: Rc<mpsc::Receiver<T>>,
 }
 
-impl<T> fmt::Debug for EventLoopHandler<T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("EventLoopHandler")
-            .field("window_target", &self.window_target)
-            .finish_non_exhaustive()
-    }
-}
-
-impl<T> EventLoopHandler<T> {
-    fn with_callback<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<T>, &RootWindowTarget)>),
-    {
+impl EventLoopHandler {
+    fn handle_event(&mut self, event: Event<HandlePendingUserEvents>) {
         // `NSApplication` and our app delegate are global state and so it's possible
         // that we could get a delegate callback after the application has exit an
         // `EventLoop`. If the loop has been exit then our weak `self.callback`
@@ -532,29 +511,9 @@ impl<T> EventLoopHandler<T> {
         // upgrade the weak reference since it might be valid that the application
         // re-starts the `NSApplication` after exiting a Winit `EventLoop`
         if let Some(callback) = self.callback.upgrade() {
-            let callback = callback.borrow_mut();
-            (f)(self, callback);
+            let mut callback = callback.borrow_mut();
+            (callback)(event, &self.window_target);
         }
-    }
-}
-
-impl<T> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<Never>) {
-        // `Never` can't be constructed, so the `UserEvent` variant can't
-        // be present here.
-        let event = event.map_nonuser_event().unwrap_or_else(|_| unreachable!());
-
-        self.with_callback(|this, mut callback| {
-            (callback)(event, &this.window_target);
-        });
-    }
-
-    fn handle_user_events(&mut self) {
-        self.with_callback(|this, mut callback| {
-            for event in this.receiver.try_iter() {
-                (callback)(Event::UserEvent(event), &this.window_target);
-            }
-        });
     }
 }
 

@@ -6,7 +6,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{EventLoop, EventLoopWindowTarget},
     keyboard::Key,
-    window::{CursorIcon, CustomCursor, WindowBuilder},
+    window::{CursorIcon, CustomCursor, Window},
 };
 #[cfg(web_platform)]
 use {
@@ -42,7 +42,7 @@ fn main() -> Result<(), impl std::error::Error> {
     console_log::init_with_level(log::Level::Debug).unwrap();
 
     let event_loop = EventLoop::new().unwrap();
-    let builder = WindowBuilder::new().with_title("A fantastic window!");
+    let builder = Window::builder().with_title("A fantastic window!");
     #[cfg(web_platform)]
     let builder = {
         use winit::platform::web::WindowBuilderExtWebSys;

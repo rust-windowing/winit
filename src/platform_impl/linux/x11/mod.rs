@@ -402,10 +402,6 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootELW),
     {
-        if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
-        }
-
         let exit = loop {
             match self.pump_events(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {

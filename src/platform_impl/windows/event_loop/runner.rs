@@ -144,10 +144,6 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    pub fn state(&self) -> RunnerState {
-        self.runner_state.get()
-    }
-
     pub fn set_control_flow(&self, control_flow: ControlFlow) {
         self.control_flow.set(control_flow)
     }

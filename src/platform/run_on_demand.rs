@@ -55,7 +55,7 @@ pub trait EventLoopExtRunOnDemand {
     ///   loop that would block the browser and there is nothing that can be
     ///   polled to ask for new events. Events are delivered via callbacks based
     ///   on an event loop that is internal to the browser itself.
-    /// - **iOS:** It's not possible to stop and start an `NSApplication` repeatedly on iOS.
+    /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
     ///
     #[cfg_attr(
         not(web_platform),
@@ -87,3 +87,16 @@ impl EventLoopWindowTarget {
         self.p.clear_exit()
     }
 }
+
+/// ```compile_fail
+/// use winit::event_loop::EventLoop;
+/// use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
+///
+/// let mut event_loop = EventLoop::new().unwrap();
+/// event_loop.run_on_demand(|_, _| {
+///     // Attempt to run the event loop re-entrantly; this must fail.
+///     event_loop.run_on_demand(|_, _| {});
+/// });
+/// ```
+#[allow(dead_code)]
+fn test_run_on_demand_cannot_access_event_loop() {}

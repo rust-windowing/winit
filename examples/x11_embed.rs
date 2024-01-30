@@ -12,7 +12,7 @@ mod imple {
         event::{Event, WindowEvent},
         event_loop::EventLoop,
         platform::x11::WindowBuilderExtX11,
-        window::WindowBuilder,
+        window::Window,
     };
 
     pub(super) fn entry() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,7 +25,7 @@ mod imple {
         SimpleLogger::new().init().unwrap();
         let event_loop = EventLoop::new()?;
 
-        let window = WindowBuilder::new()
+        let window = Window::builder()
             .with_title("An embedded window!")
             .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
             .with_embed_parent_window(parent_window_id)

@@ -408,7 +408,7 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (class, instance) = if let Some(name) = window_attrs.platform_specific.name {
+                let (instance, class) = if let Some(name) = window_attrs.platform_specific.name {
                     (name.instance, name.general)
                 } else {
                     let class = env::args_os()

@@ -491,10 +491,6 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
     {
-        if self.loop_running {
-            return Err(EventLoopError::AlreadyRunning);
-        }
-
         loop {
             match self.pump_events(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {
