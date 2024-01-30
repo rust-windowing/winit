@@ -61,8 +61,13 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                 let window_id = wayland::make_wid(&surface);
 
                 // Mark the window as focused.
-                match state.windows.get_mut().get(&window_id) {
-                    Some(window) => window.lock().unwrap().set_has_focus(true),
+                let was_unfocused = match state.windows.get_mut().get(&window_id) {
+                    Some(window) => {
+                        let mut window = window.lock().unwrap();
+                        let was_unfocused = !window.has_focus();
+                        window.add_seat_focus(data.seat.id());
+                        was_unfocused
+                    }
                     None => return,
                 };
 
@@ -73,12 +78,14 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
                     keyboard_state.loop_handle.remove(token);
                 }
 
-                // The keyboard focus is considered as general focus.
-                state
-                    .events_sink
-                    .push_window_event(WindowEvent::Focused(true), window_id);
-
                 *data.window_id.lock().unwrap() = Some(window_id);
+
+                // The keyboard focus is considered as general focus.
+                if was_unfocused {
+                    state
+                        .events_sink
+                        .push_window_event(WindowEvent::Focused(true), window_id);
+                }
 
                 // HACK: this is just for GNOME not fixing their ordering issue of modifiers.
                 if std::mem::take(&mut seat_state.modifiers_pending) {
@@ -101,24 +108,30 @@ impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
 
                 // NOTE: The check whether the window exists is essential as we might get a
                 // nil surface, regardless of what protocol says.
-                match state.windows.get_mut().get(&window_id) {
-                    Some(window) => window.lock().unwrap().set_has_focus(false),
+                let focused = match state.windows.get_mut().get(&window_id) {
+                    Some(window) => {
+                        let mut window = window.lock().unwrap();
+                        window.remove_seat_focus(&data.seat.id());
+                        window.has_focus()
+                    }
                     None => return,
                 };
-
-                // Notify that no modifiers are being pressed.
-                state.events_sink.push_window_event(
-                    WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
-                    window_id,
-                );
 
                 // We don't need to update it above, because the next `Enter` will overwrite
                 // anyway.
                 *data.window_id.lock().unwrap() = None;
 
-                state
-                    .events_sink
-                    .push_window_event(WindowEvent::Focused(false), window_id);
+                if !focused {
+                    // Notify that no modifiers are being pressed.
+                    state.events_sink.push_window_event(
+                        WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                        window_id,
+                    );
+
+                    state
+                        .events_sink
+                        .push_window_event(WindowEvent::Focused(false), window_id);
+                }
             }
             WlKeyboardEvent::Key {
                 key,
