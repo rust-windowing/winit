@@ -56,6 +56,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let custom_cursors = [
         decode_cursor(include_bytes!("data/cross.png"), &event_loop),
         decode_cursor(include_bytes!("data/cross2.png"), &event_loop),
+        decode_cursor(include_bytes!("data/gradient.png"), &event_loop),
     ];
 
     event_loop.run(move |event, _elwt| match event {
@@ -72,7 +73,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 Key::Character("1") => {
                     log::debug!("Setting cursor to {:?}", cursor_idx);
                     window.set_cursor(custom_cursors[cursor_idx].clone());
-                    cursor_idx = (cursor_idx + 1) % 2;
+                    cursor_idx = (cursor_idx + 1) % 3;
                 }
                 Key::Character("2") => {
                     log::debug!("Setting cursor icon to default");
