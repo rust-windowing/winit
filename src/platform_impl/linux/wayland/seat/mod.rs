@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 
+use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
@@ -13,6 +14,7 @@ use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
 use sctk::seat::{Capability as SeatCapability, SeatHandler, SeatState};
 
+use crate::event::WindowEvent;
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::state::WinitState;
 
@@ -143,6 +145,10 @@ impl SeatHandler for WinitState {
     ) {
         let seat_state = self.seats.get_mut(&seat.id()).unwrap();
 
+        if let Some(text_input) = seat_state.text_input.take() {
+            text_input.destroy();
+        }
+
         match capability {
             SeatCapability::Touch => {
                 if let Some(touch) = seat_state.touch.take() {
@@ -174,12 +180,9 @@ impl SeatHandler for WinitState {
             }
             SeatCapability::Keyboard => {
                 seat_state.keyboard_state = None;
+                self.on_keyboard_destroy(&seat.id());
             }
             _ => (),
-        }
-
-        if let Some(text_input) = seat_state.text_input.take() {
-            text_input.destroy();
         }
     }
 
@@ -199,6 +202,21 @@ impl SeatHandler for WinitState {
         seat: WlSeat,
     ) {
         let _ = self.seats.remove(&seat.id());
+        self.on_keyboard_destroy(&seat.id());
+    }
+}
+
+impl WinitState {
+    fn on_keyboard_destroy(&mut self, seat: &ObjectId) {
+        for (window_id, window) in self.windows.get_mut() {
+            let mut window = window.lock().unwrap();
+            let had_focus = window.has_focus();
+            window.remove_seat_focus(seat);
+            if had_focus != window.has_focus() {
+                self.events_sink
+                    .push_window_event(WindowEvent::Focused(false), *window_id);
+            }
+        }
     }
 }
 

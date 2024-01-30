@@ -4,8 +4,10 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
+use ahash::HashSet;
 use log::{info, warn};
 
+use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -85,8 +87,10 @@ pub struct WindowState {
     /// Whether the frame is resizable.
     resizable: bool,
 
-    /// Whether the window has focus.
-    has_focus: bool,
+    // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
+    // is created, since add/removed stuff could be delivered a bit out of order.
+    /// Seats that has keyboard focus on that window.
+    seat_focus: HashSet<ObjectId>,
 
     /// The scale factor of the window.
     scale_factor: f64,
@@ -182,7 +186,7 @@ impl WindowState {
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
-            has_focus: false,
+            seat_focus: Default::default(),
             has_pending_move: None,
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
@@ -515,10 +519,10 @@ impl WindowState {
         }
     }
 
-    /// Whether the window is focused.
+    /// Whether the window is focused by any seat.
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.has_focus
+        !self.seat_focus.is_empty()
     }
 
     /// Whether the IME is allowed.
@@ -880,12 +884,16 @@ impl WindowState {
         }
     }
 
-    /// Mark that the window has focus.
-    ///
-    /// Should be used from routine that sends focused event.
+    /// Add seat focus for the window.
     #[inline]
-    pub fn set_has_focus(&mut self, has_focus: bool) {
-        self.has_focus = has_focus;
+    pub fn add_seat_focus(&mut self, seat: ObjectId) {
+        self.seat_focus.insert(seat);
+    }
+
+    /// Remove seat focus from the window.
+    #[inline]
+    pub fn remove_seat_focus(&mut self, seat: &ObjectId) {
+        self.seat_focus.remove(seat);
     }
 
     /// Returns `true` if the requested state was applied.
