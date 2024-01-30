@@ -485,24 +485,34 @@ impl<T: 'static> EventProcessor<T> {
                         }
                     }
 
-                    let mut shared_state_lock = window.shared_state_lock();
-                    let hittest = shared_state_lock.cursor_hittest;
+                    // NOTE: Ensure that the lock is dropped before handling the resized and
+                    // sending the event back to user.
+                    let hittest = {
+                        let mut shared_state_lock = window.shared_state_lock();
+                        let hittest = shared_state_lock.cursor_hittest;
 
-                    // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
-                    // doesn't need this, but Xfwm does. The hack should not be run on other WMs, since tiling
-                    // WMs constrain the window size, making the resize fail. This would cause an endless stream of
-                    // XResizeWindow requests, making Xorg, the winit client, and the WM consume 100% of CPU.
-                    if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
-                        if new_inner_size == adjusted_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
-                            // When this finally happens, the event will not be synthetic.
-                            shared_state_lock.dpi_adjusted = None;
-                        } else {
-                            window.request_inner_size_physical(adjusted_size.0, adjusted_size.1);
+                        // This is a hack to ensure that the DPI adjusted resize is actually
+                        // applied on all WMs. KWin doesn't need this, but Xfwm does. The hack
+                        // should not be run on other WMs, since tiling WMs constrain the window
+                        // size, making the resize fail. This would cause an endless stream of
+                        // XResizeWindow requests, making Xorg, the winit client, and the WM
+                        // consume 100% of CPU.
+                        if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
+                            if new_inner_size == adjusted_size
+                                || !util::wm_name_is_one_of(&["Xfwm4"])
+                            {
+                                // When this finally happens, the event will not be synthetic.
+                                shared_state_lock.dpi_adjusted = None;
+                            } else {
+                                // Unlock shared state to prevent deadlock in callback below
+                                drop(shared_state_lock);
+                                window
+                                    .request_inner_size_physical(adjusted_size.0, adjusted_size.1);
+                            }
                         }
-                    }
 
-                    // Unlock shared state to prevent deadlock in callback below
-                    drop(shared_state_lock);
+                        hittest
+                    };
 
                     // Reload hittest.
                     if hittest.unwrap_or(false) {
@@ -576,7 +586,9 @@ impl<T: 'static> EventProcessor<T> {
                 let xev: &ffi::XPropertyEvent = xev.as_ref();
                 let atom = xev.atom as xproto::Atom;
 
-                if atom == xproto::Atom::from(xproto::AtomEnum::RESOURCE_MANAGER) {
+                if atom == xproto::Atom::from(xproto::AtomEnum::RESOURCE_MANAGER)
+                    || atom == atoms[_XSETTINGS_SETTINGS]
+                {
                     self.process_dpi_change(&mut callback);
                 }
             }

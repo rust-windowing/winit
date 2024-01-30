@@ -15,6 +15,8 @@ Unreleased` header.
 - On X11, fix swapped instance and general class names.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
 - On Wayland, disable `Occluded` event handling.
+- On X11, reload dpi on `_XSETTINGS_SETTINGS` update.
+- On X11, fix deadlock when adjusting DPI and resizing at the same time.
 
 # 0.29.10
 
