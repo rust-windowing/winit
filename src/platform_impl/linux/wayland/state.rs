@@ -288,12 +288,19 @@ impl WindowHandler for WinitState {
             .expect("got configure for dead window.")
             .lock()
             .unwrap()
-            .configure(
-                configure,
-                &self.shm,
-                &self.subcompositor_state,
-                &mut self.events_sink,
-            );
+            .configure(configure, &self.shm, &self.subcompositor_state);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
     }
 }
 
