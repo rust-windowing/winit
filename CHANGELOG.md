@@ -39,6 +39,10 @@ Unreleased` header.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
 - **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.
 - On Wayland, disable `Occluded` event handling.
+- Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
+- **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
+- **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
+- Add `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
 
 # 0.29.10
 
@@ -114,14 +118,6 @@ Unreleased` header.
 - **Breaking:** Add `Event::MemoryWarning`; implemented on iOS/Android.
 - **Breaking:** Bump `ndk` version to `0.8.0`, ndk-sys to `0.5.0`, `android-activity` to `0.5.0`.
 - **Breaking:** Change default `ControlFlow` from `Poll` to `Wait`.
-- Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
-- Added `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
-- **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
-- **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
-- Make iOS `MonitorHandle` and `VideoMode` usable from other threads.
-- Fix window size sometimes being invalid when resizing on macOS.
-- On Web, `ControlFlow::Poll` and `ControlFlow::WaitUntil` are now using the Prioritized Task Scheduling API. `setTimeout()` with a trick to circumvent throttling to 4ms is used as a fallback.
-- On Web, never return a `MonitorHandle`.
 - **Breaking:** Move `Event::RedrawRequested` to `WindowEvent::RedrawRequested`.
 - **Breaking:** Moved `ControlFlow::Exit` to `EventLoopWindowTarget::exit()` and `EventLoopWindowTarget::exiting()` and removed `ControlFlow::ExitWithCode(_)` entirely.
 - **Breaking:** Moved `ControlFlow` to `EventLoopWindowTarget::set_control_flow()` and `EventLoopWindowTarget::control_flow()`.
