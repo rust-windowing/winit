@@ -31,11 +31,9 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
-use crate::event::WindowEvent;
-use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::wayland::{logical_to_physical_rounded, make_wid};
 use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -261,7 +259,6 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-        event_sink: &mut EventSink,
     ) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
@@ -304,19 +301,6 @@ impl WindowState {
         }
 
         let stateless = Self::is_stateless(&configure);
-
-        // Emit `Occluded` event on suspension change.
-        let occluded = configure.state.contains(XdgWindowState::SUSPENDED);
-        if self
-            .last_configure
-            .as_ref()
-            .map(|c| c.state.contains(XdgWindowState::SUSPENDED))
-            .unwrap_or(false)
-            != occluded
-        {
-            let window_id = make_wid(self.window.wl_surface());
-            event_sink.push_window_event(WindowEvent::Occluded(occluded), window_id);
-        }
 
         let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.

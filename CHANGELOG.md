@@ -38,6 +38,7 @@ Unreleased` header.
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
 - **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.
+- On Wayland, disable `Occluded` event handling.
 
 # 0.29.10
 
