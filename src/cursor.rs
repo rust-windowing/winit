@@ -83,6 +83,8 @@ pub struct CustomCursor {
 
 impl CustomCursor {
     /// Creates a new cursor from an rgba buffer.
+    ///
+    /// The alpha channel is assumed to be **not** premultiplied.
     pub fn from_rgba(
         rgba: impl Into<Vec<u8>>,
         width: u16,
