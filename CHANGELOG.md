@@ -14,6 +14,7 @@ Unreleased` header.
 - On macOS, fix incorrect IME cursor rect origin.
 - On X11, fix swapped instance and general class names.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
+- On Wayland, disable `Occluded` event handling.
 
 # 0.29.10
 
