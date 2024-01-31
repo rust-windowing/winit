@@ -327,7 +327,9 @@ impl Window {
         self.window_state
             .lock()
             .unwrap()
-            .set_min_inner_size(min_size)
+            .set_min_inner_size(min_size);
+        // NOTE: Requires commit to be applied.
+        self.request_redraw();
     }
 
     /// Set the maximum inner size for the window.
@@ -338,7 +340,9 @@ impl Window {
         self.window_state
             .lock()
             .unwrap()
-            .set_max_inner_size(max_size)
+            .set_max_inner_size(max_size);
+        // NOTE: Requires commit to be applied.
+        self.request_redraw();
     }
 
     #[inline]
@@ -387,7 +391,10 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        self.window_state.lock().unwrap().set_resizable(resizable);
+        if self.window_state.lock().unwrap().set_resizable(resizable) {
+            // NOTE: Requires commit to be applied.
+            self.request_redraw();
+        }
     }
 
     #[inline]

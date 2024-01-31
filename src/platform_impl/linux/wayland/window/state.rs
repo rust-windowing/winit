@@ -498,10 +498,12 @@ impl WindowState {
     }
 
     /// Set the resizable state on the window.
+    ///
+    /// Returns `true` when the state was applied.
     #[inline]
-    pub fn set_resizable(&mut self, resizable: bool) {
+    pub fn set_resizable(&mut self, resizable: bool) -> bool {
         if self.resizable == resizable {
-            return;
+            return false;
         }
 
         self.resizable = resizable;
@@ -517,6 +519,8 @@ impl WindowState {
         if let Some(frame) = self.frame.as_mut() {
             frame.set_resizable(resizable);
         }
+
+        true
     }
 
     /// Whether the window is focused by any seat.
