@@ -26,6 +26,7 @@ use windows_sys::Win32::{
         },
     },
 };
+use windows_sys::Win32::Devices::HumanInterfaceDevice::{HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK, HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER};
 
 use super::scancode_to_physicalkey;
 use crate::{
@@ -164,7 +165,7 @@ pub fn register_all_mice_and_keyboards_for_raw_input(
         DeviceEvents::Always => RIDEV_DEVNOTIFY | RIDEV_INPUTSINK,
     };
 
-    let devices: [RAWINPUTDEVICE; 2] = [
+    let devices = [
         RAWINPUTDEVICE {
             usUsagePage: HID_USAGE_PAGE_GENERIC,
             usUsage: HID_USAGE_GENERIC_MOUSE,
@@ -177,12 +178,35 @@ pub fn register_all_mice_and_keyboards_for_raw_input(
             dwFlags: flags,
             hwndTarget: window_handle,
         },
+        RAWINPUTDEVICE {
+            usUsagePage: HID_USAGE_PAGE_GENERIC,
+            usUsage: HID_USAGE_GENERIC_JOYSTICK,
+            dwFlags: flags,
+            hwndTarget: window_handle,
+        },
+        RAWINPUTDEVICE {
+            usUsagePage: HID_USAGE_PAGE_GENERIC,
+            usUsage: HID_USAGE_GENERIC_GAMEPAD,
+            dwFlags: flags,
+            hwndTarget: window_handle,
+        },
+        RAWINPUTDEVICE {
+            usUsagePage: HID_USAGE_PAGE_GENERIC,
+            usUsage: HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER,
+            dwFlags: flags,
+            hwndTarget: window_handle,
+        },
     ];
 
     register_raw_input_devices(&devices)
 }
 
-pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
+pub enum RawInputData {
+    MouseOrKeyboard(RAWINPUT),
+    Other(Vec<u8>)
+}
+
+pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
     let mut data: RAWINPUT = unsafe { mem::zeroed() };
     let mut data_size = size_of::<RAWINPUT>() as u32;
     let header_size = size_of::<RAWINPUTHEADER>() as u32;
@@ -196,12 +220,25 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
             header_size,
         )
     };
-
-    if status == u32::MAX || status == 0 {
-        return None;
+    if status != u32::MAX {
+        return Some(RawInputData::MouseOrKeyboard(data));
     }
 
-    Some(data)
+    let mut data = vec![0u8; data_size as usize];
+    let status = unsafe {
+        GetRawInputData(
+            handle,
+            RID_INPUT,
+            data.as_mut_ptr() as *mut _,
+            &mut data_size,
+            header_size,
+        )
+    };
+    if status != u32::MAX {
+        return Some(RawInputData::Other(data));
+    }
+
+    None
 }
 
 fn button_flags_to_element_state(
