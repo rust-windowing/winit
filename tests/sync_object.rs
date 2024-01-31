@@ -18,7 +18,7 @@ fn window_sync() {
 
 #[test]
 fn window_builder_sync() {
-    needs_sync::<winit::window::WindowBuilder>();
+    needs_sync::<winit::window::WindowAttributes>();
 }
 
 #[test]

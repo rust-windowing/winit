@@ -3,10 +3,9 @@ use std::fmt;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError},
-    event_loop::EventLoopWindowTarget,
+    error::{ExternalError, NotSupportedError},
     monitor::{MonitorHandle, VideoModeHandle},
-    platform_impl::{self, PlatformSpecificWindowBuilderAttributes},
+    platform_impl::{self, PlatformSpecificWindowAttributes},
 };
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
@@ -42,14 +41,21 @@ use serde::{Deserialize, Serialize};
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
 /// event_loop.set_control_flow(ControlFlow::Wait);
-/// let window = Window::new(&event_loop).unwrap();
+/// let mut windows = Vec::new();
 ///
-/// event_loop.run(move |event, elwt| {
+/// event_loop.run(move |event, event_loop| {
 ///     match event {
+///         Event::Resumed => {
+///             let window = event_loop.create_window(Window::default_attributes()).unwrap();
+///             windows.push(window);
+///         }
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => elwt.exit(),
+///         } => {
+///             windows.clear();
+///             event_loop.exit();
+///         }
 ///         _ => (),
 ///     }
 /// });
@@ -123,24 +129,6 @@ impl From<u64> for WindowId {
     }
 }
 
-/// Configure windows before creation.
-///
-/// You can access this from [`Window::builder`].
-#[derive(Clone, Default)]
-#[must_use]
-pub struct WindowBuilder {
-    /// The attributes to use to create the window.
-    pub(crate) window: WindowAttributes,
-}
-
-impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.debug_struct("WindowBuilder")
-            .field("window", &self.window)
-            .finish()
-    }
-}
-
 /// Attributes used when creating a window.
 #[derive(Debug, Clone)]
 pub struct WindowAttributes {
@@ -168,7 +156,7 @@ pub struct WindowAttributes {
     pub fullscreen: Option<Fullscreen>,
     // Platform-specific configuration.
     #[allow(dead_code)]
-    pub(crate) platform_specific: PlatformSpecificWindowBuilderAttributes,
+    pub(crate) platform_specific: PlatformSpecificWindowAttributes,
 }
 
 impl Default for WindowAttributes {
@@ -206,7 +194,7 @@ impl Default for WindowAttributes {
 ///
 /// # Safety
 ///
-/// The user has to account for that when using [`WindowBuilder::with_parent_window()`],
+/// The user has to account for that when using [`WindowAttributes::with_parent_window()`],
 /// which is `unsafe`.
 #[derive(Debug, Clone)]
 #[cfg(feature = "rwh_06")]
@@ -218,26 +206,19 @@ unsafe impl Send for SendSyncRawWindowHandle {}
 unsafe impl Sync for SendSyncRawWindowHandle {}
 
 impl WindowAttributes {
-    /// Get the parent window stored on the attributes.
-    #[cfg(feature = "rwh_06")]
-    pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
-        self.parent_window.as_ref().map(|handle| &handle.0)
-    }
-}
-
-impl WindowBuilder {
-    /// Initializes a new builder with default values.
+    /// Initializes new attributes with default values.
     #[inline]
-    #[deprecated = "use `Window::builder` instead"]
+    #[deprecated = "use `Window::default_attributes` instead"]
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl WindowBuilder {
-    /// Get the current window attributes.
-    pub fn window_attributes(&self) -> &WindowAttributes {
-        &self.window
+impl WindowAttributes {
+    /// Get the parent window stored on the attributes.
+    #[cfg(feature = "rwh_06")]
+    pub fn parent_window(&self) -> Option<&rwh_06::RawWindowHandle> {
+        self.parent_window.as_ref().map(|handle| &handle.0)
     }
 
     /// Requests the window to be of specific dimensions.
@@ -247,7 +228,7 @@ impl WindowBuilder {
     /// See [`Window::request_inner_size`] for details.
     #[inline]
     pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
-        self.window.inner_size = Some(size.into());
+        self.inner_size = Some(size.into());
         self
     }
 
@@ -259,7 +240,7 @@ impl WindowBuilder {
     /// See [`Window::set_min_inner_size`] for details.
     #[inline]
     pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
-        self.window.min_inner_size = Some(min_size.into());
+        self.min_inner_size = Some(min_size.into());
         self
     }
 
@@ -271,7 +252,7 @@ impl WindowBuilder {
     /// See [`Window::set_max_inner_size`] for details.
     #[inline]
     pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
-        self.window.max_inner_size = Some(max_size.into());
+        self.max_inner_size = Some(max_size.into());
         self
     }
 
@@ -299,7 +280,7 @@ impl WindowBuilder {
     /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
-        self.window.position = Some(position.into());
+        self.position = Some(position.into());
         self
     }
 
@@ -310,7 +291,7 @@ impl WindowBuilder {
     /// See [`Window::set_resizable`] for details.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
-        self.window.resizable = resizable;
+        self.resizable = resizable;
         self
     }
 
@@ -321,7 +302,7 @@ impl WindowBuilder {
     /// See [`Window::set_enabled_buttons`] for details.
     #[inline]
     pub fn with_enabled_buttons(mut self, buttons: WindowButtons) -> Self {
-        self.window.enabled_buttons = buttons;
+        self.enabled_buttons = buttons;
         self
     }
 
@@ -332,7 +313,7 @@ impl WindowBuilder {
     /// See [`Window::set_title`] for details.
     #[inline]
     pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
-        self.window.title = title.into();
+        self.title = title.into();
         self
     }
 
@@ -343,7 +324,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.fullscreen = fullscreen;
         self
     }
 
@@ -354,7 +335,7 @@ impl WindowBuilder {
     /// See [`Window::set_maximized`] for details.
     #[inline]
     pub fn with_maximized(mut self, maximized: bool) -> Self {
-        self.window.maximized = maximized;
+        self.maximized = maximized;
         self
     }
 
@@ -365,7 +346,7 @@ impl WindowBuilder {
     /// See [`Window::set_visible`] for details.
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
-        self.window.visible = visible;
+        self.visible = visible;
         self
     }
 
@@ -379,7 +360,7 @@ impl WindowBuilder {
     /// The default is `false`.
     #[inline]
     pub fn with_transparent(mut self, transparent: bool) -> Self {
-        self.window.transparent = transparent;
+        self.transparent = transparent;
         self
     }
 
@@ -390,14 +371,14 @@ impl WindowBuilder {
     /// See [`Window::set_blur`] for details.
     #[inline]
     pub fn with_blur(mut self, blur: bool) -> Self {
-        self.window.blur = blur;
+        self.blur = blur;
         self
     }
 
     /// Get whether the window will support transparency.
     #[inline]
     pub fn transparent(&self) -> bool {
-        self.window.transparent
+        self.transparent
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
@@ -407,7 +388,7 @@ impl WindowBuilder {
     /// See [`Window::set_decorations`] for details.
     #[inline]
     pub fn with_decorations(mut self, decorations: bool) -> Self {
-        self.window.decorations = decorations;
+        self.decorations = decorations;
         self
     }
 
@@ -420,7 +401,7 @@ impl WindowBuilder {
     /// See [`WindowLevel`] for details.
     #[inline]
     pub fn with_window_level(mut self, level: WindowLevel) -> Self {
-        self.window.window_level = level;
+        self.window_level = level;
         self
     }
 
@@ -431,7 +412,7 @@ impl WindowBuilder {
     /// See [`Window::set_window_icon`] for details.
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
-        self.window.window_icon = window_icon;
+        self.window_icon = window_icon;
         self
     }
 
@@ -450,7 +431,7 @@ impl WindowBuilder {
     /// - **iOS / Android / Web / x11 / Orbital:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
-        self.window.preferred_theme = theme;
+        self.preferred_theme = theme;
         self
     }
 
@@ -461,7 +442,7 @@ impl WindowBuilder {
     /// See [`Window::set_resize_increments`] for details.
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
-        self.window.resize_increments = Some(resize_increments.into());
+        self.resize_increments = Some(resize_increments.into());
         self
     }
 
@@ -478,7 +459,7 @@ impl WindowBuilder {
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     #[inline]
     pub fn with_content_protected(mut self, protected: bool) -> Self {
-        self.window.content_protected = protected;
+        self.content_protected = protected;
         self
     }
 
@@ -494,7 +475,7 @@ impl WindowBuilder {
     /// [`WindowEvent::Focused`]: crate::event::WindowEvent::Focused.
     #[inline]
     pub fn with_active(mut self, active: bool) -> Self {
-        self.window.active = active;
+        self.active = active;
         self
     }
 
@@ -505,7 +486,7 @@ impl WindowBuilder {
     /// See [`Window::set_cursor()`] for more details.
     #[inline]
     pub fn with_cursor(mut self, cursor: impl Into<Cursor>) -> Self {
-        self.window.cursor = cursor.into();
+        self.cursor = cursor.into();
         self
     }
 
@@ -530,50 +511,18 @@ impl WindowBuilder {
         mut self,
         parent_window: Option<rwh_06::RawWindowHandle>,
     ) -> Self {
-        self.window.parent_window = parent_window.map(SendSyncRawWindowHandle);
+        self.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
-    }
-
-    /// Builds the window.
-    ///
-    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** The window is created but not inserted into the web page automatically. Please
-    ///   see the web platform module for more information.
-    #[inline]
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> Result<Window, OsError> {
-        let window = platform_impl::Window::new(&window_target.p, self.window)?;
-        window.maybe_queue_on_main(|w| w.request_redraw());
-        Ok(Window { window })
     }
 }
 
 /// Base Window functions.
 impl Window {
-    /// Creates a new Window for platforms where this is appropriate.
-    ///
-    /// This function is equivalent to [`Window::builder().build(event_loop)`].
-    ///
-    /// Error should be very rare and only occur in case of permission denied, incompatible system,
-    ///  out of memory, etc.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Web:** The window is created but not inserted into the web page automatically. Please
-    ///   see the web platform module for more information.
-    ///
-    /// [`Window::builder().build(event_loop)`]: WindowBuilder::build
+    /// Create a new [`WindowAttributes`] which allows modifying the window's attributes before
+    /// creation.
     #[inline]
-    pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
-        Window::builder().build(event_loop)
-    }
-
-    /// Create a new [`WindowBuilder`] which allows modifying the window's attributes before creation.
-    #[inline]
-    pub fn builder() -> WindowBuilder {
-        WindowBuilder::default()
+    pub fn default_attributes() -> WindowAttributes {
+        WindowAttributes::default()
     }
 
     /// Returns an identifier unique to the window.
@@ -652,11 +601,9 @@ impl Window {
     /// APIs and software rendering.
     ///
     /// ```no_run
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
     /// # fn swap_buffers() {}
+    /// # fn scope(window: &Window) {
     /// // Do the actual drawing with OpenGL.
     ///
     /// // Notify winit that we're about to submit buffer to the windowing system.
@@ -664,6 +611,7 @@ impl Window {
     ///
     /// // Submit buffer to the windowing system.
     /// swap_buffers();
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -742,15 +690,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_outer_position(LogicalPosition::new(400.0, 200.0));
     ///
     /// // Or specify the position in physical dimensions like this:
     /// window.set_outer_position(PhysicalPosition::new(400, 200));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -804,15 +751,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the size in logical dimensions like this:
     /// let _ = window.request_inner_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
     /// let _ = window.request_inner_size(PhysicalSize::new(400, 200));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -849,15 +795,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_min_inner_size(Some(LogicalSize::new(400.0, 200.0)));
     ///
     /// // Or specify the size in physical dimensions like this:
     /// window.set_min_inner_size(Some(PhysicalSize::new(400, 200)));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -874,15 +819,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the size in logical dimensions like this:
     /// window.set_max_inner_size(Some(LogicalSize::new(400.0, 200.0)));
     ///
     /// // Or specify the size in physical dimensions like this:
     /// window.set_max_inner_size(Some(PhysicalSize::new(400, 200)));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -942,12 +886,12 @@ impl Window {
     /// the content of your window and this hint may result in
     /// visual artifacts.
     ///
-    /// The default value follows the [`WindowBuilder::with_transparent`].
+    /// The default value follows the [`WindowAttributes::with_transparent`].
     ///
     /// ## Platform-specific
     ///
     /// - **Web / iOS / Android:** Unsupported.
-    /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
+    /// - **X11:** Can only be set while building the window, with [`WindowAttributes::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
         self.window
@@ -1214,15 +1158,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_ime_cursor_area(LogicalPosition::new(400.0, 200.0), LogicalSize::new(100, 100));
     ///
     /// // Or specify the position in physical dimensions like this:
     /// window.set_ime_cursor_area(PhysicalPosition::new(400, 200), PhysicalSize::new(100, 100));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -1398,15 +1341,14 @@ impl Window {
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::Window;
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// // Specify the position in logical dimensions like this:
     /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0));
     ///
     /// // Or specify the position in physical dimensions like this:
     /// window.set_cursor_position(PhysicalPosition::new(400, 200));
+    /// # }
     /// ```
     ///
     /// ## Platform-specific
@@ -1426,13 +1368,12 @@ impl Window {
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
     /// ```no_run
-    /// # use winit::event_loop::EventLoop;
     /// # use winit::window::{CursorGrabMode, Window};
-    /// # let mut event_loop = EventLoop::new().unwrap();
-    /// # let window = Window::new(&event_loop).unwrap();
+    /// # fn scope(window: &Window) {
     /// window.set_cursor_grab(CursorGrabMode::Confined)
     ///             .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
     ///             .unwrap();
+    /// # }
     /// ```
     #[inline]
     pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
@@ -1531,9 +1472,9 @@ impl Window {
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as [`EventLoopWindowTarget::available_monitors`], and is provided for convenience.
+    /// This is the same as [`ActiveEventLoop::available_monitors`], and is provided for convenience.
     ///
-    /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
+    /// [`ActiveEventLoop::available_monitors`]: crate::event_loop::ActiveEventLoop::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.window.maybe_wait_on_main(|w| {
@@ -1547,13 +1488,13 @@ impl Window {
     ///
     /// Returns `None` if it can't identify any monitor as a primary one.
     ///
-    /// This is the same as [`EventLoopWindowTarget::primary_monitor`], and is provided for convenience.
+    /// This is the same as [`ActiveEventLoop::primary_monitor`], and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **Wayland / Web:** Always returns `None`.
     ///
-    /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
+    /// [`ActiveEventLoop::primary_monitor`]: crate::event_loop::ActiveEventLoop::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.window

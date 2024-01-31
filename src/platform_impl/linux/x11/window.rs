@@ -44,8 +44,7 @@ use crate::{
 use super::{
     ffi,
     util::{self, SelectedCursor},
-    CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
-    XConnection,
+    ActiveEventLoop, CookieResultExt, ImeRequest, ImeSender, VoidCookie, WindowId, XConnection,
 };
 
 #[derive(Debug)]
@@ -153,7 +152,7 @@ macro_rules! leap {
 impl UnownedWindow {
     #[allow(clippy::unnecessary_cast)]
     pub(crate) fn new(
-        event_loop: &EventLoopWindowTarget,
+        event_loop: &ActiveEventLoop,
         window_attrs: WindowAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;

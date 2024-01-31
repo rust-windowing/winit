@@ -5,7 +5,7 @@ use icrate::Foundation::{MainThreadBound, MainThreadMarker, NSObject};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
 
-use super::event_loop::EventLoopWindowTarget;
+use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
 use crate::error::OsError as RootOsError;
 use crate::window::WindowAttributes;
@@ -25,7 +25,7 @@ impl Drop for Window {
 
 impl Window {
     pub(crate) fn new(
-        window_target: &EventLoopWindowTarget,
+        window_target: &ActiveEventLoop,
         attributes: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = window_target.mtm;

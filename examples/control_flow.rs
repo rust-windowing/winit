@@ -37,17 +37,14 @@ fn main() -> Result<(), impl std::error::Error> {
     println!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new().unwrap();
-    let window = Window::builder()
-        .with_title("Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.")
-        .build(&event_loop)
-        .unwrap();
 
     let mut mode = Mode::Wait;
     let mut request_redraw = false;
     let mut wait_cancelled = false;
     let mut close_requested = false;
 
-    event_loop.run(move |event, elwt| {
+    let mut window = None;
+    event_loop.run(move |event, event_loop| {
         use winit::event::StartCause;
         println!("{event:?}");
         match event {
@@ -56,6 +53,12 @@ fn main() -> Result<(), impl std::error::Error> {
                     StartCause::WaitCancelled { .. } => mode == Mode::WaitUntil,
                     _ => false,
                 }
+            }
+            Event::Resumed => {
+                let window_attributes = Window::default_attributes().with_title(
+                    "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
+                );
+                window = Some(event_loop.create_window(window_attributes).unwrap());
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
@@ -94,32 +97,34 @@ fn main() -> Result<(), impl std::error::Error> {
                     _ => (),
                 },
                 WindowEvent::RedrawRequested => {
-                    fill::fill_window(&window);
+                    let window = window.as_ref().unwrap();
+                    window.pre_present_notify();
+                    fill::fill_window(window);
                 }
                 _ => (),
             },
             Event::AboutToWait => {
                 if request_redraw && !wait_cancelled && !close_requested {
-                    window.request_redraw();
+                    window.as_ref().unwrap().request_redraw();
                 }
 
                 match mode {
-                    Mode::Wait => elwt.set_control_flow(ControlFlow::Wait),
+                    Mode::Wait => event_loop.set_control_flow(ControlFlow::Wait),
                     Mode::WaitUntil => {
                         if !wait_cancelled {
-                            elwt.set_control_flow(ControlFlow::WaitUntil(
+                            event_loop.set_control_flow(ControlFlow::WaitUntil(
                                 time::Instant::now() + WAIT_TIME,
                             ));
                         }
                     }
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
-                        elwt.set_control_flow(ControlFlow::Poll);
+                        event_loop.set_control_flow(ControlFlow::Poll);
                     }
                 };
 
                 if close_requested {
-                    elwt.exit();
+                    event_loop.exit();
                 }
             }
             _ => (),

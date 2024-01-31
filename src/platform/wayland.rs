@@ -1,18 +1,18 @@
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 pub use crate::window::Theme;
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
-pub trait EventLoopWindowTargetExtWayland {
-    /// True if the [`EventLoopWindowTarget`] uses Wayland.
+/// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
+pub trait ActiveEventLoopExtWayland {
+    /// True if the [`ActiveEventLoop`] uses Wayland.
     fn is_wayland(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
+impl ActiveEventLoopExtWayland for ActiveEventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
@@ -50,8 +50,8 @@ pub trait WindowExtWayland {}
 
 impl WindowExtWayland for Window {}
 
-/// Additional methods on [`WindowBuilder`] that are specific to Wayland.
-pub trait WindowBuilderExtWayland {
+/// Additional methods on [`WindowAttributes`] that are specific to Wayland.
+pub trait WindowAttributesExtWayland {
     /// Build window with the given name.
     ///
     /// The `general` name sets an application ID, which should match the `.desktop`
@@ -62,10 +62,10 @@ pub trait WindowBuilderExtWayland {
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 }
 
-impl WindowBuilderExtWayland for WindowBuilder {
+impl WindowAttributesExtWayland for WindowAttributes {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.window.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
             general.into(),
             instance.into(),
         ));

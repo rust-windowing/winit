@@ -1,7 +1,7 @@
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop},
 };
 
 #[cfg(doc)]
@@ -62,11 +62,11 @@ pub trait EventLoopExtRunOnDemand {
         doc = "[^1]: `spawn()` is only available on `wasm` platforms."
     )]
     ///
-    /// [`exit()`]: EventLoopWindowTarget::exit()
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
+    /// [`exit()`]: ActiveEventLoop::exit()
+    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
 }
 
 impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
@@ -74,14 +74,14 @@ impl<T> EventLoopExtRunOnDemand for EventLoop<T> {
 
     fn run_on_demand<F>(&mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
     {
         self.event_loop.window_target().clear_exit();
         self.event_loop.run_on_demand(event_handler)
     }
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     /// Clear exit status.
     pub(crate) fn clear_exit(&self) {
         self.p.clear_exit()

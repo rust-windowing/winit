@@ -22,7 +22,7 @@ use crate::{
     dpi::PhysicalSize,
 };
 
-use super::{util, EventLoopWindowTarget};
+use super::{util, ActiveEventLoop};
 
 impl Pixel {
     fn convert_to_bgra(&mut self) {
@@ -237,7 +237,7 @@ impl WinCursor {
         }
     }
 
-    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &EventLoopWindowTarget) -> Self {
+    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &ActiveEventLoop) -> Self {
         match Self::new(&cursor.0) {
             Ok(cursor) => cursor,
             Err(err) => {

@@ -74,7 +74,7 @@ use crate::{
         },
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        event_loop::{self, ActiveEventLoop, DESTROY_MSG_ID},
         icon::{self, IconType, WinCursor},
         ime::ImeContext,
         keyboard::KeyEventBuilder,
@@ -103,7 +103,7 @@ pub(crate) struct Window {
 
 impl Window {
     pub(crate) fn new(
-        event_loop: &EventLoopWindowTarget,
+        event_loop: &ActiveEventLoop,
         w_attr: WindowAttributes,
     ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
@@ -1141,7 +1141,7 @@ impl Drop for Window {
 
 pub(super) struct InitData<'a> {
     // inputs
-    pub event_loop: &'a EventLoopWindowTarget,
+    pub event_loop: &'a ActiveEventLoop,
     pub attributes: WindowAttributes,
     pub window_flags: WindowFlags,
     // outputs
@@ -1339,7 +1339,7 @@ impl<'a> InitData<'a> {
 }
 unsafe fn init(
     attributes: WindowAttributes,
-    event_loop: &EventLoopWindowTarget,
+    event_loop: &ActiveEventLoop,
 ) -> Result<Window, RootOsError> {
     let title = util::encode_wide(&attributes.title);
 

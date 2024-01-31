@@ -22,7 +22,7 @@ use web_sys::{
 use super::backend::Style;
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::{AbortHandle, Abortable, DropAbortHandle, Notified, Notifier};
-use super::EventLoopWindowTarget;
+use super::ActiveEventLoop;
 use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCursor};
 use crate::platform::web::CustomCursorError;
 
@@ -75,10 +75,7 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build(
-        builder: CustomCursorBuilder,
-        window_target: &EventLoopWindowTarget,
-    ) -> Self {
+    pub(crate) fn build(builder: CustomCursorBuilder, window_target: &ActiveEventLoop) -> Self {
         match builder {
             CustomCursorBuilder::Image(image) => Self::build_spawn(
                 window_target,
@@ -110,11 +107,7 @@ impl CustomCursor {
         }
     }
 
-    fn build_spawn<F, S>(
-        window_target: &EventLoopWindowTarget,
-        task: F,
-        animation: bool,
-    ) -> CustomCursor
+    fn build_spawn<F, S>(window_target: &ActiveEventLoop, task: F, animation: bool) -> CustomCursor
     where
         F: 'static + Future<Output = Result<S, CustomCursorError>>,
         S: Into<ImageState>,
@@ -172,7 +165,7 @@ impl CustomCursor {
 
     pub(crate) fn build_async(
         builder: CustomCursorBuilder,
-        window_target: &EventLoopWindowTarget,
+        window_target: &ActiveEventLoop,
     ) -> CustomCursorFuture {
         let CustomCursor { animation, state } = Self::build(builder, window_target);
         let binding = state.get(window_target.runner.main_thread()).borrow();

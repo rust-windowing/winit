@@ -16,6 +16,10 @@ Unreleased` header.
 - On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
 - Fix compatibility with 32-bit platforms without 64-bit atomics.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
+- **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
+- **Breaking:** Rename `EventLoopWindowTarget` to `ActiveEventLoop`.
+- **Breaking:** Remove `Deref` implementation for `EventLoop` that gave `EventLoopWindowTarget`.
+- **Breaking**: Remove `WindowBuilder` in favor of `WindowAttributes`.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
@@ -47,7 +51,7 @@ Unreleased` header.
 - Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
-- Add `Window::builder`, which is intended to replace the (now deprecated) `WindowBuilder::new`.
+- Add `Window::default_attributes` to get default `WindowAttributes`.
 - On X11, reload dpi on `_XSETTINGS_SETTINGS` update.
 - On X11, fix deadlock when adjusting DPI and resizing at the same time.
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.

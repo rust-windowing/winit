@@ -5,7 +5,7 @@ use std::{error::Error, hash::Hash};
 
 use cursor_icon::CursorIcon;
 
-use crate::event_loop::EventLoopWindowTarget;
+use crate::event_loop::ActiveEventLoop;
 use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
 
 /// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
@@ -49,13 +49,10 @@ impl From<CustomCursor> for Cursor {
 /// # Example
 ///
 /// ```no_run
-/// use winit::{
-///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
-///     window::{CustomCursor, Window},
-/// };
-///
-/// let mut event_loop = EventLoop::new().unwrap();
+/// # use winit::event_loop::ActiveEventLoop;
+/// # use winit::window::Window;
+/// # fn scope(event_loop: &ActiveEventLoop, window: &Window) {
+/// use winit::window::CustomCursor;
 ///
 /// let w = 10;
 /// let h = 10;
@@ -72,8 +69,8 @@ impl From<CustomCursor> for Cursor {
 ///
 /// let custom_cursor = builder.build(&event_loop);
 ///
-/// let window = Window::new(&event_loop).unwrap();
 /// window.set_cursor(custom_cursor.clone());
+/// # }
 /// ```
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CustomCursor {
@@ -113,7 +110,7 @@ pub struct CustomCursorBuilder {
 }
 
 impl CustomCursorBuilder {
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> CustomCursor {
+    pub fn build(self, window_target: &ActiveEventLoop) -> CustomCursor {
         CustomCursor {
             inner: PlatformCustomCursor::build(self.inner, &window_target.p),
         }
@@ -217,7 +214,7 @@ impl Eq for OnlyCursorImage {}
 impl OnlyCursorImage {
     pub(crate) fn build(
         builder: OnlyCursorImageBuilder,
-        _: &platform_impl::EventLoopWindowTarget,
+        _: &platform_impl::ActiveEventLoop,
     ) -> Self {
         Self(Arc::new(builder.0))
     }
@@ -298,7 +295,7 @@ impl NoCustomCursor {
         Ok(Self)
     }
 
-    fn build(self, _: &platform_impl::EventLoopWindowTarget) -> NoCustomCursor {
+    fn build(self, _: &platform_impl::ActiveEventLoop) -> NoCustomCursor {
         self
     }
 }

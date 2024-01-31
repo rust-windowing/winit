@@ -18,9 +18,7 @@ use crate::{
     event::{Event, WindowEvent},
     icon::Icon,
     platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations},
-    platform_impl::platform::{
-        app_state, monitor, EventLoopWindowTarget, Fullscreen, MonitorHandle,
-    },
+    platform_impl::platform::{app_state, monitor, ActiveEventLoop, Fullscreen, MonitorHandle},
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
         WindowButtons, WindowId as RootWindowId, WindowLevel,
@@ -399,7 +397,7 @@ pub struct Window {
 
 impl Window {
     pub(crate) fn new(
-        event_loop: &EventLoopWindowTarget,
+        event_loop: &ActiveEventLoop,
         window_attributes: WindowAttributes,
     ) -> Result<Window, RootOsError> {
         let mtm = event_loop.mtm;
@@ -678,7 +676,7 @@ impl From<&AnyObject> for WindowId {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,

@@ -43,12 +43,12 @@ impl Clone for ModifiersShared {
 }
 
 #[derive(Clone)]
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     pub(crate) runner: runner::Shared,
     modifiers: ModifiersShared,
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     pub fn new() -> Self {
         Self {
             runner: runner::Shared::new(),

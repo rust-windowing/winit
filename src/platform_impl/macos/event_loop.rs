@@ -38,9 +38,7 @@ use super::{
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{
-        ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget,
-    },
+    event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed},
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
 };
 
@@ -73,12 +71,12 @@ impl PanicInfo {
 }
 
 #[derive(Debug)]
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     delegate: Id<ApplicationDelegate>,
     pub(super) mtm: MainThreadMarker,
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
@@ -134,7 +132,7 @@ impl EventLoopWindowTarget {
     }
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     pub(crate) fn hide_application(&self) {
         NSApplication::sharedApplication(self.mtm).hide(None)
     }
@@ -252,7 +250,7 @@ impl<T> EventLoop<T> {
             sender,
             receiver: Rc::new(receiver),
             window_target: Rc::new(RootWindowTarget {
-                p: EventLoopWindowTarget { delegate, mtm },
+                p: ActiveEventLoop { delegate, mtm },
                 _marker: PhantomData,
             }),
             panic_info,

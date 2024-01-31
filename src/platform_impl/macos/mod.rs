@@ -19,12 +19,12 @@ use std::fmt;
 pub(crate) use self::{
     event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra},
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
         PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
     window::WindowId,
-    window_delegate::PlatformSpecificWindowBuilderAttributes,
+    window_delegate::PlatformSpecificWindowAttributes,
 };
 use crate::event::DeviceId as RootDeviceId;
 

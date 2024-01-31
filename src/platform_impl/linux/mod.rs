@@ -22,8 +22,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
     event_loop::{
-        AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
-        EventLoopWindowTarget as RootELW,
+        ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
     },
     icon::Icon,
     keyboard::Key,
@@ -72,16 +71,16 @@ impl ApplicationName {
 }
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub name: Option<ApplicationName>,
     pub activation_token: Option<ActivationToken>,
     #[cfg(x11_platform)]
-    pub x11: X11WindowBuilderAttributes,
+    pub x11: X11WindowAttributes,
 }
 
 #[derive(Clone, Debug)]
 #[cfg(x11_platform)]
-pub struct X11WindowBuilderAttributes {
+pub struct X11WindowAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
     pub screen_id: Option<i32>,
     pub base_size: Option<Size>,
@@ -92,13 +91,13 @@ pub struct X11WindowBuilderAttributes {
     pub embed_window: Option<x11rb::protocol::xproto::Window>,
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
         Self {
             name: None,
             activation_token: None,
             #[cfg(x11_platform)]
-            x11: X11WindowBuilderAttributes {
+            x11: X11WindowAttributes {
                 visual_id: None,
                 screen_id: None,
                 base_size: None,
@@ -286,16 +285,16 @@ impl VideoModeHandle {
 impl Window {
     #[inline]
     pub(crate) fn new(
-        window_target: &EventLoopWindowTarget,
+        window_target: &ActiveEventLoop,
         attribs: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(ref window_target) => {
+            ActiveEventLoop::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs).map(Window::Wayland)
             }
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref window_target) => {
+            ActiveEventLoop::X(ref window_target) => {
                 x11::Window::new(window_target, attribs).map(Window::X)
             }
         }
@@ -647,15 +646,13 @@ pub(crate) enum PlatformCustomCursor {
 impl PlatformCustomCursor {
     pub(crate) fn build(
         builder: PlatformCustomCursorBuilder,
-        p: &EventLoopWindowTarget,
+        p: &ActiveEventLoop,
     ) -> PlatformCustomCursor {
         match p {
             #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(_) => {
-                Self::Wayland(wayland::CustomCursor::build(builder, p))
-            }
+            ActiveEventLoop::Wayland(_) => Self::Wayland(wayland::CustomCursor::build(builder, p)),
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
+            ActiveEventLoop::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
         }
     }
 }
@@ -829,7 +826,7 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
     }
 
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &crate::event_loop::ActiveEventLoop {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
@@ -852,19 +849,19 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-pub enum EventLoopWindowTarget {
+pub enum ActiveEventLoop {
     #[cfg(wayland_platform)]
-    Wayland(wayland::EventLoopWindowTarget),
+    Wayland(wayland::ActiveEventLoop),
     #[cfg(x11_platform)]
-    X(x11::EventLoopWindowTarget),
+    X(x11::ActiveEventLoop),
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     #[inline]
     pub fn is_wayland(&self) -> bool {
         match *self {
             #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(_) => true,
+            ActiveEventLoop::Wayland(_) => true,
             #[cfg(x11_platform)]
             _ => false,
         }
@@ -874,12 +871,12 @@ impl EventLoopWindowTarget {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
             #[cfg(wayland_platform)]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp
+            ActiveEventLoop::Wayland(ref evlp) => evlp
                 .available_monitors()
                 .map(MonitorHandle::Wayland)
                 .collect(),
             #[cfg(x11_platform)]
-            EventLoopWindowTarget::X(ref evlp) => {
+            ActiveEventLoop::X(ref evlp) => {
                 evlp.available_monitors().map(MonitorHandle::X).collect()
             }
         }
@@ -888,7 +885,7 @@ impl EventLoopWindowTarget {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(
-            x11_or_wayland!(match self; EventLoopWindowTarget(evlp) => evlp.primary_monitor()?; as MonitorHandle),
+            x11_or_wayland!(match self; ActiveEventLoop(evlp) => evlp.primary_monitor()?; as MonitorHandle),
         )
     }
 

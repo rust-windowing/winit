@@ -6,9 +6,9 @@ use sctk::output::OutputData;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::platform_impl::platform::VideoModeHandle as PlatformVideoModeHandle;
 
-use super::event_loop::EventLoopWindowTarget;
+use super::event_loop::ActiveEventLoop;
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.state

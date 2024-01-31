@@ -4,9 +4,9 @@ use std::os::raw::c_void;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 /// Additional methods on [`Window`] that are specific to MacOS.
@@ -174,15 +174,15 @@ pub enum ActivationPolicy {
     Prohibited,
 }
 
-/// Additional methods on [`WindowBuilder`] that are specific to MacOS.
+/// Additional methods on [`WindowAttributes`] that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowBuilder::with_decorations`] method:
+/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowAttributes::with_decorations`] method:
 /// - `with_titlebar_transparent`
 /// - `with_title_hidden`
 /// - `with_titlebar_hidden`
 /// - `with_titlebar_buttons_hidden`
 /// - `with_fullsize_content_view`
-pub trait WindowBuilderExtMacOS {
+pub trait WindowAttributesExtMacOS {
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool) -> Self;
     /// Makes the titlebar transparent and allows the content to appear behind it.
@@ -209,65 +209,64 @@ pub trait WindowBuilderExtMacOS {
     fn with_option_as_alt(self, option_as_alt: OptionAsAlt) -> Self;
 }
 
-impl WindowBuilderExtMacOS for WindowBuilder {
+impl WindowAttributesExtMacOS for WindowAttributes {
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> Self {
-        self.window.platform_specific.movable_by_window_background = movable_by_window_background;
+        self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 
     #[inline]
     fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> Self {
-        self.window.platform_specific.titlebar_transparent = titlebar_transparent;
+        self.platform_specific.titlebar_transparent = titlebar_transparent;
         self
     }
 
     #[inline]
     fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> Self {
-        self.window.platform_specific.titlebar_hidden = titlebar_hidden;
+        self.platform_specific.titlebar_hidden = titlebar_hidden;
         self
     }
 
     #[inline]
     fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> Self {
-        self.window.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
+        self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
         self
     }
 
     #[inline]
     fn with_title_hidden(mut self, title_hidden: bool) -> Self {
-        self.window.platform_specific.title_hidden = title_hidden;
+        self.platform_specific.title_hidden = title_hidden;
         self
     }
 
     #[inline]
     fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> Self {
-        self.window.platform_specific.fullsize_content_view = fullsize_content_view;
+        self.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 
     #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> Self {
-        self.window.platform_specific.disallow_hidpi = disallow_hidpi;
+        self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> Self {
-        self.window.platform_specific.has_shadow = has_shadow;
+        self.platform_specific.has_shadow = has_shadow;
         self
     }
 
     #[inline]
     fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> Self {
-        self.window.platform_specific.accepts_first_mouse = accepts_first_mouse;
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 
     #[inline]
     fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
-        self.window
-            .platform_specific
+        self.platform_specific
             .tabbing_identifier
             .replace(tabbing_identifier.to_string());
         self
@@ -275,7 +274,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 
     #[inline]
     fn with_option_as_alt(mut self, option_as_alt: OptionAsAlt) -> Self {
-        self.window.platform_specific.option_as_alt = option_as_alt;
+        self.platform_specific.option_as_alt = option_as_alt;
         self
     }
 }
@@ -375,8 +374,8 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 }
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to macOS.
-pub trait EventLoopWindowTargetExtMacOS {
+/// Additional methods on [`ActiveEventLoop`] that are specific to macOS.
+pub trait ActiveEventLoopExtMacOS {
     /// Hide the entire application. In most applications this is typically triggered with Command-H.
     fn hide_application(&self);
     /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
@@ -389,7 +388,7 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn allows_automatic_window_tabbing(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtMacOS for EventLoopWindowTarget {
+impl ActiveEventLoopExtMacOS for ActiveEventLoop {
     fn hide_application(&self) {
         self.p.hide_application()
     }
