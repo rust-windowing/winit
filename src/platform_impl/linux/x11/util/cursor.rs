@@ -9,7 +9,7 @@ use x11rb::connection::Connection;
 
 use crate::{platform_impl::PlatformCustomCursorBuilder, window::CursorIcon};
 
-use super::super::EventLoopWindowTarget;
+use super::super::ActiveEventLoop;
 use super::*;
 
 impl XConnection {
@@ -124,10 +124,7 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build(
-        builder: PlatformCustomCursorBuilder,
-        p: &EventLoopWindowTarget,
-    ) -> CustomCursor {
+    pub(crate) fn build(builder: PlatformCustomCursorBuilder, p: &ActiveEventLoop) -> CustomCursor {
         unsafe {
             let ximage = (p.xconn.xcursor.XcursorImageCreate)(
                 builder.0.width as i32,

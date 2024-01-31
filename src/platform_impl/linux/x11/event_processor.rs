@@ -25,13 +25,13 @@ use crate::event::{
     WindowEvent,
 };
 use crate::event::{InnerSizeWriter, MouseButton};
-use crate::event_loop::EventLoopWindowTarget as RootELW;
+use crate::event_loop::ActiveEventLoop as RootAEL;
 use crate::keyboard::ModifiersState;
 use crate::platform_impl::common::xkb::{self, XkbState};
 use crate::platform_impl::platform::common::xkb::Context;
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
-use crate::platform_impl::platform::x11::EventLoopWindowTarget;
-use crate::platform_impl::platform::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
+use crate::platform_impl::platform::x11::ActiveEventLoop;
+use crate::platform_impl::platform::ActiveEventLoop as PlatformActiveEventLoop;
 use crate::platform_impl::x11::{
     atoms::*, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState,
     GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
@@ -48,7 +48,7 @@ pub struct EventProcessor {
     pub devices: RefCell<HashMap<DeviceId, Device>>,
     pub xi2ext: ExtensionInformation,
     pub xkbext: ExtensionInformation,
-    pub target: RootELW,
+    pub target: RootAEL,
     pub xkb_context: Context,
     // Number of touch events currently in progress
     pub num_touch: u32,
@@ -68,7 +68,7 @@ pub struct EventProcessor {
 impl EventProcessor {
     pub fn process_event<T: 'static, F>(&mut self, xev: &mut XEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         self.process_xevent(xev, &mut callback);
 
@@ -135,7 +135,7 @@ impl EventProcessor {
 
     fn process_xevent<T: 'static, F>(&mut self, xev: &mut XEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         if self.filter_event(xev) {
             return;
@@ -334,18 +334,18 @@ impl EventProcessor {
 
     // NOTE: we avoid `self` to not borrow the entire `self` as not mut.
     /// Get the platform window target.
-    pub fn window_target(window_target: &RootELW) -> &EventLoopWindowTarget {
+    pub fn window_target(window_target: &RootAEL) -> &ActiveEventLoop {
         match &window_target.p {
-            PlatformEventLoopWindowTarget::X(target) => target,
+            PlatformActiveEventLoop::X(target) => target,
             #[cfg(wayland_platform)]
             _ => unreachable!(),
         }
     }
 
     /// Get the platform window target.
-    pub fn window_target_mut(window_target: &mut RootELW) -> &mut EventLoopWindowTarget {
+    pub fn window_target_mut(window_target: &mut RootAEL) -> &mut ActiveEventLoop {
         match &mut window_target.p {
-            PlatformEventLoopWindowTarget::X(target) => target,
+            PlatformActiveEventLoop::X(target) => target,
             #[cfg(wayland_platform)]
             _ => unreachable!(),
         }
@@ -353,7 +353,7 @@ impl EventProcessor {
 
     fn client_message<T: 'static, F>(&mut self, xev: &XClientMessageEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let atoms = wt.xconn.atoms();
@@ -524,7 +524,7 @@ impl EventProcessor {
 
     fn selection_notify<T: 'static, F>(&mut self, xev: &XSelectionEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let atoms = wt.xconn.atoms();
@@ -558,7 +558,7 @@ impl EventProcessor {
 
     fn configure_notify<T: 'static, F>(&self, xev: &XConfigureEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -765,7 +765,7 @@ impl EventProcessor {
 
     fn map_notify<T: 'static, F>(&self, xev: &XMapEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let window = xev.window as xproto::Window;
         let window_id = mkwid(window);
@@ -788,7 +788,7 @@ impl EventProcessor {
 
     fn destroy_notify<T: 'static, F>(&self, xev: &XDestroyWindowEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -818,7 +818,7 @@ impl EventProcessor {
 
     fn property_notify<T: 'static, F>(&mut self, xev: &XPropertyEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let atoms = wt.x_connection().atoms();
@@ -833,7 +833,7 @@ impl EventProcessor {
 
     fn visibility_notify<T: 'static, F>(&self, xev: &XVisibilityEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let xwindow = xev.window as xproto::Window;
 
@@ -850,7 +850,7 @@ impl EventProcessor {
 
     fn expose<T: 'static, F>(&self, xev: &XExposeEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         // Multiple Expose events may be received for subareas of a window.
         // We issue `RedrawRequested` only for the last event of such a series.
@@ -873,7 +873,7 @@ impl EventProcessor {
         state: ElementState,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -976,7 +976,7 @@ impl EventProcessor {
         state: ElementState,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let window_id = mkwid(event.event as xproto::Window);
@@ -1046,7 +1046,7 @@ impl EventProcessor {
 
     fn xinput2_mouse_motion<T: 'static, F>(&self, event: &XIDeviceEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1137,7 +1137,7 @@ impl EventProcessor {
 
     fn xinput2_mouse_enter<T: 'static, F>(&self, event: &XIEnterEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1188,7 +1188,7 @@ impl EventProcessor {
 
     fn xinput2_mouse_left<T: 'static, F>(&self, event: &XILeaveEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let window = event.event as xproto::Window;
@@ -1211,7 +1211,7 @@ impl EventProcessor {
 
     fn xinput2_focused<T: 'static, F>(&mut self, xev: &XIFocusInEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let window = xev.event as xproto::Window;
@@ -1281,7 +1281,7 @@ impl EventProcessor {
 
     fn xinput2_unfocused<T: 'static, F>(&mut self, xev: &XIFocusOutEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         let window = xev.event as xproto::Window;
@@ -1337,7 +1337,7 @@ impl EventProcessor {
         phase: TouchPhase,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1383,7 +1383,7 @@ impl EventProcessor {
         state: ElementState,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1404,7 +1404,7 @@ impl EventProcessor {
 
     fn xinput2_raw_mouse_motion<T: 'static, F>(&self, xev: &XIRawEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1471,7 +1471,7 @@ impl EventProcessor {
         state: ElementState,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1499,7 +1499,7 @@ impl EventProcessor {
 
     fn xinput2_hierarchy_changed<T: 'static, F>(&mut self, xev: &XIHierarchyEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
 
@@ -1532,7 +1532,7 @@ impl EventProcessor {
 
     fn xkb_event<T: 'static, F>(&mut self, xev: &XkbAnyEvent, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         match xev.xkb_type {
@@ -1597,7 +1597,7 @@ impl EventProcessor {
         group: &XIModifierState,
         mut callback: F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         if let Some(state) = self.xkb_context.state_mut() {
             state.update_modifiers(
@@ -1616,7 +1616,7 @@ impl EventProcessor {
 
     pub fn udpate_mods_from_core_event<T: 'static, F>(&mut self, state: u16, mut callback: F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let xkb_mask = self.xkb_mod_mask_from_core(state);
         let xkb_state = match self.xkb_context.state_mut() {
@@ -1693,7 +1693,7 @@ impl EventProcessor {
     /// Send modifiers for the active window.
     ///
     /// The event won't be sent when the `modifiers` match the previously `sent` modifiers value.
-    fn send_modifiers<T: 'static, F: FnMut(&RootELW, Event<T>)>(
+    fn send_modifiers<T: 'static, F: FnMut(&RootAEL, Event<T>)>(
         &self,
         modifiers: ModifiersState,
         callback: &mut F,
@@ -1715,13 +1715,13 @@ impl EventProcessor {
     }
 
     fn handle_pressed_keys<T: 'static, F>(
-        target: &RootELW,
+        target: &RootAEL,
         window_id: crate::window::WindowId,
         state: ElementState,
         xkb_context: &mut Context,
         callback: &mut F,
     ) where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
@@ -1768,7 +1768,7 @@ impl EventProcessor {
 
     fn process_dpi_change<T: 'static, F>(&self, callback: &mut F)
     where
-        F: FnMut(&RootELW, Event<T>),
+        F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
         wt.xconn

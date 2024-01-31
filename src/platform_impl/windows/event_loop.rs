@@ -74,7 +74,7 @@ use crate::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
-    event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed},
     keyboard::ModifiersState,
     platform::pump_events::PumpStatus,
     platform_impl::platform::{
@@ -156,7 +156,7 @@ pub(crate) enum ProcResult {
 pub struct EventLoop<T: 'static> {
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
-    window_target: RootELW,
+    window_target: RootAEL,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -176,7 +176,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     thread_id: u32,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<UserEventPlaceholder>,
@@ -215,8 +215,8 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop {
             user_event_sender,
             user_event_receiver,
-            window_target: RootELW {
-                p: EventLoopWindowTarget {
+            window_target: RootAEL {
+                p: ActiveEventLoop {
                     thread_id,
                     thread_msg_target,
                     runner_shared,
@@ -227,20 +227,20 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    pub fn window_target(&self) -> &RootELW {
+    pub fn window_target(&self) -> &RootAEL {
         &self.window_target
     }
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -302,7 +302,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         {
             let runner = &self.window_target.p.runner_shared;
@@ -522,7 +522,7 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {

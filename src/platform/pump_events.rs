@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     event::Event,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoop},
 };
 
 /// The return status for `pump_events`
@@ -31,68 +31,6 @@ pub trait EventLoopExtPumpEvents {
     ///
     /// Passing a `timeout` of `None` means that it may wait indefinitely for new
     /// events before returning control back to the external loop.
-    ///
-    /// ## Example
-    ///
-    /// ```rust,no_run
-    /// # // Copied from examples/window_pump_events.rs
-    /// # #[cfg(any(
-    /// #     windows_platform,
-    /// #     macos_platform,
-    /// #     x11_platform,
-    /// #     wayland_platform,
-    /// #     android_platform,
-    /// # ))]
-    /// fn main() -> std::process::ExitCode {
-    /// #     use std::{process::ExitCode, thread::sleep, time::Duration};
-    /// #
-    /// #     use simple_logger::SimpleLogger;
-    /// #     use winit::{
-    /// #         event::{Event, WindowEvent},
-    /// #         event_loop::EventLoop,
-    /// #         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
-    /// #         window::Window,
-    /// #     };
-    ///     let mut event_loop = EventLoop::new().unwrap();
-    /// #
-    /// #   SimpleLogger::new().init().unwrap();
-    ///     let window = Window::builder()
-    ///         .with_title("A fantastic window!")
-    ///         .build(&event_loop)
-    ///         .unwrap();
-    ///
-    ///     'main: loop {
-    ///         let timeout = Some(Duration::ZERO);
-    ///         let status = event_loop.pump_events(timeout, |event, elwt| {
-    /// #            if let Event::WindowEvent { event, .. } = &event {
-    /// #                // Print only Window events to reduce noise
-    /// #                println!("{event:?}");
-    /// #            }
-    /// #
-    ///             match event {
-    ///                 Event::WindowEvent {
-    ///                     event: WindowEvent::CloseRequested,
-    ///                     window_id,
-    ///                 } if window_id == window.id() => elwt.exit(),
-    ///                 Event::AboutToWait => {
-    ///                     window.request_redraw();
-    ///                 }
-    ///                 _ => (),
-    ///             }
-    ///         });
-    ///         if let PumpStatus::Exit(exit_code) = status {
-    ///             break 'main ExitCode::from(exit_code as u8);
-    ///         }
-    ///
-    ///         // Sleep for 1/60 second to simulate application work
-    ///         //
-    ///         // Since `pump_events` doesn't block it will be important to
-    ///         // throttle the loop in the app somehow.
-    ///         println!("Update()");
-    ///         sleep(Duration::from_millis(16));
-    ///     }
-    /// }
-    /// ```
     ///
     /// **Note:** This is not a portable API, and its usage involves a number of
     /// caveats and trade offs that should be considered before using this API!
@@ -137,12 +75,14 @@ pub trait EventLoopExtPumpEvents {
     /// other lifecycle events occur while the event is buffered.
     ///
     /// ## Supported Platforms
+    ///
     /// - Windows
     /// - Linux
     /// - MacOS
     /// - Android
     ///
     /// ## Unsupported Platforms
+    ///
     /// - **Web:**  This API is fundamentally incompatible with the event-based way in which
     /// Web browsers work because it's not possible to have a long-running external
     /// loop that would block the browser and there is nothing that can be
@@ -152,6 +92,7 @@ pub trait EventLoopExtPumpEvents {
     /// there's no way to support the same approach to polling as on MacOS.
     ///
     /// ## Platform-specific
+    ///
     /// - **Windows**: The implementation will use `PeekMessage` when checking for
     ///   window messages to avoid blocking your external event loop.
     ///
@@ -174,7 +115,7 @@ pub trait EventLoopExtPumpEvents {
     ///   callback.
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget);
+        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
 }
 
 impl<T> EventLoopExtPumpEvents for EventLoop<T> {
@@ -182,7 +123,7 @@ impl<T> EventLoopExtPumpEvents for EventLoop<T> {
 
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
-        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget),
+        F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
     {
         self.event_loop.pump_events(timeout, event_handler)
     }

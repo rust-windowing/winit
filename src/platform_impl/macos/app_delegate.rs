@@ -17,7 +17,7 @@ use super::window::WinitWindow;
 use super::{menu, WindowId, DEVICE_ID};
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget};
+use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug, Default)]
