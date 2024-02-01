@@ -253,7 +253,8 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
-    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
+    /// to the main event loop, possibly from another thread.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),

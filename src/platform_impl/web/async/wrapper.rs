@@ -6,14 +6,14 @@ use std::sync::Arc;
 
 // Unsafe wrapper type that allows us to use `T` when it's not `Send` from other threads.
 // `value` **must** only be accessed on the main thread.
-pub struct Wrapper<const SYNC: bool, V: 'static, S: Clone + Send, E> {
-    value: Value<SYNC, V>,
+pub struct Wrapper<V: 'static, S: Clone + Send, E> {
+    value: Value<V>,
     handler: fn(&RefCell<Option<V>>, E),
     sender_data: S,
     sender_handler: fn(&S, E),
 }
 
-struct Value<const SYNC: bool, V> {
+struct Value<V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.
     //
@@ -28,11 +28,11 @@ struct Value<const SYNC: bool, V> {
 }
 
 // SAFETY: See `Self::value`.
-unsafe impl<const SYNC: bool, V> Send for Value<SYNC, V> {}
+unsafe impl<V> Send for Value<V> {}
 // SAFETY: See `Self::value`.
-unsafe impl<V> Sync for Value<true, V> {}
+unsafe impl<V> Sync for Value<V> {}
 
-impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
+impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
     #[track_caller]
     pub fn new<R: Future<Output = ()>>(
         _: MainThreadMarker,
@@ -81,7 +81,7 @@ impl<const SYNC: bool, V, S: Clone + Send, E> Wrapper<SYNC, V, S, E> {
     }
 }
 
-impl<const SYNC: bool, V, S: Clone + Send, E> Clone for Wrapper<SYNC, V, S, E> {
+impl<V, S: Clone + Send, E> Clone for Wrapper<V, S, E> {
     fn clone(&self) -> Self {
         Self {
             value: Value {

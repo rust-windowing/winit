@@ -5,7 +5,7 @@ fn needs_send<T: Send>() {}
 fn event_loop_proxy_send() {
     #[allow(dead_code)]
     fn is_send<T: 'static + Send>() {
-        // ensures that `winit::EventLoopProxy` implements `Send`
+        // ensures that `winit::EventLoopProxy<T: Send>` implements `Send`
         needs_send::<winit::event_loop::EventLoopProxy<T>>();
     }
 }

@@ -6,9 +6,9 @@ use std::task::Poll;
 use super::super::main_thread::MainThreadMarker;
 use super::{AtomicWaker, Wrapper};
 
-pub struct WakerSpawner<T: 'static>(Wrapper<false, Handler<T>, Sender, usize>);
+pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, usize>);
 
-pub struct Waker<T: 'static>(Wrapper<false, Handler<T>, Sender, usize>);
+pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, usize>);
 
 struct Handler<T> {
     value: T,
