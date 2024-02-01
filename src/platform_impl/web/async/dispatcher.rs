@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Condvar, Mutex},
 };
 
-pub struct Dispatcher<T: 'static>(Wrapper<true, T, Sender<Closure<T>>, Closure<T>>);
+pub struct Dispatcher<T: 'static>(Wrapper<T, Sender<Closure<T>>, Closure<T>>);
 
 struct Closure<T>(Box<dyn FnOnce(&T) + Send>);
 
@@ -85,7 +85,7 @@ impl<T> Dispatcher<T> {
 }
 
 pub struct DispatchRunner<T: 'static> {
-    wrapper: Wrapper<true, T, Sender<Closure<T>>, Closure<T>>,
+    wrapper: Wrapper<T, Sender<Closure<T>>, Closure<T>>,
     receiver: Receiver<Closure<T>>,
 }
 

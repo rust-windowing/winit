@@ -532,6 +532,7 @@ pub struct EventLoopProxy<T> {
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
