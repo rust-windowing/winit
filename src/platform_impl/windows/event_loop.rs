@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::{
-        HidP_GetUsageValue, HidP_GetUsagesEx, HidP_Input, MOUSE_MOVE_RELATIVE,
+        HidP_GetUsageValue, HidP_GetUsagesEx, HidP_Input, HIDP_STATUS_SUCCESS, MOUSE_MOVE_RELATIVE,
     },
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
@@ -2470,7 +2470,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
     };
 
     let data = match &data {
-        raw_input::RawInputData::MouseOrKeyboard(value) => &value,
+        raw_input::RawInputData::MouseOrKeyboard(value) => value,
         raw_input::RawInputData::Other(value) => unsafe { &*(value.as_ptr() as *const RAWINPUT) },
     };
     let device_id = wrap_device_id(data.header.hDevice as _);
@@ -2588,7 +2588,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                 )
             };
             let mut usages = Vec::with_capacity(usages_len as _);
-            unsafe {
+            let status = unsafe {
                 HidP_GetUsagesEx(
                     HidP_Input,
                     0,
@@ -2599,6 +2599,9 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                     report.len() as _,
                 )
             };
+            if status != HIDP_STATUS_SUCCESS {
+                return;
+            }
             unsafe { usages.set_len(usages_len as _) };
 
             for (current, _last) in &mut hid_state.buttons {
@@ -2625,7 +2628,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
 
             for (cap, last) in hid_state.values.iter_mut() {
                 let mut current = 0;
-                unsafe {
+                let status = unsafe {
                     HidP_GetUsageValue(
                         HidP_Input,
                         cap.UsagePage,
@@ -2637,6 +2640,9 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                         report.len() as _,
                     )
                 };
+                if status != HIDP_STATUS_SUCCESS {
+                    continue;
+                }
                 if current != *last {
                     *last = current;
                     userdata.send_event(Event::DeviceEvent {
