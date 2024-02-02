@@ -44,7 +44,7 @@ use windows_sys::Win32::{
                 CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
                 TOUCHEVENTF_UP, TOUCHINPUT,
             },
-            RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+            RAWINPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
@@ -2562,7 +2562,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                 });
             }
         }
-        _ => {
+        RIM_TYPEHID => {
             let mut hid_states = userdata.hid_states.borrow_mut();
             let Some(hid_state) = hid_states.get_mut(&wrap_device_id(data.header.hDevice as _))
             else {
@@ -2651,6 +2651,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                 }
             }
         }
+        _ => unreachable!(),
     }
 }
 
