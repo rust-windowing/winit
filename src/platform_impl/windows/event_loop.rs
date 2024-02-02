@@ -2613,15 +2613,13 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             for (button, (current, last)) in hid_state.buttons.iter_mut().enumerate() {
                 if current != last {
                     *last = *current;
-                    if *current {
-                        userdata.send_event(Event::DeviceEvent {
-                            device_id,
-                            event: Button {
-                                button: button as _,
-                                state: Pressed,
-                            },
-                        });
-                    }
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: Button {
+                            button: button as _,
+                            state: if *current { Pressed } else { Released },
+                        },
+                    });
                 }
             }
 
