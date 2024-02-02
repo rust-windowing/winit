@@ -2607,7 +2607,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             for usage in usages {
                 // Non vendor-specific
                 if usage.UsagePage != 0xFF00 {
-                    hid_state.buttons[(usage.Usage - 1) as _].0 = true;
+                    hid_state.buttons[(usage.Usage - 1) as usize].0 = true;
                 }
             }
             for (button, (current, last)) in hid_state.buttons.iter_mut().enumerate() {
@@ -2645,7 +2645,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                         device_id,
                         event: Motion {
                             axis: unsafe { cap.Anonymous.Range }.UsageMin as _,
-                            value: current as _,
+                            value: current as _, // TODO: Scaling? current / (cap.LogicalMax - cap.LogicalMin)
                         },
                     });
                 }
