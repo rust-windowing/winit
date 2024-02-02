@@ -65,8 +65,76 @@ pub trait WindowExtWebSys {
     /// For example, by default using the mouse wheel would cause the page to scroll, enabling this
     /// would prevent that.
     ///
+    /// Specifically, this will call `event.preventDefault()` for the following event types:
+    /// `touchstart`, `wheel`, `contextmenu`, `pointerdown`, `pointermove`, `keyup`, and `keydown`.
+    ///
+    /// For fine-grained control over which events call `event.preventDefault()`, call
+    /// `Window::set_prevent_default(false)` and add an event listener on the canvas for each of
+    /// the above event types that selectively calls `event.preventDefault()`.
+    ///
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
     /// context menu with Shift+Rightclick.
+    ///
+    /// # Example
+    /// This example calls `event.preventDefault()` for all relevant events except for ctrl-c,
+    /// ctrl-x, and ctrl-v.
+    /// ```
+    /// # fn add_prevent_default_listeners(canvas: HtmlCanvasElement) {
+    /// # use wasm_bindgen::closure::Closure;
+    /// # use wasm_bindgen::JsCast;
+    /// let events_types_to_fully_prevent_default =
+    ///     ["touchstart", "wheel", "contextmenu", "pointermove"];
+    /// let key_events_to_partially_prevent_default = ["keyup", "keydown"];
+    /// let pointer_events_to_focus_and_prevent_default = ["pointerdown"];
+    ///
+    /// for event_type in events_types_to_fully_prevent_default.into_iter() {
+    ///     let prevent_default_listener =
+    ///         Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
+    ///             event.prevent_default();
+    ///         });
+    ///
+    ///     let _ = canvas.add_event_listener_with_callback(
+    ///         event_type,
+    ///         prevent_default_listener.as_ref().unchecked_ref(),
+    ///     );
+    ///     prevent_default_listener.forget();
+    /// }
+    ///
+    /// for event_type in pointer_events_to_focus_and_prevent_default.into_iter() {
+    ///     let stored_canvas = canvas.clone();
+    ///     let prevent_default_listener =
+    ///         Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
+    ///             event.prevent_default();
+    ///             let _ = stored_canvas.focus();
+    ///         });
+    ///
+    ///     let _ = canvas.add_event_listener_with_callback(
+    ///         event_type,
+    ///         prevent_default_listener.as_ref().unchecked_ref(),
+    ///     );
+    ///     prevent_default_listener.forget();
+    /// }
+    ///
+    /// for event_type in key_events_to_partially_prevent_default.into_iter() {
+    ///     let prevent_default_listener =
+    ///         Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
+    ///             let only_ctrl_key =
+    ///                 event.ctrl_key() && !event.meta_key() && !event.shift_key() && !event.alt_key();
+    ///             let allow_default =
+    ///                 only_ctrl_key && matches!(event.key().as_ref(), "c" | "x" | "v");
+    ///             if !allow_default {
+    ///                 event.prevent_default();
+    ///             }
+    ///         });
+    ///
+    ///     let _ = canvas.add_event_listener_with_callback(
+    ///         event_type,
+    ///         prevent_default_listener.as_ref().unchecked_ref(),
+    ///     );
+    ///     prevent_default_listener.forget();
+    /// }
+    /// # }
+    /// ```
     fn set_prevent_default(&self, prevent_default: bool);
 }
 
