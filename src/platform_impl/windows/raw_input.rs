@@ -6,6 +6,7 @@ use std::{
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::{
         HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
+        HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK, HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER, HidP_GetButtonCaps, HidP_GetCaps, HidP_GetValueCaps, HidP_Input, HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS
     },
     Foundation::{HANDLE, HWND},
     UI::{
@@ -16,7 +17,7 @@ use windows_sys::Win32::{
             RAWINPUTHEADER, RAWKEYBOARD, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE,
             RIDI_DEVICEINFO, RIDI_DEVICENAME, RID_DEVICE_INFO, RID_DEVICE_INFO_HID,
             RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE, RID_INPUT, RIM_TYPEHID,
-            RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+            RIM_TYPEKEYBOARD, RIM_TYPEMOUSE, RIDI_PREPARSEDDATA
         },
         WindowsAndMessaging::{
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP,
@@ -26,7 +27,6 @@ use windows_sys::Win32::{
         },
     },
 };
-use windows_sys::Win32::Devices::HumanInterfaceDevice::{HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK, HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER};
 
 use super::scancode_to_physicalkey;
 use crate::{
@@ -149,7 +149,7 @@ pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
     }
 }
 
-pub fn register_all_mice_and_keyboards_for_raw_input(
+pub fn register_for_raw_input(
     mut window_handle: HWND,
     filter: DeviceEvents,
 ) -> bool {
@@ -206,6 +206,85 @@ pub enum RawInputData {
     Other(Vec<u8>)
 }
 
+pub struct HidState {
+    pub preparsed_data: Vec<u8>,
+
+    pub buttons: Vec<(bool, bool)>,
+    pub values: Vec<(HIDP_VALUE_CAPS, u32)>,
+}
+
+impl HidState {
+    pub fn new(device: HANDLE) -> Option<Self> {
+        let mut preparsed_data_size = 0;
+        let status = unsafe {
+            GetRawInputDeviceInfoW(device, RIDI_PREPARSEDDATA, ptr::null_mut(), &mut preparsed_data_size)
+        };
+        if status != 0 {
+            return None;
+        }
+
+        let mut preparsed_data: Vec<u8> = Vec::with_capacity(preparsed_data_size as _);
+        let status = unsafe {
+            GetRawInputDeviceInfoW(device, RIDI_PREPARSEDDATA, preparsed_data.as_mut_ptr() as _, &mut preparsed_data_size)
+        };
+        if status == 0 || status != preparsed_data_size {
+            return None;
+        }
+
+        unsafe {
+            preparsed_data.set_len(preparsed_data_size as _)
+        };
+
+        let mut caps = unsafe { mem::zeroed() };
+        let status = unsafe { HidP_GetCaps(preparsed_data.as_ptr() as _, &mut caps) };
+        if status != HIDP_STATUS_SUCCESS {
+            return None;
+        }
+
+        let mut button_caps_len = caps.NumberInputButtonCaps;
+        let mut button_caps = Vec::with_capacity(button_caps_len as _);
+        let status = unsafe {
+            HidP_GetButtonCaps(HidP_Input, button_caps.as_mut_ptr(), &mut button_caps_len, preparsed_data.as_ptr() as _)
+        };
+        if status != HIDP_STATUS_SUCCESS {
+            return None;
+        }
+        unsafe {
+            button_caps.set_len(button_caps_len as usize)
+        };
+
+        let mut button_count = 0;
+        for cap in button_caps {
+            button_count = button_count.max(unsafe { cap.Anonymous.Range }.UsageMax)
+        }
+
+        let mut value_caps_len = caps.NumberInputValueCaps;
+        let mut value_caps = Vec::with_capacity(value_caps_len as _);
+        let status = unsafe {
+            HidP_GetValueCaps(HidP_Input, value_caps.as_mut_ptr(), &mut value_caps_len, preparsed_data.as_ptr() as _)
+        };
+        if status != HIDP_STATUS_SUCCESS {
+            return None;
+        }
+        unsafe {
+            value_caps.set_len(value_caps_len as usize)
+        };
+
+        Some(Self {
+            preparsed_data,
+            buttons: vec![(false, false); button_count as usize],
+            values: value_caps.into_iter().filter_map(|cap| {
+                // Non vendor-specific
+                if cap.UsagePage != 0xFF00 {
+                    Some((cap, 0))
+                } else {
+                    None
+                }
+            }).collect()
+        })
+    }
+}
+
 pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
     let mut data: RAWINPUT = unsafe { mem::zeroed() };
     let mut data_size = size_of::<RAWINPUT>() as u32;
@@ -220,11 +299,11 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
             header_size,
         )
     };
-    if status != u32::MAX {
+    if status == mem::size_of_val(&data) as u32 {
         return Some(RawInputData::MouseOrKeyboard(data));
     }
 
-    let mut data = vec![0u8; data_size as usize];
+    let mut data = Vec::with_capacity(data_size as usize);
     let status = unsafe {
         GetRawInputData(
             handle,
@@ -234,7 +313,8 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
             header_size,
         )
     };
-    if status != u32::MAX {
+    if status == data_size {
+        unsafe { data.set_len(data_size as usize) };
         return Some(RawInputData::Other(data));
     }
 

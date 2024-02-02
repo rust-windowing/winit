@@ -3,8 +3,8 @@
 mod runner;
 
 use std::{
-    cell::Cell,
-    collections::VecDeque,
+    cell::{Cell, RefCell},
+    collections::{HashMap, VecDeque},
     ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
@@ -20,7 +20,7 @@ use std::{
 use once_cell::sync::Lazy;
 
 use windows_sys::Win32::{
-    Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
+    Devices::HumanInterfaceDevice::{HidP_GetUsagesEx, HidP_GetUsageValue, HidP_Input, MOUSE_MOVE_RELATIVE},
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, RedrawWindow, ScreenToClient,
@@ -71,7 +71,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::EventLoopError,
     event::{
-        DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+        DeviceEvent, DeviceId, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
     event_loop::{ControlFlow, DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
@@ -93,7 +93,6 @@ use crate::{
     window::WindowId as RootWindowId,
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
-use crate::platform_impl::platform::raw_input::RawInputData;
 
 use super::{window::set_skip_taskbar, SelectedCursor};
 
@@ -139,6 +138,8 @@ impl WindowData {
 
 struct ThreadMsgTargetData {
     event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+
+    hid_states: RefCell<HashMap<DeviceId, raw_input::HidState>>,
 }
 
 impl ThreadMsgTargetData {
@@ -208,7 +209,7 @@ impl<T: 'static> EventLoop<T> {
 
         let (user_event_sender, user_event_receiver) = mpsc::channel();
         insert_event_target_window_data(thread_msg_target, runner_shared.clone());
-        raw_input::register_all_mice_and_keyboards_for_raw_input(
+        raw_input::register_for_raw_input(
             thread_msg_target,
             Default::default(),
         );
@@ -557,7 +558,7 @@ impl EventLoopWindowTarget {
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+        raw_input::register_for_raw_input(self.thread_msg_target, allowed);
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -911,7 +912,7 @@ fn insert_event_target_window_data(
     thread_msg_target: HWND,
     event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
 ) {
-    let userdata = ThreadMsgTargetData { event_loop_runner };
+    let userdata = ThreadMsgTargetData { event_loop_runner, hid_states: Default::default() };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
     unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
@@ -2397,14 +2398,25 @@ unsafe extern "system" fn thread_event_target_callback(
         },
 
         WM_INPUT_DEVICE_CHANGE => {
+            let device_id = wrap_device_id(lparam as u32);
             let event = match wparam as u32 {
-                GIDC_ARRIVAL => DeviceEvent::Added,
-                GIDC_REMOVAL => DeviceEvent::Removed,
+                GIDC_ARRIVAL => {
+                    if let Some(hid_state) = raw_input::HidState::new(lparam as _) {
+                        userdata.hid_states.borrow_mut().insert(device_id, hid_state);
+                    }
+
+                    DeviceEvent::Added
+                },
+                GIDC_REMOVAL => {
+                    userdata.hid_states.borrow_mut().remove(&device_id);
+
+                    DeviceEvent::Removed
+                },
                 _ => unreachable!(),
             };
 
             userdata.send_event(Event::DeviceEvent {
-                device_id: wrap_device_id(lparam as u32),
+                device_id,
                 event,
             });
 
@@ -2448,7 +2460,7 @@ unsafe extern "system" fn thread_event_target_callback(
     result
 }
 
-unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RawInputData) {
+unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawInputData) {
     use crate::event::{
         DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
         ElementState::{Pressed, Released},
@@ -2456,8 +2468,8 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RawInputData) {
     };
 
     let data = match &data {
-        RawInputData::MouseOrKeyboard(value) => &value,
-        RawInputData::Other(value) => unsafe { &*(value.as_ptr() as *const RAWINPUT) }
+        raw_input::RawInputData::MouseOrKeyboard(value) => &value,
+        raw_input::RawInputData::Other(value) => unsafe { &*(value.as_ptr() as *const RAWINPUT) }
     };
     let device_id = wrap_device_id(data.header.hDevice as _);
 
@@ -2549,8 +2561,81 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RawInputData) {
             }
         }
         _ => {
-            let hid = unsafe { data.data.hid };
-            println!("RAWHID {} {}", hid.dwSizeHid, hid.dwCount)
+            let mut hid_states = userdata.hid_states.borrow_mut();
+            let Some(hid_state) = hid_states.get_mut(&wrap_device_id(data.header.hDevice as _)) else {
+                return;
+            };
+            let report = unsafe { std::slice::from_raw_parts(data.data.hid.bRawData.as_ptr(), (data.data.hid.dwSizeHid * data.data.hid.dwCount) as _) };
+
+            let mut usages_len = 0;
+            unsafe { HidP_GetUsagesEx(
+                HidP_Input,
+                0,
+                ptr::null_mut(),
+                &mut usages_len,
+                hid_state.preparsed_data.as_ptr() as _,
+                report.as_ptr() as _,
+                report.len() as _
+            ) };
+            let mut usages = Vec::with_capacity(usages_len as _);
+            unsafe { HidP_GetUsagesEx(
+                HidP_Input,
+                0,
+                usages.as_mut_ptr(),
+                &mut usages_len,
+                hid_state.preparsed_data.as_ptr() as _,
+                report.as_ptr() as _,
+                report.len() as _
+            ) };
+            unsafe { usages.set_len(usages_len as _) };
+
+            for (current, _last) in &mut hid_state.buttons {
+                *current = false;
+            }
+            for usage in usages {
+                // Non vendor-specific
+                if usage.UsagePage != 0xFF00 {
+                    hid_state.buttons[(usage.Usage - 1) as _].0 = true;
+                }
+            }
+            for (button, (current, last)) in hid_state.buttons.iter_mut().enumerate() {
+                if current != last {
+                    *last = *current;
+                    if *current {
+                        userdata.send_event(Event::DeviceEvent {
+                            device_id,
+                            event: Button {
+                                button: button as _,
+                                state: Pressed,
+                            },
+                        });
+                    }
+                }
+            }
+
+            for (cap, last) in hid_state.values.iter_mut() {
+                let mut current = 0;
+                unsafe { HidP_GetUsageValue(
+                    HidP_Input,
+                    cap.UsagePage,
+                    0,
+                    cap.Anonymous.Range.UsageMin,
+                    &mut current,
+                    hid_state.preparsed_data.as_ptr() as _,
+                    report.as_ptr() as _,
+                    report.len() as _
+                ) };
+                if current != *last {
+                    *last = current;
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: Motion {
+                            axis: unsafe { cap.Anonymous.Range }.UsageMin as _,
+                            value: current as _,
+                        },
+                    });
+                }
+            }
         }
     }
 }
