@@ -236,7 +236,7 @@ impl HidState {
                 &mut preparsed_data_size,
             )
         };
-        if status == u32::MAX {
+        if status == 0 || status == u32::MAX {
             return None;
         }
 
@@ -290,7 +290,7 @@ impl HidState {
                 .into_iter()
                 .filter_map(|cap| {
                     // Non vendor-specific
-                    if cap.UsagePage != 0xFF00 {
+                    if cap.UsagePage >> 8 != 0xFF {
                         Some((cap, 0))
                     } else {
                         None

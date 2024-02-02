@@ -2606,7 +2606,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             }
             for usage in usages {
                 // Non vendor-specific
-                if usage.UsagePage != 0xFF00 {
+                if usage.UsagePage >> 8 != 0xFF {
                     hid_state.buttons[(usage.Usage - 1) as usize].0 = true;
                 }
             }
