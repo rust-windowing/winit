@@ -236,7 +236,7 @@ impl HidState {
                 &mut preparsed_data_size,
             )
         };
-        if status == 0 || status != preparsed_data_size {
+        if status == u32::MAX {
             return None;
         }
 
@@ -315,7 +315,7 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
             header_size,
         )
     };
-    if status == mem::size_of_val(&data) as u32 {
+    if status != u32::MAX {
         return Some(RawInputData::MouseOrKeyboard(data));
     }
 
@@ -329,7 +329,7 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
             header_size,
         )
     };
-    if status == data_size {
+    if status != u32::MAX {
         unsafe { data.set_len(data_size as usize) };
         return Some(RawInputData::Other(data));
     }
