@@ -46,6 +46,7 @@ Unreleased` header.
 - On X11, reload dpi on `_XSETTINGS_SETTINGS` update.
 - On X11, fix deadlock when adjusting DPI and resizing at the same time.
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.
+- On Windows, gamepad and joysticks now also report device events.
 
 # 0.29.10
 

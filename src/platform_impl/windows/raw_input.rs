@@ -5,8 +5,8 @@ use std::{
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::{
-        HidP_GetButtonCaps, HidP_GetCaps, HidP_GetValueCaps, HidP_Input, HIDP_STATUS_SUCCESS,
-        HIDP_VALUE_CAPS, HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK,
+        HidP_GetButtonCaps, HidP_GetCaps, HidP_GetValueCaps, HidP_Input, HidP_MaxDataListLength,
+        HIDP_DATA, HIDP_STATUS_SUCCESS, HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK,
         HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE,
         HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER, HID_USAGE_PAGE_GENERIC,
     },
@@ -32,7 +32,7 @@ use windows_sys::Win32::{
 
 use super::scancode_to_physicalkey;
 use crate::{
-    event::ElementState,
+    event::{AxisId, ButtonId, ElementState},
     event_loop::DeviceEvents,
     keyboard::{KeyCode, PhysicalKey},
     platform_impl::platform::util,
@@ -207,9 +207,15 @@ pub enum RawInputData {
 
 pub struct HidState {
     pub preparsed_data: Vec<u8>,
+    pub data: Vec<HIDP_DATA>,
+    pub elements: Vec<HidStateElement>,
+}
 
-    pub buttons: Vec<(bool, bool)>,
-    pub values: Vec<(HIDP_VALUE_CAPS, u32)>,
+#[derive(Clone)]
+pub enum HidStateElement {
+    None,
+    Button(ButtonId, bool, bool),
+    Axis(AxisId, u32),
 }
 
 impl HidState {
@@ -242,12 +248,15 @@ impl HidState {
 
         unsafe { preparsed_data.set_len(preparsed_data_size as _) };
 
+        let data_len = unsafe { HidP_MaxDataListLength(HidP_Input, preparsed_data.as_ptr() as _) };
+
         let mut caps = unsafe { mem::zeroed() };
         let status = unsafe { HidP_GetCaps(preparsed_data.as_ptr() as _, &mut caps) };
         if status != HIDP_STATUS_SUCCESS {
             return None;
         }
 
+        let mut elements = vec![HidStateElement::None; caps.NumberInputDataIndices as usize];
         let mut button_caps_len = caps.NumberInputButtonCaps;
         let mut button_caps = Vec::with_capacity(button_caps_len as _);
         let status = unsafe {
@@ -263,9 +272,23 @@ impl HidState {
         }
         unsafe { button_caps.set_len(button_caps_len as usize) };
 
-        let mut button_count = 0;
         for cap in button_caps {
-            button_count = button_count.max(unsafe { cap.Anonymous.Range }.UsageMax)
+            // All pages beginning with 0xFF are vendor-specific
+            if cap.UsagePage >> 8 == 0xFF {
+                continue;
+            }
+
+            if cap.IsRange != 0 {
+                let range = unsafe { cap.Anonymous.Range };
+                for i in range.DataIndexMin..=range.DataIndexMax {
+                    elements[i as usize] =
+                        HidStateElement::Button((range.UsageMin + i) as ButtonId, false, false);
+                }
+            } else {
+                let not_range = unsafe { cap.Anonymous.NotRange };
+                elements[not_range.DataIndex as usize] =
+                    HidStateElement::Button(not_range.Usage as ButtonId, false, false);
+            }
         }
 
         let mut value_caps_len = caps.NumberInputValueCaps;
@@ -283,20 +306,28 @@ impl HidState {
         }
         unsafe { value_caps.set_len(value_caps_len as usize) };
 
+        for cap in value_caps {
+            // All pages beginning with 0xFF are vendor-specific
+            if cap.UsagePage >> 8 == 0xFF {
+                continue;
+            }
+
+            if cap.IsRange != 0 {
+                let range = unsafe { cap.Anonymous.Range };
+                for i in range.DataIndexMin..=range.DataIndexMax {
+                    elements[i as usize] = HidStateElement::Axis((range.UsageMin + i) as AxisId, 0);
+                }
+            } else {
+                let not_range = unsafe { cap.Anonymous.NotRange };
+                elements[not_range.DataIndex as usize] =
+                    HidStateElement::Axis(not_range.Usage as AxisId, 0);
+            }
+        }
+
         Some(Self {
             preparsed_data,
-            buttons: vec![(false, false); button_count as usize],
-            values: value_caps
-                .into_iter()
-                .filter_map(|cap| {
-                    // Non vendor-specific
-                    if cap.UsagePage >> 8 != 0xFF {
-                        Some((cap, 0))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
+            data: Vec::with_capacity(data_len as usize),
+            elements,
         })
     }
 }

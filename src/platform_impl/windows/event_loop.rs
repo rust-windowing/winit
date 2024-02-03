@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::{
-        HidP_GetUsageValue, HidP_GetUsagesEx, HidP_Input, HIDP_STATUS_SUCCESS, MOUSE_MOVE_RELATIVE,
+        HidP_GetData, HidP_Input, HIDP_STATUS_SUCCESS, MOUSE_MOVE_RELATIVE,
     },
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
@@ -2575,25 +2575,12 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                 )
             };
 
-            let mut usages_len = 0;
-            unsafe {
-                HidP_GetUsagesEx(
-                    HidP_Input,
-                    0,
-                    ptr::null_mut(),
-                    &mut usages_len,
-                    hid_state.preparsed_data.as_ptr() as _,
-                    report.as_ptr() as _,
-                    report.len() as _,
-                )
-            };
-            let mut usages = Vec::with_capacity(usages_len as _);
+            let mut data_len = hid_state.data.capacity() as u32;
             let status = unsafe {
-                HidP_GetUsagesEx(
+                HidP_GetData(
                     HidP_Input,
-                    0,
-                    usages.as_mut_ptr(),
-                    &mut usages_len,
+                    hid_state.data.as_mut_ptr(),
+                    &mut data_len,
                     hid_state.preparsed_data.as_ptr() as _,
                     report.as_ptr() as _,
                     report.len() as _,
@@ -2602,56 +2589,53 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             if status != HIDP_STATUS_SUCCESS {
                 return;
             }
-            unsafe { usages.set_len(usages_len as _) };
+            unsafe { hid_state.data.set_len(data_len as _) };
 
-            for (current, _last) in &mut hid_state.buttons {
-                *current = false;
-            }
-            for usage in usages {
-                // Non vendor-specific
-                if usage.UsagePage >> 8 != 0xFF {
-                    hid_state.buttons[(usage.Usage - 1) as usize].0 = true;
-                }
-            }
-            for (button, (current, last)) in hid_state.buttons.iter_mut().enumerate() {
-                if current != last {
-                    *last = *current;
-                    userdata.send_event(Event::DeviceEvent {
-                        device_id,
-                        event: Button {
-                            button: button as _,
-                            state: if *current { Pressed } else { Released },
-                        },
-                    });
+            // Reset all button states to be able to detect changes, as only pressed buttons are reported
+            for element in &mut hid_state.elements {
+                if let raw_input::HidStateElement::Button(_, state, _) = element {
+                    *state = false;
                 }
             }
 
-            for (cap, last) in hid_state.values.iter_mut() {
-                let mut current = 0;
-                let status = unsafe {
-                    HidP_GetUsageValue(
-                        HidP_Input,
-                        cap.UsagePage,
-                        0,
-                        cap.Anonymous.Range.UsageMin,
-                        &mut current,
-                        hid_state.preparsed_data.as_ptr() as _,
-                        report.as_ptr() as _,
-                        report.len() as _,
-                    )
-                };
-                if status != HIDP_STATUS_SUCCESS {
-                    continue;
+            // Collect button events and already send motion events
+            for data in &hid_state.data {
+                match &mut hid_state.elements[data.DataIndex as usize] {
+                    raw_input::HidStateElement::Button(_, state, _) => {
+                        *state = true;
+                    }
+                    raw_input::HidStateElement::Axis(axis, prev_value) => {
+                        let value = unsafe { data.Anonymous.RawValue };
+                        if value != *prev_value {
+                            *prev_value = value;
+
+                            userdata.send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Motion {
+                                    axis: *axis,
+                                    value: value as f64,
+                                },
+                            });
+                        }
+                    }
+                    _ => {}
                 }
-                if current != *last {
-                    *last = current;
-                    userdata.send_event(Event::DeviceEvent {
-                        device_id,
-                        event: Motion {
-                            axis: unsafe { cap.Anonymous.Range }.UsageMin as _,
-                            value: current as _, // TODO: Scaling? current / (cap.LogicalMax - cap.LogicalMin)
-                        },
-                    });
+            }
+
+            // Send all button events for which have changed
+            for element in &mut hid_state.elements {
+                if let raw_input::HidStateElement::Button(button, state, prev_state) = element {
+                    if state != prev_state {
+                        *prev_state = *state;
+
+                        userdata.send_event(Event::DeviceEvent {
+                            device_id,
+                            event: Button {
+                                button: *button,
+                                state: if *state { Pressed } else { Released },
+                            },
+                        });
+                    }
                 }
             }
         }
