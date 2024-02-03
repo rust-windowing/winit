@@ -280,14 +280,15 @@ impl HidState {
 
             if cap.IsRange != 0 {
                 let range = unsafe { cap.Anonymous.Range };
-                for i in range.DataIndexMin..=range.DataIndexMax {
-                    elements[i as usize] =
-                        HidStateElement::Button((range.UsageMin + i) as ButtonId, false, false);
+                let mut data_index = range.DataIndexMin;
+                for usage in (range.UsageMin - 1)..range.UsageMax {
+                    elements[data_index as usize] = HidStateElement::Button(usage as AxisId, false, false);
+                    data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
                 elements[not_range.DataIndex as usize] =
-                    HidStateElement::Button(not_range.Usage as ButtonId, false, false);
+                    HidStateElement::Button((not_range.Usage - 1) as ButtonId, false, false);
             }
         }
 
@@ -314,13 +315,15 @@ impl HidState {
 
             if cap.IsRange != 0 {
                 let range = unsafe { cap.Anonymous.Range };
-                for i in range.DataIndexMin..=range.DataIndexMax {
-                    elements[i as usize] = HidStateElement::Axis((range.UsageMin + i) as AxisId, 0);
+                let mut data_index = range.DataIndexMin;
+                for usage in (range.UsageMin - 1)..range.UsageMax {
+                    elements[data_index as usize] = HidStateElement::Axis(usage as AxisId, 0);
+                    data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
                 elements[not_range.DataIndex as usize] =
-                    HidStateElement::Axis(not_range.Usage as AxisId, 0);
+                    HidStateElement::Axis((not_range.Usage - 1) as AxisId, 0);
             }
         }
 
