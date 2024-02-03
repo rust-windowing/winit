@@ -37,12 +37,12 @@ use std::time::Duration;
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
-use crate::cursor::CustomCursorBuilder;
+use crate::cursor::CustomCursorSource;
 use crate::event::Event;
 use crate::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
-use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorBuilder};
+use crate::platform_impl::PlatformCustomCursorSource;
 use crate::window::{CustomCursor, Window, WindowAttributes};
 
 #[cfg(not(web_platform))]
@@ -200,9 +200,18 @@ pub trait ActiveEventLoopExtWebSys {
     ///
     /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     fn poll_strategy(&self) -> PollStrategy;
+
+    /// Async version of [`ActiveEventLoop::create_custom_cursor()`] which waits until the
+    /// cursor has completely finished loading.
+    fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture;
 }
 
 impl ActiveEventLoopExtWebSys for ActiveEventLoop {
+    #[inline]
+    fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
+        self.p.create_custom_cursor_async(source)
+    }
+
     #[inline]
     fn set_poll_strategy(&self, strategy: PollStrategy) {
         self.p.set_poll_strategy(strategy);
@@ -249,14 +258,14 @@ pub trait CustomCursorExtWebSys {
     /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
     ///
     /// [PNG]: https://en.wikipedia.org/wiki/PNG
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder;
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource;
 
     /// Crates a new animated cursor from multiple [`CustomCursor`]s.
     /// Supplied `cursors` can't be empty or other animations.
     fn from_animation(
         duration: Duration,
         cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorBuilder, BadAnimation>;
+    ) -> Result<CustomCursorSource, BadAnimation>;
 }
 
 impl CustomCursorExtWebSys for CustomCursor {
@@ -264,9 +273,9 @@ impl CustomCursorExtWebSys for CustomCursor {
         self.inner.animation
     }
 
-    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorBuilder {
-        CustomCursorBuilder {
-            inner: PlatformCustomCursorBuilder::Url {
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource {
+        CustomCursorSource {
+            inner: PlatformCustomCursorSource::Url {
                 url,
                 hotspot_x,
                 hotspot_y,
@@ -277,7 +286,7 @@ impl CustomCursorExtWebSys for CustomCursor {
     fn from_animation(
         duration: Duration,
         cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorBuilder, BadAnimation> {
+    ) -> Result<CustomCursorSource, BadAnimation> {
         if cursors.is_empty() {
             return Err(BadAnimation::Empty);
         }
@@ -286,8 +295,8 @@ impl CustomCursorExtWebSys for CustomCursor {
             return Err(BadAnimation::Animation);
         }
 
-        Ok(CustomCursorBuilder {
-            inner: PlatformCustomCursorBuilder::Animation { duration, cursors },
+        Ok(CustomCursorSource {
+            inner: PlatformCustomCursorSource::Animation { duration, cursors },
         })
     }
 }
@@ -312,26 +321,11 @@ impl fmt::Display for BadAnimation {
 
 impl Error for BadAnimation {}
 
-pub trait CustomCursorBuilderExtWebSys {
-    /// Async version of [`CustomCursorBuilder::build()`] which waits until the
-    /// cursor has completely finished loading.
-    fn build_async(self, window_target: &ActiveEventLoop) -> CustomCursorFuture;
-}
-
-impl CustomCursorBuilderExtWebSys for CustomCursorBuilder {
-    fn build_async(self, window_target: &ActiveEventLoop) -> CustomCursorFuture {
-        CustomCursorFuture(PlatformCustomCursor::build_async(
-            self.inner,
-            &window_target.p,
-        ))
-    }
-}
-
 #[cfg(not(web_platform))]
 struct PlatformCustomCursorFuture;
 
 #[derive(Debug)]
-pub struct CustomCursorFuture(PlatformCustomCursorFuture);
+pub struct CustomCursorFuture(pub(crate) PlatformCustomCursorFuture);
 
 impl Future for CustomCursorFuture {
     type Output = Result<CustomCursor, CustomCursorError>;

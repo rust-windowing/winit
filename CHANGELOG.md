@@ -25,10 +25,10 @@ Unreleased` header.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
-  - Add `CustomCursor`
   - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
   - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
   - Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors from other `CustomCursor`s.
+  - Add `{Active,}EventLoop::create_custom_cursor` to load custom cursor image sources.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.

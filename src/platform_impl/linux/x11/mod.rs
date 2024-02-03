@@ -28,16 +28,16 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use super::{ControlFlow, OsError};
-use crate::{
-    error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{ActiveEventLoop as RootAEL, DeviceEvents, EventLoopClosed},
-    platform::pump_events::PumpStatus,
-    platform_impl::common::xkb::Context,
-    platform_impl::platform::{min_timeout, WindowId},
-    window::WindowAttributes,
+use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
+use crate::platform::pump_events::PumpStatus;
+use crate::platform_impl::common::xkb::Context;
+use crate::platform_impl::platform::{min_timeout, WindowId};
+use crate::platform_impl::{
+    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
 };
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
 
 mod activation;
 mod atoms;
@@ -310,7 +310,7 @@ impl<T: 'static> EventLoop<T> {
         window_target.update_listen_device_events(true);
 
         let root_window_target = RootAEL {
-            p: super::ActiveEventLoop::X(window_target),
+            p: PlatformActiveEventLoop::X(window_target),
             _marker: PhantomData,
         };
 
@@ -668,6 +668,12 @@ impl ActiveEventLoop {
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.xconn.primary_monitor().ok()
+    }
+
+    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)),
+        }
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {

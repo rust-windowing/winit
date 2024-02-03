@@ -199,7 +199,7 @@ impl Display for OsError {
 }
 
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

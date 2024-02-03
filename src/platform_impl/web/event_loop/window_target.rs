@@ -19,9 +19,13 @@ use crate::event::{
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
+use crate::platform::web::CustomCursorFuture;
 use crate::platform::web::PollStrategy;
+use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
-use crate::window::{Theme, WindowId as RootWindowId};
+use crate::window::{
+    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
+};
 
 #[derive(Default)]
 struct ModifiersShared(Rc<Cell<ModifiersState>>);
@@ -63,6 +67,16 @@ impl ActiveEventLoop {
 
     pub fn generate_id(&self) -> WindowId {
         WindowId(self.runner.generate_id())
+    }
+
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: CustomCursor::new(self, source.inner),
+        }
+    }
+
+    pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
+        CustomCursorFuture(CustomCursor::new_async(self, source.inner))
     }
 
     pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: WindowId) {

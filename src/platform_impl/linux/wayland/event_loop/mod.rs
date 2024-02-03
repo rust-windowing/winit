@@ -15,13 +15,17 @@ use sctk::reexports::calloop_wayland_source::WaylandSource;
 use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, QueueHandle};
 
+use crate::cursor::OnlyCursorImage;
 use crate::dpi::LogicalSize;
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::{ActiveEventLoop as PlatformActiveEventLoop, OsError};
+use crate::platform_impl::{
+    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
+};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 
 mod proxy;
 pub mod sink;
@@ -685,6 +689,12 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
+        }
+    }
 
     #[cfg(feature = "rwh_05")]
     #[inline]

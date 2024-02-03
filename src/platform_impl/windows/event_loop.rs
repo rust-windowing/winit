@@ -81,6 +81,7 @@ use crate::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
+        icon::WinCursor,
         ime::ImeContext,
         keyboard::KeyEventBuilder,
         keyboard_layout::LAYOUT_CACHE,
@@ -90,7 +91,7 @@ use crate::{
         window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
         wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
     },
-    window::WindowId as RootWindowId,
+    window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId},
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -529,6 +530,18 @@ impl ActiveEventLoop {
             thread_id: self.thread_id,
             target_window: self.thread_msg_target,
         }
+    }
+
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
+        let inner = match WinCursor::new(&source.inner.0) {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                log::warn!("Failed to create custom cursor: {err}");
+                WinCursor::Failed
+            }
+        };
+
+        RootCustomCursor { inner }
     }
 
     // TODO: Investigate opportunities for caching
