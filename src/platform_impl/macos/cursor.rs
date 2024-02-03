@@ -10,9 +10,8 @@ use once_cell::sync::Lazy;
 use std::ffi::c_uchar;
 use std::slice;
 
-use super::ActiveEventLoop;
 use crate::cursor::CursorImage;
-use crate::cursor::OnlyCursorImageBuilder;
+use crate::cursor::OnlyCursorImageSource;
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -24,7 +23,7 @@ unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &ActiveEventLoop) -> CustomCursor {
+    pub(crate) fn new(cursor: OnlyCursorImageSource) -> CustomCursor {
         Self(cursor_from_image(&cursor.0))
     }
 }

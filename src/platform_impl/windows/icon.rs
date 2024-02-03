@@ -17,12 +17,9 @@ use windows_sys::{
 };
 
 use crate::icon::*;
-use crate::{
-    cursor::{CursorImage, OnlyCursorImageBuilder},
-    dpi::PhysicalSize,
-};
+use crate::{cursor::CursorImage, dpi::PhysicalSize};
 
-use super::{util, ActiveEventLoop};
+use super::util;
 
 impl Pixel {
     fn convert_to_bgra(&mut self) {
@@ -188,7 +185,7 @@ pub enum WinCursor {
 }
 
 impl WinCursor {
-    fn new(image: &CursorImage) -> Result<Self, io::Error> {
+    pub(crate) fn new(image: &CursorImage) -> Result<Self, io::Error> {
         let mut bgra = image.rgba.clone();
         bgra.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
 
@@ -234,16 +231,6 @@ impl WinCursor {
             }
 
             Ok(Self::Cursor(Arc::new(RaiiCursor { handle })))
-        }
-    }
-
-    pub(crate) fn build(cursor: OnlyCursorImageBuilder, _: &ActiveEventLoop) -> Self {
-        match Self::new(&cursor.0) {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                log::warn!("Failed to create custom cursor: {err}");
-                Self::Failed
-            }
         }
     }
 }

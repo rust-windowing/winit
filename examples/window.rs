@@ -20,7 +20,8 @@ use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, Fullscreen, Icon, ResizeDirection, Theme,
+    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
+    Theme,
 };
 use winit::window::{Window, WindowId};
 
@@ -57,7 +58,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         Event::Resumed => {
             println!("Resumed the event loop");
             state.dump_monitors(event_loop);
-            state.load_custom_cursors(event_loop);
 
             // Create initial window.
             state
@@ -108,11 +108,11 @@ struct Application {
 }
 
 impl Application {
-    fn new<T>(_event_loop: &EventLoop<T>) -> Self {
+    fn new<T>(event_loop: &EventLoop<T>) -> Self {
         // SAFETY: the context is dropped inside the loop, since the state we're using
         // is moved inside the closure.
         #[cfg(not(any(android_platform, ios_platform)))]
-        let context = unsafe { Context::from_raw(_event_loop.raw_display_handle()).unwrap() };
+        let context = unsafe { Context::from_raw(event_loop.raw_display_handle()).unwrap() };
 
         // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
         // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
@@ -122,12 +122,19 @@ impl Application {
 
         let icon = load_icon(Path::new(path));
 
+        println!("Loading cursor assets");
+        let custom_cursors = vec![
+            event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross.png"))),
+            event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross2.png"))),
+            event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/gradient.png"))),
+        ];
+
         Self {
             #[cfg(not(any(android_platform, ios_platform)))]
             context,
+            custom_cursors,
             icon,
             windows: Default::default(),
-            custom_cursors: Vec::new(),
         }
     }
 
@@ -409,15 +416,6 @@ impl Application {
                 );
             }
         }
-    }
-
-    fn load_custom_cursors(&mut self, event_loop: &ActiveEventLoop) {
-        println!("Loading cursor assets");
-        self.custom_cursors = vec![
-            decode_cursor(include_bytes!("data/cross.png"), event_loop),
-            decode_cursor(include_bytes!("data/cross2.png"), event_loop),
-            decode_cursor(include_bytes!("data/gradient.png"), event_loop),
-        ];
     }
 
     /// Process the key binding.
@@ -852,14 +850,12 @@ impl fmt::Display for Action {
     }
 }
 
-fn decode_cursor(bytes: &[u8], window_target: &ActiveEventLoop) -> CustomCursor {
+fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
     let img = image::load_from_memory(bytes).unwrap().to_rgba8();
     let samples = img.into_flat_samples();
     let (_, w, h) = samples.extents();
     let (w, h) = (w as u16, h as u16);
-    let builder = CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap();
-
-    builder.build(window_target)
+    CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
 }
 
 fn load_icon(path: &Path) -> Icon {

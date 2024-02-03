@@ -27,7 +27,7 @@ use crate::cursor::{BadImage, Cursor, CursorImage, CustomCursor as RootCustomCur
 use crate::platform::web::CustomCursorError;
 
 #[derive(Debug)]
-pub(crate) enum CustomCursorBuilder {
+pub(crate) enum CustomCursorSource {
     Image(CursorImage),
     Url {
         url: String,
@@ -40,15 +40,15 @@ pub(crate) enum CustomCursorBuilder {
     },
 }
 
-impl CustomCursorBuilder {
+impl CustomCursorSource {
     pub fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
         height: u16,
         hotspot_x: u16,
         hotspot_y: u16,
-    ) -> Result<CustomCursorBuilder, BadImage> {
-        Ok(CustomCursorBuilder::Image(CursorImage::from_rgba(
+    ) -> Result<CustomCursorSource, BadImage> {
+        Ok(CustomCursorSource::Image(CursorImage::from_rgba(
             rgba, width, height, hotspot_x, hotspot_y,
         )?))
     }
@@ -75,30 +75,30 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn build(builder: CustomCursorBuilder, window_target: &ActiveEventLoop) -> Self {
-        match builder {
-            CustomCursorBuilder::Image(image) => Self::build_spawn(
-                window_target,
+    pub(crate) fn new(event_loop: &ActiveEventLoop, source: CustomCursorSource) -> Self {
+        match source {
+            CustomCursorSource::Image(image) => Self::build_spawn(
+                event_loop,
                 from_rgba(
-                    window_target.runner.window(),
-                    window_target.runner.document().clone(),
+                    event_loop.runner.window(),
+                    event_loop.runner.document().clone(),
                     &image,
                 ),
                 false,
             ),
-            CustomCursorBuilder::Url {
+            CustomCursorSource::Url {
                 url,
                 hotspot_x,
                 hotspot_y,
             } => Self::build_spawn(
-                window_target,
+                event_loop,
                 from_url(UrlType::Plain(url), hotspot_x, hotspot_y),
                 false,
             ),
-            CustomCursorBuilder::Animation { duration, cursors } => Self::build_spawn(
-                window_target,
+            CustomCursorSource::Animation { duration, cursors } => Self::build_spawn(
+                event_loop,
                 from_animation(
-                    window_target.runner.main_thread(),
+                    event_loop.runner.main_thread(),
                     duration,
                     cursors.into_iter().map(|cursor| cursor.inner),
                 ),
@@ -163,12 +163,12 @@ impl CustomCursor {
         this
     }
 
-    pub(crate) fn build_async(
-        builder: CustomCursorBuilder,
-        window_target: &ActiveEventLoop,
+    pub(crate) fn new_async(
+        event_loop: &ActiveEventLoop,
+        source: CustomCursorSource,
     ) -> CustomCursorFuture {
-        let CustomCursor { animation, state } = Self::build(builder, window_target);
-        let binding = state.get(window_target.runner.main_thread()).borrow();
+        let CustomCursor { animation, state } = Self::new(event_loop, source);
+        let binding = state.get(event_loop.runner.main_thread()).borrow();
         let ImageState::Loading { notifier, .. } = binding.deref() else {
             unreachable!("found invalid state")
         };
@@ -725,7 +725,7 @@ async fn from_animation(
             }
             ImageState::Failed(error) => return Err(error.clone()),
             ImageState::Image(_) => drop(state),
-            ImageState::Animation(_) => unreachable!("check in `CustomCursorBuilder` failed"),
+            ImageState::Animation(_) => unreachable!("check in `CustomCursorSource` failed"),
         }
 
         let state = cursor.state.get(main_thread).borrow();

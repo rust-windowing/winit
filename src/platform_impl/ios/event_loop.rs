@@ -24,6 +24,7 @@ use crate::{
     },
     platform::ios::Idiom,
     platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents},
+    window::{CustomCursor, CustomCursorSource},
 };
 
 use super::{app_state, monitor, view, MonitorHandle};
@@ -38,6 +39,13 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
+        let _ = source.inner;
+        CustomCursor {
+            inner: super::PlatformCustomCursor,
+        }
+    }
+
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::uiscreens(self.mtm)
     }

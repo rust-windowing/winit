@@ -35,6 +35,8 @@ use super::{
     monitor::{self, MonitorHandle},
     observer::setup_control_flow_observers,
 };
+use crate::platform_impl::platform::cursor::CustomCursor;
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 use crate::{
     error::EventLoopError,
     event::Event,
@@ -77,6 +79,12 @@ pub struct ActiveEventLoop {
 }
 
 impl ActiveEventLoop {
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: CustomCursor::new(source.inner),
+        }
+    }
+
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()

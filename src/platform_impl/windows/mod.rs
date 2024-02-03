@@ -19,7 +19,7 @@ pub(crate) use self::{
 
 pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
 pub use self::icon::WinIcon as PlatformIcon;
-pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;

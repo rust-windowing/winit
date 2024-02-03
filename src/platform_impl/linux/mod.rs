@@ -18,6 +18,7 @@ use smol_str::SmolStr;
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
+use crate::window::{CustomCursor, CustomCursorSource};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
@@ -34,7 +35,7 @@ use crate::{
 };
 
 pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
-pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
@@ -643,19 +644,6 @@ pub(crate) enum PlatformCustomCursor {
     #[cfg(x11_platform)]
     X(x11::CustomCursor),
 }
-impl PlatformCustomCursor {
-    pub(crate) fn build(
-        builder: PlatformCustomCursorBuilder,
-        p: &ActiveEventLoop,
-    ) -> PlatformCustomCursor {
-        match p {
-            #[cfg(wayland_platform)]
-            ActiveEventLoop::Wayland(_) => Self::Wayland(wayland::CustomCursor::build(builder, p)),
-            #[cfg(x11_platform)]
-            ActiveEventLoop::X(p) => Self::X(x11::CustomCursor::build(builder, p)),
-        }
-    }
-}
 
 /// Hooks for X11 errors.
 #[cfg(x11_platform)]
@@ -865,6 +853,10 @@ impl ActiveEventLoop {
             #[cfg(x11_platform)]
             _ => false,
         }
+    }
+
+    pub fn create_custom_cursor(&self, cursor: CustomCursorSource) -> CustomCursor {
+        x11_or_wayland!(match self; ActiveEventLoop(evlp) => evlp.create_custom_cursor(cursor))
     }
 
     #[inline]

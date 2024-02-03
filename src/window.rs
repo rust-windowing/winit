@@ -8,7 +8,7 @@ use crate::{
     platform_impl::{self, PlatformSpecificWindowAttributes},
 };
 
-pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
+pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorSource, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
 
 #[doc(inline)]

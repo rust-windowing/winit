@@ -27,12 +27,17 @@ use crate::{
     event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents},
     platform::pump_events::PumpStatus,
     window::{
-        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
+        self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
+        WindowButtons, WindowLevel,
     },
 };
 use crate::{error::EventLoopError, platform_impl::Fullscreen};
 
 mod keycodes;
+
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
 
@@ -673,6 +678,13 @@ impl ActiveEventLoop {
         Some(MonitorHandle::new(self.app.clone()))
     }
 
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
+        let _ = source.inner;
+        CustomCursor {
+            inner: PlatformCustomCursor,
+        }
+    }
+
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
         v.push_back(MonitorHandle::new(self.app.clone()));
@@ -1053,10 +1065,6 @@ impl Display for OsError {
         write!(fmt, "Android OS Error")
     }
 }
-
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MonitorHandle {

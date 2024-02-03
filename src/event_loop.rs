@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::error::{EventLoopError, OsError};
-use crate::window::{Window, WindowAttributes};
+use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -299,6 +299,14 @@ impl<T> EventLoop<T> {
             platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
         Ok(Window { window })
     }
+
+    /// Create custom cursor.
+    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+        self.event_loop
+            .window_target()
+            .p
+            .create_custom_cursor(custom_cursor)
+    }
 }
 
 #[cfg(feature = "rwh_06")]
@@ -357,6 +365,11 @@ impl ActiveEventLoop {
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
         let window = platform_impl::Window::new(&self.p, window_attributes)?;
         Ok(Window { window })
+    }
+
+    /// Create custom cursor.
+    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+        self.p.create_custom_cursor(custom_cursor)
     }
 
     /// Returns the list of all the monitors available on the system.
