@@ -366,7 +366,7 @@ impl<T: 'static> EventLoop<T> {
                 let new_inner_size = Arc::new(Mutex::new(physical_size));
                 callback(
                     Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
+                        window_id,
                         event: WindowEvent::ScaleFactorChanged {
                             scale_factor,
                             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
@@ -420,7 +420,7 @@ impl<T: 'static> EventLoop<T> {
 
                 callback(
                     Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
+                        window_id,
                         event: WindowEvent::Resized(physical_size),
                     },
                     &self.window_target,
@@ -430,7 +430,7 @@ impl<T: 'static> EventLoop<T> {
             if compositor_update.close_window {
                 callback(
                     Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
+                        window_id,
                         event: WindowEvent::CloseRequested,
                     },
                     &self.window_target,
@@ -496,13 +496,7 @@ impl<T: 'static> EventLoop<T> {
             });
 
             if let Some(event) = event {
-                callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event,
-                    },
-                    &self.window_target,
-                );
+                callback(Event::WindowEvent { window_id, event }, &self.window_target);
             }
         }
 

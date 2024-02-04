@@ -178,7 +178,7 @@ impl ZwpTextInputV3Ext for ZwpTextInputV3 {
             ImePurpose::Normal => (ContentHint::None, ContentPurpose::Normal),
             ImePurpose::Password => (ContentHint::SensitiveData, ContentPurpose::Password),
             ImePurpose::Terminal => (ContentHint::None, ContentPurpose::Terminal),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         self.set_content_type(hint, purpose);
     }

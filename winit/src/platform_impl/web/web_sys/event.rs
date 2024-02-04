@@ -164,16 +164,16 @@ pub fn mouse_scroll_delta(
 
 pub fn key_code(event: &KeyboardEvent) -> PhysicalKey {
     let code = event.code();
-    PhysicalKey::from_key_code_attribute_value(&code)
+    super::super::keyboard::from_key_code_attribute_value(&code)
 }
 
 pub fn key(event: &KeyboardEvent) -> Key {
-    Key::from_key_attribute_value(&event.key())
+    super::super::keyboard::from_key_attribute_value(&event.key())
 }
 
 pub fn key_text(event: &KeyboardEvent) -> Option<SmolStr> {
     let key = event.key();
-    let key = Key::from_key_attribute_value(&key);
+    let key = super::super::keyboard::from_key_attribute_value(&key);
     match &key {
         Key::Character(text) => Some(text.clone()),
         Key::Named(NamedKey::Tab) => Some(SmolStr::new("\t")),

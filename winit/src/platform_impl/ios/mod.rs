@@ -76,7 +76,7 @@ pub(crate) use self::{
         PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
-    window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
+    window::{PlatformSpecificWindowBuilderAttributes, Window},
 };
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;

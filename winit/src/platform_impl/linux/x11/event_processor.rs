@@ -18,7 +18,7 @@ use x11rb::{
 
 use super::{
     atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
-    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
+    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
 };
 
 use crate::{
@@ -77,7 +77,7 @@ impl EventProcessor {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId(window_id as _);
+        let window_id = mkwid(window_id);
         let wt = get_xtarget(&self.target);
         let result = wt
             .windows
@@ -568,7 +568,7 @@ impl EventProcessor {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window as _));
+                wt.windows.borrow_mut().remove(&mkwid(window));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.

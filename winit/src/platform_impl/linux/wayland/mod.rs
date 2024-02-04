@@ -11,10 +11,12 @@ use sctk::reexports::client::{self, ConnectError, DispatchError, Proxy};
 
 pub(super) use crate::cursor::OnlyCursorImage as CustomCursor;
 use crate::dpi::{LogicalSize, PhysicalSize};
-pub use crate::platform_impl::platform::{OsError, WindowId};
+pub use crate::platform_impl::platform::OsError;
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use output::{MonitorHandle, VideoModeHandle};
 pub use window::Window;
+
+use crate::window::WindowId;
 
 mod event_loop;
 mod output;
@@ -76,7 +78,7 @@ impl DeviceId {
 /// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {
-    WindowId(surface.id().as_ptr() as u64)
+    WindowId::from(surface.id().as_ptr() as u64)
 }
 
 /// The default routine does floor, but we need round on Wayland.

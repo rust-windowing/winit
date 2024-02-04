@@ -20,12 +20,11 @@ use windows_sys::{
 
 use log::debug;
 
-use crate::platform_impl::platform::{
-    definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
-    WindowId,
+use crate::platform_impl::platform::definitions::{
+    IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl,
 };
 
-use crate::{event::Event, window::WindowId as RootWindowId};
+use crate::{event::Event, window::WindowId};
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -98,7 +97,7 @@ impl FileDropHandler {
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
                 drop_handler.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(drop_handler.window)),
+                    window_id: WindowId::from(drop_handler.window as u64),
                     event: HoveredFile(filename),
                 });
             })
@@ -135,7 +134,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
             drop_handler.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(drop_handler.window)),
+                window_id: WindowId::from(drop_handler.window as u64),
                 event: HoveredFileCancelled,
             });
         }
@@ -155,7 +154,7 @@ impl FileDropHandler {
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
                 drop_handler.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(drop_handler.window)),
+                    window_id: WindowId::from(drop_handler.window as u64),
                     event: DroppedFile(filename),
                 });
             })

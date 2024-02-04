@@ -37,7 +37,7 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub use self::monitor::{MonitorHandle, VideoModeHandle};
-pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
+pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window};
 
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;

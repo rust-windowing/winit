@@ -8,7 +8,7 @@ use objc2::{declare_class, mutability, ClassType, DeclaredClass};
 use super::event_loop::EventLoopWindowTarget;
 use super::window_delegate::WindowDelegate;
 use crate::error::OsError as RootOsError;
-use crate::window::WindowAttributes;
+use crate::window::{WindowAttributes, WindowId};
 
 pub(crate) struct Window {
     window: MainThreadBound<Id<WinitWindow>>,
@@ -71,27 +71,6 @@ impl Window {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub usize);
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as usize)
-    }
-}
-
 declare_class!(
     #[derive(Debug)]
     pub struct WinitWindow;
@@ -122,6 +101,6 @@ declare_class!(
 
 impl WinitWindow {
     pub(super) fn id(&self) -> WindowId {
-        WindowId(self as *const Self as usize)
+        WindowId::from(self as *const Self as u64)
     }
 }

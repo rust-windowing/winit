@@ -5,7 +5,6 @@ use std::collections::VecDeque;
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
 use log::{debug, warn};
 use objc2::rc::Id;
-use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 
 use super::app_state::EventWrapper;
@@ -23,7 +22,7 @@ use crate::{
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowId as RootWindowId, WindowLevel,
+        WindowButtons, WindowId, WindowLevel,
     },
 };
 
@@ -465,7 +464,7 @@ impl Window {
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
-            let window_id = RootWindowId(window.id());
+            let window_id = window.id();
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(
@@ -635,44 +634,6 @@ impl Inner {
                     height,
                 },
             }
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId {
-    window: *mut WinitUIWindow,
-}
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        WindowId {
-            window: std::ptr::null_mut(),
-        }
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.window as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self {
-            window: raw_id as _,
-        }
-    }
-}
-
-unsafe impl Send for WindowId {}
-unsafe impl Sync for WindowId {}
-
-impl From<&AnyObject> for WindowId {
-    fn from(window: &AnyObject) -> WindowId {
-        WindowId {
-            window: window as *const _ as _,
         }
     }
 }

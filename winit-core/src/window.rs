@@ -3,6 +3,42 @@
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
+/// Identifier of a window. Unique for each window.
+///
+/// Can be obtained with [`window.id()`](`Window::id`).
+///
+/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
+/// can then compare to the ids of your windows.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId(u64);
+
+impl WindowId {
+    /// Returns a dummy id, useful for unit testing.
+    ///
+    /// # Safety
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real [`WindowId`].
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub const unsafe fn dummy() -> Self {
+        WindowId(0)
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id)
+    }
+}
+
 /// The behavior of cursor grabbing.
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.

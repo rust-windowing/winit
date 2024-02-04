@@ -14,11 +14,11 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use super::event_loop::{stop_app_immediately, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::window::WinitWindow;
-use super::{menu, WindowId, DEVICE_ID};
+use super::{menu, DEVICE_ID};
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget};
-use crate::window::WindowId as RootWindowId;
+use crate::window::WindowId;
 
 #[derive(Debug, Default)]
 pub(super) struct State {
@@ -288,7 +288,7 @@ impl ApplicationDelegate {
         // -> Don't go back into the callback when our callstack originates from there
         if !self.ivars().in_callback.get() {
             self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
+                window_id,
                 event: WindowEvent::RedrawRequested,
             });
             self.ivars().in_callback.set(false);
@@ -399,10 +399,7 @@ impl ApplicationDelegate {
         for event in events {
             match event {
                 QueuedEvent::WindowEvent(window_id, event) => {
-                    self.handle_event(Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event,
-                    });
+                    self.handle_event(Event::WindowEvent { window_id, event });
                 }
                 QueuedEvent::DeviceEvent(event) => {
                     self.handle_event(Event::DeviceEvent {
@@ -418,7 +415,7 @@ impl ApplicationDelegate {
                     if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
                         let new_inner_size = Arc::new(Mutex::new(suggested_size));
                         let scale_factor_changed_event = Event::WindowEvent {
-                            window_id: RootWindowId(window.id()),
+                            window_id: window.id(),
                             event: WindowEvent::ScaleFactorChanged {
                                 scale_factor,
                                 inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
@@ -436,7 +433,7 @@ impl ApplicationDelegate {
                         window.setContentSize(size);
 
                         let resized_event = Event::WindowEvent {
-                            window_id: RootWindowId(window.id()),
+                            window_id: window.id(),
                             event: WindowEvent::Resized(physical_size),
                         };
                         callback.handle_event(resized_event);
@@ -448,7 +445,7 @@ impl ApplicationDelegate {
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
             self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
+                window_id,
                 event: WindowEvent::RedrawRequested,
             });
         }

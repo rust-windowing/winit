@@ -96,31 +96,6 @@ impl TimeSocket {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct WindowId {
-    fd: u64,
-}
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId {
-            fd: u64::max_value(),
-        }
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(id: WindowId) -> Self {
-        id.fd
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(fd: u64) -> Self {
-        Self { fd }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DeviceId;
 
 impl DeviceId {

@@ -37,15 +37,14 @@ use crate::{
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        WindowButtons, WindowId, WindowLevel,
     },
 };
 
 use super::{
     ffi,
     util::{self, SelectedCursor},
-    CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
-    XConnection,
+    CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, XConnection,
 };
 
 #[derive(Debug)]
@@ -965,7 +964,7 @@ impl UnownedWindow {
                 &self.shared_state_lock(),
             );
 
-            let window_id = crate::window::WindowId(self.id());
+            let window_id = self.id();
             let old_inner_size = PhysicalSize::new(width, height);
             let inner_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
             callback(Event::WindowEvent {
@@ -1911,13 +1910,13 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow as _)
+        WindowId::from(self.xwindow as u64)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
-            .send(WindowId(self.xwindow as _))
+            .send(WindowId::from(self.xwindow as u64))
             .unwrap();
     }
 

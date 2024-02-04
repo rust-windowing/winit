@@ -73,8 +73,8 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
-    platform_impl::platform::{min_timeout, WindowId},
-    window::WindowAttributes,
+    platform_impl::platform::min_timeout,
+    window::{WindowAttributes, WindowId},
 };
 
 // Xinput constants not defined in x11rb
@@ -559,14 +559,14 @@ impl<T: 'static> EventLoop<T> {
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
             let token = self
                 .event_processor
-                .with_window(window_id.0 as xproto::Window, |window| {
+                .with_window(u64::from(window_id) as xproto::Window, |window| {
                     window.generate_activation_token()
                 });
 
             match token {
                 Some(Ok(token)) => callback(
                     crate::event::Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
+                        window_id,
                         event: crate::event::WindowEvent::ActivationTokenDone {
                             serial,
                             token: crate::window::ActivationToken::_new(token),
@@ -597,7 +597,6 @@ impl<T: 'static> EventLoop<T> {
             }
 
             for window_id in windows {
-                let window_id = crate::window::WindowId(window_id);
                 callback(
                     Event::WindowEvent {
                         window_id,
@@ -626,7 +625,7 @@ impl<T: 'static> EventLoop<T> {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |event| {
                 if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
+                    window_id: wid,
                     event: WindowEvent::RedrawRequested,
                 } = event
                 {
@@ -854,7 +853,7 @@ impl Drop for Window {
 
         if let Ok(c) = xconn
             .xcb_connection()
-            .destroy_window(window.id().0 as xproto::Window)
+            .destroy_window(u64::from(window.id()) as xproto::Window)
         {
             c.ignore_error();
         }
@@ -1041,7 +1040,7 @@ impl<'a> Drop for GenericEventCookie<'a> {
 }
 
 fn mkwid(w: xproto::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as _))
+    WindowId::from(w as u64)
 }
 fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))

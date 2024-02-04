@@ -21,12 +21,12 @@ use crate::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
         PhysicalKey,
     },
-    window::WindowId as RootWindowId,
+    window::WindowId,
 };
 
 use super::{
     DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    RedoxSocket, TimeSocket, WindowProperties,
 };
 
 fn convert_scancode(scancode: u8) -> PhysicalKey {
@@ -342,7 +342,7 @@ impl<T: 'static> EventLoop<T> {
                     let modifiers_before = event_state.keyboard;
                     event_state.key(physical_key, pressed);
                     event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::KeyboardInput {
                             device_id: event::DeviceId(DeviceId),
                             event: event::KeyEvent {
@@ -362,7 +362,7 @@ impl<T: 'static> EventLoop<T> {
                     // If the state of the modifiers has changed, send the event.
                     if modifiers_before != event_state.keyboard {
                         event_handler(event::Event::WindowEvent {
-                            window_id: RootWindowId(window_id),
+                            window_id,
                             event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
                         })
                     }
@@ -370,17 +370,17 @@ impl<T: 'static> EventLoop<T> {
             }
             EventOption::TextInput(TextInputEvent { character }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::Ime(Ime::Preedit("".into(), None)),
                 });
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::Ime(Ime::Commit(character.into())),
                 });
             }
             EventOption::Mouse(MouseEvent { x, y }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::CursorMoved {
                         device_id: event::DeviceId(DeviceId),
                         position: (x, y).into(),
@@ -394,7 +394,7 @@ impl<T: 'static> EventLoop<T> {
             }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::MouseInput {
                             device_id: event::DeviceId(DeviceId),
                             state,
@@ -405,7 +405,7 @@ impl<T: 'static> EventLoop<T> {
             }
             EventOption::Scroll(ScrollEvent { x, y }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::MouseWheel {
                         device_id: event::DeviceId(DeviceId),
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
@@ -415,25 +415,25 @@ impl<T: 'static> EventLoop<T> {
             }
             EventOption::Quit(QuitEvent {}) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::CloseRequested,
                 });
             }
             EventOption::Focus(FocusEvent { focused }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::Focused(focused),
                 });
             }
             EventOption::Move(MoveEvent { x, y }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::Moved((x, y).into()),
                 });
             }
             EventOption::Resize(ResizeEvent { width, height }) => {
                 event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
+                    window_id,
                     event: event::WindowEvent::Resized((width, height).into()),
                 });
 
@@ -444,14 +444,14 @@ impl<T: 'static> EventLoop<T> {
             EventOption::Hover(HoverEvent { entered }) => {
                 if entered {
                     event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::CursorEntered {
                             device_id: event::DeviceId(DeviceId),
                         },
                     });
                 } else {
                     event_handler(event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::CursorLeft {
                             device_id: event::DeviceId(DeviceId),
                         },
@@ -487,9 +487,7 @@ impl<T: 'static> EventLoop<T> {
                 let mut creates = self.window_target.p.creates.lock().unwrap();
                 creates.pop_front()
             } {
-                let window_id = WindowId {
-                    fd: window.fd as u64,
-                };
+                let window_id = WindowId::from(window.fd as u64);
 
                 let mut buf: [u8; 4096] = [0; 4096];
                 let path = window.fpath(&mut buf).expect("failed to read properties");
@@ -500,7 +498,7 @@ impl<T: 'static> EventLoop<T> {
                 // Send resize event on create to indicate first size.
                 event_handler(
                     event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::Resized((properties.w, properties.h).into()),
                     },
                     &self.window_target,
@@ -509,7 +507,7 @@ impl<T: 'static> EventLoop<T> {
                 // Send resize event on create to indicate first position.
                 event_handler(
                     event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::Moved((properties.x, properties.y).into()),
                     },
                     &self.window_target,
@@ -523,23 +521,21 @@ impl<T: 'static> EventLoop<T> {
             } {
                 event_handler(
                     event::Event::WindowEvent {
-                        window_id: RootWindowId(destroy_id),
+                        window_id: destroy_id,
                         event: event::WindowEvent::Destroyed,
                     },
                     &self.window_target,
                 );
 
                 self.windows
-                    .retain(|(window, _event_state)| window.fd as u64 != destroy_id.fd);
+                    .retain(|(window, _event_state)| window.fd as u64 != u64::from(destroy_id));
             }
 
             // Handle window events.
             let mut i = 0;
             // While loop is used here because the same window may be processed more than once.
             while let Some((window, event_state)) = self.windows.get_mut(i) {
-                let window_id = WindowId {
-                    fd: window.fd as u64,
-                };
+                let window_id = WindowId::from(window.fd as u64);
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
                 let count =
@@ -594,7 +590,7 @@ impl<T: 'static> EventLoop<T> {
             } {
                 event_handler(
                     event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
+                        window_id,
                         event: event::WindowEvent::RedrawRequested,
                     },
                     &self.window_target,

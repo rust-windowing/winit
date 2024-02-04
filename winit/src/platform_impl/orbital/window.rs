@@ -9,12 +9,10 @@ use crate::{
     error,
     platform_impl::Fullscreen,
     window,
-    window::ImePurpose,
+    window::{ImePurpose, WindowId},
 };
 
-use super::{
-    EventLoopWindowTarget, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties,
-};
+use super::{EventLoopWindowTarget, MonitorHandle, RedoxSocket, TimeSocket, WindowProperties};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -131,9 +129,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId {
-            fd: self.window_socket.fd as u64,
-        }
+        WindowId::from(self.window_socket.fd as u64)
     }
 
     #[inline]

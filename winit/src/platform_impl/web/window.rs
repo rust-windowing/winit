@@ -3,7 +3,7 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
+    WindowAttributes, WindowButtons, WindowId, WindowLevel,
 };
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
@@ -48,7 +48,7 @@ impl Window {
         target.register(&canvas, id);
 
         let runner = target.runner.clone();
-        let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
+        let destroy_fn = Box::new(move || runner.notify_destroy_window(id));
 
         let inner = Inner {
             id,
@@ -65,7 +65,7 @@ impl Window {
 
         let canvas = Rc::downgrade(&inner.canvas);
         let (dispatcher, runner) = Dispatcher::new(target.runner.main_thread(), inner).unwrap();
-        target.runner.add_canvas(RootWI(id), canvas, runner);
+        target.runner.add_canvas(id, canvas, runner);
 
         Ok(Window { inner: dispatcher })
     }
@@ -397,7 +397,7 @@ impl Inner {
     #[inline]
     pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
         let mut window_handle = rwh_05::WebWindowHandle::empty();
-        window_handle.id = self.id.0;
+        window_handle.id = u64::from(self.id) as u32;
         rwh_05::RawWindowHandle::Web(window_handle)
     }
 
@@ -442,26 +442,6 @@ impl Drop for Inner {
         if let Some(destroy_fn) = self.destroy_fn.take() {
             destroy_fn();
         }
-    }
-}
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(pub(crate) u32);
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        Self(0)
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(window_id: WindowId) -> Self {
-        window_id.0 as u64
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(raw_id: u64) -> Self {
-        Self(raw_id as u32)
     }
 }
 

@@ -81,11 +81,11 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, SelectedCursor, WindowId,
+        Fullscreen, SelectedCursor,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        WindowButtons, WindowId, WindowLevel,
     },
 };
 
@@ -653,7 +653,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.hwnd())
+        WindowId::from(self.hwnd() as u64)
     }
 
     #[inline]

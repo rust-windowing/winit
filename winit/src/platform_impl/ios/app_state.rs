@@ -30,7 +30,6 @@ use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget},
-    window::WindowId as RootWindowId,
 };
 
 macro_rules! bug {
@@ -768,7 +767,7 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
         .into_iter()
         .map(|window| {
             EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::RedrawRequested,
             })
         })
@@ -799,7 +798,7 @@ fn handle_hidpi_proxy(handler: &mut EventLoopHandler, event: ScaleFactorChanged)
     } = event;
     let new_inner_size = Arc::new(Mutex::new(suggested_size));
     let event = Event::WindowEvent {
-        window_id: RootWindowId(window.id()),
+        window_id: window.id(),
         event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),

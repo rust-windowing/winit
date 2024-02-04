@@ -15,7 +15,6 @@ use super::uikit::{
     UIStatusBarStyle, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
     UITraitCollection, UIView, UIViewController, UIWindow,
 };
-use super::window::WindowId;
 use crate::{
     dpi::PhysicalPosition,
     event::{Event, Force, Touch, TouchPhase, WindowEvent},
@@ -24,7 +23,7 @@ use crate::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
         Fullscreen, DEVICE_ID,
     },
-    window::{WindowAttributes, WindowId as RootWindowId},
+    window::{WindowAttributes, WindowId},
 };
 
 pub struct WinitViewState {
@@ -55,7 +54,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::RedrawRequested,
                 }),
             );
@@ -90,7 +89,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::Resized(size),
                 }),
             );
@@ -129,7 +128,7 @@ declare_class!(
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
-            let window_id = RootWindowId(window.id());
+            let window_id = window.id();
             app_state::handle_nonuser_events(
                 mtm,
                 std::iter::once(EventWrapper::ScaleFactorChanged(
@@ -183,7 +182,7 @@ declare_class!(
             };
 
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
                     delta: recognizer.velocity() as _,
@@ -201,7 +200,7 @@ declare_class!(
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
                 let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::DoubleTapGesture {
                         device_id: DEVICE_ID,
                     },
@@ -229,7 +228,7 @@ declare_class!(
             // Flip the velocity to match macOS.
             let delta = -recognizer.velocity() as _;
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
                     delta,
@@ -380,7 +379,7 @@ impl WinitView {
                 )
             };
             touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: RootWindowId(window.id()),
+                window_id: window.id(),
                 event: WindowEvent::Touch(Touch {
                     device_id: DEVICE_ID,
                     id: touch_id,
@@ -583,7 +582,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
+                    window_id: self.id(),
                     event: WindowEvent::Focused(true),
                 }),
             );
@@ -596,7 +595,7 @@ declare_class!(
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
+                    window_id: self.id(),
                     event: WindowEvent::Focused(false),
                 }),
             );
@@ -691,7 +690,7 @@ declare_class!(
                         &*ptr
                     };
                     events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
+                        window_id: window.id(),
                         event: WindowEvent::Destroyed,
                     }));
                 }
@@ -721,7 +720,7 @@ impl WinitApplicationDelegate {
                     &*ptr
                 };
                 events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
+                    window_id: window.id(),
                     event: WindowEvent::Occluded(occluded),
                 }));
             }

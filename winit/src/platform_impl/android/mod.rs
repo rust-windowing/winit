@@ -27,7 +27,8 @@ use crate::{
     event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
     window::{
-        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
+        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowId,
+        WindowLevel,
     },
 };
 use crate::{error::EventLoopError, platform_impl::Fullscreen};
@@ -35,6 +36,7 @@ use crate::{error::EventLoopError, platform_impl::Fullscreen};
 mod keycodes;
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
+const WINDOW_ID: u64 = 0;
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -234,7 +236,7 @@ impl<T: 'static> EventLoop<T> {
                     *HAS_FOCUS.write().unwrap() = true;
                     callback(
                         event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
+                            window_id: WindowId::from(WINDOW_ID),
                             event: event::WindowEvent::Focused(true),
                         },
                         self.window_target(),
@@ -244,7 +246,7 @@ impl<T: 'static> EventLoop<T> {
                     *HAS_FOCUS.write().unwrap() = false;
                     callback(
                         event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
+                            window_id: WindowId::from(WINDOW_ID),
                             event: event::WindowEvent::Focused(false),
                         },
                         self.window_target(),
@@ -259,7 +261,7 @@ impl<T: 'static> EventLoop<T> {
                             MonitorHandle::new(self.android_app.clone()).size(),
                         ));
                         let event = event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
+                            window_id: WindowId::from(WINDOW_ID),
                             event: event::WindowEvent::ScaleFactorChanged {
                                 inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
                                     &new_inner_size,
@@ -347,7 +349,7 @@ impl<T: 'static> EventLoop<T> {
                     PhysicalSize::new(0, 0)
                 };
                 let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
+                    window_id: WindowId::from(WINDOW_ID),
                     event: event::WindowEvent::Resized(size),
                 };
                 callback(event, self.window_target());
@@ -357,7 +359,7 @@ impl<T: 'static> EventLoop<T> {
             if pending_redraw {
                 pending_redraw = false;
                 let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
+                    window_id: WindowId::from(WINDOW_ID),
                     event: event::WindowEvent::RedrawRequested,
                 };
                 callback(event, self.window_target());
@@ -382,7 +384,7 @@ impl<T: 'static> EventLoop<T> {
         let mut input_status = InputStatus::Handled;
         match event {
             InputEvent::MotionEvent(motion_event) => {
-                let window_id = window::WindowId(WindowId);
+                let window_id = WindowId::from(WINDOW_ID);
                 let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
 
                 let phase = match motion_event.action() {
@@ -453,7 +455,7 @@ impl<T: 'static> EventLoop<T> {
                         );
 
                         let event = event::Event::WindowEvent {
-                            window_id: window::WindowId(WindowId),
+                            window_id: WindowId::from(WINDOW_ID),
                             event: event::WindowEvent::KeyboardInput {
                                 device_id: event::DeviceId(DeviceId(key.device_id())),
                                 event: event::KeyEvent {
@@ -743,27 +745,6 @@ impl OwnedDisplayHandle {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) struct WindowId;
-
-impl WindowId {
-    pub const fn dummy() -> Self {
-        WindowId
-    }
-}
-
-impl From<WindowId> for u64 {
-    fn from(_: WindowId) -> Self {
-        0
-    }
-}
-
-impl From<u64> for WindowId {
-    fn from(_: u64) -> Self {
-        Self
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DeviceId(i32);
 
 impl DeviceId {
@@ -802,7 +783,7 @@ impl Window {
     }
 
     pub fn id(&self) -> WindowId {
-        WindowId
+        WindowId::from(WINDOW_ID)
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
