@@ -633,7 +633,12 @@ impl DeviceId {
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
-    Added,
+    /// New device was connected.
+    Added {
+        info: DeviceInfo,
+    },
+
+    /// Device was removed and does no longer exist.
     Removed,
 
     /// Change in physical position of a pointing device.
@@ -659,6 +664,8 @@ pub enum DeviceEvent {
         value: f64,
     },
 
+    /// Binary button events. This event will only be reported once when the event occurs, not
+    /// repeatedly and the next reported event for the same button should always be the opposite.
     Button {
         button: ButtonId,
         state: ElementState,
@@ -1144,6 +1151,19 @@ impl PartialEq for InnerSizeWriter {
     fn eq(&self, other: &Self) -> bool {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
     }
+}
+
+/// Describes which kind of device was connected and associated details with it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DeviceInfo {
+    /// Mouse devices can emit MouseMotion, MouseWheel, Motion and Button events.
+    Mouse,
+
+    /// Keyboard devices can only emit Key events.
+    Keyboard,
+
+    /// Hid devices are for example a gamepad or joystick and can emit Motion and Button events.
+    Hid { vendor_id: u32, product_id: u32 },
 }
 
 #[cfg(test)]

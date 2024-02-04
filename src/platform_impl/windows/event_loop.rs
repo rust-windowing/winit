@@ -2410,7 +2410,8 @@ unsafe extern "system" fn thread_event_target_callback(
                             .insert(device_id, hid_state);
                     }
 
-                    DeviceEvent::Added
+                    let device_info = raw_input::get_raw_input_device_info(lparam as _).unwrap();
+                    DeviceEvent::Added { info: device_info }
                 }
                 GIDC_REMOVAL => {
                     userdata.hid_states.borrow_mut().remove(&device_id);
@@ -2592,19 +2593,19 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             unsafe { hid_state.data.set_len(data_len as _) };
 
             // Reset all button states to be able to detect changes, as only pressed buttons are reported
-            for element in &mut hid_state.elements {
-                if let raw_input::HidStateElement::Button(_, state, _) = element {
+            for input in &mut hid_state.inputs {
+                if let raw_input::HidStateInput::Button(_, state, _) = input {
                     *state = false;
                 }
             }
 
             // Collect button events and already send motion events
             for data in &hid_state.data {
-                match &mut hid_state.elements[data.DataIndex as usize] {
-                    raw_input::HidStateElement::Button(_, state, _) => {
+                match &mut hid_state.inputs[data.DataIndex as usize] {
+                    raw_input::HidStateInput::Button(_, state, _) => {
                         *state = true;
                     }
-                    raw_input::HidStateElement::Axis(axis, prev_value) => {
+                    raw_input::HidStateInput::Axis(axis, prev_value) => {
                         let value = unsafe { data.Anonymous.RawValue };
                         if value != *prev_value {
                             *prev_value = value;
@@ -2623,8 +2624,8 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             }
 
             // Send all button events for which have changed
-            for element in &mut hid_state.elements {
-                if let raw_input::HidStateElement::Button(button, state, prev_state) = element {
+            for input in &mut hid_state.inputs {
+                if let raw_input::HidStateInput::Button(button, state, prev_state) = input {
                     if state != prev_state {
                         *prev_state = *state;
 
