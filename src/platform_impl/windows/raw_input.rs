@@ -1,5 +1,5 @@
 use std::{
-    mem::{self, size_of},
+    mem::{size_of, MaybeUninit},
     ptr,
 };
 
@@ -39,13 +39,13 @@ use crate::{
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_info(handle: HANDLE) -> Option<DeviceInfo> {
-    let mut info: RID_DEVICE_INFO = unsafe { mem::zeroed() };
-    let mut info_size = mem::size_of_val(&info) as u32;
+    let mut info: MaybeUninit<RID_DEVICE_INFO> = MaybeUninit::uninit();
+    let mut info_size = size_of::<RID_DEVICE_INFO>() as _;
     let status = unsafe {
         GetRawInputDeviceInfoW(
             handle,
             RIDI_DEVICEINFO,
-            &mut info as *mut _ as _,
+            info.as_mut_ptr() as _,
             &mut info_size,
         )
     };
@@ -53,6 +53,7 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<DeviceInfo> {
         return None;
     }
     debug_assert_eq!(info_size, status);
+    let info = unsafe { info.assume_init() };
 
     Some(match info.dwType {
         RIM_TYPEMOUSE => DeviceInfo::Mouse,
@@ -135,9 +136,9 @@ pub fn register_for_raw_input(mut window_handle: HWND, filter: DeviceEvents) -> 
         },
     ];
 
-    let device_size = size_of::<RAWINPUTDEVICE>() as u32;
+    let device_size = size_of::<RAWINPUTDEVICE>() as _;
     unsafe {
-        RegisterRawInputDevices(devices.as_ptr(), devices.len() as u32, device_size) == true.into()
+        RegisterRawInputDevices(devices.as_ptr(), devices.len() as _, device_size) == true.into()
     }
 }
 
@@ -191,13 +192,14 @@ impl HidState {
 
         let data_len = unsafe { HidP_MaxDataListLength(HidP_Input, preparsed_data.as_ptr() as _) };
 
-        let mut caps = unsafe { mem::zeroed() };
-        let status = unsafe { HidP_GetCaps(preparsed_data.as_ptr() as _, &mut caps) };
+        let mut caps: MaybeUninit<_> = MaybeUninit::uninit();
+        let status = unsafe { HidP_GetCaps(preparsed_data.as_ptr() as _, caps.as_mut_ptr()) };
         if status != HIDP_STATUS_SUCCESS {
             return None;
         }
+        let caps = unsafe { caps.assume_init() };
 
-        let mut inputs = vec![HidStateInput::None; caps.NumberInputDataIndices as usize];
+        let mut inputs = vec![HidStateInput::None; caps.NumberInputDataIndices as _];
 
         let mut button_caps_len = caps.NumberInputButtonCaps;
         let mut button_caps = Vec::with_capacity(button_caps_len as _);
@@ -212,7 +214,7 @@ impl HidState {
         if status != HIDP_STATUS_SUCCESS {
             return None;
         }
-        unsafe { button_caps.set_len(button_caps_len as usize) };
+        unsafe { button_caps.set_len(button_caps_len as _) };
 
         for cap in button_caps {
             // All pages beginning with 0xFF are vendor-specific
@@ -224,14 +226,13 @@ impl HidState {
                 let range = unsafe { cap.Anonymous.Range };
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
-                    inputs[data_index as usize] =
-                        HidStateInput::Button(usage as AxisId, false, false);
+                    inputs[data_index as usize] = HidStateInput::Button(usage as _, false, false);
                     data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
                 inputs[not_range.DataIndex as usize] =
-                    HidStateInput::Button((not_range.Usage - 1) as ButtonId, false, false);
+                    HidStateInput::Button((not_range.Usage - 1) as _, false, false);
             }
         }
 
@@ -248,7 +249,7 @@ impl HidState {
         if status != HIDP_STATUS_SUCCESS {
             return None;
         }
-        unsafe { value_caps.set_len(value_caps_len as usize) };
+        unsafe { value_caps.set_len(value_caps_len as _) };
 
         for cap in value_caps {
             // All pages beginning with 0xFF are vendor-specific
@@ -260,53 +261,54 @@ impl HidState {
                 let range = unsafe { cap.Anonymous.Range };
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
-                    inputs[data_index as usize] = HidStateInput::Axis(usage as AxisId, 0);
+                    inputs[data_index as usize] = HidStateInput::Axis(usage as _, 0);
                     data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
                 inputs[not_range.DataIndex as usize] =
-                    HidStateInput::Axis((not_range.Usage - 1) as AxisId, 0);
+                    HidStateInput::Axis((not_range.Usage - 1) as _, 0);
             }
         }
 
         Some(Self {
             preparsed_data,
-            data: Vec::with_capacity(data_len as usize),
+            data: Vec::with_capacity(data_len as _),
             inputs,
         })
     }
 }
 
 pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
-    let mut data: RAWINPUT = unsafe { mem::zeroed() };
-    let mut data_size = size_of::<RAWINPUT>() as u32;
-    let header_size = size_of::<RAWINPUTHEADER>() as u32;
+    let mut data: MaybeUninit<_> = MaybeUninit::uninit();
+    let mut data_size = size_of::<RAWINPUT>() as _;
+    let header_size = size_of::<RAWINPUTHEADER>() as _;
     let status = unsafe {
         GetRawInputData(
             handle,
             RID_INPUT,
-            &mut data as *mut _ as _,
+            data.as_mut_ptr() as _,
             &mut data_size,
             header_size,
         )
     };
     if status != u32::MAX {
+        let data = unsafe { data.assume_init() };
         return Some(RawInputData::MouseOrKeyboard(data));
     }
 
-    let mut data = Vec::with_capacity(data_size as usize);
+    let mut data = Vec::with_capacity(data_size as _);
     let status = unsafe {
         GetRawInputData(
             handle,
             RID_INPUT,
-            data.as_mut_ptr() as *mut _,
+            data.as_mut_ptr() as _,
             &mut data_size,
             header_size,
         )
     };
     if status != u32::MAX {
-        unsafe { data.set_len(data_size as usize) };
+        unsafe { data.set_len(data_size as _) };
         return Some(RawInputData::Other(data));
     }
 

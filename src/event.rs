@@ -638,7 +638,7 @@ pub enum DeviceEvent {
         info: Option<DeviceInfo>,
     },
 
-    /// Device was removed and does no longer exist.
+    /// Device was removed and is no longer valid.
     Removed,
 
     /// Change in physical position of a pointing device.
@@ -1162,7 +1162,7 @@ pub enum DeviceInfo {
     /// Keyboard devices can only emit Key events.
     Keyboard,
 
-    /// Hid devices are for example a gamepad or joystick and can emit Motion and Button events.
+    /// Hid devices are for example gamepads or joysticks and can emit Motion and Button events.
     Hid { vendor_id: u32, product_id: u32 },
 }
 
