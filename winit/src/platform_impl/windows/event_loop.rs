@@ -944,7 +944,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
 /// Returns the current modifier state
 fn update_modifiers(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::ModifiersChanged;
+    use winit_core::event::WindowEvent::ModifiersChanged;
 
     let modifiers = {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
@@ -966,7 +966,7 @@ fn update_modifiers(window: HWND, userdata: &WindowData) {
 }
 
 unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::Focused;
+    use winit_core::event::WindowEvent::Focused;
 
     update_modifiers(window, userdata);
 
@@ -977,7 +977,7 @@ unsafe fn gain_active_focus(window: HWND, userdata: &WindowData) {
 }
 
 unsafe fn lose_active_focus(window: HWND, userdata: &WindowData) {
-    use crate::event::WindowEvent::{Focused, ModifiersChanged};
+    use winit_core::event::WindowEvent::{Focused, ModifiersChanged};
 
     userdata.window_state_lock().modifiers_state = ModifiersState::empty();
     userdata.send_event(Event::WindowEvent {
@@ -1080,7 +1080,7 @@ unsafe fn public_window_callback_inner(
         .unwrap_or_else(|| result = ProcResult::Value(-1));
 
     let keyboard_callback = || {
-        use crate::event::WindowEvent::KeyboardInput;
+        use winit_core::event::WindowEvent::KeyboardInput;
         let events =
             userdata
                 .key_event_builder
@@ -1170,7 +1170,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_CLOSE => {
-            use crate::event::WindowEvent::CloseRequested;
+            use winit_core::event::WindowEvent::CloseRequested;
             userdata.send_event(Event::WindowEvent {
                 window_id: WindowId::from(window as u64),
                 event: CloseRequested,
@@ -1179,7 +1179,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_DESTROY => {
-            use crate::event::WindowEvent::Destroyed;
+            use winit_core::event::WindowEvent::Destroyed;
             unsafe { RevokeDragDrop(window) };
             userdata.send_event(Event::WindowEvent {
                 window_id: WindowId::from(window as u64),
@@ -1297,7 +1297,7 @@ unsafe fn public_window_callback_inner(
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
         WM_WINDOWPOSCHANGED => {
-            use crate::event::WindowEvent::Moved;
+            use winit_core::event::WindowEvent::Moved;
 
             let windowpos = lparam as *const WINDOWPOS;
             if unsafe { (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE } {
@@ -1314,7 +1314,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_SIZE => {
-            use crate::event::WindowEvent::Resized;
+            use winit_core::event::WindowEvent::Resized;
             let w = super::loword(lparam as u32) as u32;
             let h = super::hiword(lparam as u32) as u32;
 
@@ -1474,7 +1474,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_MOUSEMOVE => {
-            use crate::event::WindowEvent::{CursorEntered, CursorLeft, CursorMoved};
+            use winit_core::event::WindowEvent::{CursorEntered, CursorLeft, CursorMoved};
 
             let x = super::get_x_lparam(lparam as u32) as i32;
             let y = super::get_y_lparam(lparam as u32) as i32;
@@ -1550,7 +1550,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_MOUSELEAVE => {
-            use crate::event::WindowEvent::CursorLeft;
+            use winit_core::event::WindowEvent::CursorLeft;
             {
                 let mut w = userdata.window_state_lock();
                 w.mouse
@@ -1623,7 +1623,9 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_LBUTTONDOWN => {
-            use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
+            use winit_core::event::{
+                ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput,
+            };
 
             unsafe { capture_mouse(window, &mut userdata.window_state_lock()) };
 
@@ -1641,7 +1643,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_LBUTTONUP => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Released, MouseButton::Left, WindowEvent::MouseInput,
             };
 
@@ -1661,7 +1663,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_RBUTTONDOWN => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Pressed, MouseButton::Right, WindowEvent::MouseInput,
             };
 
@@ -1681,7 +1683,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_RBUTTONUP => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Released, MouseButton::Right, WindowEvent::MouseInput,
             };
 
@@ -1701,7 +1703,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_MBUTTONDOWN => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Pressed, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
@@ -1721,7 +1723,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_MBUTTONUP => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Released, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
@@ -1741,7 +1743,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_XBUTTONDOWN => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Pressed, MouseButton::Back, MouseButton::Forward, MouseButton::Other,
                 WindowEvent::MouseInput,
             };
@@ -1767,7 +1769,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_XBUTTONUP => {
-            use crate::event::{
+            use winit_core::event::{
                 ElementState::Released, MouseButton::Back, MouseButton::Forward,
                 MouseButton::Other, WindowEvent::MouseInput,
             };
@@ -2097,7 +2099,7 @@ unsafe fn public_window_callback_inner(
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
         WM_DPICHANGED => {
-            use crate::event::WindowEvent::ScaleFactorChanged;
+            use winit_core::event::WindowEvent::ScaleFactorChanged;
 
             // This message actually provides two DPI values - x and y. However MSDN says that
             // "you only need to use either the X-axis or the Y-axis value when scaling your
@@ -2308,7 +2310,7 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_SETTINGCHANGE => {
-            use crate::event::WindowEvent::ThemeChanged;
+            use winit_core::event::WindowEvent::ThemeChanged;
 
             let preferred_theme = userdata.window_state_lock().preferred_theme;
 

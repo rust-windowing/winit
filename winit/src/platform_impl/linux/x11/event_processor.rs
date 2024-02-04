@@ -17,13 +17,15 @@ use x11rb::{
 };
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceInfo,
-    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceInfo, Dnd,
+    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent, DeviceId},
+    event::{
+        DeviceEvent, DeviceId, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent,
+    },
     event_loop::EventLoopWindowTarget as RootELW,
     keyboard::ModifiersState,
     platform_impl::platform::common::{keymap, xkb_state::KbdState},
@@ -719,10 +721,10 @@ impl EventProcessor {
                     MouseButton::{Back, Forward, Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
                     Touch,
-                    WindowEvent::{
-                        AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
-                        MouseWheel,
-                    },
+                };
+                use winit_core::event::WindowEvent::{
+                    AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
+                    MouseWheel,
                 };
 
                 match xev.evtype {
@@ -858,12 +860,11 @@ impl EventProcessor {
                                 )
                             };
                             let mut devices = self.devices.borrow_mut();
-                            let physical_device = match devices
-                                .get_mut(&mkdid(xev.sourceid as xinput::DeviceId))
-                            {
-                                Some(device) => device,
-                                None => return,
-                            };
+                            let physical_device =
+                                match devices.get_mut(&mkdid(xev.sourceid as xinput::DeviceId)) {
+                                    Some(device) => device,
+                                    None => return,
+                                };
 
                             let mut value = xev.valuators.values;
                             for i in 0..xev.valuators.mask_len * 8 {

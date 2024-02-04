@@ -23,3 +23,7 @@ bitflags.workspace = true
 cursor-icon.workspace = true
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
+web-time = "1"
+
+[build-dependencies]
+cfg_aliases = "0.2.0"

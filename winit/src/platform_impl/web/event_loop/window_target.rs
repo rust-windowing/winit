@@ -9,12 +9,9 @@ use web_sys::Element;
 use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
-    backend,
-    runner,
+    backend, runner,
 };
-use crate::event::{
-    DeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
-};
+use crate::event::{DeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
 use crate::platform::web::PollStrategy;
@@ -151,7 +148,9 @@ impl EventLoopWindowTarget {
                                 location,
                                 state: ElementState::Pressed,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                extra: crate::event::KeyExtra {
+                                    extra: KeyEventExtra,
+                                },
                             },
                             is_synthetic: false,
                         },
@@ -187,7 +186,9 @@ impl EventLoopWindowTarget {
                                 location,
                                 state: ElementState::Released,
                                 repeat,
-                                platform_specific: KeyEventExtra,
+                                extra: crate::event::KeyExtra {
+                                    extra: KeyEventExtra,
+                                },
                             },
                             is_synthetic: false,
                         },

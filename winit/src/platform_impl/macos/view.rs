@@ -1076,7 +1076,7 @@ fn mouse_button(event: &NSEvent) -> MouseButton {
 // we're getting from the operating system, which makes it
 // impossible to provide such events as extra in `KeyEvent`.
 fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
-    let ev_mods = event_mods(event).state;
+    let ev_mods = event_mods(event).state();
     let ignore_alt_characters = match option_as_alt {
         OptionAsAlt::OnlyLeft if lalt_pressed(event) => true,
         OptionAsAlt::OnlyRight if ralt_pressed(event) => true,

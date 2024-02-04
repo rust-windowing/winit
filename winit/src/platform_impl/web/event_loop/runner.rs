@@ -1,9 +1,9 @@
+use super::super::backend::event::mouse_button_to_id;
 use super::super::main_thread::MainThreadMarker;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
 use crate::event::{
-    DeviceEvent, DeviceId, ElementState, Event, RawKeyEvent, StartCause,
-    WindowEvent,
+    DeviceEvent, DeviceId, ElementState, Event, RawKeyEvent, StartCause, WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::PollStrategy;
@@ -281,7 +281,7 @@ impl Shared {
                     runner.send_event(Event::DeviceEvent {
                         device_id,
                         event: DeviceEvent::Button {
-                            button: button.to_id(),
+                            button: mouse_button_to_id(button),
                             state,
                         },
                     });
@@ -359,7 +359,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: DeviceId::from(event.pointer_id() as u64),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: mouse_button_to_id(button),
                         state: ElementState::Pressed,
                     },
                 });
@@ -382,7 +382,7 @@ impl Shared {
                 runner.send_event(Event::DeviceEvent {
                     device_id: DeviceId::from(event.pointer_id() as u64),
                     event: DeviceEvent::Button {
-                        button: button.to_id(),
+                        button: mouse_button_to_id(button),
                         state: ElementState::Released,
                     },
                 });
@@ -398,7 +398,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: unsafe { DeviceId::dummy() }, 
+                    device_id: unsafe { DeviceId::dummy() },
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Pressed,

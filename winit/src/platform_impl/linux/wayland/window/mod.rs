@@ -177,7 +177,7 @@ impl Window {
             xdg_activation.as_ref(),
             attributes.platform_specific.activation_token,
         ) {
-            xdg_activation.activate(token._token, &surface);
+            xdg_activation.activate(token.into_token(), &surface);
         }
 
         // XXX Do initial commit.

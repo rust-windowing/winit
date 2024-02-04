@@ -569,7 +569,7 @@ impl<T: 'static> EventLoop<T> {
                         window_id,
                         event: crate::event::WindowEvent::ActivationTokenDone {
                             serial,
-                            token: crate::window::ActivationToken::_new(token),
+                            token: crate::window::ActivationToken::new(token),
                         },
                     },
                     &self.target,

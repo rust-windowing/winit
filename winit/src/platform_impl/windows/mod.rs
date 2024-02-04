@@ -75,14 +75,14 @@ pub struct Cursor(pub *const u16);
 unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
-    pub fn persistent_identifier(id: DeviceId) -> Option<String> {
-        let val: u64 = id.into();
-        if val != 0 {
-            raw_input::get_raw_input_device_name(val as HANDLE)
-        } else {
-            None
-        }
+pub fn persistent_identifier(id: DeviceId) -> Option<String> {
+    let val: u64 = id.into();
+    if val != 0 {
+        raw_input::get_raw_input_device_name(val as HANDLE)
+    } else {
+        None
     }
+}
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 const DEVICE_ID: DeviceId = unsafe { DeviceId::dummy() };

@@ -82,7 +82,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
                 state.events_sink.push_window_event(
                     crate::event::WindowEvent::ActivationTokenDone {
                         serial: *serial,
-                        token: ActivationToken::_new(token),
+                        token: ActivationToken::new(token),
                     },
                     *window_id,
                 );

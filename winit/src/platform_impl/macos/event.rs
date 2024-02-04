@@ -188,9 +188,11 @@ pub(crate) fn create_key_event(
         repeat: is_repeat,
         state,
         text,
-        platform_specific: KeyEventExtra {
-            text_with_all_modifiers,
-            key_without_modifiers,
+        extra: crate::event::KeyExtra {
+            extra: KeyEventExtra {
+                text_with_all_modifiers,
+                key_without_modifiers,
+            },
         },
     }
 }
@@ -393,10 +395,7 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
         flags_contains(flags, NX_DEVICERCMDKEYMASK),
     );
 
-    Modifiers {
-        state,
-        pressed_mods,
-    }
+    Modifiers::new(state, pressed_mods)
 }
 
 pub(super) fn dummy_event() -> Option<Id<NSEvent>> {

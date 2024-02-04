@@ -25,8 +25,8 @@ use crate::{
 };
 
 use super::{
-    KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowProperties,
+    KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes, RedoxSocket,
+    TimeSocket, WindowProperties,
 };
 
 fn convert_scancode(scancode: u8) -> PhysicalKey {
@@ -265,10 +265,7 @@ impl EventState {
             self.keyboard.contains(KeyboardModifierState::RSUPER),
         );
 
-        Modifiers {
-            state,
-            pressed_mods,
-        }
+        Modifiers::new(state, pressed_mods)
     }
 }
 
@@ -353,7 +350,9 @@ impl<T: 'static> EventLoop<T> {
                                 repeat: false,
                                 text: None,
 
-                                platform_specific: KeyEventExtra {},
+                                extra: event::KeyExtra {
+                                    extra: KeyEventExtra {},
+                                },
                             },
                             is_synthetic: false,
                         },

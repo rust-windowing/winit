@@ -465,7 +465,9 @@ impl<T: 'static> EventLoop<T> {
                                     location: keycodes::to_location(keycode),
                                     repeat: key.repeat_count() > 0,
                                     text: None,
-                                    platform_specific: KeyEventExtra {},
+                                    extra: event::KeyExtra {
+                                        extra: KeyEventExtra {},
+                                    },
                                 },
                                 is_synthetic: false,
                             },

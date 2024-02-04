@@ -11,8 +11,8 @@ use winit_core::event::DeviceId;
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
 
-use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland;
+use crate::platform_impl::wayland::state::WinitState;
 
 impl TouchHandler for WinitState {
     fn down(

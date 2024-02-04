@@ -381,16 +381,9 @@ impl<T> BufferedEvent<T> {
                         inner_size_writer,
                     },
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(
-                window_id,
-                scale_factor,
-                *inner_size_writer
-                    .new_inner_size
-                    .upgrade()
-                    .unwrap()
-                    .lock()
-                    .unwrap(),
-            ),
+            } => {
+                BufferedEvent::ScaleFactorChanged(window_id, scale_factor, inner_size_writer.get())
+            }
             event => BufferedEvent::Event(event),
         }
     }

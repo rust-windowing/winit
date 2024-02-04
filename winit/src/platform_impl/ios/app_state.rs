@@ -92,16 +92,14 @@ enum UserCallbackTransitionResult<'a> {
     },
 }
 
-impl Event<HandlePendingUserEvents> {
-    fn is_redraw(&self) -> bool {
-        matches!(
-            self,
-            Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            }
-        )
-    }
+fn is_redraw(event: &Event<HandlePendingUserEvents>) -> bool {
+    matches!(
+        event,
+        Event::WindowEvent {
+            event: WindowEvent::RedrawRequested,
+            ..
+        }
+    )
 }
 
 // this is the state machine for the app lifecycle
@@ -621,9 +619,9 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
     for wrapper in events {
         match wrapper {
             EventWrapper::StaticEvent(event) => {
-                if !processing_redraws && event.is_redraw() {
+                if !processing_redraws && is_redraw(&event) {
                     log::info!("processing `RedrawRequested` during the main event loop");
-                } else if processing_redraws && !event.is_redraw() {
+                } else if processing_redraws && !is_redraw(&event) {
                     log::warn!(
                         "processing non `RedrawRequested` event after the main event loop: {:#?}",
                         event
@@ -675,9 +673,9 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
         for wrapper in queued_events {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
-                    if !processing_redraws && event.is_redraw() {
+                    if !processing_redraws && is_redraw(&event) {
                         log::info!("processing `RedrawRequested` during the main event loop");
-                    } else if processing_redraws && !event.is_redraw() {
+                    } else if processing_redraws && !is_redraw(&event) {
                         log::warn!(
                             "processing non-`RedrawRequested` event after the main event loop: {:#?}",
                             event

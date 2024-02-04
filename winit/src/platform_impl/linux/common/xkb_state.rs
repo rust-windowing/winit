@@ -409,7 +409,9 @@ impl KbdState {
             location,
             state,
             repeat,
-            platform_specific,
+            extra: crate::event::KeyExtra {
+                extra: platform_specific,
+            },
         }
     }
 

@@ -25,7 +25,8 @@ pub trait KeyEventExtModifierSupplement {
 impl KeyEventExtModifierSupplement for KeyEvent {
     #[inline]
     fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific
+        self.extra
+            .extra
             .text_with_all_modifiers
             .as_ref()
             .map(|s| s.as_str())
@@ -33,6 +34,6 @@ impl KeyEventExtModifierSupplement for KeyEvent {
 
     #[inline]
     fn key_without_modifiers(&self) -> Key {
-        self.platform_specific.key_without_modifiers.clone()
+        self.extra.extra.key_without_modifiers.clone()
     }
 }

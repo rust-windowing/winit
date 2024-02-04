@@ -483,7 +483,7 @@ impl KeyEventBuilder {
 
         let mut event = event_info.finalize();
         event.logical_key = logical_key;
-        event.platform_specific.text_with_all_modifiers = text;
+        event.extra.extra.text_with_all_modifiers = text;
         Some(MessageAsKeyEvent {
             event,
             is_synthetic: true,
@@ -664,9 +664,11 @@ impl PartialKeyEventInfo {
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
-            platform_specific: KeyEventExtra {
-                text_with_all_modifiers: char_with_all_modifiers,
-                key_without_modifiers: self.key_without_modifiers,
+            extra: crate::event::KeyExtra {
+                extra: KeyEventExtra {
+                    text_with_all_modifiers: char_with_all_modifiers,
+                    key_without_modifiers: self.key_without_modifiers,
+                },
             },
         }
     }
