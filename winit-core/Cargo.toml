@@ -16,7 +16,9 @@ rust-version = "1.70.0"
 default = ["std"]
 std = ["alloc"]
 alloc = []
-serde = ["dep:serde"]
+serde = ["dep:serde", "smol_str/serde"]
 
 [dependencies]
+bitflags.workspace = true
 serde = { workspace = true, optional = true }
+smol_str.workspace = true
