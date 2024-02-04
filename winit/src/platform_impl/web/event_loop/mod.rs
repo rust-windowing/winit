@@ -5,7 +5,7 @@ use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
 
-use super::{backend, device};
+use super::backend;
 
 mod proxy;
 pub(crate) mod runner;

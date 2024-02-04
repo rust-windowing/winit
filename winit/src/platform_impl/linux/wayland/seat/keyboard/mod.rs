@@ -21,7 +21,7 @@ use crate::platform_impl::common::xkb_state::KbdState;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::seat::WinitSeatState;
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+use crate::platform_impl::wayland::{self, WindowId};
 
 impl Dispatch<WlKeyboard, KeyboardData, WinitState> for WinitState {
     fn event(
@@ -384,7 +384,7 @@ fn key_input(
 
     let keyboard_state = seat_state.keyboard_state.as_mut().unwrap();
 
-    let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+    let device_id = crate::event::DeviceId::from(0);
     let event = keyboard_state
         .xkb_state
         .process_key_event(keycode, state, repeat);

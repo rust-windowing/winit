@@ -54,6 +54,9 @@ use crate::{
     window::{ActivationToken, Theme, WindowId},
 };
 
+#[doc(inline)]
+pub use winit_core::event::DeviceId;
+
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
@@ -597,30 +600,6 @@ pub enum WindowEvent {
     /// Winit will aggregate duplicate redraw requests into a single event, to
     /// help avoid duplicating rendering work.
     RedrawRequested,
-}
-
-/// Identifier of an input device.
-///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
-
-impl DeviceId {
-    /// Returns a dummy id, useful for unit testing.
-    ///
-    /// # Safety
-    ///
-    /// The only guarantee made about the return value of this function is that
-    /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub const unsafe fn dummy() -> Self {
-        #[allow(unused_unsafe)]
-        DeviceId(unsafe { platform_impl::DeviceId::dummy() })
-    }
 }
 
 /// Represents raw hardware events that are not associated with any particular window.

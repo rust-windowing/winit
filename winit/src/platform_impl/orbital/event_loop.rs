@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
+    KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
     RedoxSocket, TimeSocket, WindowProperties,
 };
 
@@ -344,7 +344,7 @@ impl<T: 'static> EventLoop<T> {
                     event_handler(event::Event::WindowEvent {
                         window_id,
                         event: event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId),
+                            device_id: event::DeviceId::from(0),
                             event: event::KeyEvent {
                                 logical_key: Key::Unidentified(NativeKey::Unidentified),
                                 physical_key,
@@ -382,7 +382,7 @@ impl<T: 'static> EventLoop<T> {
                 event_handler(event::Event::WindowEvent {
                     window_id,
                     event: event::WindowEvent::CursorMoved {
-                        device_id: event::DeviceId(DeviceId),
+                        device_id: event::DeviceId::from(0),
                         position: (x, y).into(),
                     },
                 });
@@ -396,7 +396,7 @@ impl<T: 'static> EventLoop<T> {
                     event_handler(event::Event::WindowEvent {
                         window_id,
                         event: event::WindowEvent::MouseInput {
-                            device_id: event::DeviceId(DeviceId),
+                            device_id: event::DeviceId::from(0),
                             state,
                             button,
                         },
@@ -407,7 +407,7 @@ impl<T: 'static> EventLoop<T> {
                 event_handler(event::Event::WindowEvent {
                     window_id,
                     event: event::WindowEvent::MouseWheel {
-                        device_id: event::DeviceId(DeviceId),
+                        device_id: event::DeviceId::from(0),
                         delta: event::MouseScrollDelta::LineDelta(x as f32, y as f32),
                         phase: event::TouchPhase::Moved,
                     },
@@ -446,14 +446,14 @@ impl<T: 'static> EventLoop<T> {
                     event_handler(event::Event::WindowEvent {
                         window_id,
                         event: event::WindowEvent::CursorEntered {
-                            device_id: event::DeviceId(DeviceId),
+                            device_id: event::DeviceId::from(0),
                         },
                     });
                 } else {
                     event_handler(event::Event::WindowEvent {
                         window_id,
                         event: event::WindowEvent::CursorLeft {
-                            device_id: event::DeviceId(DeviceId),
+                            device_id: event::DeviceId::from(0),
                         },
                     });
                 }

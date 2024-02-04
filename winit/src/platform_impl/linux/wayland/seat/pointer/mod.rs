@@ -22,12 +22,13 @@ use sctk::globals::GlobalData;
 use sctk::seat::pointer::{PointerData, PointerDataExt};
 use sctk::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
 use sctk::seat::SeatState;
+use winit_core::event::DeviceId;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+use crate::platform_impl::wayland::{self, WindowId};
 
 pub mod relative_pointer;
 
@@ -42,7 +43,7 @@ impl PointerHandler for WinitState {
         let seat = pointer.winit_data().seat();
         let seat_state = self.seats.get(&seat.id()).unwrap();
 
-        let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+        let device_id = DeviceId::from(0);
 
         for event in events {
             let surface = &event.surface;

@@ -17,13 +17,13 @@ use x11rb::{
 };
 
 use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
+    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceInfo,
     Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent, DeviceId},
     event_loop::EventLoopWindowTarget as RootELW,
     keyboard::ModifiersState,
     platform_impl::platform::common::{keymap, xkb_state::KbdState},
@@ -67,7 +67,7 @@ impl EventProcessor {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device as _) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
+                devices.insert(mkdid(info.deviceid as _), Device::new(info));
             }
         }
     }
@@ -859,7 +859,7 @@ impl EventProcessor {
                             };
                             let mut devices = self.devices.borrow_mut();
                             let physical_device = match devices
-                                .get_mut(&DeviceId(xev.sourceid as xinput::DeviceId))
+                                .get_mut(&mkdid(xev.sourceid as xinput::DeviceId))
                             {
                                 Some(device) => device,
                                 None => return,
@@ -933,7 +933,7 @@ impl EventProcessor {
                                 // the virtual device.
                                 || device_info.attachment == xev.sourceid
                                 {
-                                    let device_id = DeviceId(device_info.deviceid as _);
+                                    let device_id = mkdid(device_info.deviceid as _);
                                     if let Some(device) = devices.get_mut(&device_id) {
                                         device.reset_scroll_position(device_info);
                                     }
@@ -1015,7 +1015,7 @@ impl EventProcessor {
                             let pointer_id = self
                                 .devices
                                 .borrow()
-                                .get(&DeviceId(xev.deviceid as xinput::DeviceId))
+                                .get(&mkdid(xev.deviceid as xinput::DeviceId))
                                 .map(|device| device.attachment)
                                 .unwrap_or(2);
 
@@ -1252,7 +1252,7 @@ impl EventProcessor {
                                     event: DeviceEvent::Removed,
                                 });
                                 let mut devices = self.devices.borrow_mut();
-                                devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
+                                devices.remove(&mkdid(info.deviceid as xinput::DeviceId));
                             }
                         }
                     }

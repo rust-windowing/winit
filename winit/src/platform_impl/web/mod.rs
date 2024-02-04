@@ -19,7 +19,6 @@
 
 mod r#async;
 mod cursor;
-mod device;
 mod error;
 mod event_loop;
 mod keyboard;
@@ -30,7 +29,6 @@ mod window;
 #[path = "web_sys/mod.rs"]
 mod backend;
 
-pub use self::device::DeviceId;
 pub use self::error::OsError;
 pub(crate) use self::event_loop::{
     EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,

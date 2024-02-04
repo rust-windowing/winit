@@ -2,11 +2,8 @@
 
 use std::vec::Drain;
 
-use crate::event::{DeviceEvent, DeviceId as RootDeviceId, Event, WindowEvent};
-use crate::platform_impl::platform::DeviceId as PlatformDeviceId;
+use crate::event::{DeviceEvent, DeviceId, Event, WindowEvent};
 use crate::window::WindowId;
-
-use super::DeviceId;
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
@@ -31,7 +28,7 @@ impl EventSink {
     pub fn push_device_event(&mut self, event: DeviceEvent, device_id: DeviceId) {
         self.window_events.push(Event::DeviceEvent {
             event,
-            device_id: RootDeviceId(PlatformDeviceId::Wayland(device_id)),
+            device_id,
         });
     }
 

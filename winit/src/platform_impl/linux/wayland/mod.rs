@@ -65,16 +65,6 @@ impl From<WaylandError> for OsError {
     }
 }
 
-/// Dummy device id, since Wayland doesn't have device events.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
-
-impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
-        DeviceId
-    }
-}
-
 /// Get the WindowId out of the surface.
 #[inline]
 fn make_wid(surface: &WlSurface) -> WindowId {

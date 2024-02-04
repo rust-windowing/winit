@@ -6,12 +6,13 @@ use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 
 use sctk::seat::touch::{TouchData, TouchHandler};
+use winit_core::event::DeviceId;
 
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
 
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId};
+use crate::platform_impl::wayland;
 
 impl TouchHandler for WinitState {
     fn down(
@@ -42,9 +43,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: DeviceId::from(0),
                 phase: TouchPhase::Started,
                 location: location.to_physical(scale_factor),
                 force: None,
@@ -79,9 +78,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: DeviceId::from(0),
                 phase: TouchPhase::Ended,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -118,9 +115,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: DeviceId::from(0),
                 phase: TouchPhase::Moved,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -144,9 +139,7 @@ impl TouchHandler for WinitState {
 
             self.events_sink.push_window_event(
                 WindowEvent::Touch(Touch {
-                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                        DeviceId,
-                    )),
+                    device_id: DeviceId::from(0),
                     phase: TouchPhase::Cancelled,
                     location,
                     force: None,

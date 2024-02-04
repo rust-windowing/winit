@@ -504,7 +504,7 @@ pub trait DeviceIdExtWindows {
 impl DeviceIdExtWindows for DeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
-        self.0.persistent_identifier()
+        crate::platform_impl::persistent_identifier(*self)
     }
 }
 

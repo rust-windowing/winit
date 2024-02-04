@@ -70,7 +70,7 @@ impl Dispatch<ZwpRelativePointerV1, GlobalData, WinitState> for RelativePointerS
                 DeviceEvent::MouseMotion {
                     delta: (dx_unaccel, dy_unaccel),
                 },
-                super::DeviceId,
+                crate::event::DeviceId::from(0),
             );
         }
     }

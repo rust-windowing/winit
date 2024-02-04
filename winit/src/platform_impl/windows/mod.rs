@@ -22,7 +22,7 @@ pub use self::icon::WinIcon as PlatformIcon;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 use crate::platform_impl::Fullscreen;
 
-use crate::event::DeviceId as RootDeviceId;
+use crate::event::DeviceId;
 use crate::icon::Icon;
 use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
@@ -75,30 +75,20 @@ pub struct Cursor(pub *const u16);
 unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
-
-impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-impl DeviceId {
-    pub fn persistent_identifier(&self) -> Option<String> {
-        if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as HANDLE)
+    pub fn persistent_identifier(id: DeviceId) -> Option<String> {
+        let val: u64 = id.into();
+        if val != 0 {
+            raw_input::get_raw_input_device_name(val as HANDLE)
         } else {
             None
         }
     }
-}
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
+const DEVICE_ID: DeviceId = unsafe { DeviceId::dummy() };
 
-fn wrap_device_id(id: u32) -> RootDeviceId {
-    RootDeviceId(DeviceId(id))
+fn wrap_device_id(id: u32) -> DeviceId {
+    (id as u64).into()
 }
 
 pub type OsError = std::io::Error;

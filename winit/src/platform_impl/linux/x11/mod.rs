@@ -812,16 +812,6 @@ impl<'a> Deref for DeviceInfo<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(xinput::DeviceId);
-
-impl DeviceId {
-    #[allow(unused)]
-    pub const unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
 pub(crate) struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
@@ -1043,7 +1033,7 @@ fn mkwid(w: xproto::Window) -> crate::window::WindowId {
     WindowId::from(w as u64)
 }
 fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
-    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+    crate::event::DeviceId::from(w as u64)
 }
 
 #[derive(Debug)]

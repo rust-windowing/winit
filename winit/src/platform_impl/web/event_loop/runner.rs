@@ -1,9 +1,8 @@
 use super::super::main_thread::MainThreadMarker;
-use super::super::DeviceId;
 use super::{backend, state::State};
 use crate::dpi::PhysicalSize;
 use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
+    DeviceEvent, DeviceId, ElementState, Event, RawKeyEvent, StartCause,
     WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
@@ -265,7 +264,7 @@ impl Shared {
                 }
 
                 // chorded button event
-                let device_id = RootDeviceId(DeviceId(event.pointer_id()));
+                let device_id = DeviceId::from(event.pointer_id() as u64);
 
                 if let Some(button) = backend::event::mouse_button(&event) {
                     debug_assert_eq!(
@@ -337,7 +336,7 @@ impl Shared {
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
                     runner.send_event(Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(0)),
+                        device_id: DeviceId::from(0u64),
                         event: DeviceEvent::MouseWheel { delta },
                     });
                 }
@@ -358,7 +357,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: DeviceId::from(event.pointer_id() as u64),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Pressed,
@@ -381,7 +380,7 @@ impl Shared {
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(DeviceId(event.pointer_id())),
+                    device_id: DeviceId::from(event.pointer_id() as u64),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
                         state: ElementState::Released,
@@ -399,7 +398,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: unsafe { DeviceId::dummy() }, 
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Pressed,
@@ -417,7 +416,7 @@ impl Shared {
                 }
 
                 runner.send_event(Event::DeviceEvent {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                    device_id: unsafe { DeviceId::dummy() },
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
                         state: ElementState::Released,

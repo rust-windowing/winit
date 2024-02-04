@@ -10,11 +10,10 @@ use super::runner::{EventWrapper, Execution};
 use super::{
     super::{monitor::MonitorHandle, KeyEventExtra},
     backend,
-    device::DeviceId,
     runner,
 };
 use crate::event::{
-    DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
+    DeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
@@ -138,7 +137,7 @@ impl EventLoopWindowTarget {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = unsafe { DeviceId::dummy() };
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {
@@ -174,7 +173,7 @@ impl EventLoopWindowTarget {
                     }
                 });
 
-                let device_id = RootDeviceId(unsafe { DeviceId::dummy() });
+                let device_id = unsafe { DeviceId::dummy() };
 
                 runner.send_events(
                     iter::once(Event::WindowEvent {
@@ -216,7 +215,7 @@ impl EventLoopWindowTarget {
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: id,
                     event: WindowEvent::CursorLeft {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        device_id: DeviceId::from(pointer_id as u64),
                     },
                 });
 
@@ -243,7 +242,7 @@ impl EventLoopWindowTarget {
                 let pointer = pointer_id.map(|pointer_id| Event::WindowEvent {
                     window_id: id,
                     event: WindowEvent::CursorEntered {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        device_id: DeviceId::from(pointer_id as u64),
                     },
                 });
 
@@ -285,7 +284,7 @@ impl EventLoopWindowTarget {
                         });
 
                     runner.send_events(modifiers.into_iter().chain(events.flat_map(|position| {
-                        let device_id = RootDeviceId(DeviceId(pointer_id));
+                        let device_id = DeviceId::from(pointer_id as u64);
 
                         iter::once(Event::WindowEvent {
                             window_id: id,
@@ -317,7 +316,7 @@ impl EventLoopWindowTarget {
                             window_id: id,
                             event: WindowEvent::Touch(Touch {
                                 id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                device_id: DeviceId::from(device_id as u64),
                                 phase: TouchPhase::Moved,
                                 force: Some(force),
                                 location,
@@ -345,7 +344,7 @@ impl EventLoopWindowTarget {
                             }
                         });
 
-                    let device_id = RootDeviceId(DeviceId(pointer_id));
+                    let device_id = DeviceId::from(pointer_id as u64);
 
                     let state = if buttons.contains(button.into()) {
                         ElementState::Pressed
@@ -405,7 +404,7 @@ impl EventLoopWindowTarget {
                         }
                     });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: DeviceId = DeviceId::from(pointer_id as u64);
 
                     // A mouse down event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -447,7 +446,7 @@ impl EventLoopWindowTarget {
                             window_id: id,
                             event: WindowEvent::Touch(Touch {
                                 id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                device_id: DeviceId::from(device_id as u64),
                                 phase: TouchPhase::Started,
                                 force: Some(force),
                                 location,
@@ -489,7 +488,7 @@ impl EventLoopWindowTarget {
                             }
                         });
 
-                    let device_id: RootDeviceId = RootDeviceId(DeviceId(pointer_id));
+                    let device_id: DeviceId = DeviceId::from(pointer_id as u64);
 
                     // A mouse up event may come in without any prior CursorMoved events,
                     // therefore we should send a CursorMoved event to make sure that the
@@ -533,7 +532,7 @@ impl EventLoopWindowTarget {
                             window_id: id,
                             event: WindowEvent::Touch(Touch {
                                 id: device_id as u64,
-                                device_id: RootDeviceId(DeviceId(device_id)),
+                                device_id: DeviceId::from(device_id as u64),
                                 phase: TouchPhase::Ended,
                                 force: Some(force),
                                 location,
@@ -560,7 +559,7 @@ impl EventLoopWindowTarget {
                 Event::WindowEvent {
                     window_id: id,
                     event: WindowEvent::MouseWheel {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        device_id: DeviceId::from(pointer_id as u64),
                         delta,
                         phase: TouchPhase::Moved,
                     },
@@ -574,7 +573,7 @@ impl EventLoopWindowTarget {
                 window_id: id,
                 event: WindowEvent::Touch(Touch {
                     id: device_id as u64,
-                    device_id: RootDeviceId(DeviceId(device_id)),
+                    device_id: DeviceId::from(device_id as u64),
                     phase: TouchPhase::Cancelled,
                     force: Some(force),
                     location,

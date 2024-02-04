@@ -385,7 +385,7 @@ impl<T: 'static> EventLoop<T> {
         match event {
             InputEvent::MotionEvent(motion_event) => {
                 let window_id = WindowId::from(WINDOW_ID);
-                let device_id = event::DeviceId(DeviceId(motion_event.device_id()));
+                let device_id = event::DeviceId::from(motion_event.device_id() as u64);
 
                 let phase = match motion_event.action() {
                     MotionAction::Down | MotionAction::PointerDown => {
@@ -457,7 +457,7 @@ impl<T: 'static> EventLoop<T> {
                         let event = event::Event::WindowEvent {
                             window_id: WindowId::from(WINDOW_ID),
                             event: event::WindowEvent::KeyboardInput {
-                                device_id: event::DeviceId(DeviceId(key.device_id())),
+                                device_id: event::DeviceId::from(key.device_id() as u64),
                                 event: event::KeyEvent {
                                     state,
                                     physical_key: keycodes::to_physical_key(keycode),
@@ -741,15 +741,6 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::AndroidDisplayHandle::new().into())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId(i32);
-
-impl DeviceId {
-    pub const fn dummy() -> Self {
-        DeviceId(0)
     }
 }
 

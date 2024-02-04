@@ -142,23 +142,6 @@ pub(crate) enum Window {
     Wayland(wayland::Window),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DeviceId {
-    #[cfg(x11_platform)]
-    X(x11::DeviceId),
-    #[cfg(wayland_platform)]
-    Wayland(wayland::DeviceId),
-}
-
-impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
-        #[cfg(wayland_platform)]
-        return DeviceId::Wayland(unsafe { wayland::DeviceId::dummy() });
-        #[cfg(all(not(wayland_platform), x11_platform))]
-        return DeviceId::X(unsafe { x11::DeviceId::dummy() });
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
     #[cfg(x11_platform)]

@@ -25,7 +25,7 @@ pub(crate) use self::{
     monitor::{MonitorHandle, VideoModeHandle},
     window_delegate::PlatformSpecificWindowBuilderAttributes,
 };
-use crate::event::DeviceId as RootDeviceId;
+use crate::event::DeviceId;
 
 pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::window::Window;
@@ -33,17 +33,8 @@ pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuil
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
-
-impl DeviceId {
-    pub const unsafe fn dummy() -> Self {
-        DeviceId
-    }
-}
-
 // Constant device ID; to be removed when if backend is updated to report real device IDs.
-pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
+pub(crate) const DEVICE_ID: DeviceId = unsafe { DeviceId::dummy() };
 
 #[derive(Debug)]
 pub enum OsError {
