@@ -3,6 +3,9 @@
 #[doc(inline)]
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
+#[cfg(feature = "serde")]
+pub use serde::{Serialize, Deserialize};
+
 /// Identifier of a window. Unique for each window.
 ///
 /// Can be obtained with [`window.id()`](`Window::id`).
@@ -192,7 +195,7 @@ impl Default for ImePurpose {
     }
 }
 
-/// An opaque token used to activate the [`Window`].
+/// An stringly-typed token used to activate the [`Window`].
 ///
 /// [`Window`]: crate::window::Window
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -201,14 +204,17 @@ pub struct ActivationToken {
 }
 
 impl ActivationToken {
-    pub fn new(_token: String) -> Self {
-        Self { token: _token }
+    /// Create a new [`ActivationToken`].
+    pub fn new(token: String) -> Self {
+        Self { token }
     }
 
+    /// Get the underlying token.
     pub fn token(&self) -> &str {
         &self.token
     }
 
+    /// Convert into the underlying token.
     pub fn into_token(self) -> String {
         self.token
     }

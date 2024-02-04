@@ -14,6 +14,9 @@ use std::time::Instant;
 #[cfg(web_platform)]
 use web_time::Instant;
 
+#[cfg(feature = "serde")]
+pub use serde::{Serialize, Deserialize};
+
 use smol_str::SmolStr;
 
 /// Identifier of an input device.
@@ -778,6 +781,7 @@ pub struct Modifiers {
 }
 
 impl Modifiers {
+    /// Only `winit` should instantiate this!
     #[doc(hidden)]
     pub fn new(state: ModifiersState, pressed_mods: ModifiersKeys) -> Self {
         Self {
@@ -1120,6 +1124,7 @@ impl InnerSizeWriter {
         }
     }
 
+    /// Get the underlying size.
     pub fn get(&self) -> PhysicalSize<u32> {
         *self.new_inner_size.upgrade().unwrap().lock().unwrap()
     }

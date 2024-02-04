@@ -49,6 +49,14 @@ Unreleased` header.
 - On Wayland, fix `Window::set_{min,max}_inner_size` not always applied.
 - On Windows, fix inconsistent resizing behavior with multi-monitor setups when repositioning outside the event loop.
 - On Wayland, fix `WAYLAND_SOCKET` not used when detecting platform.
+- **Breaking:** Move some types to the `winit-core` crate. Most types are
+  re-exported verbatim; however:
+  - `Event`, `WindowEvent` and `KeyEvent` now take a generic that `winit`
+    implements.
+  - `ActivationToken` and `InnerSizeWriter` expose new methods to make them
+    useful.
+  - `InnerSizeWriter::request_inner_size` returns an `InnerSizeIgnored` error
+    instead of an `ExternalError`.
 
 # 0.29.10
 

@@ -16,6 +16,12 @@ pub enum ExternalError {
     Os(OsError),
 }
 
+impl From<winit_core::event::InnerSizeIgnored> for ExternalError {
+    fn from(_: winit_core::event::InnerSizeIgnored) -> Self {
+        Self::Ignored
+    }
+}
+
 /// The error type for when the OS cannot perform the requested operation.
 #[derive(Debug)]
 pub struct OsError {

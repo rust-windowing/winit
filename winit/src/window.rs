@@ -14,9 +14,6 @@ pub use crate::icon::{BadIcon, Icon};
 #[doc(inline)]
 pub use winit_core::window::*;
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 /// Represents a window.
 ///
 /// The window is closed when dropped.

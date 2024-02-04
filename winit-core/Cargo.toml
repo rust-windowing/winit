@@ -21,9 +21,12 @@ serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde"]
 [dependencies]
 bitflags.workspace = true
 cursor-icon.workspace = true
+mint = { version = "0.5.6", optional = true }
 serde = { workspace = true, optional = true }
 smol_str.workspace = true
-web-time = "1"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+web-time.workspace = true
 
 [build-dependencies]
-cfg_aliases = "0.2.0"
+cfg_aliases.workspace = true
