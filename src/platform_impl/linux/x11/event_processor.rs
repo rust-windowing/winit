@@ -1243,7 +1243,7 @@ impl EventProcessor {
                                 self.init_device(info.deviceid as xinput::DeviceId);
                                 callback(Event::DeviceEvent {
                                     device_id: mkdid(info.deviceid as xinput::DeviceId),
-                                    event: DeviceEvent::Added,
+                                    event: DeviceEvent::Added { info: None },
                                 });
                             } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved)
                             {

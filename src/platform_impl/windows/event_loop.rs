@@ -2410,8 +2410,8 @@ unsafe extern "system" fn thread_event_target_callback(
                             .insert(device_id, hid_state);
                     }
 
-                    let device_info = raw_input::get_raw_input_device_info(lparam as _).unwrap();
-                    DeviceEvent::Added { info: device_info }
+                    let info = raw_input::get_raw_input_device_info(lparam as _);
+                    DeviceEvent::Added { info }
                 }
                 GIDC_REMOVAL => {
                     userdata.hid_states.borrow_mut().remove(&device_id);

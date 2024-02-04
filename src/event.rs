@@ -635,7 +635,7 @@ impl DeviceId {
 pub enum DeviceEvent {
     /// New device was connected.
     Added {
-        info: DeviceInfo,
+        info: Option<DeviceInfo>,
     },
 
     /// Device was removed and does no longer exist.
@@ -1268,7 +1268,7 @@ mod tests {
                     })
                 };
 
-                with_device_event(Added);
+                with_device_event(Added { info: None });
                 with_device_event(Removed);
                 with_device_event(MouseMotion {
                     delta: (0.0, 0.0).into(),
