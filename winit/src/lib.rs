@@ -165,7 +165,7 @@
 pub use rwh_06 as raw_window_handle;
 
 #[doc(inline)]
-pub use winit_core::dpi;
+pub use winit_core::{dpi, keyboard};
 
 #[macro_use]
 pub mod error;
@@ -173,7 +173,6 @@ mod cursor;
 pub mod event;
 pub mod event_loop;
 mod icon;
-pub mod keyboard;
 pub mod monitor;
 mod platform_impl;
 pub mod window;

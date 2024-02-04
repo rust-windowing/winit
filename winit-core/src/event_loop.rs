@@ -2,6 +2,11 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(not(web_platform))]
+use std::time::{Duration, Instant};
+#[cfg(web_platform)]
+use web_time::{Duration, Instant};
+
 /// A unique identifier of the winit's async request.
 ///
 /// This could be used to identify the async request once it's done
@@ -24,5 +29,49 @@ impl AsyncRequestSerial {
         // in the loop u64::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
+    }
+}
+
+/// Set through [`EventLoopWindowTarget::set_control_flow()`].
+///
+/// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
+///
+/// Defaults to [`Wait`].
+///
+/// [`Wait`]: Self::Wait
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum ControlFlow {
+    /// When the current loop iteration finishes, immediately begin a new iteration regardless of
+    /// whether or not new events are available to process.
+    Poll,
+
+    /// When the current loop iteration finishes, suspend the thread until another event arrives.
+    #[default]
+    Wait,
+
+    /// When the current loop iteration finishes, suspend the thread until either another event
+    /// arrives or the given time is reached.
+    ///
+    /// Useful for implementing efficient timers. Applications which want to render at the display's
+    /// native refresh rate should instead use [`Poll`] and the VSync functionality of a graphics API
+    /// to reduce odds of missed frames.
+    ///
+    /// [`Poll`]: Self::Poll
+    WaitUntil(Instant),
+}
+
+impl ControlFlow {
+    /// Creates a [`ControlFlow`] that waits until a timeout has expired.
+    ///
+    /// In most cases, this is set to [`WaitUntil`]. However, if the timeout overflows, it is
+    /// instead set to [`Wait`].
+    ///
+    /// [`WaitUntil`]: Self::WaitUntil
+    /// [`Wait`]: Self::Wait
+    pub fn wait_duration(timeout: Duration) -> Self {
+        match Instant::now().checked_add(timeout) {
+            Some(instant) => Self::WaitUntil(instant),
+            None => Self::Wait,
+        }
     }
 }
