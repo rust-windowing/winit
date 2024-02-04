@@ -5,3 +5,6 @@ members = [
     "winit-core"
 ]
 resolver = "2"
+
+[workspace.dependencies]
+winit-core = { path = "./winit-core", default-features = false, features = ["std"] }

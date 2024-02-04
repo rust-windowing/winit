@@ -71,6 +71,7 @@ rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = ["std"],
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"], optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 smol_str = "0.2.0"
+winit-core.workspace = true
 
 [dev-dependencies]
 image = { version = "0.24.0", default-features = false, features = ["png"] }

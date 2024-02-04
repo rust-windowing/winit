@@ -1,6 +1,8 @@
+use crate::platform_impl;
 use std::{error, fmt};
 
-use crate::platform_impl;
+#[doc(inline)]
+pub use winit_core::error::NotSupportedError;
 
 // TODO: Rename
 /// An error that may be generated when requesting Winit state
@@ -12,12 +14,6 @@ pub enum ExternalError {
     Ignored,
     /// The OS cannot perform the operation.
     Os(OsError),
-}
-
-/// The error type for when the requested operation is not supported by the backend.
-#[derive(Clone)]
-pub struct NotSupportedError {
-    _marker: (),
 }
 
 /// The error type for when the OS cannot perform the requested operation.
@@ -44,14 +40,6 @@ pub enum EventLoopError {
 impl From<OsError> for EventLoopError {
     fn from(value: OsError) -> Self {
         Self::Os(value)
-    }
-}
-
-impl NotSupportedError {
-    #[inline]
-    #[allow(dead_code)]
-    pub(crate) fn new() -> NotSupportedError {
-        NotSupportedError { _marker: () }
     }
 }
 
@@ -88,18 +76,6 @@ impl fmt::Display for ExternalError {
     }
 }
 
-impl fmt::Debug for NotSupportedError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.debug_struct("NotSupportedError").finish()
-    }
-}
-
-impl fmt::Display for NotSupportedError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.pad("the requested operation is not supported by Winit")
-    }
-}
-
 impl fmt::Display for EventLoopError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
@@ -113,7 +89,6 @@ impl fmt::Display for EventLoopError {
 
 impl error::Error for OsError {}
 impl error::Error for ExternalError {}
-impl error::Error for NotSupportedError {}
 impl error::Error for EventLoopError {}
 
 #[cfg(test)]
@@ -125,11 +100,6 @@ mod tests {
     // Eat attributes for testing
     #[test]
     fn ensure_fmt_does_not_panic() {
-        let _ = format!(
-            "{:?}, {}",
-            NotSupportedError::new(),
-            NotSupportedError::new().clone()
-        );
         let _ = format!(
             "{:?}, {}",
             ExternalError::NotSupported(NotSupportedError::new()),
