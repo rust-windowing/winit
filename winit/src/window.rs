@@ -11,13 +11,11 @@ use crate::{
 
 pub use crate::cursor::{BadImage, Cursor, CustomCursor, CustomCursorBuilder, MAX_CURSOR_SIZE};
 pub use crate::icon::{BadIcon, Icon};
-
-#[doc(inline)]
-pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 #[doc(inline)]
 pub use winit_core::window::*;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Represents a window.
 ///

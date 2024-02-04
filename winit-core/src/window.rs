@@ -1,6 +1,7 @@
 //! Types used in window construction.
 
-use cursor_icon::CursorIcon;
+#[doc(inline)]
+pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
 /// The behavior of cursor grabbing.
 ///
