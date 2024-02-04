@@ -16,3 +16,7 @@ rust-version = "1.70.0"
 default = ["std"]
 std = ["alloc"]
 alloc = []
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true }

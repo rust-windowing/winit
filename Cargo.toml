@@ -7,4 +7,5 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
+serde = { version = "1", features = ["serde_derive"] }
 winit-core = { path = "./winit-core", default-features = false, features = ["std"] }

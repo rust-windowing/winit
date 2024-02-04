@@ -164,7 +164,9 @@
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 
-pub mod dpi;
+#[doc(inline)]
+pub use winit_core::dpi;
+
 #[macro_use]
 pub mod error;
 mod cursor;
