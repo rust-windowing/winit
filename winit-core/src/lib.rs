@@ -13,3 +13,4 @@ compile_error! { "no-std and no-alloc usage are not yet supported" }
 pub mod dpi;
 pub mod error;
 pub mod keyboard;
+pub mod window;

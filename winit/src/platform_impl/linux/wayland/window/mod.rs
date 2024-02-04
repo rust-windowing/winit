@@ -758,23 +758,3 @@ impl WindowRequests {
         self.redraw_requested.swap(false, Ordering::Relaxed)
     }
 }
-
-impl TryFrom<&str> for Theme {
-    type Error = ();
-
-    /// ```
-    /// use winit::window::Theme;
-    ///
-    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
-    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
-    /// ```
-    fn try_from(theme: &str) -> Result<Self, Self::Error> {
-        if theme.eq_ignore_ascii_case("dark") {
-            Ok(Self::Dark)
-        } else if theme.eq_ignore_ascii_case("light") {
-            Ok(Self::Light)
-        } else {
-            Err(())
-        }
-    }
-}

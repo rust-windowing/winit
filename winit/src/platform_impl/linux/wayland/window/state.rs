@@ -405,7 +405,7 @@ impl WindowState {
         self.apply_on_poiner(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
-            xdg_toplevel.resize(seat, serial, direction.into());
+            xdg_toplevel.resize(seat, serial, cvt_resize_direction(direction));
         });
 
         Ok(())
@@ -1156,18 +1156,16 @@ pub enum FrameCallbackState {
     Received,
 }
 
-impl From<ResizeDirection> for XdgResizeEdge {
-    fn from(value: ResizeDirection) -> Self {
-        match value {
-            ResizeDirection::North => XdgResizeEdge::Top,
-            ResizeDirection::West => XdgResizeEdge::Left,
-            ResizeDirection::NorthWest => XdgResizeEdge::TopLeft,
-            ResizeDirection::NorthEast => XdgResizeEdge::TopRight,
-            ResizeDirection::East => XdgResizeEdge::Right,
-            ResizeDirection::SouthWest => XdgResizeEdge::BottomLeft,
-            ResizeDirection::SouthEast => XdgResizeEdge::BottomRight,
-            ResizeDirection::South => XdgResizeEdge::Bottom,
-        }
+fn cvt_resize_direction(value: ResizeDirection) -> XdgResizeEdge {
+    match value {
+        ResizeDirection::North => XdgResizeEdge::Top,
+        ResizeDirection::West => XdgResizeEdge::Left,
+        ResizeDirection::NorthWest => XdgResizeEdge::TopLeft,
+        ResizeDirection::NorthEast => XdgResizeEdge::TopRight,
+        ResizeDirection::East => XdgResizeEdge::Right,
+        ResizeDirection::SouthWest => XdgResizeEdge::BottomLeft,
+        ResizeDirection::SouthEast => XdgResizeEdge::BottomRight,
+        ResizeDirection::South => XdgResizeEdge::Bottom,
     }
 }
 
