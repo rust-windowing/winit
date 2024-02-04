@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "run-wasm",
-    "winit"
+    "winit",
+    "winit-core"
 ]
 resolver = "2"
