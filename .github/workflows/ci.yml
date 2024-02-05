@@ -150,7 +150,7 @@ jobs:
       if: >
         !contains(matrix.platform.target, 'redox') &&
         matrix.toolchain != '1.70.0'
-      run: cargo $CMD test --no-run $OPTIONS --features serde
+      run: cargo $CMD test --no-run $OPTIONS -p winit --features serde
 
     - name: Run tests with serde enabled
       if: >
