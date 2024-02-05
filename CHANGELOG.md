@@ -47,6 +47,7 @@ Unreleased` header.
 - On X11, fix deadlock when adjusting DPI and resizing at the same time.
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.
 - On Wayland, fix `Window::set_{min,max}_inner_size` not always applied.
+- On Windows, apply `ScaleFactorChanged` changes only if user new size is different than what the OS reporeted, which fixes and issue when moving a window to another monitor and immediately maximizing it, previously resulted in a maximized window but is not expanded to the full working area of the monitor.
 
 # 0.29.10
 
