@@ -100,7 +100,8 @@ atom_manager! {
     _NET_FRAME_EXTENTS,
     _NET_SUPPORTED,
     _NET_SUPPORTING_WM_CHECK,
-    _XEMBED
+    _XEMBED,
+    _XSETTINGS_SETTINGS
 }
 
 impl Index<AtomName> for Atoms {

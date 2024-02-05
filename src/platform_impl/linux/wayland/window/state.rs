@@ -4,8 +4,10 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
+use ahash::HashSet;
 use log::{info, warn};
 
+use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -31,11 +33,9 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
-use crate::event::WindowEvent;
-use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::wayland::{logical_to_physical_rounded, make_wid};
 use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -92,8 +92,10 @@ pub struct WindowState {
     /// Whether the frame is resizable.
     resizable: bool,
 
-    /// Whether the window has focus.
-    has_focus: bool,
+    // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
+    // is created, since add/removed stuff could be delivered a bit out of order.
+    /// Seats that has keyboard focus on that window.
+    seat_focus: HashSet<ObjectId>,
 
     /// The scale factor of the window.
     scale_factor: f64,
@@ -189,7 +191,7 @@ impl WindowState {
             fractional_scale,
             frame: None,
             frame_callback_state: FrameCallbackState::None,
-            has_focus: false,
+            seat_focus: Default::default(),
             has_pending_move: None,
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
@@ -261,7 +263,6 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-        event_sink: &mut EventSink,
     ) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
@@ -304,19 +305,6 @@ impl WindowState {
         }
 
         let stateless = Self::is_stateless(&configure);
-
-        // Emit `Occluded` event on suspension change.
-        let occluded = configure.state.contains(XdgWindowState::SUSPENDED);
-        if self
-            .last_configure
-            .as_ref()
-            .map(|c| c.state.contains(XdgWindowState::SUSPENDED))
-            .unwrap_or(false)
-            != occluded
-        {
-            let window_id = make_wid(self.window.wl_surface());
-            event_sink.push_window_event(WindowEvent::Occluded(occluded), window_id);
-        }
 
         let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
             // Configure the window states.
@@ -516,10 +504,12 @@ impl WindowState {
     }
 
     /// Set the resizable state on the window.
+    ///
+    /// Returns `true` when the state was applied.
     #[inline]
-    pub fn set_resizable(&mut self, resizable: bool) {
+    pub fn set_resizable(&mut self, resizable: bool) -> bool {
         if self.resizable == resizable {
-            return;
+            return false;
         }
 
         self.resizable = resizable;
@@ -535,12 +525,14 @@ impl WindowState {
         if let Some(frame) = self.frame.as_mut() {
             frame.set_resizable(resizable);
         }
+
+        true
     }
 
-    /// Whether the window is focused.
+    /// Whether the window is focused by any seat.
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.has_focus
+        !self.seat_focus.is_empty()
     }
 
     /// Whether the IME is allowed.
@@ -967,12 +959,16 @@ impl WindowState {
         }
     }
 
-    /// Mark that the window has focus.
-    ///
-    /// Should be used from routine that sends focused event.
+    /// Add seat focus for the window.
     #[inline]
-    pub fn set_has_focus(&mut self, has_focus: bool) {
-        self.has_focus = has_focus;
+    pub fn add_seat_focus(&mut self, seat: ObjectId) {
+        self.seat_focus.insert(seat);
+    }
+
+    /// Remove seat focus from the window.
+    #[inline]
+    pub fn remove_seat_focus(&mut self, seat: &ObjectId) {
+        self.seat_focus.remove(seat);
     }
 
     /// Returns `true` if the requested state was applied.
