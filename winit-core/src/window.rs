@@ -4,11 +4,11 @@
 pub use cursor_icon::{CursorIcon, ParseError as CursorIconParseError};
 
 #[cfg(feature = "serde")]
-pub use serde::{Serialize, Deserialize};
+pub use serde::{Deserialize, Serialize};
 
 /// Identifier of a window. Unique for each window.
 ///
-/// Can be obtained with [`window.id()`](`Window::id`).
+/// Can be obtained with [`window.id()`](https://docs.rs/winit/latest/winit/window/struct.Window.html#method.id).
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
@@ -45,6 +45,8 @@ impl From<u64> for WindowId {
 /// The behavior of cursor grabbing.
 ///
 /// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+///
+/// [`Window::set_cursor_grab`]: https://docs.rs/winit/latest/winit/window/struct.Window.html#method.set_cursor_grab
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {
@@ -60,6 +62,8 @@ pub enum CursorGrabMode {
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
     /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    ///
+    /// [`ExternalError::NotSupported`]: https://docs.rs/winit/latest/winit/error/enum.ExternalError.html#variant.NotSupported
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -71,6 +75,8 @@ pub enum CursorGrabMode {
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
     /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    ///
+    /// [`ExternalError::NotSupported`]: https://docs.rs/winit/latest/winit/error/enum.ExternalError.html#variant.NotSupported
     Locked,
 }
 
@@ -176,6 +182,8 @@ pub enum WindowLevel {
 /// ## Platform-specific
 ///
 /// - **iOS / Android / Web / Windows / X11 / macOS / Orbital:** Unsupported.
+///
+/// [`Window::set_ime_purpose`]: https://docs.rs/winit/latest/winit/window/struct.Window.html#method.set_ime_purpose
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
 pub enum ImePurpose {
@@ -197,7 +205,7 @@ impl Default for ImePurpose {
 
 /// An stringly-typed token used to activate the [`Window`].
 ///
-/// [`Window`]: crate::window::Window
+/// [`Window`]: https://docs.rs/winit/latest/winit/window/struct.Window.html
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ActivationToken {
     pub(crate) token: String,

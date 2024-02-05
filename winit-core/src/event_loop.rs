@@ -39,6 +39,9 @@ impl AsyncRequestSerial {
 /// Defaults to [`Wait`].
 ///
 /// [`Wait`]: Self::Wait
+///
+/// [`EventLoopWindowTarget::set_control_flow()`]: https://docs.rs/winit/latest/winit/event_loop/struct.EventLoopWindowTarget.html#method.set_control_flow
+/// [`Event::AboutToWait`]: crate::event::Event::AboutToWait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of

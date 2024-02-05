@@ -97,7 +97,7 @@
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 //! [`ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
-//! [`window.scale_factor()`]: crate::window::Window::scale_factor
+//! [`window.scale_factor()`]: https://docs.rs/winit/latest/winit/window/struct.Window.html#method.scale_factor
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
