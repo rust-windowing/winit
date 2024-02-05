@@ -37,7 +37,6 @@ use crate::{
     platform_impl::platform::util,
 };
 
-#[allow(dead_code)]
 pub fn get_raw_input_device_info(handle: HANDLE) -> Option<DeviceInfo> {
     let mut info: MaybeUninit<RID_DEVICE_INFO> = MaybeUninit::uninit();
     let mut info_size = size_of::<RID_DEVICE_INFO>() as _;

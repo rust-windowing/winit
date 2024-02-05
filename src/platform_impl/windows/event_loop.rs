@@ -2599,7 +2599,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                 }
             }
 
-            // Collect button events and already send motion events
+            // Set button states for buttons which have been pressed and send motion events
             for data in &hid_state.data {
                 match &mut hid_state.inputs[data.DataIndex as usize] {
                     raw_input::HidStateInput::Button(_, state, _) => {

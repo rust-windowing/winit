@@ -664,7 +664,7 @@ pub enum DeviceEvent {
         value: f64,
     },
 
-    /// Binary button events. This event will only be reported once when the event occurs, not
+    /// Button has been pressed or released. This event will only be reported once when the event occurs, not
     /// repeatedly and the next reported event for the same button should always be the opposite.
     Button {
         button: ButtonId,
