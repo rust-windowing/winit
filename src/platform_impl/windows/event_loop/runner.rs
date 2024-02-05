@@ -16,7 +16,6 @@ use crate::{
     platform_impl::platform::{
         event_loop::{WindowData, GWL_USERDATA},
         get_window_long,
-        window_state::WindowFlags,
     },
     window::WindowId,
 };
@@ -400,32 +399,27 @@ impl<T> BufferedEvent<T> {
         match self {
             Self::Event(event) => dispatch(event),
             Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
-                let new_inner_size = Arc::new(Mutex::new(new_inner_size));
+                let user_new_innner_size = Arc::new(Mutex::new(new_inner_size));
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
+                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                            &user_new_innner_size,
+                        )),
                     },
                 });
-                let inner_size = *new_inner_size.lock().unwrap();
-                drop(new_inner_size);
+                let inner_size = *user_new_innner_size.lock().unwrap();
 
-                let (window_flags, is_maximized) = unsafe {
-                    let userdata =
-                        get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
-                    let mut window_state = (*userdata).window_state_lock();
-                    let window_flags = window_state.window_flags;
+                drop(user_new_innner_size);
 
-                    let is_maximized = window_flags.contains(WindowFlags::MAXIMIZED);
-                    if is_maximized {
-                        window_state.buffered_size = Some(inner_size);
-                    }
+                if inner_size != new_inner_size {
+                    let window_flags = unsafe {
+                        let userdata =
+                            get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
+                        (*userdata).window_state_lock().window_flags
+                    };
 
-                    (window_flags, is_maximized)
-                };
-
-                if !is_maximized {
                     window_flags.set_size((window_id.0).0, inner_size);
                 }
             }

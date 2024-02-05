@@ -1315,20 +1315,8 @@ unsafe fn public_window_callback_inner(
 
         WM_SIZE => {
             use crate::event::WindowEvent::Resized;
-            let mut w = super::loword(lparam as u32) as u32;
-            let mut h = super::hiword(lparam as u32) as u32;
-
-            // Set stored size if needed
-            {
-                let mut window_state = userdata.window_state_lock();
-                let window_flags = window_state.window_flags;
-                if let Some(buffered_size) = window_state.buffered_size.take() {
-                    drop(window_state);
-                    let (width, height) = window_flags.set_size(window, buffered_size);
-                    w = width;
-                    h = height;
-                }
-            }
+            let w = super::loword(lparam as u32) as u32;
+            let h = super::hiword(lparam as u32) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
