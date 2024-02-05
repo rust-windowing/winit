@@ -715,7 +715,7 @@ pub struct KeyEvent<Extra> {
     /// - **Web:** Dead keys might be reported as the real key instead
     /// of `Dead` depending on the browser/OS.
     ///
-    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
+    /// [`key_without_modifiers`]: https://docs.rs/winit/latest/winit/platform/modifier_supplement/trait.KeyEventExtModifierSupplement.html#tymethod.key_without_modifiers
     pub logical_key: keyboard::Key,
 
     /// Contains the text produced by this keypress.
