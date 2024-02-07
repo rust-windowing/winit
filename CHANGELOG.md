@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- Fix compatibility with 32-bit platforms without 64-bit atomics.
 - On macOS, fix incorrect IME cursor rect origin.
 - On X11, fix swapped instance and general class names.
 - On Windows, fixed a race condition when sending an event through the loop proxy.
