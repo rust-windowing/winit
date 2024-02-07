@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{error, fmt};
 
 #[cfg(not(wasm_platform))]
@@ -459,16 +459,16 @@ pub enum DeviceEvents {
 /// executed and removed from the list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AsyncRequestSerial {
-    serial: u64,
+    serial: usize,
 }
 
 impl AsyncRequestSerial {
-    // TODO(kchibisov) remove `cfg` when the clipboard will be added.
+    // TODO(kchibisov): Remove `cfg` when the clipboard will be added.
     #[allow(dead_code)]
     pub(crate) fn get() -> Self {
-        static CURRENT_SERIAL: AtomicU64 = AtomicU64::new(0);
-        // NOTE: we rely on wrap around here, while the user may just request
-        // in the loop u64::MAX times that's issue is considered on them.
+        static CURRENT_SERIAL: AtomicUsize = AtomicUsize::new(0);
+        // NOTE: We rely on wrap around here, while the user may just request
+        // in the loop usize::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
     }
