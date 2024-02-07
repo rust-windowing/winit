@@ -155,8 +155,17 @@ pub struct HidState {
 #[derive(Clone)]
 pub enum HidStateInput {
     None,
-    Button(ButtonId, bool, bool),
-    Axis(AxisId, u32),
+    Button {
+        button: ButtonId,
+        state: bool,
+        prev_state: bool,
+    },
+    Axis {
+        axis: AxisId,
+        prev_value: u32,
+        minimum: i32,
+        maximum: i32,
+    },
 }
 
 impl HidState {
@@ -225,13 +234,20 @@ impl HidState {
                 let range = unsafe { cap.Anonymous.Range };
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
-                    inputs[data_index as usize] = HidStateInput::Button(usage as _, false, false);
+                    inputs[data_index as usize] = HidStateInput::Button {
+                        button: usage as _,
+                        state: false,
+                        prev_state: false,
+                    };
                     data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
-                inputs[not_range.DataIndex as usize] =
-                    HidStateInput::Button((not_range.Usage - 1) as _, false, false);
+                inputs[not_range.DataIndex as usize] = HidStateInput::Button {
+                    button: (not_range.Usage - 1) as _,
+                    state: false,
+                    prev_state: false,
+                };
             }
         }
 
@@ -260,13 +276,22 @@ impl HidState {
                 let range = unsafe { cap.Anonymous.Range };
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
-                    inputs[data_index as usize] = HidStateInput::Axis(usage as _, 0);
+                    inputs[data_index as usize] = HidStateInput::Axis {
+                        axis: usage as _,
+                        prev_value: 0,
+                        minimum: cap.LogicalMin,
+                        maximum: cap.LogicalMax,
+                    };
                     data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
-                inputs[not_range.DataIndex as usize] =
-                    HidStateInput::Axis((not_range.Usage - 1) as _, 0);
+                inputs[not_range.DataIndex as usize] = HidStateInput::Axis {
+                    axis: (not_range.Usage - 1) as _,
+                    prev_value: 0,
+                    minimum: cap.LogicalMin,
+                    maximum: cap.LogicalMax,
+                };
             }
         }
 

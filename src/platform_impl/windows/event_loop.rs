@@ -2594,7 +2594,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
 
             // Reset all button states to be able to detect changes, as only pressed buttons are reported
             for input in &mut hid_state.inputs {
-                if let raw_input::HidStateInput::Button(_, state, _) = input {
+                if let raw_input::HidStateInput::Button { state, .. } = input {
                     *state = false;
                 }
             }
@@ -2602,20 +2602,28 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
             // Set button states for buttons which have been pressed and send motion events
             for data in &hid_state.data {
                 match &mut hid_state.inputs[data.DataIndex as usize] {
-                    raw_input::HidStateInput::Button(_, state, _) => {
+                    raw_input::HidStateInput::Button { state, .. } => {
                         *state = true;
                     }
-                    raw_input::HidStateInput::Axis(axis, prev_value) => {
+                    raw_input::HidStateInput::Axis {
+                        axis,
+                        prev_value,
+                        minimum,
+                        maximum,
+                    } => {
                         let value = unsafe { data.Anonymous.RawValue };
                         if value != *prev_value {
                             *prev_value = value;
 
+                            let value = if *minimum < 0 {
+                                (value as i32 + *minimum) as f64 / *maximum as f64
+                            } else {
+                                (value as i32 - *minimum) as f64 / (*maximum - *minimum) as f64
+                            };
+
                             userdata.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Motion {
-                                    axis: *axis,
-                                    value: value as f64,
-                                },
+                                event: Motion { axis: *axis, value },
                             });
                         }
                     }
@@ -2625,7 +2633,12 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
 
             // Send all button events for which have changed
             for input in &mut hid_state.inputs {
-                if let raw_input::HidStateInput::Button(button, state, prev_state) = input {
+                if let raw_input::HidStateInput::Button {
+                    button,
+                    state,
+                    prev_state,
+                } = input
+                {
                     if state != prev_state {
                         *prev_state = *state;
 
