@@ -408,12 +408,12 @@ impl<T> BufferedEvent<T> {
 
                 if inner_size != new_inner_size {
                     let window_flags = unsafe {
-                        let userdata =
-                            get_window_long(u64::from(window_id) as HWND, GWL_USERDATA) as *mut WindowData;
+                        let userdata = get_window_long(u64::from(window_id) as HWND, GWL_USERDATA)
+                            as *mut WindowData;
                         (*userdata).window_state_lock().window_flags
                     };
 
-                    window_flags.set_size((window_id.0).0, inner_size);
+                    window_flags.set_size(u64::from(window_id) as HWND, inner_size);
                 }
             }
         }
