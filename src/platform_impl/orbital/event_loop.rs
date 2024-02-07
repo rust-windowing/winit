@@ -157,10 +157,11 @@ struct EventState {
 impl EventState {
     fn character_all_modifiers(&self, character: char) -> char {
         // Modify character if Ctrl is pressed
+        #[allow(clippy::collapsible_if)]
         if self.keyboard.contains(KeyboardModifierState::LCTRL)
             || self.keyboard.contains(KeyboardModifierState::RCTRL)
         {
-            if ('a'..='z').contains(&character) {
+            if character.is_ascii_lowercase() {
                 return ((character as u8 - b'a') + 1) as char;
             }
             //TODO: more control key variants?
