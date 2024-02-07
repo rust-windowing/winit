@@ -20,6 +20,7 @@ Unreleased` header.
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.
 - On Wayland, fix `Window::set_{min,max}_inner_size` not always applied.
 - On Windows, fix inconsistent resizing behavior with multi-monitor setups when repositioning outside the event loop.
+- On Wayland, fix `WAYLAND_SOCKET` not used when detecting platform.
 
 # 0.29.10
 

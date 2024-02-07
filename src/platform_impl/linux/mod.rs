@@ -757,8 +757,11 @@ impl<T: 'static> EventLoop<T> {
         let backend = match (
             attributes.forced_backend,
             env::var("WAYLAND_DISPLAY")
-                .map(|var| !var.is_empty())
-                .unwrap_or(false),
+                .ok()
+                .filter(|var| !var.is_empty())
+                .or_else(|| env::var("WAYLAND_SOCKET").ok())
+                .filter(|var| !var.is_empty())
+                .is_some(),
             env::var("DISPLAY")
                 .map(|var| !var.is_empty())
                 .unwrap_or(false),
@@ -776,9 +779,9 @@ impl<T: 'static> EventLoop<T> {
                 let msg = if wayland_display && !cfg!(wayland_platform) {
                     "DISPLAY is not set; note: enable the `winit/wayland` feature to support Wayland"
                 } else if x11_display && !cfg!(x11_platform) {
-                    "WAYLAND_DISPLAY is not set; note: enable the `winit/x11` feature to support X11"
+                    "neither WAYLAND_DISPLAY nor WAYLAND_SOCKET is set; note: enable the `winit/x11` feature to support X11"
                 } else {
-                    "neither WAYLAND_DISPLAY nor DISPLAY is set."
+                    "neither WAYLAND_DISPLAY nor WAYLAND_SOCKET nor DISPLAY is set."
                 };
                 return Err(EventLoopError::Os(os_error!(OsError::Misc(msg))));
             }
