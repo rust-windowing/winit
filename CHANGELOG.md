@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- Fix compatibility with 32-bit platforms without 64-bit atomics.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
