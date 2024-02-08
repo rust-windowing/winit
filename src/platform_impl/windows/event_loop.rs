@@ -2611,14 +2611,14 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawI
                         minimum,
                         maximum,
                     } => {
-                        let value = unsafe { data.Anonymous.RawValue };
+                        let value = unsafe { data.Anonymous.RawValue } as u16;
                         if value != *prev_value {
                             *prev_value = value;
 
                             let value = if *minimum < 0 {
-                                (value as i32 + *minimum) as f64 / *maximum as f64
+                                (value as f64 + *minimum as f64) / *maximum as f64
                             } else {
-                                (value as i32 - *minimum) as f64 / (*maximum - *minimum) as f64
+                                (value as f64 - *minimum as f64) / (*maximum as f64 - *minimum as f64)
                             };
 
                             userdata.send_event(Event::DeviceEvent {

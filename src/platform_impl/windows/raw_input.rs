@@ -162,9 +162,9 @@ pub enum HidStateInput {
     },
     Axis {
         axis: AxisId,
-        prev_value: u32,
-        minimum: i32,
-        maximum: i32,
+        prev_value: u16,
+        minimum: i16,
+        maximum: u16,
     },
 }
 
@@ -274,23 +274,25 @@ impl HidState {
 
             if cap.IsRange != 0 {
                 let range = unsafe { cap.Anonymous.Range };
+                println!("{} {} {} {} {} {}", range.UsageMin - 1, range.UsageMax - 1, cap.PhysicalMin, cap.PhysicalMax, cap.LogicalMin, cap.LogicalMax);
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
                     inputs[data_index as usize] = HidStateInput::Axis {
                         axis: usage as _,
                         prev_value: 0,
-                        minimum: cap.LogicalMin,
-                        maximum: cap.LogicalMax,
+                        minimum: cap.LogicalMin as i16,
+                        maximum: cap.LogicalMax as u16,
                     };
                     data_index += 1;
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
+                println!("{} {} {} {} {}", not_range.Usage - 1, cap.PhysicalMin, cap.PhysicalMax, cap.LogicalMin, cap.LogicalMax);
                 inputs[not_range.DataIndex as usize] = HidStateInput::Axis {
                     axis: (not_range.Usage - 1) as _,
                     prev_value: 0,
-                    minimum: cap.LogicalMin,
-                    maximum: cap.LogicalMax,
+                    minimum: cap.LogicalMin as i16,
+                    maximum: cap.LogicalMax as u16,
                 };
             }
         }
