@@ -174,7 +174,7 @@ features = [
 ]
 
 [target.'cfg(all(unix, not(any(target_os = "redox", target_family = "wasm", target_os = "android", target_os = "ios", target_os = "macos"))))'.dependencies]
-ahash = { version = "0.8.3", features = ["no-rng"], optional = true }
+ahash = { version = "0.8.7", features = ["no-rng"], optional = true }
 bytemuck = { version = "1.13.1", default-features = false, optional = true }
 calloop = "0.12.3"
 libc = "0.2.64"

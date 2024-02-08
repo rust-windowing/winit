@@ -1,10 +1,6 @@
 use icrate::Foundation::{NSNotFound, NSRange, NSUInteger};
 use log::trace;
 
-// Replace with `!` once stable
-#[derive(Debug)]
-pub enum Never {}
-
 pub const EMPTY_RANGE: NSRange = NSRange {
     location: NSNotFound as NSUInteger,
     length: 0,
