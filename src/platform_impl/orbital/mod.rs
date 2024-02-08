@@ -4,7 +4,12 @@ use std::fmt::{self, Display, Formatter};
 use std::str;
 use std::sync::Arc;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use smol_str::SmolStr;
+
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    keyboard::Key,
+};
 
 pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 mod event_loop;
@@ -259,5 +264,8 @@ impl VideoMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct KeyEventExtra {}
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub key_without_modifiers: Key,
+    pub text_with_all_modifiers: Option<SmolStr>,
+}
