@@ -11,6 +11,7 @@ use orbclient::{
     ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
     ResizeEvent, ScrollEvent, TextInputEvent,
 };
+use smol_str::SmolStr;
 
 use crate::{
     error::EventLoopError,
@@ -153,6 +154,22 @@ struct EventState {
 }
 
 impl EventState {
+    fn character_all_modifiers(&self, character: char) -> char {
+        // Modify character if Ctrl is pressed
+        #[allow(clippy::collapsible_if)]
+        if self.keyboard.contains(KeyboardModifierState::LCTRL)
+            || self.keyboard.contains(KeyboardModifierState::RCTRL)
+        {
+            if character.is_ascii_lowercase() {
+                return ((character as u8 - b'a') + 1) as char;
+            }
+            //TODO: more control key variants?
+        }
+
+        // Return character as-is if no special handling required
+        character
+    }
+
     fn key(&mut self, key: PhysicalKey, pressed: bool) {
         let code = match key {
             PhysicalKey::Code(code) => code,
@@ -333,39 +350,61 @@ impl<T: 'static> EventLoop<T> {
     {
         match event_option {
             EventOption::Key(KeyEvent {
-                character: _,
+                character,
                 scancode,
                 pressed,
             }) => {
-                if scancode != 0 {
-                    let physical_key = convert_scancode(scancode);
-                    let modifiers_before = event_state.keyboard;
-                    event_state.key(physical_key, pressed);
+                let physical_key = convert_scancode(scancode);
+                let modifiers_before = event_state.keyboard;
+                event_state.key(physical_key, pressed);
+                let mut logical_key = Key::Unidentified(NativeKey::Unidentified);
+                let mut key_without_modifiers = Key::Unidentified(NativeKey::Unidentified);
+                let mut text = None;
+                let mut text_with_all_modifiers = None;
+                if character != '\0' {
+                    let mut tmp = [0u8; 4];
+                    let character_str = character.encode_utf8(&mut tmp);
+                    // The key with Shift and Caps Lock applied (but not Ctrl)
+                    logical_key = Key::Character(character_str.into());
+                    // The key without Shift or Caps Lock applied
+                    key_without_modifiers =
+                        Key::Character(SmolStr::from_iter(character.to_lowercase()));
+                    if pressed {
+                        // The key with Shift and Caps Lock applied (but not Ctrl)
+                        text = Some(character_str.into());
+                        // The key with Shift, Caps Lock, and Ctrl applied
+                        let character_all_modifiers =
+                            event_state.character_all_modifiers(character);
+                        text_with_all_modifiers =
+                            Some(character_all_modifiers.encode_utf8(&mut tmp).into())
+                    }
+                };
+                event_handler(event::Event::WindowEvent {
+                    window_id: RootWindowId(window_id),
+                    event: event::WindowEvent::KeyboardInput {
+                        device_id: event::DeviceId(DeviceId),
+                        event: event::KeyEvent {
+                            logical_key,
+                            physical_key,
+                            location: KeyLocation::Standard,
+                            state: element_state(pressed),
+                            repeat: false,
+                            text,
+                            platform_specific: KeyEventExtra {
+                                key_without_modifiers,
+                                text_with_all_modifiers,
+                            },
+                        },
+                        is_synthetic: false,
+                    },
+                });
+
+                // If the state of the modifiers has changed, send the event.
+                if modifiers_before != event_state.keyboard {
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::KeyboardInput {
-                            device_id: event::DeviceId(DeviceId),
-                            event: event::KeyEvent {
-                                logical_key: Key::Unidentified(NativeKey::Unidentified),
-                                physical_key,
-                                location: KeyLocation::Standard,
-                                state: element_state(pressed),
-                                repeat: false,
-                                text: None,
-
-                                platform_specific: KeyEventExtra {},
-                            },
-                            is_synthetic: false,
-                        },
-                    });
-
-                    // If the state of the modifiers has changed, send the event.
-                    if modifiers_before != event_state.keyboard {
-                        event_handler(event::Event::WindowEvent {
-                            window_id: RootWindowId(window_id),
-                            event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
-                        })
-                    }
+                        event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
+                    })
                 }
             }
             EventOption::TextInput(TextInputEvent { character }) => {
