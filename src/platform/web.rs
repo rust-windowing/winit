@@ -1,5 +1,8 @@
 //! # Web
 //!
+//! The officially supported browsers are Chrome, Firefox and Safari 13.1+,
+//! though forks of these should work fine.
+//!
 //! Winit supports compiling to the `wasm32-unknown-unknown` target with
 //! `web-sys`.
 //!

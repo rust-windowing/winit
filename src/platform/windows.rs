@@ -1,4 +1,7 @@
 //! # Windows
+//!
+//! The supported OS version is Windows 7 or higher, though Windows 10 is
+//! tested regularly.
 use std::{ffi::c_void, path::Path};
 
 use crate::{

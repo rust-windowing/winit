@@ -1,5 +1,8 @@
 //! # iOS / UIKit
 //!
+//! Winit has an OS requirement of iOS 8 or higher, and is regularly tested on
+//! iOS 9.3.
+//!
 //! iOS's main `UIApplicationMain` does some init work that's required by all
 //! UI-related code (see issue [#1705]). It is best to create your windows
 //! inside `Event::Resumed`.

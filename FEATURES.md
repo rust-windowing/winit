@@ -3,8 +3,8 @@
 Winit aims to expose an interface that abstracts over window creation and input handling and can
 be used to create both games and applications. It supports the following main graphical platforms:
 - Desktop
-  - Windows 7+ (10+ is tested regularly)
-  - macOS 10.7+ (10.14+ is tested regularly)
+  - Windows
+  - macOS
   - Unix
     - via X11
     - via Wayland
@@ -13,9 +13,6 @@ be used to create both games and applications. It supports the following main gr
   - iOS
   - Android
 - Web
-  - Chrome
-  - Firefox
-  - Safari 13.1+
 
 Most platforms expose capabilities that cannot be meaningfully transposed onto others. Winit does not
 aim to support every single feature of every platform, but rather to abstract over the common features
@@ -151,7 +148,6 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the X11 parent window
 
 ### iOS
-* `winit` has a minimum OS requirement of iOS 8
 * Get the `UIScreen` object pointer
 * Setting the `UIView` hidpi factor
 * Valid orientations
