@@ -18,8 +18,8 @@ use crate::{
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow, DeviceEvents},
     keyboard::{
-        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NativeKey, NativeKeyCode,
-        PhysicalKey,
+        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey,
+        NativeKeyCode, PhysicalKey,
     },
     window::WindowId as RootWindowId,
 };
@@ -29,90 +29,107 @@ use super::{
     RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
-fn convert_scancode(scancode: u8) -> PhysicalKey {
-    PhysicalKey::Code(match scancode {
-        orbclient::K_A => KeyCode::KeyA,
-        orbclient::K_B => KeyCode::KeyB,
-        orbclient::K_C => KeyCode::KeyC,
-        orbclient::K_D => KeyCode::KeyD,
-        orbclient::K_E => KeyCode::KeyE,
-        orbclient::K_F => KeyCode::KeyF,
-        orbclient::K_G => KeyCode::KeyG,
-        orbclient::K_H => KeyCode::KeyH,
-        orbclient::K_I => KeyCode::KeyI,
-        orbclient::K_J => KeyCode::KeyJ,
-        orbclient::K_K => KeyCode::KeyK,
-        orbclient::K_L => KeyCode::KeyL,
-        orbclient::K_M => KeyCode::KeyM,
-        orbclient::K_N => KeyCode::KeyN,
-        orbclient::K_O => KeyCode::KeyO,
-        orbclient::K_P => KeyCode::KeyP,
-        orbclient::K_Q => KeyCode::KeyQ,
-        orbclient::K_R => KeyCode::KeyR,
-        orbclient::K_S => KeyCode::KeyS,
-        orbclient::K_T => KeyCode::KeyT,
-        orbclient::K_U => KeyCode::KeyU,
-        orbclient::K_V => KeyCode::KeyV,
-        orbclient::K_W => KeyCode::KeyW,
-        orbclient::K_X => KeyCode::KeyX,
-        orbclient::K_Y => KeyCode::KeyY,
-        orbclient::K_Z => KeyCode::KeyZ,
-        orbclient::K_0 => KeyCode::Digit0,
-        orbclient::K_1 => KeyCode::Digit1,
-        orbclient::K_2 => KeyCode::Digit2,
-        orbclient::K_3 => KeyCode::Digit3,
-        orbclient::K_4 => KeyCode::Digit4,
-        orbclient::K_5 => KeyCode::Digit5,
-        orbclient::K_6 => KeyCode::Digit6,
-        orbclient::K_7 => KeyCode::Digit7,
-        orbclient::K_8 => KeyCode::Digit8,
-        orbclient::K_9 => KeyCode::Digit9,
+fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
+    // Key constants from https://docs.rs/orbclient/latest/orbclient/event/index.html
+    let (key_code, named_key_opt) = match scancode {
+        orbclient::K_A => (KeyCode::KeyA, None),
+        orbclient::K_B => (KeyCode::KeyB, None),
+        orbclient::K_C => (KeyCode::KeyC, None),
+        orbclient::K_D => (KeyCode::KeyD, None),
+        orbclient::K_E => (KeyCode::KeyE, None),
+        orbclient::K_F => (KeyCode::KeyF, None),
+        orbclient::K_G => (KeyCode::KeyG, None),
+        orbclient::K_H => (KeyCode::KeyH, None),
+        orbclient::K_I => (KeyCode::KeyI, None),
+        orbclient::K_J => (KeyCode::KeyJ, None),
+        orbclient::K_K => (KeyCode::KeyK, None),
+        orbclient::K_L => (KeyCode::KeyL, None),
+        orbclient::K_M => (KeyCode::KeyM, None),
+        orbclient::K_N => (KeyCode::KeyN, None),
+        orbclient::K_O => (KeyCode::KeyO, None),
+        orbclient::K_P => (KeyCode::KeyP, None),
+        orbclient::K_Q => (KeyCode::KeyQ, None),
+        orbclient::K_R => (KeyCode::KeyR, None),
+        orbclient::K_S => (KeyCode::KeyS, None),
+        orbclient::K_T => (KeyCode::KeyT, None),
+        orbclient::K_U => (KeyCode::KeyU, None),
+        orbclient::K_V => (KeyCode::KeyV, None),
+        orbclient::K_W => (KeyCode::KeyW, None),
+        orbclient::K_X => (KeyCode::KeyX, None),
+        orbclient::K_Y => (KeyCode::KeyY, None),
+        orbclient::K_Z => (KeyCode::KeyZ, None),
+        orbclient::K_0 => (KeyCode::Digit0, None),
+        orbclient::K_1 => (KeyCode::Digit1, None),
+        orbclient::K_2 => (KeyCode::Digit2, None),
+        orbclient::K_3 => (KeyCode::Digit3, None),
+        orbclient::K_4 => (KeyCode::Digit4, None),
+        orbclient::K_5 => (KeyCode::Digit5, None),
+        orbclient::K_6 => (KeyCode::Digit6, None),
+        orbclient::K_7 => (KeyCode::Digit7, None),
+        orbclient::K_8 => (KeyCode::Digit8, None),
+        orbclient::K_9 => (KeyCode::Digit9, None),
 
-        orbclient::K_TICK => KeyCode::Backquote,
-        orbclient::K_MINUS => KeyCode::Minus,
-        orbclient::K_EQUALS => KeyCode::Equal,
-        orbclient::K_BACKSLASH => KeyCode::Backslash,
-        orbclient::K_BRACE_OPEN => KeyCode::BracketLeft,
-        orbclient::K_BRACE_CLOSE => KeyCode::BracketRight,
-        orbclient::K_SEMICOLON => KeyCode::Semicolon,
-        orbclient::K_QUOTE => KeyCode::Quote,
-        orbclient::K_COMMA => KeyCode::Comma,
-        orbclient::K_PERIOD => KeyCode::Period,
-        orbclient::K_SLASH => KeyCode::Slash,
-        orbclient::K_BKSP => KeyCode::Backspace,
-        orbclient::K_SPACE => KeyCode::Space,
-        orbclient::K_TAB => KeyCode::Tab,
-        //orbclient::K_CAPS => KeyCode::CAPS,
-        orbclient::K_LEFT_SHIFT => KeyCode::ShiftLeft,
-        orbclient::K_RIGHT_SHIFT => KeyCode::ShiftRight,
-        orbclient::K_CTRL => KeyCode::ControlLeft,
-        orbclient::K_ALT => KeyCode::AltLeft,
-        orbclient::K_ENTER => KeyCode::Enter,
-        orbclient::K_ESC => KeyCode::Escape,
-        orbclient::K_F1 => KeyCode::F1,
-        orbclient::K_F2 => KeyCode::F2,
-        orbclient::K_F3 => KeyCode::F3,
-        orbclient::K_F4 => KeyCode::F4,
-        orbclient::K_F5 => KeyCode::F5,
-        orbclient::K_F6 => KeyCode::F6,
-        orbclient::K_F7 => KeyCode::F7,
-        orbclient::K_F8 => KeyCode::F8,
-        orbclient::K_F9 => KeyCode::F9,
-        orbclient::K_F10 => KeyCode::F10,
-        orbclient::K_HOME => KeyCode::Home,
-        orbclient::K_UP => KeyCode::ArrowUp,
-        orbclient::K_PGUP => KeyCode::PageUp,
-        orbclient::K_LEFT => KeyCode::ArrowLeft,
-        orbclient::K_RIGHT => KeyCode::ArrowRight,
-        orbclient::K_END => KeyCode::End,
-        orbclient::K_DOWN => KeyCode::ArrowDown,
-        orbclient::K_PGDN => KeyCode::PageDown,
-        orbclient::K_DEL => KeyCode::Delete,
-        orbclient::K_F11 => KeyCode::F11,
-        orbclient::K_F12 => KeyCode::F12,
+        orbclient::K_ALT => (KeyCode::AltLeft, Some(NamedKey::Alt)),
+        orbclient::K_ALT_GR => (KeyCode::AltRight, Some(NamedKey::AltGraph)),
+        orbclient::K_BACKSLASH => (KeyCode::Backslash, None),
+        orbclient::K_BKSP => (KeyCode::Backspace, Some(NamedKey::Backspace)),
+        orbclient::K_BRACE_CLOSE => (KeyCode::BracketRight, None),
+        orbclient::K_BRACE_OPEN => (KeyCode::BracketLeft, None),
+        orbclient::K_CAPS => (KeyCode::CapsLock, Some(NamedKey::CapsLock)),
+        orbclient::K_COMMA => (KeyCode::Comma, None),
+        orbclient::K_CTRL => (KeyCode::ControlLeft, Some(NamedKey::Control)),
+        orbclient::K_DEL => (KeyCode::Delete, Some(NamedKey::Delete)),
+        orbclient::K_DOWN => (KeyCode::ArrowDown, Some(NamedKey::ArrowDown)),
+        orbclient::K_END => (KeyCode::End, Some(NamedKey::End)),
+        orbclient::K_ENTER => (KeyCode::Enter, Some(NamedKey::Enter)),
+        orbclient::K_EQUALS => (KeyCode::Equal, None),
+        orbclient::K_ESC => (KeyCode::Escape, Some(NamedKey::Escape)),
+        orbclient::K_F1 => (KeyCode::F1, Some(NamedKey::F1)),
+        orbclient::K_F2 => (KeyCode::F2, Some(NamedKey::F2)),
+        orbclient::K_F3 => (KeyCode::F3, Some(NamedKey::F3)),
+        orbclient::K_F4 => (KeyCode::F4, Some(NamedKey::F4)),
+        orbclient::K_F5 => (KeyCode::F5, Some(NamedKey::F5)),
+        orbclient::K_F6 => (KeyCode::F6, Some(NamedKey::F6)),
+        orbclient::K_F7 => (KeyCode::F7, Some(NamedKey::F7)),
+        orbclient::K_F8 => (KeyCode::F8, Some(NamedKey::F8)),
+        orbclient::K_F9 => (KeyCode::F9, Some(NamedKey::F9)),
+        orbclient::K_F10 => (KeyCode::F10, Some(NamedKey::F10)),
+        orbclient::K_F11 => (KeyCode::F11, Some(NamedKey::F11)),
+        orbclient::K_F12 => (KeyCode::F12, Some(NamedKey::F12)),
+        orbclient::K_HOME => (KeyCode::Home, Some(NamedKey::Home)),
+        orbclient::K_LEFT => (KeyCode::ArrowLeft, Some(NamedKey::ArrowLeft)),
+        orbclient::K_LEFT_SHIFT => (KeyCode::ShiftLeft, Some(NamedKey::Shift)),
+        orbclient::K_MINUS => (KeyCode::Minus, None),
+        orbclient::K_NUM_0 => (KeyCode::Numpad0, None),
+        orbclient::K_NUM_1 => (KeyCode::Numpad1, None),
+        orbclient::K_NUM_2 => (KeyCode::Numpad2, None),
+        orbclient::K_NUM_3 => (KeyCode::Numpad3, None),
+        orbclient::K_NUM_4 => (KeyCode::Numpad4, None),
+        orbclient::K_NUM_5 => (KeyCode::Numpad5, None),
+        orbclient::K_NUM_6 => (KeyCode::Numpad6, None),
+        orbclient::K_NUM_7 => (KeyCode::Numpad7, None),
+        orbclient::K_NUM_8 => (KeyCode::Numpad8, None),
+        orbclient::K_NUM_9 => (KeyCode::Numpad9, None),
+        orbclient::K_PERIOD => (KeyCode::Period, None),
+        orbclient::K_PGDN => (KeyCode::PageDown, Some(NamedKey::PageDown)),
+        orbclient::K_PGUP => (KeyCode::PageUp, Some(NamedKey::PageUp)),
+        orbclient::K_QUOTE => (KeyCode::Quote, None),
+        orbclient::K_RIGHT => (KeyCode::ArrowRight, Some(NamedKey::ArrowRight)),
+        orbclient::K_RIGHT_SHIFT => (KeyCode::ShiftRight, Some(NamedKey::Shift)),
+        orbclient::K_SEMICOLON => (KeyCode::Semicolon, None),
+        orbclient::K_SLASH => (KeyCode::Slash, None),
+        orbclient::K_SPACE => (KeyCode::Space, Some(NamedKey::Space)),
+        orbclient::K_SUPER => (KeyCode::SuperLeft, Some(NamedKey::Super)),
+        orbclient::K_TAB => (KeyCode::Tab, Some(NamedKey::Tab)),
+        orbclient::K_TICK => (KeyCode::Backquote, None),
+        orbclient::K_UP => (KeyCode::ArrowUp, Some(NamedKey::ArrowUp)),
+        orbclient::K_VOLUME_DOWN => (KeyCode::AudioVolumeDown, Some(NamedKey::AudioVolumeDown)),
+        orbclient::K_VOLUME_TOGGLE => (KeyCode::AudioVolumeMute, Some(NamedKey::AudioVolumeMute)),
+        orbclient::K_VOLUME_UP => (KeyCode::AudioVolumeUp, Some(NamedKey::AudioVolumeUp)),
 
-        _ => return PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
-    })
+        _ => return (PhysicalKey::Unidentified(NativeKeyCode::Unidentified), None),
+    };
+    (PhysicalKey::Code(key_code), named_key_opt)
 }
 
 fn element_state(pressed: bool) -> event::ElementState {
@@ -354,13 +371,20 @@ impl<T: 'static> EventLoop<T> {
                 scancode,
                 pressed,
             }) => {
-                let physical_key = convert_scancode(scancode);
+                // Convert scancode
+                let (physical_key, named_key_opt) = convert_scancode(scancode);
+
+                // Get previous modifiers and update modifiers based on physical key
                 let modifiers_before = event_state.keyboard;
                 event_state.key(physical_key, pressed);
+
+                // Default to unidentified key with no text
                 let mut logical_key = Key::Unidentified(NativeKey::Unidentified);
-                let mut key_without_modifiers = Key::Unidentified(NativeKey::Unidentified);
+                let mut key_without_modifiers = logical_key.clone();
                 let mut text = None;
                 let mut text_with_all_modifiers = None;
+
+                // Set key and text based on character
                 if character != '\0' {
                     let mut tmp = [0u8; 4];
                     let character_str = character.encode_utf8(&mut tmp);
@@ -379,6 +403,13 @@ impl<T: 'static> EventLoop<T> {
                             Some(character_all_modifiers.encode_utf8(&mut tmp).into())
                     }
                 };
+
+                // Override key if a named key was found (this is to allow Enter to replace '\n')
+                if let Some(named_key) = named_key_opt {
+                    logical_key = Key::Named(named_key);
+                    key_without_modifiers = logical_key.clone();
+                }
+
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
                     event: event::WindowEvent::KeyboardInput {
