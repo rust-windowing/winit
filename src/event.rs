@@ -309,7 +309,7 @@ pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
     ///
     #[cfg_attr(
-        not(any(x11_platform, wayland_platfrom)),
+        not(any(x11_platform, wayland_platform)),
         allow(rustdoc::broken_intra_doc_links)
     )]
     /// Delivered in response to [`request_activation_token`].
