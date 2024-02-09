@@ -1,3 +1,4 @@
+//! # Windows
 use std::{ffi::c_void, path::Path};
 
 use crate::{

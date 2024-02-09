@@ -1,3 +1,6 @@
+//! # Wayland
+//!
+//! Note: Windows don't appear on Wayland until you draw/present to them.
 use crate::{
     event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,

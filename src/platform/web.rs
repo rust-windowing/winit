@@ -1,12 +1,28 @@
-//! The web target does not automatically insert the canvas element object into the web page, to
-//! allow end users to determine how the page should be laid out. Use the [`WindowExtWebSys`] trait
-//! to retrieve the canvas from the Window. Alternatively, use the [`WindowAttributesExtWebSys`] trait
-//! to provide your own canvas.
+//! # Web
+//!
+//! Winit supports compiling to the `wasm32-unknown-unknown` target with
+//! `web-sys`.
+//!
+//! On the web platform, a Winit window is backed by a `<canvas>` element. You
+//! can either [provide Winit with a `<canvas>` element][with_canvas], or
+//! [let Winit create a `<canvas>` element which you can then retrieve][get]
+//! and insert it into the DOM yourself.
+//!
+//! Currently, there is no example code using Winit on Web, see [#3473]. For
+//! information on using Rust on WebAssembly, check out the [Rust and
+//! WebAssembly book].
+//!
+//! [with_canvas]: WindowAttributesExtWebSys::with_canvas
+//! [get]: WindowExtWebSys::canvas
+//! [#3473]: https://github.com/rust-windowing/winit/issues/3473
+//! [Rust and WebAssembly book]: https://rustwasm.github.io/book/
+//!
+//! ## CSS properties
 //!
 //! It is recommended **not** to apply certain CSS properties to the canvas:
-//! - [`transform`]
-//! - [`border`]
-//! - [`padding`]
+//! - [`transform`](https://developer.mozilla.org/en-US/docs/Web/CSS/transform)
+//! - [`border`](https://developer.mozilla.org/en-US/docs/Web/CSS/border)
+//! - [`padding`](https://developer.mozilla.org/en-US/docs/Web/CSS/padding)
 //!
 //! The following APIs can't take them into account and will therefore provide inaccurate results:
 //! - [`WindowEvent::Resized`] and [`Window::(set_)inner_size()`]
@@ -16,16 +32,13 @@
 //! - [`Window::set_outer_position()`]
 //!
 //! [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
-//! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size()
+//! [`Window::(set_)inner_size()`]: crate::window::Window::inner_size
 //! [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
 //! [`WindowEvent::CursorMoved`]: crate::event::WindowEvent::CursorMoved
 //! [`WindowEvent::CursorEntered`]: crate::event::WindowEvent::CursorEntered
 //! [`WindowEvent::CursorLeft`]: crate::event::WindowEvent::CursorLeft
 //! [`WindowEvent::Touch`]: crate::event::WindowEvent::Touch
-//! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position()
-//! [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
-//! [`border`]: https://developer.mozilla.org/en-US/docs/Web/CSS/border
-//! [`padding`]: https://developer.mozilla.org/en-US/docs/Web/CSS/padding
+//! [`Window::set_outer_position()`]: crate::window::Window::set_outer_position
 
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
