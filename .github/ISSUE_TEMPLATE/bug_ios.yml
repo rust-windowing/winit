@@ -1,0 +1,37 @@
+name: iOS bug
+description: Create an iOS-specific bug report
+labels:
+  - B - bug
+  - DS - ios
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem you're having
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and iOS version
+      description: Which devices and iOS versions are you seeing the problem on?
+      placeholder: |
+        iPhone 15 running iOS 14.0,
+        iPhone 15 running iOS 17.0,
+        MacBook Pro M2 Mac Catalyst running macOS 14.2,
+        iPhone simulator running iOS 17.0
+    validations:
+      required: true
+  - type: textarea
+    id: winit-version
+    attributes:
+      label: Winit version
+      description: What version of Winit are you using?
+      placeholder: 0.29.11
+    validations:
+      required: true

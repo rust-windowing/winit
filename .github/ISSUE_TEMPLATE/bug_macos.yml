@@ -1,0 +1,37 @@
+name: MacOS bug
+description: Create a macOS-specific bug report
+labels:
+  - B - bug
+  - DS - macos
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem you're having
+    validations:
+      required: true
+  - type: textarea
+    id: os-version
+    attributes:
+      label: macOS version
+      description: What version of macOS are you using? Please paste in the output of `sw_vers`.
+      placeholder: |
+        ProductName:            macOS
+        ProductVersion:         14.2.1
+        BuildVersion:           23C71
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: winit-version
+    attributes:
+      label: Winit version
+      description: What version of Winit are you using?
+      placeholder: 0.29.11
+    validations:
+      required: true
