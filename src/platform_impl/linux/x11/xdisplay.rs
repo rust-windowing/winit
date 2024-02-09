@@ -22,7 +22,7 @@ use x11rb::{
 };
 
 /// A connection to an X server.
-pub(crate) struct XConnection {
+pub struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
 
@@ -309,7 +309,7 @@ impl fmt::Display for XError {
 
 /// Error returned if this system doesn't have XLib or can't create an X connection.
 #[derive(Clone, Debug)]
-pub(crate) enum XNotSupported {
+pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
     LibraryOpenError(ffi::OpenError),
 

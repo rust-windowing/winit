@@ -498,7 +498,7 @@ impl<'a> KeyEventResults<'a> {
         }
     }
 
-    fn physical_key(&mut self) -> PhysicalKey {
+    fn physical_key(&self) -> PhysicalKey {
         keymap::raw_keycode_to_physicalkey(self.keycode)
     }
 
@@ -553,6 +553,7 @@ impl<'a> KeyEventResults<'a> {
         } else {
             0
         };
+
         self.keysym_to_key(keysym)
             .unwrap_or_else(|(key, location)| {
                 (
@@ -565,7 +566,7 @@ impl<'a> KeyEventResults<'a> {
             })
     }
 
-    fn keysym_to_key(&mut self, keysym: u32) -> Result<(Key, KeyLocation), (Key, KeyLocation)> {
+    fn keysym_to_key(&self, keysym: u32) -> Result<(Key, KeyLocation), (Key, KeyLocation)> {
         let location = super::keymap::keysym_location(keysym);
         let key = super::keymap::keysym_to_key(keysym);
         if matches!(key, Key::Unidentified(_)) {
