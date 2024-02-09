@@ -1,147 +1,65 @@
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    os::raw::{c_char, c_int, c_long, c_ulong},
-    rc::Rc,
-    slice,
-    sync::{Arc, Mutex},
-};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::os::raw::{c_char, c_int, c_long, c_ulong};
+use std::slice;
+use std::sync::{Arc, Mutex};
 
+use x11rb::protocol::xinput;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::x11_utils::ExtensionInformation;
 use x11rb::x11_utils::Serialize;
-use x11rb::{
-    protocol::{
-        xinput,
-        xproto::{self, ConnectionExt as _},
-    },
-    x11_utils::ExtensionInformation,
+
+use crate::platform_impl::platform::common::{keymap, xkb_state::KbdState};
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
+use crate::platform_impl::platform::x11::EventLoopWindowTarget;
+use crate::platform_impl::platform::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
+use crate::platform_impl::x11::{
+    atoms::*, ffi, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd,
+    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
-use super::{
-    atoms::*, ffi, get_xtarget, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo,
-    Dnd, DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-};
-
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent},
-    event_loop::EventLoopWindowTarget as RootELW,
-    keyboard::ModifiersState,
-    platform_impl::platform::common::{keymap, xkb_state::KbdState},
-};
-use crate::{
-    event::InnerSizeWriter,
-    platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest},
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::event::InnerSizeWriter;
+use crate::event::{DeviceEvent, ElementState, Event, Ime, RawKeyEvent, TouchPhase, WindowEvent};
+use crate::event_loop::EventLoopWindowTarget as RootELW;
+use crate::keyboard::ModifiersState;
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
-pub(super) struct EventProcessor {
-    pub(super) dnd: Dnd,
-    pub(super) ime_receiver: ImeReceiver,
-    pub(super) ime_event_receiver: ImeEventReceiver,
-    pub(super) randr_event_offset: u8,
-    pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
-    pub(super) xi2ext: ExtensionInformation,
-    pub(super) xkbext: ExtensionInformation,
-    pub(super) target: Rc<RootELW>,
-    pub(super) kb_state: KbdState,
+pub struct EventProcessor {
+    pub dnd: Dnd,
+    pub ime_receiver: ImeReceiver,
+    pub ime_event_receiver: ImeEventReceiver,
+    pub randr_event_offset: u8,
+    pub devices: RefCell<HashMap<DeviceId, Device>>,
+    pub xi2ext: ExtensionInformation,
+    pub xkbext: ExtensionInformation,
+    pub target: RootELW,
+    pub kb_state: KbdState,
     // Number of touch events currently in progress
-    pub(super) num_touch: u32,
+    pub num_touch: u32,
     // This is the last pressed key that is repeatable (if it hasn't been
     // released).
     //
     // Used to detect key repeats.
-    pub(super) held_key_press: Option<u32>,
-    pub(super) first_touch: Option<u64>,
+    pub held_key_press: Option<u32>,
+    pub first_touch: Option<u64>,
     // Currently focused window belonging to this process
-    pub(super) active_window: Option<xproto::Window>,
+    pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
-    pub(super) modifiers: Cell<ModifiersState>,
-    pub(super) is_composing: bool,
+    pub modifiers: Cell<ModifiersState>,
+    pub is_composing: bool,
 }
 
 impl EventProcessor {
-    pub(super) fn init_device(&self, device: xinput::DeviceId) {
-        let wt = get_xtarget(&self.target);
-        let mut devices = self.devices.borrow_mut();
-        if let Some(info) = DeviceInfo::get(&wt.xconn, device as _) {
-            for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
-            }
-        }
-    }
-
-    pub(crate) fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
+    pub fn process_event<T: 'static, F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
-        F: Fn(&Arc<UnownedWindow>) -> Ret,
+        F: FnMut(&RootELW, Event<T>),
     {
-        let mut deleted = false;
-        let window_id = WindowId(window_id as _);
-        let wt = get_xtarget(&self.target);
-        let result = wt
-            .windows
-            .borrow()
-            .get(&window_id)
-            .and_then(|window| {
-                let arc = window.upgrade();
-                deleted = arc.is_none();
-                arc
-            })
-            .map(|window| callback(&window));
-        if deleted {
-            // Garbage collection
-            wt.windows.borrow_mut().remove(&window_id);
-        }
-        result
-    }
-
-    fn window_exists(&self, window_id: xproto::Window) -> bool {
-        self.with_window(window_id, |_| ()).is_some()
-    }
-
-    pub(super) fn poll(&self) -> bool {
-        let wt = get_xtarget(&self.target);
-        let result = unsafe { (wt.xconn.xlib.XPending)(wt.xconn.display) };
-
-        result != 0
-    }
-
-    pub(super) unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
-        let wt = get_xtarget(&self.target);
-        // This function is used to poll and remove a single event
-        // from the Xlib event queue in a non-blocking, atomic way.
-        // XCheckIfEvent is non-blocking and removes events from queue.
-        // XNextEvent can't be used because it blocks while holding the
-        // global Xlib mutex.
-        // XPeekEvent does not remove events from the queue.
-        unsafe extern "C" fn predicate(
-            _display: *mut ffi::Display,
-            _event: *mut ffi::XEvent,
-            _arg: *mut c_char,
-        ) -> c_int {
-            // This predicate always returns "true" (1) to accept all events
-            1
-        }
-
-        let result = unsafe {
-            (wt.xconn.xlib.XCheckIfEvent)(
-                wt.xconn.display,
-                event_ptr,
-                Some(predicate),
-                std::ptr::null_mut(),
-            )
-        };
-
-        result != 0
-    }
-
-    pub(super) fn process_event<T: 'static, F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
-    where
-        F: FnMut(Event<T>),
-    {
-        let wt = get_xtarget(&self.target);
+        let wt = Self::window_target(&self.target);
         let atoms = wt.x_connection().atoms();
+
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
         // along with an extra copy of the KeyRelease events. This also prevents backspace and
@@ -166,10 +84,13 @@ impl EventProcessor {
                 let window_id = mkwid(window);
 
                 if client_msg.data.get_long(0) as xproto::Atom == wt.wm_delete_window {
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::CloseRequested,
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::CloseRequested,
+                        },
+                    );
                 } else if client_msg.data.get_long(0) as xproto::Atom == wt.net_wm_ping {
                     let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
                     let client_msg = xproto::ClientMessageEvent {
@@ -278,10 +199,13 @@ impl EventProcessor {
                     {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
                             for path in path_list {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::DroppedFile(path.clone()),
-                                });
+                                callback(
+                                    &self.target,
+                                    Event::WindowEvent {
+                                        window_id,
+                                        event: WindowEvent::DroppedFile(path.clone()),
+                                    },
+                                );
                             }
                         }
                         (source_window, DndState::Accepted)
@@ -299,10 +223,13 @@ impl EventProcessor {
                     self.dnd.reset();
                 } else if client_msg.message_type == atoms[XdndLeave] as c_ulong {
                     self.dnd.reset();
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::HoveredFileCancelled,
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::HoveredFileCancelled,
+                        },
+                    );
                 }
             }
 
@@ -323,10 +250,13 @@ impl EventProcessor {
                         let parse_result = self.dnd.parse_data(&mut data);
                         if let Ok(ref path_list) = parse_result {
                             for path in path_list {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::HoveredFile(path.clone()),
-                                });
+                                callback(
+                                    &self.target,
+                                    Event::WindowEvent {
+                                        window_id,
+                                        event: WindowEvent::HoveredFile(path.clone()),
+                                    },
+                                );
                             }
                         }
                         result = Some(parse_result);
@@ -410,10 +340,13 @@ impl EventProcessor {
                         drop(shared_state_lock);
 
                         if moved {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::Moved(outer.into()),
-                            });
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::Moved(outer.into()),
+                                },
+                            );
                         }
                         outer
                     };
@@ -458,15 +391,18 @@ impl EventProcessor {
                             drop(shared_state_lock);
 
                             let inner_size = Arc::new(Mutex::new(new_inner_size));
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ScaleFactorChanged {
-                                    scale_factor: new_scale_factor,
-                                    inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                        &inner_size,
-                                    )),
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::ScaleFactorChanged {
+                                        scale_factor: new_scale_factor,
+                                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                            &inner_size,
+                                        )),
+                                    },
                                 },
-                            });
+                            );
 
                             let new_inner_size = *inner_size.lock().unwrap();
                             drop(inner_size);
@@ -520,10 +456,13 @@ impl EventProcessor {
                     }
 
                     if resized {
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(new_inner_size.into()),
-                        });
+                        callback(
+                            &self.target,
+                            Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::Resized(new_inner_size.into()),
+                            },
+                        );
                     }
                 }
             }
@@ -555,10 +494,13 @@ impl EventProcessor {
                 let focus = self
                     .with_window(window, |window| window.has_focus())
                     .unwrap_or_default();
-                callback(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::Focused(focus),
-                });
+                callback(
+                    &self.target,
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Focused(focus),
+                    },
+                );
             }
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
@@ -577,10 +519,13 @@ impl EventProcessor {
                     .remove_context(window as ffi::Window)
                     .expect("Failed to destroy input context");
 
-                callback(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::Destroyed,
-                });
+                callback(
+                    &self.target,
+                    Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Destroyed,
+                    },
+                );
             }
             ffi::PropertyNotify => {
                 let xev: &ffi::XPropertyEvent = xev.as_ref();
@@ -596,10 +541,13 @@ impl EventProcessor {
             ffi::VisibilityNotify => {
                 let xev: &ffi::XVisibilityEvent = xev.as_ref();
                 let xwindow = xev.window as xproto::Window;
-                callback(Event::WindowEvent {
-                    window_id: mkwid(xwindow),
-                    event: WindowEvent::Occluded(xev.state == ffi::VisibilityFullyObscured),
-                });
+                callback(
+                    &self.target,
+                    Event::WindowEvent {
+                        window_id: mkwid(xwindow),
+                        event: WindowEvent::Occluded(xev.state == ffi::VisibilityFullyObscured),
+                    },
+                );
                 self.with_window(xwindow, |window| {
                     window.visibility_notify();
                 });
@@ -614,10 +562,13 @@ impl EventProcessor {
                     let window = xev.window as xproto::Window;
                     let window_id = mkwid(window);
 
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::RedrawRequested,
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::RedrawRequested,
+                        },
+                    );
                 }
             }
 
@@ -675,14 +626,17 @@ impl EventProcessor {
 
                 if keycode != 0 && !self.is_composing {
                     let event = self.kb_state.process_key_event(keycode, state, repeat);
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::KeyboardInput {
-                            device_id,
-                            event,
-                            is_synthetic: false,
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::KeyboardInput {
+                                device_id,
+                                event,
+                                is_synthetic: false,
+                            },
                         },
-                    });
+                    );
                 } else if let Some(ic) = wt.ime.borrow().get_context(window as ffi::Window) {
                     let written = wt.xconn.lookup_utf8(ic, xkev);
                     if !written.is_empty() {
@@ -690,7 +644,7 @@ impl EventProcessor {
                             window_id,
                             event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                         };
-                        callback(event);
+                        callback(&self.target, event);
 
                         let event = Event::WindowEvent {
                             window_id,
@@ -698,7 +652,7 @@ impl EventProcessor {
                         };
 
                         self.is_composing = false;
-                        callback(event);
+                        callback(&self.target, event);
                     }
                 }
             }
@@ -745,78 +699,99 @@ impl EventProcessor {
                             Released
                         };
                         match xev.detail as u32 {
-                            ffi::Button1 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Left,
+                            ffi::Button1 => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Left,
+                                    },
                                 },
-                            }),
-                            ffi::Button2 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Middle,
+                            ),
+                            ffi::Button2 => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Middle,
+                                    },
                                 },
-                            }),
-                            ffi::Button3 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Right,
+                            ),
+                            ffi::Button3 => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Right,
+                                    },
                                 },
-                            }),
+                            ),
 
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
                             4..=7 => {
                                 if xev.flags & ffi::XIPointerEmulated == 0 {
-                                    callback(Event::WindowEvent {
-                                        window_id,
-                                        event: MouseWheel {
-                                            device_id,
-                                            delta: match xev.detail {
-                                                4 => LineDelta(0.0, 1.0),
-                                                5 => LineDelta(0.0, -1.0),
-                                                6 => LineDelta(1.0, 0.0),
-                                                7 => LineDelta(-1.0, 0.0),
-                                                _ => unreachable!(),
+                                    callback(
+                                        &self.target,
+                                        Event::WindowEvent {
+                                            window_id,
+                                            event: MouseWheel {
+                                                device_id,
+                                                delta: match xev.detail {
+                                                    4 => LineDelta(0.0, 1.0),
+                                                    5 => LineDelta(0.0, -1.0),
+                                                    6 => LineDelta(1.0, 0.0),
+                                                    7 => LineDelta(-1.0, 0.0),
+                                                    _ => unreachable!(),
+                                                },
+                                                phase: TouchPhase::Moved,
                                             },
-                                            phase: TouchPhase::Moved,
                                         },
-                                    });
+                                    );
                                 }
                             }
 
-                            8 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Back,
+                            8 => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Back,
+                                    },
                                 },
-                            }),
-                            9 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Forward,
+                            ),
+                            9 => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Forward,
+                                    },
                                 },
-                            }),
+                            ),
 
-                            x => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Other(x as u16),
+                            x => callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Other(x as u16),
+                                    },
                                 },
-                            }),
+                            ),
                         }
                     }
                     ffi::XI_Motion => {
@@ -837,13 +812,16 @@ impl EventProcessor {
                         if cursor_moved == Some(true) {
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id,
-                                    position,
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: CursorMoved {
+                                        device_id,
+                                        position,
+                                    },
                                 },
-                            });
+                            );
                         } else if cursor_moved.is_none() {
                             return;
                         }
@@ -907,7 +885,7 @@ impl EventProcessor {
                             }
                         }
                         for event in events {
-                            callback(event);
+                            callback(&self.target, event);
                         }
                     }
 
@@ -942,20 +920,26 @@ impl EventProcessor {
                         }
 
                         if self.window_exists(window) {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorEntered { device_id },
-                            });
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: CursorEntered { device_id },
+                                },
+                            );
 
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id,
-                                    position,
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: CursorMoved {
+                                        device_id,
+                                        position,
+                                    },
                                 },
-                            });
+                            );
                         }
                     }
                     ffi::XI_Leave => {
@@ -969,12 +953,15 @@ impl EventProcessor {
                         // been destroyed, which the user presumably doesn't want to deal with.
                         let window_closed = !self.window_exists(window);
                         if !window_closed {
-                            callback(Event::WindowEvent {
-                                window_id: mkwid(window),
-                                event: CursorLeft {
-                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id: mkwid(window),
+                                    event: CursorLeft {
+                                        device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                                    },
                                 },
-                            });
+                            );
                         }
                     }
                     ffi::XI_FocusIn => {
@@ -1001,10 +988,13 @@ impl EventProcessor {
                                 window.shared_state_lock().has_focus = true;
                             }
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: Focused(true),
-                            });
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: Focused(true),
+                                },
+                            );
 
                             let modifiers: crate::keyboard::ModifiersState =
                                 self.kb_state.mods_state().into();
@@ -1019,17 +1009,20 @@ impl EventProcessor {
                                 .map(|device| device.attachment)
                                 .unwrap_or(2);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id: mkdid(pointer_id as _),
-                                    position,
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: CursorMoved {
+                                        device_id: mkdid(pointer_id as _),
+                                        position,
+                                    },
                                 },
-                            });
+                            );
 
                             // Issue key press events for all pressed keys
                             Self::handle_pressed_keys(
-                                wt,
+                                &self.target,
                                 window_id,
                                 ElementState::Pressed,
                                 &mut self.kb_state,
@@ -1060,12 +1053,13 @@ impl EventProcessor {
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
-                                wt,
+                                &self.target,
                                 window_id,
                                 ElementState::Released,
                                 &mut self.kb_state,
                                 &mut callback,
                             );
+
                             // Clear this so detecting key repeats is consistently handled when the
                             // window regains focus.
                             self.held_key_press = None;
@@ -1076,10 +1070,13 @@ impl EventProcessor {
                                 window.shared_state_lock().has_focus = false;
                             }
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: Focused(false),
-                            })
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: Focused(false),
+                                },
+                            )
                         }
                     }
 
@@ -1105,25 +1102,31 @@ impl EventProcessor {
                             // Only the first concurrently active touch ID moves the mouse cursor.
                             if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase)
                             {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::CursorMoved {
-                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
-                                        position: location.cast(),
+                                callback(
+                                    &self.target,
+                                    Event::WindowEvent {
+                                        window_id,
+                                        event: WindowEvent::CursorMoved {
+                                            device_id: mkdid(util::VIRTUAL_CORE_POINTER),
+                                            position: location.cast(),
+                                        },
                                     },
-                                });
+                                );
                             }
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
-                                    phase,
-                                    location,
-                                    force: None, // TODO
-                                    id,
-                                }),
-                            })
+                            callback(
+                                &self.target,
+                                Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::Touch(Touch {
+                                        device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                                        phase,
+                                        location,
+                                        force: None, // TODO
+                                        id,
+                                    }),
+                                },
+                            )
                         }
                     }
 
@@ -1134,17 +1137,20 @@ impl EventProcessor {
                         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
                         if xev.flags & ffi::XIPointerEmulated == 0 {
-                            callback(Event::DeviceEvent {
-                                device_id: mkdid(xev.deviceid as xinput::DeviceId),
-                                event: DeviceEvent::Button {
-                                    button: xev.detail as u32,
-                                    state: match xev.evtype {
-                                        ffi::XI_RawButtonPress => Pressed,
-                                        ffi::XI_RawButtonRelease => Released,
-                                        _ => unreachable!(),
+                            callback(
+                                &self.target,
+                                Event::DeviceEvent {
+                                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                                    event: DeviceEvent::Button {
+                                        button: xev.detail as u32,
+                                        state: match xev.evtype {
+                                            ffi::XI_RawButtonPress => Pressed,
+                                            ffi::XI_RawButtonRelease => Released,
+                                            _ => unreachable!(),
+                                        },
                                     },
                                 },
-                            });
+                            );
                         }
                     }
 
@@ -1177,29 +1183,38 @@ impl EventProcessor {
                                     3 => scroll_delta.1 = x as f32,
                                     _ => {}
                                 }
-                                callback(Event::DeviceEvent {
-                                    device_id: did,
-                                    event: DeviceEvent::Motion {
-                                        axis: i as u32,
-                                        value: x,
+                                callback(
+                                    &self.target,
+                                    Event::DeviceEvent {
+                                        device_id: did,
+                                        event: DeviceEvent::Motion {
+                                            axis: i as u32,
+                                            value: x,
+                                        },
                                     },
-                                });
+                                );
                                 value = unsafe { value.offset(1) };
                             }
                         }
                         if mouse_delta != (0.0, 0.0) {
-                            callback(Event::DeviceEvent {
-                                device_id: did,
-                                event: DeviceEvent::MouseMotion { delta: mouse_delta },
-                            });
+                            callback(
+                                &self.target,
+                                Event::DeviceEvent {
+                                    device_id: did,
+                                    event: DeviceEvent::MouseMotion { delta: mouse_delta },
+                                },
+                            );
                         }
                         if scroll_delta != (0.0, 0.0) {
-                            callback(Event::DeviceEvent {
-                                device_id: did,
-                                event: DeviceEvent::MouseWheel {
-                                    delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                            callback(
+                                &self.target,
+                                Event::DeviceEvent {
+                                    device_id: did,
+                                    event: DeviceEvent::MouseWheel {
+                                        delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                                    },
                                 },
-                            });
+                            );
                         }
                     }
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
@@ -1221,13 +1236,16 @@ impl EventProcessor {
                         }
                         let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
 
-                        callback(Event::DeviceEvent {
-                            device_id,
-                            event: DeviceEvent::Key(RawKeyEvent {
-                                physical_key,
-                                state,
-                            }),
-                        });
+                        callback(
+                            &self.target,
+                            Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::Key(RawKeyEvent {
+                                    physical_key,
+                                    state,
+                                }),
+                            },
+                        );
                     }
 
                     ffi::XI_HierarchyChanged => {
@@ -1241,16 +1259,22 @@ impl EventProcessor {
                         {
                             if 0 != info.flags & (ffi::XISlaveAdded | ffi::XIMasterAdded) {
                                 self.init_device(info.deviceid as xinput::DeviceId);
-                                callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
-                                    event: DeviceEvent::Added,
-                                });
+                                callback(
+                                    &self.target,
+                                    Event::DeviceEvent {
+                                        device_id: mkdid(info.deviceid as xinput::DeviceId),
+                                        event: DeviceEvent::Added,
+                                    },
+                                );
                             } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved)
                             {
-                                callback(Event::DeviceEvent {
-                                    device_id: mkdid(info.deviceid as xinput::DeviceId),
-                                    event: DeviceEvent::Removed,
-                                });
+                                callback(
+                                    &self.target,
+                                    Event::DeviceEvent {
+                                        device_id: mkdid(info.deviceid as xinput::DeviceId),
+                                        event: DeviceEvent::Removed,
+                                    },
+                                );
                                 let mut devices = self.devices.borrow_mut();
                                 devices.remove(&DeviceId(info.deviceid as xinput::DeviceId));
                             }
@@ -1340,49 +1364,149 @@ impl EventProcessor {
             let window_id = mkwid(window as xproto::Window);
             match event {
                 ImeEvent::Enabled => {
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Enabled),
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Enabled),
+                        },
+                    );
                 }
                 ImeEvent::Start => {
                     self.is_composing = true;
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                        },
+                    );
                 }
                 ImeEvent::Update(text, position) => {
                     if self.is_composing {
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
-                        });
+                        callback(
+                            &self.target,
+                            Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::Ime(Ime::Preedit(
+                                    text,
+                                    Some((position, position)),
+                                )),
+                            },
+                        );
                     }
                 }
                 ImeEvent::End => {
                     self.is_composing = false;
                     // Issue empty preedit on `Done`.
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        },
+                    );
                 }
                 ImeEvent::Disabled => {
                     self.is_composing = false;
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::Ime(Ime::Disabled),
-                    });
+                    callback(
+                        &self.target,
+                        Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Ime(Ime::Disabled),
+                        },
+                    );
                 }
             }
+        }
+    }
+
+    pub fn poll(&self) -> bool {
+        let window_target = Self::window_target(&self.target);
+        let result = unsafe { (window_target.xconn.xlib.XPending)(window_target.xconn.display) };
+
+        result != 0
+    }
+
+    pub unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
+        let window_target = Self::window_target(&self.target);
+        // This function is used to poll and remove a single event
+        // from the Xlib event queue in a non-blocking, atomic way.
+        // XCheckIfEvent is non-blocking and removes events from queue.
+        // XNextEvent can't be used because it blocks while holding the
+        // global Xlib mutex.
+        // XPeekEvent does not remove events from the queue.
+        unsafe extern "C" fn predicate(
+            _display: *mut ffi::Display,
+            _event: *mut ffi::XEvent,
+            _arg: *mut c_char,
+        ) -> c_int {
+            // This predicate always returns "true" (1) to accept all events
+            1
+        }
+
+        let result = unsafe {
+            (window_target.xconn.xlib.XCheckIfEvent)(
+                window_target.xconn.display,
+                event_ptr,
+                Some(predicate),
+                std::ptr::null_mut(),
+            )
+        };
+
+        result != 0
+    }
+
+    pub fn init_device(&self, device: xinput::DeviceId) {
+        let window_target = Self::window_target(&self.target);
+        let mut devices = self.devices.borrow_mut();
+        if let Some(info) = DeviceInfo::get(&window_target.xconn, device as _) {
+            for info in info.iter() {
+                devices.insert(DeviceId(info.deviceid as _), Device::new(info));
+            }
+        }
+    }
+
+    pub fn with_window<F, Ret>(&self, window_id: xproto::Window, callback: F) -> Option<Ret>
+    where
+        F: Fn(&Arc<UnownedWindow>) -> Ret,
+    {
+        let mut deleted = false;
+        let window_id = WindowId(window_id as _);
+        let window_target = Self::window_target(&self.target);
+        let result = window_target
+            .windows
+            .borrow()
+            .get(&window_id)
+            .and_then(|window| {
+                let arc = window.upgrade();
+                deleted = arc.is_none();
+                arc
+            })
+            .map(|window| callback(&window));
+
+        if deleted {
+            // Garbage collection
+            window_target.windows.borrow_mut().remove(&window_id);
+        }
+
+        result
+    }
+
+    // NOTE: we avoid `self` to not borrow the entire `self` as not mut.
+    /// Get the platform window target.
+    pub fn window_target(window_target: &RootELW) -> &EventLoopWindowTarget {
+        match &window_target.p {
+            PlatformEventLoopWindowTarget::X(target) => target,
+            #[cfg(wayland_platform)]
+            _ => unreachable!(),
         }
     }
 
     /// Send modifiers for the active window.
     ///
     /// The event won't be send when the `modifiers` match the previosly `sent` modifiers value.
-    fn send_modifiers<T: 'static, F: FnMut(Event<T>)>(
+    fn send_modifiers<T: 'static, F: FnMut(&RootELW, Event<T>)>(
         &self,
         modifiers: ModifiersState,
         callback: &mut F,
@@ -1393,26 +1517,30 @@ impl EventProcessor {
         };
 
         if self.modifiers.replace(modifiers) != modifiers {
-            callback(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
-            });
+            callback(
+                &self.target,
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
+                },
+            );
         }
     }
 
     fn handle_pressed_keys<T: 'static, F>(
-        wt: &super::EventLoopWindowTarget,
+        target: &RootELW,
         window_id: crate::window::WindowId,
         state: ElementState,
         kb_state: &mut KbdState,
         callback: &mut F,
     ) where
-        F: FnMut(Event<T>),
+        F: FnMut(&RootELW, Event<T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
-        for keycode in wt
+        let window_target = Self::window_target(target);
+        for keycode in window_target
             .xconn
             .query_keymap()
             .into_iter()
@@ -1420,22 +1548,23 @@ impl EventProcessor {
         {
             let keycode = keycode as u32;
             let event = kb_state.process_key_event(keycode, state, false);
-            callback(Event::WindowEvent {
+            let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id,
                     event,
                     is_synthetic: true,
                 },
-            });
+            };
+            callback(target, event);
         }
     }
 
     fn process_dpi_change<T: 'static, F>(&self, callback: &mut F)
     where
-        F: FnMut(Event<T>),
+        F: FnMut(&RootELW, Event<T>),
     {
-        let wt = get_xtarget(&self.target);
+        let wt = Self::window_target(&self.target);
         wt.xconn
             .reload_database()
             .expect("failed to reload Xft database");
@@ -1463,14 +1592,16 @@ impl EventProcessor {
                 .map(|prev_monitor| prev_monitor.scale_factor);
             if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
                 for window in wt.windows.borrow().iter().filter_map(|(_, w)| w.upgrade()) {
-                    window.refresh_dpi_for_monitor(
-                        &new_monitor,
-                        maybe_prev_scale_factor,
-                        &mut *callback,
-                    )
+                    window.refresh_dpi_for_monitor(&new_monitor, maybe_prev_scale_factor, |event| {
+                        callback(&self.target, event);
+                    })
                 }
             }
         }
+    }
+
+    fn window_exists(&self, window_id: xproto::Window) -> bool {
+        self.with_window(window_id, |_| ()).is_some()
     }
 }
 
