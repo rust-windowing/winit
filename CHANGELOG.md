@@ -24,6 +24,7 @@ Unreleased` header.
 - On Wayland, fix `WAYLAND_SOCKET` not used when detecting platform.
 - On Orbital, fix `logical_key` and `text` not reported in `KeyEvent`.
 - On Orbital, implement `KeyEventExtModifierSupplement`.
+- On Orbital, map keys to `NamedKey` when possible.
 
 # 0.29.10
 
