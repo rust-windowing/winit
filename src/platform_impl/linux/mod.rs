@@ -938,10 +938,12 @@ impl<T> EventLoopWindowTarget<T> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exiting())
     }
 
+    #[allow(dead_code)]
     fn set_exit_code(&self, code: i32) {
         x11_or_wayland!(match self; Self(evlp) => evlp.set_exit_code(code))
     }
 
+    #[allow(dead_code)]
     fn exit_code(&self) -> Option<i32> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
     }

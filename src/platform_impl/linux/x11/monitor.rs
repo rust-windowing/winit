@@ -324,7 +324,7 @@ impl XConnection {
     }
 }
 
-pub(crate) struct ScreenResources {
+pub struct ScreenResources {
     /// List of attached modes.
     modes: Vec<randr::ModeInfo>,
 

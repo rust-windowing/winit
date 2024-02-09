@@ -1035,7 +1035,7 @@ fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
 }
 
 #[derive(Debug)]
-struct Device {
+pub struct Device {
     _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
