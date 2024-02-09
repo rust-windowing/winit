@@ -1554,7 +1554,7 @@ impl EventProcessor {
 
     /// Send modifiers for the active window.
     ///
-    /// The event won't be send when the `modifiers` match the previosly `sent` modifiers value.
+    /// The event won't be sent when the `modifiers` match the previously `sent` modifiers value.
     fn send_modifiers<T: 'static, F: FnMut(&RootELW, Event<T>)>(
         &self,
         modifiers: ModifiersState,

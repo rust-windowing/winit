@@ -61,7 +61,7 @@ pub enum WindowType {
 pub type XlibErrorHook =
     Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
 
-/// A unique identifer for an X11 visual.
+/// A unique identifier for an X11 visual.
 pub type XVisualID = u32;
 
 /// A unique identifier for an X11 window.
@@ -69,7 +69,7 @@ pub type XWindow = u32;
 
 /// Hook to winit's xlib error handling callback.
 ///
-/// This method is provided as a safe way to handle the errors comming from X11
+/// This method is provided as a safe way to handle the errors coming from X11
 /// when using xlib in external crates, like glutin for GLX access. Trying to
 /// handle errors by speculating with `XSetErrorHandler` is [`unsafe`].
 ///

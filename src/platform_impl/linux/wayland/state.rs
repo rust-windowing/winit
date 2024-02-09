@@ -60,7 +60,7 @@ pub struct WinitState {
     /// The pool where custom cursors are allocated.
     pub custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
-    /// The XDG shell that is used for widnows.
+    /// The XDG shell that is used for windows.
     pub xdg_shell: XdgShell,
 
     /// The currently present windows.
@@ -72,7 +72,7 @@ pub struct WinitState {
     /// The events that were generated directly from the window.
     pub window_events_sink: Arc<Mutex<EventSink>>,
 
-    /// The update for the `windows` comming from the compositor.
+    /// The update for the `windows` coming from the compositor.
     pub window_compositor_updates: Vec<WindowCompositorUpdate>,
 
     /// Currently handled seats.
@@ -395,7 +395,7 @@ impl ProvidesRegistryState for WinitState {
     sctk::registry_handlers![OutputState, SeatState];
 }
 
-// The window update comming from the compositor.
+// The window update coming from the compositor.
 #[derive(Debug, Clone, Copy)]
 pub struct WindowCompositorUpdate {
     /// The id of the window this updates belongs to.

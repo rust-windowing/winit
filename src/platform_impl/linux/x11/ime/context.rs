@@ -195,7 +195,7 @@ pub struct ImeContext {
     pub(crate) ic: ffi::XIC,
     pub(crate) ic_spot: ffi::XPoint,
     pub(crate) style: Style,
-    // Since the data is passed shared between X11 XIM callbacks, but couldn't be direclty free from
+    // Since the data is passed shared between X11 XIM callbacks, but couldn't be directly free from
     // there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
 }

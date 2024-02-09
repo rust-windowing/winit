@@ -35,7 +35,7 @@ pub fn initialize(app: &NSApplication) {
     let services_item = menu_item(mtm, ns_string!("Services"), None, None);
     services_item.setSubmenu(Some(&services_menu));
 
-    // Seperator menu item
+    // Separator menu item
     let sep_first = NSMenuItem::separatorItem(mtm);
 
     // Hide application menu item
@@ -71,7 +71,7 @@ pub fn initialize(app: &NSApplication) {
         None,
     );
 
-    // Seperator menu item
+    // Separator menu item
     let sep = NSMenuItem::separatorItem(mtm);
 
     // Quit application menu item

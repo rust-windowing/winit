@@ -129,7 +129,7 @@ Unreleased` header.
 # 0.29.3
 
 - On Wayland, apply correct scale to `PhysicalSize` passed in `WindowBuilder::with_inner_size` when possible.
-- On Wayland, fix `RedrawRequsted` being always sent without decorations and `sctk-adwaita` feature.
+- On Wayland, fix `RedrawRequested` being always sent without decorations and `sctk-adwaita` feature.
 - On Wayland, ignore resize requests when the window is fully tiled.
 - On Wayland, use `configure_bounds` to constrain `with_inner_size` when compositor wants users to pick size.
 - On Windows, fix deadlock when accessing the state during `Cursor{Enter,Leave}`.
@@ -381,7 +381,7 @@ Unreleased` header.
 - **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - Removed `parking_lot` dependency.
 - **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`. Also add support for touchpad smart-magnification gesture with a new event `WindowEvent::SmartMagnify`.
-- **Breaking:** On web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
+- **Breaking:** On Web, the `WindowBuilderExtWebSys::with_prevent_default` setting (enabled by default), now additionally prevents scrolling of the webpage in mobile browsers, previously it only disabled scrolling on desktop.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
@@ -401,7 +401,7 @@ Unreleased` header.
 - Added `Window::set_transparent` to provide a hint about transparency of the window on Wayland and macOS.
 - On macOS, fix the mouse buttons other than left/right/middle being reported as middle.
 - On Wayland, support fractional scaling via the wp-fractional-scale protocol.
-- On web, fix removal of mouse event listeners from the global object upon window distruction.
+- On Web, fix removal of mouse event listeners from the global object upon window destruction.
 - Add WindowAttributes getter to WindowBuilder to allow introspection of default values.
 - Added `Window::set_ime_purpose` for setting the IME purpose, currently implemented on Wayland only.
 
@@ -507,7 +507,7 @@ Unreleased` header.
 - On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
 - On Windows, fix focus events being sent to inactive windows.
 - **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
-- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
+- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors coming from Xlib.
 - On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
 - All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
 - **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
@@ -806,7 +806,7 @@ Unreleased` header.
 - On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
 - On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
 - On iOS, fix panic upon closing the app.
-- On X11, allow setting mulitple `XWindowType`s.
+- On X11, allow setting multiple `XWindowType`s.
 - On iOS, fix null window on initial `HiDpiFactorChanged` event.
 - On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
 - On macOS, fix events not being emitted during modal loops, such as when windows are being resized
@@ -959,7 +959,7 @@ and `WindowEvent::HoveredFile`.
 - On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
 - On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
 - On Windows, only vertical mouse wheel events were handled. Now, horizontal mouse wheel events are also handled.
-- On Windows, ignore the AltGr key when populating the `ModifersState` type.
+- On Windows, ignore the AltGr key when populating the `ModifiersState` type.
 
 # Version 0.18.1 (2018-12-30)
 
@@ -1239,7 +1239,7 @@ _Yanked_
 
 # Version 0.8.2 (2017-09-28)
 
-- Uniformize keyboard scancode values accross Wayland and X11 (#297).
+- Uniformize keyboard scancode values across Wayland and X11 (#297).
 - Internal rework of the wayland event loop
 - Added method `os::linux::WindowExt::is_ready`
 
@@ -1253,7 +1253,7 @@ _Yanked_
 - Added `Window::set_maximized`, `WindowAttributes::maximized` and `WindowBuilder::with_maximized`.
 - Added `Window::set_fullscreen`.
 - Changed `with_fullscreen` to take a `Option<MonitorId>` instead of a `MonitorId`.
-- Removed `MonitorId::get_native_identifer()` in favor of platform-specific traits in the `os`
+- Removed `MonitorId::get_native_identifier()` in favor of platform-specific traits in the `os`
   module.
 - Changed `get_available_monitors()` and `get_primary_monitor()` to be methods of `EventsLoop`
   instead of stand-alone methods.

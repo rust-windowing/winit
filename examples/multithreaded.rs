@@ -78,7 +78,7 @@ fn main() -> Result<(), impl std::error::Error> {
                                 }
                                 println!("Picking video mode: {}", video_modes[video_mode_id]);
                             }
-                            // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                            // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                             // See the `key_binding` example
                             Key::Character(ch) => match ch.to_lowercase().as_str() {
                                 "1" => window.set_window_level(WindowLevel::AlwaysOnTop),

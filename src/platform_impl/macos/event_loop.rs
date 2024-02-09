@@ -169,8 +169,8 @@ fn map_user_event<T: 'static>(
 pub struct EventLoop<T: 'static> {
     /// Store a reference to the application for convenience.
     ///
-    /// We intentially don't store `WinitApplication` since we want to have
-    /// the possiblity of swapping that out at some point.
+    /// We intentionally don't store `WinitApplication` since we want to have
+    /// the possibility of swapping that out at some point.
     app: Id<NSApplication>,
     /// The application delegate that we've registered.
     ///

@@ -65,8 +65,8 @@ enum ImeState {
     /// The IME is in preedit.
     Preedit,
 
-    /// The text was just commited, so the next input from the keyboard must be ignored.
-    Commited,
+    /// The text was just committed, so the next input from the keyboard must be ignored.
+    Committed,
 }
 
 bitflags::bitflags! {
@@ -397,7 +397,7 @@ declare_class!(
             if unsafe { self.hasMarkedText() } && self.is_ime_enabled() && !is_control {
                 self.queue_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)));
                 self.queue_event(WindowEvent::Ime(Ime::Commit(string)));
-                self.ivars().ime_state.set(ImeState::Commited);
+                self.ivars().ime_state.set(ImeState::Committed);
             }
         }
 
@@ -406,10 +406,10 @@ declare_class!(
         #[method(doCommandBySelector:)]
         fn do_command_by_selector(&self, _command: Sel) {
             trace_scope!("doCommandBySelector:");
-            // We shouldn't forward any character from just commited text, since we'll end up sending
+            // We shouldn't forward any character from just committed text, since we'll end up sending
             // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
             // which is not desired given it was used to confirm IME input.
-            if self.ivars().ime_state.get() == ImeState::Commited {
+            if self.ivars().ime_state.get() == ImeState::Committed {
                 return;
             }
 
@@ -452,8 +452,8 @@ declare_class!(
                 let events_for_nsview = NSArray::from_slice(&[&*event]);
                 unsafe { self.interpretKeyEvents(&events_for_nsview) };
 
-                // If the text was commited we must treat the next keyboard event as IME related.
-                if self.ivars().ime_state.get() == ImeState::Commited {
+                // If the text was committed we must treat the next keyboard event as IME related.
+                if self.ivars().ime_state.get() == ImeState::Committed {
                     // Remove any marked text, so normal input can continue.
                     *self.ivars().marked_text.borrow_mut() = NSMutableAttributedString::new();
                 }
@@ -462,7 +462,7 @@ declare_class!(
             self.update_modifiers(&event, false);
 
             let had_ime_input = match self.ivars().ime_state.get() {
-                ImeState::Commited => {
+                ImeState::Committed => {
                     // Allow normal input after the commit.
                     self.ivars().ime_state.set(ImeState::Ground);
                     true
@@ -924,7 +924,7 @@ impl WinitView {
                 let mut event = create_key_event(ns_event, false, false, Some(physical_key));
 
                 let key = code_to_key(physical_key, scancode);
-                // Ignore processing of unkown modifiers because we can't determine whether
+                // Ignore processing of unknown modifiers because we can't determine whether
                 // it was pressed or release reliably.
                 let Some(event_modifier) = key_to_modifier(&key) else {
                     break 'send_event;

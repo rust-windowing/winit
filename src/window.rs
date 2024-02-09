@@ -662,7 +662,7 @@ impl Window {
     /// // Notify winit that we're about to submit buffer to the windowing system.
     /// window.pre_present_notify();
     ///
-    /// // Sumbit buffer to the windowing system.
+    /// // Submit buffer to the windowing system.
     /// swap_buffers();
     /// ```
     ///
@@ -793,7 +793,7 @@ impl Window {
     /// may not be generated.
     ///
     /// On platforms where resizing is disallowed by the windowing system, the current
-    /// inner size is returned immidiatelly, and the user one is ignored.
+    /// inner size is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::Resized`].
@@ -938,7 +938,7 @@ impl Window {
     /// Change the window transparency state.
     ///
     /// This is just a hint that may not change anything about
-    /// the window transparency, however doing a missmatch between
+    /// the window transparency, however doing a mismatch between
     /// the content of your window and this hint may result in
     /// visual artifacts.
     ///

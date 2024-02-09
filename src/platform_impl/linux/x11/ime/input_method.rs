@@ -170,7 +170,7 @@ impl From<util::GetPropertyError> for GetXimServersError {
     }
 }
 
-// The root window has a property named XIM_SERVERS, which contains a list of atoms represeting
+// The root window has a property named XIM_SERVERS, which contains a list of atoms representing
 // the availabile XIM servers. For instance, if you're using ibus, it would contain an atom named
 // "@server=ibus". It's possible for this property to contain multiple atoms, though presumably
 // rare. Note that we replace "@server=" with "@im=" in order to match the format of locale
