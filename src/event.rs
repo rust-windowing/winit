@@ -32,6 +32,8 @@
 //!
 //! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
+use std::error::Error;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
 #[cfg(not(web_platform))]
@@ -43,7 +45,6 @@ use smol_str::SmolStr;
 #[cfg(web_platform)]
 use web_time::Instant;
 
-use crate::error::ExternalError;
 #[cfg(doc)]
 use crate::window::Window;
 use crate::{
@@ -1126,16 +1127,23 @@ impl InnerSizeWriter {
         Self { new_inner_size }
     }
 
-    /// Try to request inner size which will be set synchroniously on the window.
+    /// Try to request a new inner size which will be set synchronously on the
+    /// window.
+    ///
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the request was ignored because it
+    /// was done asynchronously, outside the event loop callback.
     pub fn request_inner_size(
         &mut self,
         new_inner_size: PhysicalSize<u32>,
-    ) -> Result<(), ExternalError> {
+    ) -> Result<(), RequestIgnored> {
         if let Some(inner) = self.new_inner_size.upgrade() {
             *inner.lock().unwrap() = new_inner_size;
             Ok(())
         } else {
-            Err(ExternalError::Ignored)
+            Err(RequestIgnored { _priv: () })
         }
     }
 }
@@ -1145,6 +1153,22 @@ impl PartialEq for InnerSizeWriter {
         self.new_inner_size.as_ptr() == other.new_inner_size.as_ptr()
     }
 }
+
+/// The request to change the inner size synchronously was ignored.
+///
+/// See [`InnerSizeWriter::request_inner_size`] for details.
+#[derive(Debug, Clone)] // Explicitly not other traits, in case we want to extend it in the future
+pub struct RequestIgnored {
+    _priv: (),
+}
+
+impl fmt::Display for RequestIgnored {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.write_str("the request to change the inner size was ignored")
+    }
+}
+
+impl Error for RequestIgnored {}
 
 #[cfg(test)]
 mod tests {
