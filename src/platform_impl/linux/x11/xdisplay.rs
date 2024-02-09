@@ -22,7 +22,7 @@ use x11rb::{
 };
 
 /// A connection to an X server.
-pub(crate) struct XConnection {
+pub struct XConnection {
     pub xlib: ffi::Xlib,
     pub xcursor: ffi::Xcursor,
 
