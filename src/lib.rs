@@ -126,6 +126,23 @@
 //! [`visible` set to `false`](crate::window::WindowAttributes::with_visible) and explicitly make the
 //! window visible only once you're ready to render into it.
 //!
+//! # Cargo Features
+//!
+//! Winit provides the following Cargo features:
+//!
+//! * `x11` (enabled by default): On Unix platforms, enables the X11 backend.
+//! * `wayland` (enabled by default): On Unix platforms, enables the Wayland
+//!   backend.
+//! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
+//! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
+//! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
+//! * `serde`: Enables serialization/deserialization of certain types with
+//!   [Serde](https://crates.io/crates/serde).
+//! * `mint`: Enables mint (math interoperability standard types) conversions.
+//!
+//! See the [`platform`] module for documentation on platform-specific cargo
+//! features.
+//!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [`EventLoop::run()`]: event_loop::EventLoop::run

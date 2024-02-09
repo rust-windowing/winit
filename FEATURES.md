@@ -164,9 +164,6 @@ If your PR makes notable changes to Winit's features, please update this section
 ### Web
 * Get if the systems preferred color scheme is "dark"
 
-## Usability
-* `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
-
 ## Compatibility Matrix
 
 Legend:

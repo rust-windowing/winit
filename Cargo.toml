@@ -42,6 +42,7 @@ targets = [
 ]
 rustdoc-args = ["--cfg", "docsrs"]
 
+# Features are documented in either `lib.rs` or under `winit::platform`.
 [features]
 default = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
@@ -53,6 +54,7 @@ wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 android-native-activity = ["android-activity/native-activity"]
 android-game-activity = ["android-activity/game-activity"]
 serde = ["dep:serde", "cursor-icon/serde", "smol_str/serde"]
+mint = ["dep:mint"]
 rwh_04 = ["dep:rwh_04", "ndk/rwh_04"]
 rwh_05 = ["dep:rwh_05", "ndk/rwh_05"]
 rwh_06 = ["dep:rwh_06", "ndk/rwh_06"]
