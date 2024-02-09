@@ -38,11 +38,13 @@ impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub fn get_xft_dpi(&self) -> Option<f64> {
         // Try to get it from XSETTINGS first.
-        match self.xsettings_dpi() {
-            Ok(Some(dpi)) => return Some(dpi),
-            Ok(None) => {}
-            Err(err) => {
-                log::warn!("failed to fetch XSettings: {err}");
+        if let Some(xsettings_screen) = self.xsettings_screen() {
+            match self.xsettings_dpi(xsettings_screen) {
+                Ok(Some(dpi)) => return Some(dpi),
+                Ok(None) => {}
+                Err(err) => {
+                    log::warn!("failed to fetch XSettings: {err}");
+                }
             }
         }
 

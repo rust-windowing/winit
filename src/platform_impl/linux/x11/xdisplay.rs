@@ -59,7 +59,7 @@ pub(crate) struct XConnection {
     randr_version: (u32, u32),
 
     /// Atom for the XSettings screen.
-    xsettings_screen: xproto::Atom,
+    xsettings_screen: Option<xproto::Atom>,
 
     pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
@@ -108,21 +108,6 @@ impl XConnection {
         // Get the default screen.
         let default_screen = unsafe { (xlib.XDefaultScreen)(display) } as usize;
 
-        // Fetch the _XSETTINGS_S[screen number] atom.
-        let xsettings_screen = xcb
-            .intern_atom(false, format!("_XSETTINGS_S{}", default_screen).as_bytes())
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
-
-        // Fetch the other atoms.
-        let atoms = Atoms::new(&xcb)
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
-            .reply()
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
-        let xsettings_screen = xsettings_screen
-            .reply()
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
-            .atom;
-
         // Load the database.
         let database = resource_manager::new_from_default(&xcb)
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
@@ -134,23 +119,16 @@ impl XConnection {
             .reply()
             .expect("failed to query XRandR version");
 
-        // Get PropertyNotify events from the XSETTINGS window.
-        // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on this window
-        // in order to accomodate for a changed window here.
-        let selector_window = xcb
-            .get_selection_owner(xsettings_screen)
+        let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
+        if xsettings_screen.is_none() {
+            log::warn!("error setting XSETTINGS; Xft options won't reload automatically")
+        }
+
+        // Fetch atoms.
+        let atoms = Atoms::new(&xcb)
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
-            .owner;
-        xcb.change_window_attributes(
-            selector_window,
-            &xproto::ChangeWindowAttributesAux::new()
-                .event_mask(xproto::EventMask::PROPERTY_CHANGE),
-        )
-        .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
-        .check()
-        .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         Ok(XConnection {
             xlib,
@@ -168,6 +146,37 @@ impl XConnection {
             randr_version: (randr_version.major_version, randr_version.minor_version),
             xsettings_screen,
         })
+    }
+
+    fn new_xsettings_screen(xcb: &XCBConnection, default_screen: usize) -> Option<xproto::Atom> {
+        // Fetch the _XSETTINGS_S[screen number] atom.
+        let xsettings_screen = xcb
+            .intern_atom(false, format!("_XSETTINGS_S{}", default_screen).as_bytes())
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+
+        // Get PropertyNotify events from the XSETTINGS window.
+        // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on this window
+        // in order to accomodate for a changed window here.
+        let selector_window = xcb
+            .get_selection_owner(xsettings_screen)
+            .ok()?
+            .reply()
+            .ok()?
+            .owner;
+
+        xcb.change_window_attributes(
+            selector_window,
+            &xproto::ChangeWindowAttributesAux::new()
+                .event_mask(xproto::EventMask::PROPERTY_CHANGE),
+        )
+        .ok()?
+        .check()
+        .ok()?;
+
+        Some(xsettings_screen)
     }
 
     /// Checks whether an error has been triggered by the previous function calls.
@@ -258,7 +267,7 @@ impl XConnection {
 
     /// Get the atom for Xsettings.
     #[inline]
-    pub fn xsettings_screen(&self) -> u32 {
+    pub fn xsettings_screen(&self) -> Option<xproto::Atom> {
         self.xsettings_screen
     }
 }
