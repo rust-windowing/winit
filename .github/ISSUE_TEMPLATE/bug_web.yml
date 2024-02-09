@@ -1,0 +1,51 @@
+name: Web bug
+description: Create a web-specific bug report
+labels:
+  - B - bug
+  - DS - web
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem you're having
+    validations:
+      required: true
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: Tested browsers
+      description: What browsers are you seeing the problem on?
+      options:
+        - Firefox
+        - Chrome
+        - Microsoft Edge
+        - Safari 13
+        - Safari 14
+        - Safari 15
+        - Safari 16
+        - Safari 17
+        - Safari (newer than listed)
+      multiple: true
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Tested devices
+      description: Which device(s) are you using?
+      placeholder: 'iPhone 15, Lenovo ThinkPad X1, MacBook Pro M2, Samsung Galaxy Z, ...'
+    validations:
+      required: true
+  - type: textarea
+    id: winit-version
+    attributes:
+      label: Winit version
+      description: What version of Winit are you using?
+      placeholder: 0.29.11
+    validations:
+      required: true

@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a new feature
+labels:
+  - S - enhancement
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem does this solve or what need does it fill? Please be mindful of the [scope](https://github.com/rust-windowing/winit/blob/master/FEATURES.md) of Winit.
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Relevant platforms
+      description: On which platforms is this feature relevant?
+      options:
+        - Windows
+        - macOS
+        - Wayland
+        - X11
+        - Web
+        - iOS
+        - Android
+      multiple: true
