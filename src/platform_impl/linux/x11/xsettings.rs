@@ -4,12 +4,12 @@
 //!
 //! [here]: https://github.com/derat/xsettingsd
 
-use super::{atoms::*, XConnection};
-
-use x11rb::protocol::xproto::ConnectionExt;
-
 use std::iter;
 use std::num::NonZeroUsize;
+
+use x11rb::protocol::xproto::{self, ConnectionExt};
+
+use super::{atoms::*, XConnection};
 
 type Result<T> = core::result::Result<T, ParserError>;
 
@@ -20,13 +20,16 @@ const BIG_ENDIAN: u8 = b'B';
 
 impl XConnection {
     /// Get the DPI from XSettings.
-    pub(crate) fn xsettings_dpi(&self) -> core::result::Result<Option<f64>, super::X11Error> {
+    pub(crate) fn xsettings_dpi(
+        &self,
+        xsettings_screen: xproto::Atom,
+    ) -> core::result::Result<Option<f64>, super::X11Error> {
         let atoms = self.atoms();
 
         // Get the current owner of the screen's settings.
         let owner = self
             .xcb_connection()
-            .get_selection_owner(self.xsettings_screen())?
+            .get_selection_owner(xsettings_screen)?
             .reply()?;
 
         // Read the _XSETTINGS_SETTINGS property.
