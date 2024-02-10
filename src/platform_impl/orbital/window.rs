@@ -22,11 +22,11 @@ use super::{
 const ORBITAL_FLAG_ASYNC: char = 'a';
 const ORBITAL_FLAG_BACK: char = 'b';
 const ORBITAL_FLAG_FRONT: char = 'f';
+const ORBITAL_FLAG_HIDDEN: char = 'h';
 const ORBITAL_FLAG_BORDERLESS: char = 'l';
 const ORBITAL_FLAG_MAXIMIZED: char = 'm';
 const ORBITAL_FLAG_RESIZABLE: char = 'r';
 const ORBITAL_FLAG_TRANSPARENT: char = 't';
-const ORBITAL_FLAG_VISIBLE: char = 'v';
 
 pub struct Window {
     window_socket: Arc<RedoxSocket>,
@@ -74,12 +74,12 @@ impl Window {
             flag_str.push(ORBITAL_FLAG_TRANSPARENT);
         }
 
-        if attrs.visible {
-            flag_str.push(ORBITAL_FLAG_VISIBLE);
-        }
-
         if !attrs.decorations {
             flag_str.push(ORBITAL_FLAG_BORDERLESS);
+        }
+
+        if !attrs.visible {
+            flag_str.push(ORBITAL_FLAG_HIDDEN);
         }
 
         match attrs.window_level {
@@ -292,15 +292,15 @@ impl Window {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        self.set_flag(ORBITAL_FLAG_VISIBLE, visible)
-            .expect("failed to set visible")
+        self.set_flag(ORBITAL_FLAG_HIDDEN, !visible)
+            .expect("failed to set hidden")
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(
-            self.get_flag(ORBITAL_FLAG_VISIBLE)
-                .expect("failed to get visible"),
+            !self.get_flag(ORBITAL_FLAG_HIDDEN)
+                .expect("failed to get hidden"),
         )
     }
 
@@ -367,11 +367,8 @@ impl Window {
 
     #[inline]
     pub fn set_window_level(&self, level: window::WindowLevel) {
-        // The order here is important, always set false before setting true
         match level {
             window::WindowLevel::AlwaysOnBottom => {
-                self.set_flag(ORBITAL_FLAG_FRONT, false)
-                    .expect("failed to set front");
                 self.set_flag(ORBITAL_FLAG_BACK, true)
                     .expect("failed to set back");
             }
@@ -382,8 +379,6 @@ impl Window {
                     .expect("failed to set front");
             }
             window::WindowLevel::AlwaysOnTop => {
-                self.set_flag(ORBITAL_FLAG_BACK, false)
-                    .expect("failed to set back");
                 self.set_flag(ORBITAL_FLAG_FRONT, true)
                     .expect("failed to set front");
             }
