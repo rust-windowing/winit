@@ -299,7 +299,8 @@ impl Window {
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         Some(
-            !self.get_flag(ORBITAL_FLAG_HIDDEN)
+            !self
+                .get_flag(ORBITAL_FLAG_HIDDEN)
                 .expect("failed to get hidden"),
         )
     }
