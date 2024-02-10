@@ -13,7 +13,8 @@ use crate::{
 };
 
 use super::{
-    EventLoopWindowTarget, MonitorHandle, RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    EventLoopWindowTarget, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId,
+    WindowProperties,
 };
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -359,30 +360,58 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _: window::CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_grab(
+        &self,
+        mode: window::CursorGrabMode,
+    ) -> Result<(), error::ExternalError> {
+        let (grab, relative) = match mode {
+            window::CursorGrabMode::None => (false, false),
+            window::CursorGrabMode::Confined => (true, false),
+            window::CursorGrabMode::Locked => (true, true),
+        };
+        self.window_socket
+            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        self.window_socket
+            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_visible(&self, _: bool) {}
+    pub fn set_cursor_visible(&self, visible: bool) {
+        self.window_socket
+            .write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes())
+            .expect("failed to set cursor visible")
+    }
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        self.window_socket
+            .write(b"D")
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
 
     #[inline]
     pub fn drag_resize_window(
         &self,
-        _direction: window::ResizeDirection,
+        direction: window::ResizeDirection,
     ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        let arg = match direction {
+            window::ResizeDirection::East => "R",
+            window::ResizeDirection::North => "T",
+            window::ResizeDirection::NorthEast => "T,R",
+            window::ResizeDirection::NorthWest => "T,L",
+            window::ResizeDirection::South => "B",
+            window::ResizeDirection::SouthEast => "B,R",
+            window::ResizeDirection::SouthWest => "B,L",
+            window::ResizeDirection::West => "L",
+        };
+        self.window_socket
+            .write(format!("D,{}", arg).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
 
     #[inline]

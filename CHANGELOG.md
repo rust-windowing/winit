@@ -54,6 +54,11 @@ Unreleased` header.
 - On Orbital, implement `KeyEventExtModifierSupplement`.
 - On Orbital, map keys to `NamedKey` when possible.
 
+- On Orbital, implement `set_cursor_grab`.
+- On Orbital, implement `set_cursor_visible`.
+- On Orbital, implement `drag_window`.
+- On Orbital, implement `drag_resize_window`.
+
 # 0.29.10
 
 - On Web, account for canvas being focused already before event loop starts.

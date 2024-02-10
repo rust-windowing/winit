@@ -1450,7 +1450,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window
@@ -1467,7 +1467,7 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.maybe_wait_on_main(|w| w.drag_window())
@@ -1481,7 +1481,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window
@@ -1642,7 +1642,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1653,7 +1653,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 
