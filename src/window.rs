@@ -946,7 +946,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web / iOS / Android / Orbital:** Unsupported.
+    /// - **Web / iOS / Android:** Unsupported.
     /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
@@ -1079,7 +1079,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window
@@ -1090,7 +1090,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window.maybe_wait_on_main(|w| w.is_maximized())
