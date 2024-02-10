@@ -283,8 +283,7 @@ impl Window {
 
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
-        self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent)
-            .expect("failed to set transparent")
+        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
     }
 
     #[inline]
@@ -292,17 +291,12 @@ impl Window {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        self.set_flag(ORBITAL_FLAG_HIDDEN, !visible)
-            .expect("failed to set hidden")
+        let _ = self.set_flag(ORBITAL_FLAG_HIDDEN, !visible);
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        Some(
-            !self
-                .get_flag(ORBITAL_FLAG_HIDDEN)
-                .expect("failed to get hidden"),
-        )
+        Some(!self.get_flag(ORBITAL_FLAG_HIDDEN).unwrap_or(false))
     }
 
     #[inline]
@@ -315,14 +309,12 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizeable: bool) {
-        self.set_flag(ORBITAL_FLAG_RESIZABLE, resizeable)
-            .expect("failed to set resizable")
+        let _ = self.set_flag(ORBITAL_FLAG_RESIZABLE, resizeable);
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        self.get_flag(ORBITAL_FLAG_RESIZABLE)
-            .expect("failed to get resizable")
+        self.get_flag(ORBITAL_FLAG_RESIZABLE).unwrap_or(false)
     }
 
     #[inline]
@@ -335,14 +327,12 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        self.set_flag(ORBITAL_FLAG_MAXIMIZED, maximized)
-            .expect("failed to set maximized")
+        let _ = self.set_flag(ORBITAL_FLAG_MAXIMIZED, maximized);
     }
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        self.get_flag(ORBITAL_FLAG_MAXIMIZED)
-            .expect("failed to get maximized")
+        self.get_flag(ORBITAL_FLAG_MAXIMIZED).unwrap_or(false)
     }
 
     #[inline]
@@ -355,33 +345,26 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        self.set_flag(ORBITAL_FLAG_BORDERLESS, !decorations)
-            .expect("failed to set borderless")
+        let _ = self.set_flag(ORBITAL_FLAG_BORDERLESS, !decorations);
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        !self
-            .get_flag(ORBITAL_FLAG_BORDERLESS)
-            .expect("failed to get borderless")
+        !self.get_flag(ORBITAL_FLAG_BORDERLESS).unwrap_or(false)
     }
 
     #[inline]
     pub fn set_window_level(&self, level: window::WindowLevel) {
         match level {
             window::WindowLevel::AlwaysOnBottom => {
-                self.set_flag(ORBITAL_FLAG_BACK, true)
-                    .expect("failed to set back");
+                let _ = self.set_flag(ORBITAL_FLAG_BACK, true);
             }
             window::WindowLevel::Normal => {
-                self.set_flag(ORBITAL_FLAG_BACK, false)
-                    .expect("failed to set back");
-                self.set_flag(ORBITAL_FLAG_FRONT, false)
-                    .expect("failed to set front");
+                let _ = self.set_flag(ORBITAL_FLAG_BACK, false);
+                let _ = self.set_flag(ORBITAL_FLAG_FRONT, false);
             }
             window::WindowLevel::AlwaysOnTop => {
-                self.set_flag(ORBITAL_FLAG_FRONT, true)
-                    .expect("failed to set front");
+                let _ = self.set_flag(ORBITAL_FLAG_FRONT, true);
             }
         }
     }
@@ -435,9 +418,9 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.window_socket
-            .write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes())
-            .expect("failed to set cursor visible")
+        let _ = self
+            .window_socket
+            .write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
     }
 
     #[inline]
