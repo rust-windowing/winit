@@ -67,6 +67,7 @@ Unreleased` header.
 - On Orbital, implement `set_decorations`.
 - On Orbital, implement `is_decorated`.
 - On Orbital, implement `set_window_level`.
+- On Orbital, emit `DeviceEvent::MouseMotion`.
 
 # 0.29.10
 
