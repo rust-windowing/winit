@@ -8,8 +8,8 @@ use std::{
 };
 
 use orbclient::{
-    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MoveEvent, QuitEvent,
-    ResizeEvent, ScrollEvent, TextInputEvent,
+    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MouseRelativeEvent,
+    MoveEvent, QuitEvent, ResizeEvent, ScrollEvent, TextInputEvent,
 };
 use smol_str::SmolStr;
 
@@ -457,6 +457,14 @@ impl<T: 'static> EventLoop<T> {
                     },
                 });
             }
+            EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
+                event_handler(event::Event::DeviceEvent {
+                    device_id: event::DeviceId(DeviceId),
+                    event: event::DeviceEvent::MouseMotion {
+                        delta: (dx as f64, dy as f64),
+                    },
+                });
+            }
             EventOption::Button(ButtonEvent {
                 left,
                 middle,
@@ -510,7 +518,7 @@ impl<T: 'static> EventLoop<T> {
                 // Acknowledge resize after event loop.
                 event_state.resize_opt = Some((width, height));
             }
-            //TODO: Clipboard
+            //TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 if entered {
                     event_handler(event::Event::WindowEvent {
