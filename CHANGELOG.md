@@ -25,6 +25,21 @@ Unreleased` header.
 - On Orbital, fix `logical_key` and `text` not reported in `KeyEvent`.
 - On Orbital, implement `KeyEventExtModifierSupplement`.
 - On Orbital, map keys to `NamedKey` when possible.
+- On Orbital, implement `set_cursor_grab`.
+- On Orbital, implement `set_cursor_visible`.
+- On Orbital, implement `drag_window`.
+- On Orbital, implement `drag_resize_window`.
+- On Orbital, implement `set_transparent`.
+- On Orbital, implement `set_visible`.
+- On Orbital, implement `is_visible`.
+- On Orbital, implement `set_resizable`.
+- On Orbital, implement `is_resizable`.
+- On Orbital, implement `set_maximized`.
+- On Orbital, implement `is_maximized`.
+- On Orbital, implement `set_decorations`.
+- On Orbital, implement `is_decorated`.
+- On Orbital, implement `set_window_level`.
+- On Orbital, emit `DeviceEvent::MouseMotion`.
 
 # 0.29.10
 
