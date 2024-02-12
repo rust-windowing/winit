@@ -133,7 +133,7 @@ pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
     root: xproto::Window,
-    ime: RefCell<Ime>,
+    ime: Option<RefCell<Ime>>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
@@ -209,13 +209,15 @@ impl<T: 'static> EventLoop<T> {
                 setlocale(LC_CTYPE, default_locale);
             }
         }
-        let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {state:#?}");
-            }
-            result.expect("Failed to set input method destruction callback")
-        });
+
+        let ime = Ime::new(Arc::clone(&xconn), ime_event_sender);
+        if let Err(ImeCreationError::OpenFailure(state)) = ime.as_ref() {
+            warn!("Failed to open input method: {state:#?}");
+        } else if let Err(err) = ime.as_ref() {
+            warn!("Failed to set input method destruction callback: {err:?}");
+        }
+
+        let ime = ime.ok().map(RefCell::new);
 
         let randr_event_offset = xconn
             .select_xrandr_input(root)
