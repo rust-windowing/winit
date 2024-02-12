@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- **Breaking:** Use `RequestIgnored` as the error type in `InnerSizeWriter::request_inner_size`.
 - Fix compatibility with 32-bit platforms without 64-bit atomics.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
