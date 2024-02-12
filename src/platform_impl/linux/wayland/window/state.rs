@@ -44,6 +44,9 @@ use crate::platform_impl::wayland::seat::{
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 
+mod subsurface;
+mod toplevel;
+
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
 #[cfg(not(feature = "sctk-adwaita"))]
@@ -59,6 +62,20 @@ pub struct WindowState {
 
     /// The window frame, which is created from the configure request.
     frame: Option<WinitFrame>,
+
+    /// Whether the client side decorations have pending move operations.
+    ///
+    /// The value is the serial of the event triggered moved.
+    has_pending_move: Option<u32>,
+
+    /// The underlying SCTK window.
+    pub window: Window,
+
+    /// The current window title.
+    title: String,
+
+    /// Whether the frame is resizable.
+    resizable: bool,
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
@@ -85,12 +102,6 @@ pub struct WindowState {
 
     /// Theme varaint.
     theme: Option<Theme>,
-
-    /// The current window title.
-    title: String,
-
-    /// Whether the frame is resizable.
-    resizable: bool,
 
     // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
     // is created, since add/removed stuff could be delivered a bit out of order.
@@ -147,14 +158,6 @@ pub struct WindowState {
     fractional_scale: Option<WpFractionalScaleV1>,
     blur: Option<OrgKdeKwinBlur>,
     blur_manager: Option<KWinBlurManager>,
-
-    /// Whether the client side decorations have pending move operations.
-    ///
-    /// The value is the serial of the event triggered moved.
-    has_pending_move: Option<u32>,
-
-    /// The underlying SCTK window.
-    pub window: Window,
 }
 
 impl WindowState {
