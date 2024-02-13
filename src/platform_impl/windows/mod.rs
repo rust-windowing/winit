@@ -52,12 +52,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
 unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 
-// Cursor name in UTF-16. Used to set cursor in `WM_SETCURSOR`.
-#[derive(Debug, Clone, Copy)]
-pub struct Cursor(pub *const u16);
-unsafe impl Send for Cursor {}
-unsafe impl Sync for Cursor {}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
 
