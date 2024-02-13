@@ -466,19 +466,19 @@ impl<T: 'static> EventLoop<T> {
             window_ids.extend(state.window_requests.get_mut().keys());
         });
 
-        for window_id in window_ids.drain(..) {
+        for window_id in window_ids.iter() {
             let event = self.with_state(|state| {
                 let window_requests = state.window_requests.get_mut();
-                if window_requests.get(&window_id).unwrap().take_closed() {
-                    mem::drop(window_requests.remove(&window_id));
-                    mem::drop(state.windows.get_mut().remove(&window_id));
+                if window_requests.get(window_id).unwrap().take_closed() {
+                    mem::drop(window_requests.remove(window_id));
+                    mem::drop(state.windows.get_mut().remove(window_id));
                     return Some(WindowEvent::Destroyed);
                 }
 
                 let mut window = state
                     .windows
                     .get_mut()
-                    .get_mut(&window_id)
+                    .get_mut(window_id)
                     .unwrap()
                     .lock()
                     .unwrap();
@@ -490,7 +490,7 @@ impl<T: 'static> EventLoop<T> {
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
                 let mut redraw_requested = window_requests
-                    .get(&window_id)
+                    .get(window_id)
                     .unwrap()
                     .take_redraw_requested();
 
@@ -503,7 +503,7 @@ impl<T: 'static> EventLoop<T> {
             if let Some(event) = event {
                 callback(
                     Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
+                        window_id: crate::window::WindowId(*window_id),
                         event,
                     },
                     &self.window_target,
@@ -518,6 +518,42 @@ impl<T: 'static> EventLoop<T> {
 
         // This is always the last event we dispatch before poll again
         callback(Event::AboutToWait, &self.window_target);
+
+        // Update the window frames and schedule redraws.
+        let mut wake_up = false;
+        for window_id in window_ids.drain(..) {
+            wake_up |= self.with_state(|state| match state.windows.get_mut().get_mut(&window_id) {
+                Some(window) => {
+                    let refresh = window.lock().unwrap().refresh_frame();
+                    if refresh {
+                        state
+                            .window_requests
+                            .get_mut()
+                            .get_mut(&window_id)
+                            .unwrap()
+                            .redraw_requested
+                            .store(true, Ordering::Relaxed);
+                    }
+
+                    refresh
+                }
+                None => false,
+            });
+        }
+
+        // Wakeup event loop if needed.
+        //
+        // If the user draws from the `AboutToWait` this is likely not required, however
+        // we can't do much about it.
+        if wake_up {
+            match &self.window_target.p {
+                PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                    window_target.event_loop_awakener.ping();
+                }
+                #[cfg(x11_platform)]
+                PlatformEventLoopWindowTarget::X(_) => unreachable!(),
+            }
+        }
 
         std::mem::swap(&mut self.compositor_updates, &mut compositor_updates);
         std::mem::swap(&mut self.buffer_sink, &mut buffer_sink);
