@@ -74,7 +74,11 @@ impl<T: 'static> EventProcessor<T> {
 
         // Handle IME requests.
         while let Ok(request) = self.ime_receiver.try_recv() {
-            let ime = window_target.ime.get_mut();
+            let ime = match window_target.ime.as_mut() {
+                Some(ime) => ime,
+                None => continue,
+            };
+            let ime = ime.get_mut();
             match request {
                 ImeRequest::Position(window_id, x, y) => {
                     ime.send_xim_spot(window_id, x, y);
@@ -792,10 +796,11 @@ impl<T: 'static> EventProcessor<T> {
 
         // Since all XIM stuff needs to happen from the same thread, we destroy the input
         // context here instead of when dropping the window.
-        wt.ime
-            .borrow_mut()
-            .remove_context(window as XWindow)
-            .expect("Failed to destroy input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .remove_context(window as XWindow)
+                .expect("Failed to destroy input context");
+        }
 
         callback(
             &self.target,
@@ -918,7 +923,11 @@ impl<T: 'static> EventProcessor<T> {
                     },
                 },
             );
-        } else if let Some(ic) = wt.ime.borrow().get_context(window as XWindow) {
+        } else if let Some(ic) = wt
+            .ime
+            .as_ref()
+            .and_then(|ime| ime.borrow().get_context(window as XWindow))
+        {
             let written = wt.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
                 let event = Event::WindowEvent {
@@ -1183,10 +1192,11 @@ impl<T: 'static> EventProcessor<T> {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        wt.ime
-            .borrow_mut()
-            .focus(xev.event)
-            .expect("Failed to focus input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .focus(xev.event)
+                .expect("Failed to focus input context");
+        }
 
         if self.active_window == Some(window) {
             return;
@@ -1254,10 +1264,11 @@ impl<T: 'static> EventProcessor<T> {
             return;
         }
 
-        wt.ime
-            .borrow_mut()
-            .unfocus(xev.event)
-            .expect("Failed to unfocus input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .unfocus(xev.event)
+                .expect("Failed to unfocus input context");
+        }
 
         if self.active_window.take() == Some(window) {
             let window_id = mkwid(window);
