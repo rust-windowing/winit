@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.11
+
 - On Wayland, fix DeviceEvent::Motion not being sent
 - On X11, don't require XIM to run.
 - On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
