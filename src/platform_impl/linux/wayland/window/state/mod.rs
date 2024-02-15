@@ -44,6 +44,9 @@ use crate::platform_impl::wayland::seat::{
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 
+use self::subsurface::SubsurfaceState;
+use self::toplevel::ToplevelState;
+
 mod subsurface;
 mod toplevel;
 
@@ -55,27 +58,28 @@ pub type WinitFrame = sctk::shell::xdg::fallback_frame::FallbackFrame<WinitState
 // Minimum window inner size.
 const MIN_WINDOW_SIZE: LogicalSize<u32> = LogicalSize::new(2, 1);
 
+#[allow(unused)] // this is temporary
+pub enum SurfaceRoleState {
+    Toplevel(ToplevelState),
+    Subsurface(SubsurfaceState),
+}
+
+impl WaylandSurface for SurfaceRoleState {
+    fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
+        match self {
+            SurfaceRoleState::Toplevel(toplevel) => toplevel.wl_surface(),
+            SurfaceRoleState::Subsurface(subsurface) => subsurface.wl_surface(),
+        }
+    }
+}
+
 /// The state of the window which is being updated from the [`WinitState`].
 pub struct WindowState {
     /// The connection to Wayland server.
     pub connection: Connection,
 
-    /// The window frame, which is created from the configure request.
-    frame: Option<WinitFrame>,
-
-    /// Whether the client side decorations have pending move operations.
-    ///
-    /// The value is the serial of the event triggered moved.
-    has_pending_move: Option<u32>,
-
-    /// The underlying SCTK window.
-    pub window: Window,
-
-    /// The current window title.
-    title: String,
-
-    /// Whether the frame is resizable.
-    resizable: bool,
+    /// State specific to a surface role.
+    surface_role: SurfaceRoleState,
 
     /// The `Shm` to set cursor.
     pub shm: WlShm,
@@ -132,12 +136,6 @@ pub struct WindowState {
     /// The inner size of the window, as in without client side decorations.
     size: LogicalSize<u32>,
 
-    /// Whether the CSD fail to create, so we don't try to create them on each iteration.
-    csd_fails: bool,
-
-    /// Whether we should decorate the frame.
-    decorate: bool,
-
     /// Min size.
     min_inner_size: LogicalSize<u32>,
     max_inner_size: Option<LogicalSize<u32>>,
@@ -186,16 +184,21 @@ impl WindowState {
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             connection,
-            csd_fails: false,
+            surface_role: SurfaceRoleState::Toplevel(ToplevelState {
+                window,
+                frame: None,
+                has_pending_move: None,
+                title: String::default(),
+                resizable: true,
+                csd_fails: false,
+                decorate: true,
+            }),
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
             cursor_visible: true,
-            decorate: true,
             fractional_scale,
-            frame: None,
             frame_callback_state: FrameCallbackState::None,
             seat_focus: Default::default(),
-            has_pending_move: None,
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
             last_configure: None,
@@ -204,7 +207,6 @@ impl WindowState {
             pointer_constraints,
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
-            resizable: true,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
@@ -213,10 +215,8 @@ impl WindowState {
             initial_size: Some(initial_size),
             text_inputs: Vec::new(),
             theme,
-            title: String::default(),
             transparent: false,
             viewport,
-            window,
         }
     }
 
@@ -251,7 +251,7 @@ impl WindowState {
 
     /// Request a frame callback if we don't have one for this window in flight.
     pub fn request_frame_callback(&mut self) {
-        let surface = self.window.wl_surface();
+        let surface = self.surface_role.wl_surface();
         match self.frame_callback_state {
             FrameCallbackState::None | FrameCallbackState::Received => {
                 self.frame_callback_state = FrameCallbackState::Requested;
@@ -275,60 +275,65 @@ impl WindowState {
             self.stateless_size = self.size;
         }
 
-        if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
-            configure.decoration_mode == DecorationMode::Client
-                && self.frame.is_none()
-                && !self.csd_fails
-        }) {
-            match WinitFrame::new(
-                &self.window,
-                shm,
-                #[cfg(feature = "sctk-adwaita")]
-                self.compositor.clone(),
-                subcompositor.clone(),
-                self.queue_handle.clone(),
-                #[cfg(feature = "sctk-adwaita")]
-                into_sctk_adwaita_config(self.theme),
-            ) {
-                Ok(mut frame) => {
-                    frame.set_title(&self.title);
-                    frame.set_scaling_factor(self.scale_factor);
-                    // Hide the frame if we were asked to not decorate.
-                    frame.set_hidden(!self.decorate);
-                    self.frame = Some(frame);
+        let (mut new_size, constrain) = if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
+                configure.decoration_mode == DecorationMode::Client
+                    && toplevel.frame.is_none()
+                    && !toplevel.csd_fails
+            }) {
+                match WinitFrame::new(
+                    &toplevel.window,
+                    shm,
+                    #[cfg(feature = "sctk-adwaita")]
+                    self.compositor.clone(),
+                    subcompositor.clone(),
+                    self.queue_handle.clone(),
+                    #[cfg(feature = "sctk-adwaita")]
+                    into_sctk_adwaita_config(self.theme),
+                ) {
+                    Ok(mut frame) => {
+                        frame.set_title(&toplevel.title);
+                        frame.set_scaling_factor(self.scale_factor);
+                        // Hide the frame if we were asked to not decorate.
+                        frame.set_hidden(!toplevel.decorate);
+                        toplevel.frame = Some(frame);
+                    }
+                    Err(err) => {
+                        warn!("Failed to create client side decorations frame: {err}");
+                        toplevel.csd_fails = true;
+                    }
                 }
-                Err(err) => {
-                    warn!("Failed to create client side decorations frame: {err}");
-                    self.csd_fails = true;
-                }
+            } else if configure.decoration_mode == DecorationMode::Server {
+                // Drop the frame for server side decorations to save resources.
+                toplevel.frame = None;
             }
-        } else if configure.decoration_mode == DecorationMode::Server {
-            // Drop the frame for server side decorations to save resources.
-            self.frame = None;
-        }
-
-        let stateless = Self::is_stateless(&configure);
-
-        let (mut new_size, constrain) = if let Some(frame) = self.frame.as_mut() {
-            // Configure the window states.
-            frame.update_state(configure.state);
-
-            match configure.new_size {
-                (Some(width), Some(height)) => {
-                    let (width, height) = frame.subtract_borders(width, height);
-                    let width = width.map(|w| w.get()).unwrap_or(1);
-                    let height = height.map(|h| h.get()).unwrap_or(1);
-                    ((width, height).into(), false)
+    
+            let stateless = Self::is_stateless(&configure);
+    
+            let (new_size, constrain) = if let Some(frame) = toplevel.frame.as_mut() {
+                // Configure the window states.
+                frame.update_state(configure.state);
+    
+                match configure.new_size {
+                    (Some(width), Some(height)) => {
+                        let (width, height) = frame.subtract_borders(width, height);
+                        let width = width.map(|w| w.get()).unwrap_or(1);
+                        let height = height.map(|h| h.get()).unwrap_or(1);
+                        ((width, height).into(), false)
+                    }
+                    (_, _) if stateless => (self.stateless_size, true),
+                    _ => (self.size, true),
                 }
-                (_, _) if stateless => (self.stateless_size, true),
-                _ => (self.size, true),
-            }
+            } else {
+                match configure.new_size {
+                    (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
+                    _ if stateless => (self.stateless_size, true),
+                    _ => (self.size, true),
+                }
+            };
+            (new_size, constrain)
         } else {
-            match configure.new_size {
-                (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
-                _ if stateless => (self.stateless_size, true),
-                _ => (self.size, true),
-            }
+            return false;
         };
 
         // Apply configure bounds only when compositor let the user decide what size to pick.
@@ -381,15 +386,19 @@ impl WindowState {
             None => (None, None),
         };
 
-        if let Some(frame) = self.frame.as_ref() {
-            let (width, height) = frame.subtract_borders(
-                configure_bounds.0.unwrap_or(NonZeroU32::new(1).unwrap()),
-                configure_bounds.1.unwrap_or(NonZeroU32::new(1).unwrap()),
-            );
-            (
-                configure_bounds.0.and(width),
-                configure_bounds.1.and(height),
-            )
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            if let Some(frame) = toplevel.frame.as_ref() {
+                let (width, height) = frame.subtract_borders(
+                    configure_bounds.0.unwrap_or(NonZeroU32::new(1).unwrap()),
+                    configure_bounds.1.unwrap_or(NonZeroU32::new(1).unwrap()),
+                );
+                (
+                    configure_bounds.0.and(width),
+                    configure_bounds.1.and(height),
+                )
+            } else {
+                configure_bounds
+            }
         } else {
             configure_bounds
         }
@@ -402,27 +411,35 @@ impl WindowState {
 
     /// Start interacting drag resize.
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
-        let xdg_toplevel = self.window.xdg_toplevel();
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            let xdg_toplevel = toplevel.window.xdg_toplevel();
 
-        // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            xdg_toplevel.resize(seat, serial, direction.into());
-        });
+            // TODO(kchibisov) handle touch serials.
+            self.apply_on_poiner(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                xdg_toplevel.resize(seat, serial, direction.into());
+            });
+        } else {
+            warn!("System move handles can only be triggered on toplevels");
+        }
 
         Ok(())
     }
 
     /// Start the window drag.
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        let xdg_toplevel = self.window.xdg_toplevel();
-        // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            xdg_toplevel._move(seat, serial);
-        });
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            let xdg_toplevel = toplevel.window.xdg_toplevel();
+            // TODO(kchibisov) handle touch serials.
+            self.apply_on_poiner(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                xdg_toplevel._move(seat, serial);
+            });
+        } else {
+            warn!("System move handles can only be triggered on toplevels");
+        }
 
         Ok(())
     }
@@ -439,37 +456,47 @@ impl WindowState {
         window_id: WindowId,
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
-        match self.frame.as_mut()?.on_click(timestamp, click, pressed)? {
-            FrameAction::Minimize => self.window.set_minimized(),
-            FrameAction::Maximize => self.window.set_maximized(),
-            FrameAction::UnMaximize => self.window.unset_maximized(),
-            FrameAction::Close => WinitState::queue_close(updates, window_id),
-            FrameAction::Move => self.has_pending_move = Some(serial),
-            FrameAction::Resize(edge) => {
-                let edge = match edge {
-                    ResizeEdge::None => XdgResizeEdge::None,
-                    ResizeEdge::Top => XdgResizeEdge::Top,
-                    ResizeEdge::Bottom => XdgResizeEdge::Bottom,
-                    ResizeEdge::Left => XdgResizeEdge::Left,
-                    ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
-                    ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
-                    ResizeEdge::Right => XdgResizeEdge::Right,
-                    ResizeEdge::TopRight => XdgResizeEdge::TopRight,
-                    ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
-                    _ => return None,
-                };
-                self.window.resize(seat, serial, edge);
-            }
-            FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
-            _ => (),
-        };
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            match toplevel
+                .frame
+                .as_mut()?
+                .on_click(timestamp, click, pressed)?
+            {
+                FrameAction::Minimize => toplevel.window.set_minimized(),
+                FrameAction::Maximize => toplevel.window.set_maximized(),
+                FrameAction::UnMaximize => toplevel.window.unset_maximized(),
+                FrameAction::Close => WinitState::queue_close(updates, window_id),
+                FrameAction::Move => toplevel.has_pending_move = Some(serial),
+                FrameAction::Resize(edge) => {
+                    let edge = match edge {
+                        ResizeEdge::None => XdgResizeEdge::None,
+                        ResizeEdge::Top => XdgResizeEdge::Top,
+                        ResizeEdge::Bottom => XdgResizeEdge::Bottom,
+                        ResizeEdge::Left => XdgResizeEdge::Left,
+                        ResizeEdge::TopLeft => XdgResizeEdge::TopLeft,
+                        ResizeEdge::BottomLeft => XdgResizeEdge::BottomLeft,
+                        ResizeEdge::Right => XdgResizeEdge::Right,
+                        ResizeEdge::TopRight => XdgResizeEdge::TopRight,
+                        ResizeEdge::BottomRight => XdgResizeEdge::BottomRight,
+                        _ => return None,
+                    };
+                    toplevel.window.resize(seat, serial, edge);
+                }
+                FrameAction::ShowMenu(x, y) => {
+                    toplevel.window.show_window_menu(seat, serial, (x, y))
+                }
+                _ => (),
+            };
+        }
 
         Some(false)
     }
 
     pub fn frame_point_left(&mut self) {
-        if let Some(frame) = self.frame.as_mut() {
-            frame.click_point_left();
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if let Some(frame) = toplevel.frame.as_mut() {
+                frame.click_point_left();
+            }
         }
     }
 
@@ -482,18 +509,22 @@ impl WindowState {
         x: f64,
         y: f64,
     ) -> Option<CursorIcon> {
-        // Take the serial if we had any, so it doesn't stick around.
-        let serial = self.has_pending_move.take();
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            // Take the serial if we had any, so it doesn't stick around.
+            let serial = toplevel.has_pending_move.take();
 
-        if let Some(frame) = self.frame.as_mut() {
-            let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
-            // If we have a cursor change, that means that cursor is over the decorations,
-            // so try to apply move.
-            if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
-                self.window.move_(seat, serial);
-                None
+            if let Some(frame) = toplevel.frame.as_mut() {
+                let cursor = frame.click_point_moved(timestamp, &surface.id(), x, y);
+                // If we have a cursor change, that means that cursor is over the decorations,
+                // so try to apply move.
+                if let Some(serial) = cursor.is_some().then_some(serial).flatten() {
+                    toplevel.window.move_(seat, serial);
+                    None
+                } else {
+                    cursor
+                }
             } else {
-                cursor
+                None
             }
         } else {
             None
@@ -503,7 +534,11 @@ impl WindowState {
     /// Get the stored resizable state.
     #[inline]
     pub fn resizable(&self) -> bool {
-        self.resizable
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            toplevel.resizable
+        } else {
+            false
+        }
     }
 
     /// Set the resizable state on the window.
@@ -511,25 +546,61 @@ impl WindowState {
     /// Returns `true` when the state was applied.
     #[inline]
     pub fn set_resizable(&mut self, resizable: bool) -> bool {
-        if self.resizable == resizable {
-            return false;
+        {
+            let toplevel: &mut ToplevelState;
+            if let SurfaceRoleState::Toplevel(self_toplevel) = &mut self.surface_role {
+                toplevel = self_toplevel;
+            } else {
+                return false;
+            }
+
+            if toplevel.resizable == resizable {
+                return false;
+            }
         }
 
-        self.resizable = resizable;
         if resizable {
-            // Restore min/max sizes of the window.
             self.reload_min_max_hints();
         } else {
             self.set_min_inner_size(Some(self.size));
             self.set_max_inner_size(Some(self.size));
         }
 
-        // Reload the state on the frame as well.
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_resizable(resizable);
+        {
+            if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+                if let Some(frame) = toplevel.frame.as_mut() {
+                    frame.set_resizable(resizable);
+                }
+            } else {
+                panic!("This shouldn't happen!");
+            }
         }
 
         true
+
+        // if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+        //     if toplevel.resizable == resizable {
+        //         return false;
+        //     }
+
+        //     toplevel.resizable = resizable;
+        //     if resizable {
+        //         // Restore min/max sizes of the window.
+        //         self.reload_min_max_hints();
+        //     } else {
+        //         self.set_min_inner_size(Some(self.size));
+        //         self.set_max_inner_size(Some(self.size));
+        //     }
+
+        //     // Reload the state on the frame as well.
+        //     if let Some(frame) = toplevel.frame.as_mut() {
+        //         frame.set_resizable(resizable);
+        //     }
+
+        //     true
+        // } else {
+        //     false
+        // }
     }
 
     /// Whether the window is focused by any seat.
@@ -558,26 +629,35 @@ impl WindowState {
 
     #[inline]
     pub fn is_decorated(&mut self) -> bool {
-        let csd = self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.decoration_mode == DecorationMode::Client)
-            .unwrap_or(false);
-        if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
-            !frame.is_hidden()
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            let csd = self
+                .last_configure
+                .as_ref()
+                .map(|configure| configure.decoration_mode == DecorationMode::Client)
+                .unwrap_or(false);
+            if let Some(frame) = csd.then_some(toplevel.frame.as_ref()).flatten() {
+                !frame.is_hidden()
+            } else {
+                // Server side decorations.
+                true
+            }
         } else {
-            // Server side decorations.
-            true
+            false
         }
     }
 
     /// Get the outer size of the window.
     #[inline]
     pub fn outer_size(&self) -> LogicalSize<u32> {
-        self.frame
-            .as_ref()
-            .map(|frame| frame.add_borders(self.size.width, self.size.height).into())
-            .unwrap_or(self.size)
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            toplevel
+                .frame
+                .as_ref()
+                .map(|frame| frame.add_borders(self.size.width, self.size.height).into())
+                .unwrap_or(self.size)
+        } else {
+            self.size
+        }
     }
 
     /// Register pointer on the top-level.
@@ -605,9 +685,11 @@ impl WindowState {
 
     /// Refresh the decorations frame if it's present returning whether the client should redraw.
     pub fn refresh_frame(&mut self) -> bool {
-        if let Some(frame) = self.frame.as_mut() {
-            if !frame.is_hidden() && frame.is_dirty() {
-                return frame.draw();
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if let Some(frame) = toplevel.frame.as_mut() {
+                if !frame.is_hidden() && frame.is_dirty() {
+                    return frame.draw();
+                }
             }
         }
 
@@ -628,7 +710,7 @@ impl WindowState {
 
     /// Reissue the transparency hint to the compositor.
     pub fn reload_transparency_hint(&self) {
-        let surface = self.window.wl_surface();
+        let surface = self.surface_role.wl_surface();
 
         if self.transparent {
             surface.set_opaque_region(None);
@@ -664,33 +746,40 @@ impl WindowState {
         }
 
         // Update the inner frame.
-        let ((x, y), outer_size) = if let Some(frame) = self.frame.as_mut() {
-            // Resize only visible frame.
-            if !frame.is_hidden() {
-                frame.resize(
-                    NonZeroU32::new(self.size.width).unwrap(),
-                    NonZeroU32::new(self.size.height).unwrap(),
-                );
-            }
+        let ((x, y), outer_size) =
+            if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+                if let Some(frame) = toplevel.frame.as_mut() {
+                    // Resize only visible frame.
+                    if !frame.is_hidden() {
+                        frame.resize(
+                            NonZeroU32::new(self.size.width).unwrap(),
+                            NonZeroU32::new(self.size.height).unwrap(),
+                        );
+                    }
 
-            (
-                frame.location(),
-                frame.add_borders(self.size.width, self.size.height).into(),
-            )
-        } else {
-            ((0, 0), self.size)
-        };
+                    (
+                        frame.location(),
+                        frame.add_borders(self.size.width, self.size.height).into(),
+                    )
+                } else {
+                    ((0, 0), self.size)
+                }
+            } else {
+                ((0, 0), self.size)
+            };
 
         // Reload the hint.
         self.reload_transparency_hint();
 
         // Set the window geometry.
-        self.window.xdg_surface().set_window_geometry(
-            x,
-            y,
-            outer_size.width as i32,
-            outer_size.height as i32,
-        );
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            toplevel.window.xdg_surface().set_window_geometry(
+                x,
+                y,
+                outer_size.width as i32,
+                outer_size.height as i32,
+            );
+        }
 
         // Update the target viewport, this is used if and only if fractional scaling is in use.
         if let Some(viewport) = self.viewport.as_ref() {
@@ -784,40 +873,44 @@ impl WindowState {
     /// Set maximum inner window size.
     pub fn set_min_inner_size(&mut self, size: Option<LogicalSize<u32>>) {
         // Ensure that the window has the right minimum size.
-        let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
-        size.width = size.width.max(MIN_WINDOW_SIZE.width);
-        size.height = size.height.max(MIN_WINDOW_SIZE.height);
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            let mut size = size.unwrap_or(MIN_WINDOW_SIZE);
+            size.width = size.width.max(MIN_WINDOW_SIZE.width);
+            size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
-        // Add the borders.
-        let size = self
-            .frame
-            .as_ref()
-            .map(|frame| frame.add_borders(size.width, size.height).into())
-            .unwrap_or(size);
+            // Add the borders.
+            let size = toplevel
+                .frame
+                .as_ref()
+                .map(|frame| frame.add_borders(size.width, size.height).into())
+                .unwrap_or(size);
 
-        self.min_inner_size = size;
-        self.window.set_min_size(Some(size.into()));
+            self.min_inner_size = size;
+            toplevel.window.set_min_size(Some(size.into()));
+        }
     }
 
     /// Set maximum inner window size.
     pub fn set_max_inner_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let size = size.map(|size| {
-            self.frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size)
-        });
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            let size = size.map(|size| {
+                toplevel
+                    .frame
+                    .as_ref()
+                    .map(|frame| frame.add_borders(size.width, size.height).into())
+                    .unwrap_or(size)
+            });
 
-        self.max_inner_size = size;
-        self.window.set_max_size(size.map(Into::into));
+            self.max_inner_size = size;
+            toplevel.window.set_max_size(size.map(Into::into));
+        }
     }
 
     /// Set the CSD theme.
     pub fn set_theme(&mut self, theme: Option<Theme>) {
         self.theme = theme;
-        #[cfg(feature = "sctk-adwaita")]
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_config(into_sctk_adwaita_config(theme))
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            toplevel.set_theme(theme);
         }
     }
 
@@ -861,7 +954,7 @@ impl WindowState {
             }
         }
 
-        let surface = self.window.wl_surface();
+        let surface = self.surface_role.wl_surface();
         match mode {
             CursorGrabMode::Locked => self.apply_on_poiner(|pointer, data| {
                 let pointer = pointer.pointer();
@@ -881,11 +974,15 @@ impl WindowState {
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
-            let serial = data.latest_button_serial();
-            let seat = data.seat();
-            self.window.show_window_menu(seat, serial, position.into());
-        });
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            self.apply_on_poiner(|_, data| {
+                let serial = data.latest_button_serial();
+                let seat = data.seat();
+                toplevel
+                    .window
+                    .show_window_menu(seat, serial, position.into());
+            });
+        }
     }
 
     /// Set the position of the cursor.
@@ -933,32 +1030,35 @@ impl WindowState {
     /// Whether show or hide client side decorations.
     #[inline]
     pub fn set_decorate(&mut self, decorate: bool) {
-        if decorate == self.decorate {
-            return;
-        }
-
-        self.decorate = decorate;
-
-        match self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.decoration_mode)
-        {
-            Some(DecorationMode::Server) if !self.decorate => {
-                // To disable decorations we should request client and hide the frame.
-                self.window
-                    .request_decoration_mode(Some(DecorationMode::Client))
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if decorate == toplevel.decorate {
+                return;
             }
-            _ if self.decorate => self
-                .window
-                .request_decoration_mode(Some(DecorationMode::Server)),
-            _ => (),
-        }
 
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_hidden(!decorate);
-            // Force the resize.
-            self.resize(self.size);
+            toplevel.decorate = decorate;
+
+            match self
+                .last_configure
+                .as_ref()
+                .map(|configure| configure.decoration_mode)
+            {
+                Some(DecorationMode::Server) if !toplevel.decorate => {
+                    // To disable decorations we should request client and hide the frame.
+                    toplevel
+                        .window
+                        .request_decoration_mode(Some(DecorationMode::Client))
+                }
+                _ if toplevel.decorate => toplevel
+                    .window
+                    .request_decoration_mode(Some(DecorationMode::Server)),
+                _ => (),
+            }
+
+            if let Some(frame) = toplevel.frame.as_mut() {
+                frame.set_hidden(!decorate);
+                // Force the resize.
+                self.resize(self.size);
+            }
         }
     }
 
@@ -1028,11 +1128,16 @@ impl WindowState {
 
         // NOTE: When fractional scaling is not used update the buffer scale.
         if self.fractional_scale.is_none() {
-            let _ = self.window.set_buffer_scale(self.scale_factor as _);
+            let _ = self
+                .surface_role
+                .wl_surface()
+                .set_buffer_scale(self.scale_factor as _);
         }
 
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_scaling_factor(scale_factor);
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if let Some(frame) = toplevel.frame.as_mut() {
+                frame.set_scaling_factor(scale_factor);
+            }
         }
     }
 
@@ -1041,7 +1146,7 @@ impl WindowState {
     pub fn set_blur(&mut self, blurred: bool) {
         if blurred && self.blur.is_none() {
             if let Some(blur_manager) = self.blur_manager.as_ref() {
-                let blur = blur_manager.blur(self.window.wl_surface(), &self.queue_handle);
+                let blur = blur_manager.blur(self.surface_role.wl_surface(), &self.queue_handle);
                 blur.commit();
                 self.blur = Some(blur);
             } else {
@@ -1051,7 +1156,7 @@ impl WindowState {
             self.blur_manager
                 .as_ref()
                 .unwrap()
-                .unset(self.window.wl_surface());
+                .unset(self.surface_role.wl_surface());
             self.blur.take().unwrap().release();
         }
     }
@@ -1062,21 +1167,23 @@ impl WindowState {
     pub fn set_title(&mut self, mut title: String) {
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
-        if title.len() > 1024 {
-            let mut new_len = 1024;
-            while !title.is_char_boundary(new_len) {
-                new_len -= 1;
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+            if title.len() > 1024 {
+                let mut new_len = 1024;
+                while !title.is_char_boundary(new_len) {
+                    new_len -= 1;
+                }
+                title.truncate(new_len);
             }
-            title.truncate(new_len);
-        }
 
-        // Update the CSD title.
-        if let Some(frame) = self.frame.as_mut() {
-            frame.set_title(&title);
-        }
+            // Update the CSD title.
+            if let Some(frame) = toplevel.frame.as_mut() {
+                frame.set_title(&title);
+            }
 
-        self.window.set_title(&title);
-        self.title = title;
+            toplevel.window.set_title(&title);
+            toplevel.title = title;
+        }
     }
 
     /// Mark the window as transparent.
@@ -1105,7 +1212,11 @@ impl WindowState {
     /// Get the cached title.
     #[inline]
     pub fn title(&self) -> &str {
-        &self.title
+        if let SurfaceRoleState::Toplevel(toplevel) = &self.surface_role {
+            &toplevel.title
+        } else {
+            ""
+        }
     }
 }
 
