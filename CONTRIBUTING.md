@@ -42,11 +42,9 @@ Once your PR is deemed ready, the merging maintainer will take care of resolving
 `CHANGELOG.md` (but you must resolve other conflicts yourself). Doing this requires that you check the
 "give contributors write access to the branch" checkbox when creating the PR.
 
-## Maintainers & Testers
+## Maintainers
 
-The current maintainers are listed in the [CODEOWNERS](.github/CODEOWNERS) file.
-
-If you are interested in being pinged when testing is needed for a specific platform, please add yourself to the [Testers and Contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors) table!
+The current maintainers for each platform are listed in the [CODEOWNERS](.github/CODEOWNERS) file.
 
 ## Release process
 
@@ -63,7 +61,7 @@ The exact steps for an exemplary `0.2.0` release might look like this:
   5. The version is pushed to crates.io
   6. A GitHub release is created for the `v0.2.0` tag
   7. On master, the version is bumped to `0.2.0`, and the CHANGELOG is updated
-  
+
 When doing a patch release, the process is similar:
   1. Initially, the version of the latest release is `0.2.0`
   2. Checkout the `v0.2.x` branch
