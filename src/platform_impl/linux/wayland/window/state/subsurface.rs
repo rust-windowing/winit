@@ -15,6 +15,6 @@ pub(in crate::platform_impl::platform::wayland) struct SubsurfaceState {
 
 impl WaylandSurface for SubsurfaceState {
     fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
-        return &self.surface;
+        &self.surface
     }
 }

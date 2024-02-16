@@ -275,7 +275,7 @@ impl WindowState {
             self.stateless_size = self.size;
         }
 
-        let (mut new_size, constrain) = if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
+        if let SurfaceRoleState::Toplevel(toplevel) = &mut self.surface_role {
             if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
                 configure.decoration_mode == DecorationMode::Client
                     && toplevel.frame.is_none()
@@ -307,33 +307,34 @@ impl WindowState {
                 // Drop the frame for server side decorations to save resources.
                 toplevel.frame = None;
             }
-    
-            let stateless = Self::is_stateless(&configure);
-    
-            let (new_size, constrain) = if let Some(frame) = toplevel.frame.as_mut() {
-                // Configure the window states.
-                frame.update_state(configure.state);
-    
-                match configure.new_size {
-                    (Some(width), Some(height)) => {
-                        let (width, height) = frame.subtract_borders(width, height);
-                        let width = width.map(|w| w.get()).unwrap_or(1);
-                        let height = height.map(|h| h.get()).unwrap_or(1);
-                        ((width, height).into(), false)
-                    }
-                    (_, _) if stateless => (self.stateless_size, true),
-                    _ => (self.size, true),
+        }
+
+        let stateless = Self::is_stateless(&configure);
+
+        let (mut new_size, constrain) = if let SurfaceRoleState::Toplevel(ToplevelState {
+            frame: Some(frame),
+            ..
+        }) = &mut self.surface_role
+        {
+            // Configure the window states.
+            frame.update_state(configure.state);
+
+            match configure.new_size {
+                (Some(width), Some(height)) => {
+                    let (width, height) = frame.subtract_borders(width, height);
+                    let width = width.map(|w| w.get()).unwrap_or(1);
+                    let height = height.map(|h| h.get()).unwrap_or(1);
+                    ((width, height).into(), false)
                 }
-            } else {
-                match configure.new_size {
-                    (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
-                    _ if stateless => (self.stateless_size, true),
-                    _ => (self.size, true),
-                }
-            };
-            (new_size, constrain)
+                (_, _) if stateless => (self.stateless_size, true),
+                _ => (self.size, true),
+            }
         } else {
-            return false;
+            match configure.new_size {
+                (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
+                _ if stateless => (self.stateless_size, true),
+                _ => (self.size, true),
+            }
         };
 
         // Apply configure bounds only when compositor let the user decide what size to pick.
@@ -1128,8 +1129,7 @@ impl WindowState {
 
         // NOTE: When fractional scaling is not used update the buffer scale.
         if self.fractional_scale.is_none() {
-            let _ = self
-                .surface_role
+            self.surface_role
                 .wl_surface()
                 .set_buffer_scale(self.scale_factor as _);
         }
