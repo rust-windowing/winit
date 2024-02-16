@@ -44,6 +44,12 @@ pub struct Window {
     /// Reference to the underlying SCTK window.
     window: SctkWindow,
 
+    /// Xdg activation to request user attention.
+    xdg_activation: Option<XdgActivationV1>,
+
+    /// The state of the requested attention from the `xdg_activation`.
+    attention_requested: Arc<AtomicBool>,
+
     /// Window id.
     window_id: WindowId,
 
@@ -56,12 +62,6 @@ pub struct Window {
     /// The wayland display used solely for raw window handle.
     #[allow(dead_code)]
     display: WlDisplay,
-
-    /// Xdg activation to request user attention.
-    xdg_activation: Option<XdgActivationV1>,
-
-    /// The state of the requested attention from the `xdg_activation`.
-    attention_requested: Arc<AtomicBool>,
 
     /// Handle to the main queue to perform requests.
     queue_handle: QueueHandle<WinitState>,
