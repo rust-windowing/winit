@@ -1,0 +1,42 @@
+## Unreleased
+
+- Deprecate `EventLoop::run` in favor of `EventLoop::run_app`.
+- Deprecate `EventLoopExtRunOnDemand::run_on_demand` in favor of `EventLoop::run_app_on_demand`.
+- Deprecate `EventLoopExtPumpEvents::pump_events` in favor of `EventLoopExtPumpEvents::pump_app_events`.
+- Add `ApplicationHandler<T>` trait which mimics `Event<T>`.
+- Move `dpi` types to its own crate, and re-export it from the root crate.
+- Implement `Sync` for `EventLoopProxy<T: Send>`.
+- **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
+- **Breaking:** Rename `EventLoopWindowTarget` to `ActiveEventLoop`.
+- **Breaking:** Remove `Deref` implementation for `EventLoop` that gave `EventLoopWindowTarget`.
+- **Breaking**: Remove `WindowBuilder` in favor of `WindowAttributes`.
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
+- On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
+  - **Breaking:** Remove `Window::set_cursor_icon`
+  - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
+  - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
+  - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
+  - Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors from other `CustomCursor`s.
+  - Add `{Active,}EventLoop::create_custom_cursor` to load custom cursor image sources.
+- On macOS, add services menu.
+- **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
+- On Web, fix setting cursor icon overriding cursor visibility.
+- **Breaking:** On Web, return `RawWindowHandle::WebCanvas` instead of `RawWindowHandle::Web`.
+- **Breaking:** On Web, macOS and iOS, return `HandleError::Unavailable` when a window handle is not available.
+- **Breaking:** Bump MSRV from `1.65` to `1.70`.
+- On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
+- **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
+- **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- **Breaking:** No longer export `platform::x11::XNotSupported`.
+- **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
+- **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- on Windows: add `with_system_backdrop`, `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
+- On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
+- **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.
+- Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
+- **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
+- **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
+- Add `Window::default_attributes` to get default `WindowAttributes`.
+- `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
