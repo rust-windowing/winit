@@ -521,7 +521,7 @@ impl Window {
 
     #[inline]
     pub fn reset_dead_keys(&self) {
-        common::xkb_state::reset_dead_keys()
+        common::xkb::reset_dead_keys()
     }
 
     #[inline]
@@ -659,11 +659,11 @@ impl KeyEventExtModifierSupplement for KeyEvent {
 
 impl PhysicalKeyExtScancode for PhysicalKey {
     fn from_scancode(scancode: u32) -> PhysicalKey {
-        common::keymap::scancode_to_keycode(scancode)
+        common::xkb::scancode_to_keycode(scancode)
     }
 
     fn to_scancode(self) -> Option<u32> {
-        common::keymap::physicalkey_to_scancode(self)
+        common::xkb::physicalkey_to_scancode(self)
     }
 }
 
