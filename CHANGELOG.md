@@ -12,6 +12,7 @@ Unreleased` header.
 # Unreleased
 
 - On X11, don't require XIM to run.
+- On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
 - Fix compatibility with 32-bit platforms without 64-bit atomics.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.

@@ -34,7 +34,7 @@ use crate::{
     },
 };
 
-pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
+pub(crate) use self::common::xkb::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
@@ -516,7 +516,7 @@ impl Window {
 
     #[inline]
     pub fn reset_dead_keys(&self) {
-        common::xkb_state::reset_dead_keys()
+        common::xkb::reset_dead_keys()
     }
 
     #[inline]

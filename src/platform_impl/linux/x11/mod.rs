@@ -28,12 +28,13 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use super::{common::xkb_state::KbdState, ControlFlow, OsError};
+use super::{ControlFlow, OsError};
 use crate::{
     error::{EventLoopError, OsError as RootOsError},
     event::{Event, StartCause, WindowEvent},
     event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform::pump_events::PumpStatus,
+    platform_impl::common::xkb::Context,
     platform_impl::platform::{min_timeout, WindowId},
     window::WindowAttributes,
 };
@@ -281,8 +282,8 @@ impl<T: 'static> EventLoop<T> {
         // Create a channel for sending user events.
         let (user_sender, user_channel) = mpsc::channel();
 
-        let kb_state =
-            KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context =
+            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
         let window_target = EventLoopWindowTarget {
             ime,
@@ -322,7 +323,7 @@ impl<T: 'static> EventLoop<T> {
             ime_event_receiver,
             xi2ext,
             xkbext,
-            kb_state,
+            xkb_context,
             num_touch: 0,
             held_key_press: None,
             first_touch: None,
