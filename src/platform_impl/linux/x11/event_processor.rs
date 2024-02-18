@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use x11_dl::xinput2::{
     self, XIDeviceEvent, XIEnterEvent, XIFocusInEvent, XIFocusOutEvent, XIHierarchyEvent,
-    XILeaveEvent, XIRawEvent,
+    XILeaveEvent, XIModifierState, XIRawEvent,
 };
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
@@ -14,9 +14,10 @@ use x11_dl::xlib::{
     XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent,
 };
 use x11rb::protocol::xinput;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
 use x11rb::x11_utils::ExtensionInformation;
 use x11rb::x11_utils::Serialize;
+use xkbcommon_dl::xkb_mod_mask_t;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::event::{
@@ -26,7 +27,8 @@ use crate::event::{
 use crate::event::{InnerSizeWriter, MouseButton};
 use crate::event_loop::EventLoopWindowTarget as RootELW;
 use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::common::{keymap, xkb_state::KbdState};
+use crate::platform_impl::common::xkb::{self, XkbState};
+use crate::platform_impl::platform::common::xkb::Context;
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::platform_impl::platform::x11::EventLoopWindowTarget;
 use crate::platform_impl::platform::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
@@ -47,7 +49,7 @@ pub struct EventProcessor {
     pub xi2ext: ExtensionInformation,
     pub xkbext: ExtensionInformation,
     pub target: RootELW,
-    pub kb_state: KbdState,
+    pub xkb_context: Context,
     // Number of touch events currently in progress
     pub num_touch: u32,
     // This is the last pressed key that is repeatable (if it hasn't been
@@ -74,7 +76,11 @@ impl EventProcessor {
 
         // Handle IME requests.
         while let Ok(request) = self.ime_receiver.try_recv() {
-            let ime = window_target.ime.get_mut();
+            let ime = match window_target.ime.as_mut() {
+                Some(ime) => ime,
+                None => continue,
+            };
+            let ime = ime.get_mut();
             match request {
                 ImeRequest::Position(window_id, x, y) => {
                     ime.send_xim_spot(window_id, x, y);
@@ -174,10 +180,12 @@ impl EventProcessor {
                         };
 
                         let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
                         self.xinput2_button_input(xev, state, &mut callback);
                     }
                     xinput2::XI_Motion => {
                         let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
                         self.xinput2_mouse_motion(xev, &mut callback);
                     }
                     xinput2::XI_Enter => {
@@ -186,6 +194,7 @@ impl EventProcessor {
                     }
                     xinput2::XI_Leave => {
                         let xev: &XILeaveEvent = unsafe { &*(xev.data as *const _) };
+                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
                         self.xinput2_mouse_left(xev, &mut callback);
                     }
                     xinput2::XI_FocusIn => {
@@ -792,10 +801,11 @@ impl EventProcessor {
 
         // Since all XIM stuff needs to happen from the same thread, we destroy the input
         // context here instead of when dropping the window.
-        wt.ime
-            .borrow_mut()
-            .remove_context(window as XWindow)
-            .expect("Failed to destroy input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .remove_context(window as XWindow)
+                .expect("Failed to destroy input context");
+        }
 
         callback(
             &self.target,
@@ -890,7 +900,12 @@ impl EventProcessor {
         // Only keys that can repeat should change the held_key_press state since a
         // continuously held repeatable key may continue repeating after the press of a
         // non-repeatable key.
-        let repeat = if self.kb_state.key_repeats(keycode) {
+        let key_repeats = self
+            .xkb_context
+            .keymap_mut()
+            .map(|k| k.key_repeats(keycode))
+            .unwrap_or(false);
+        let repeat = if key_repeats {
             let is_latest_held = self.held_key_press == Some(keycode);
 
             if state == ElementState::Pressed {
@@ -909,20 +924,33 @@ impl EventProcessor {
             false
         };
 
+        // Always update the modifiers.
+        self.udpate_mods_from_core_event(xev.state as u16, &mut callback);
+
         if keycode != 0 && !self.is_composing {
-            let event = self.kb_state.process_key_event(keycode, state, repeat);
-            callback(
-                &self.target,
-                Event::WindowEvent {
+            if let Some(mut key_processor) = self.xkb_context.key_context() {
+                let event = key_processor.process_key_event(keycode, state, repeat);
+                let event = Event::WindowEvent {
                     window_id,
                     event: WindowEvent::KeyboardInput {
                         device_id,
                         event,
                         is_synthetic: false,
                     },
-                },
-            );
-        } else if let Some(ic) = wt.ime.borrow().get_context(window as XWindow) {
+                };
+                callback(&self.target, event);
+            }
+
+            return;
+        }
+
+        let wt = Self::window_target(&self.target);
+
+        if let Some(ic) = wt
+            .ime
+            .as_ref()
+            .and_then(|ime| ime.borrow().get_context(window as XWindow))
+        {
             let written = wt.xconn.lookup_utf8(ic, xev);
             if !written.is_empty() {
                 let event = Event::WindowEvent {
@@ -1191,10 +1219,11 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        wt.ime
-            .borrow_mut()
-            .focus(xev.event)
-            .expect("Failed to focus input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .focus(xev.event)
+                .expect("Failed to focus input context");
+        }
 
         if self.active_window == Some(window) {
             return;
@@ -1217,8 +1246,19 @@ impl EventProcessor {
         };
         callback(&self.target, event);
 
-        let modifiers: crate::keyboard::ModifiersState = self.kb_state.mods_state().into();
-        self.send_modifiers(modifiers, &mut callback);
+        // Issue key press events for all pressed keys
+        Self::handle_pressed_keys(
+            &self.target,
+            window_id,
+            ElementState::Pressed,
+            &mut self.xkb_context,
+            &mut callback,
+        );
+
+        if let Some(state) = self.xkb_context.state_mut() {
+            let mods = state.modifiers().into();
+            self.send_modifiers(mods, &mut callback);
+        }
 
         // The deviceid for this event is for a keyboard instead of a pointer,
         // so we have to do a little extra work.
@@ -1237,15 +1277,6 @@ impl EventProcessor {
             },
         };
         callback(&self.target, event);
-
-        // Issue key press events for all pressed keys
-        Self::handle_pressed_keys(
-            &self.target,
-            window_id,
-            ElementState::Pressed,
-            &mut self.kb_state,
-            &mut callback,
-        );
     }
 
     fn xinput2_unfocused<T: 'static, F>(&mut self, xev: &XIFocusOutEvent, mut callback: F)
@@ -1262,30 +1293,31 @@ impl EventProcessor {
             return;
         }
 
-        wt.ime
-            .borrow_mut()
-            .unfocus(xev.event)
-            .expect("Failed to unfocus input context");
+        if let Some(ime) = wt.ime.as_ref() {
+            ime.borrow_mut()
+                .unfocus(xev.event)
+                .expect("Failed to unfocus input context");
+        }
 
         if self.active_window.take() == Some(window) {
             let window_id = mkwid(window);
 
             wt.update_listen_device_events(false);
 
+            self.send_modifiers(ModifiersState::empty(), &mut callback);
+
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
                 &self.target,
                 window_id,
                 ElementState::Released,
-                &mut self.kb_state,
+                &mut self.xkb_context,
                 &mut callback,
             );
 
             // Clear this so detecting key repeats is consistently handled when the
             // window regains focus.
             self.held_key_press = None;
-
-            self.send_modifiers(ModifiersState::empty(), &mut callback);
 
             if let Some(window) = self.with_window(window, Arc::clone) {
                 window.shared_state_lock().has_focus = false;
@@ -1451,7 +1483,7 @@ impl EventProcessor {
         if keycode < KEYCODE_OFFSET as u32 {
             return;
         }
-        let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
+        let physical_key = xkb::raw_keycode_to_physicalkey(keycode);
 
         callback(
             &self.target,
@@ -1516,17 +1548,25 @@ impl EventProcessor {
                 let keycodes_changed = util::has_flag(xev.changed, keycodes_changed_flag);
                 let geometry_changed = util::has_flag(xev.changed, geometry_changed_flag);
 
-                if xev.device == self.kb_state.core_keyboard_id
+                if xev.device == self.xkb_context.core_keyboard_id
                     && (keycodes_changed || geometry_changed)
                 {
-                    unsafe { self.kb_state.init_with_x11_keymap() };
-                    let modifiers = self.kb_state.mods_state();
-                    self.send_modifiers(modifiers.into(), &mut callback);
+                    let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
+                    self.xkb_context.set_keymap_from_x11(xcb);
+
+                    if let Some(state) = self.xkb_context.state_mut() {
+                        let mods = state.modifiers().into();
+                        self.send_modifiers(mods, &mut callback);
+                    }
                 }
             }
             xlib::XkbMapNotify => {
-                unsafe { self.kb_state.init_with_x11_keymap() };
-                self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
+                let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
+                self.xkb_context.set_keymap_from_x11(xcb);
+                if let Some(state) = self.xkb_context.state_mut() {
+                    let mods = state.modifiers().into();
+                    self.send_modifiers(mods, &mut callback);
+                }
             }
             xlib::XkbStateNotify => {
                 let xev = unsafe { &*(xev as *const _ as *const xlib::XkbStateNotifyEvent) };
@@ -1534,22 +1574,120 @@ impl EventProcessor {
                 // Set the timestamp.
                 wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-                // NOTE: Modifiers could update without a prior event updating them,
-                // thus diffing the state before and after is not reliable.
-
-                self.kb_state.update_modifiers(
-                    xev.base_mods,
-                    xev.latched_mods,
-                    xev.locked_mods,
-                    xev.base_group as u32,
-                    xev.latched_group as u32,
-                    xev.locked_group as u32,
-                );
-
-                self.send_modifiers(self.kb_state.mods_state().into(), &mut callback);
+                if let Some(state) = self.xkb_context.state_mut() {
+                    state.update_modifiers(
+                        xev.base_mods,
+                        xev.latched_mods,
+                        xev.locked_mods,
+                        xev.base_group as u32,
+                        xev.latched_group as u32,
+                        xev.locked_group as u32,
+                    );
+                    let mods = state.modifiers().into();
+                    self.send_modifiers(mods, &mut callback);
+                }
             }
             _ => {}
         }
+    }
+
+    pub fn update_mods_from_xinput2_event<T: 'static, F>(
+        &mut self,
+        mods: &XIModifierState,
+        group: &XIModifierState,
+        mut callback: F,
+    ) where
+        F: FnMut(&RootELW, Event<T>),
+    {
+        if let Some(state) = self.xkb_context.state_mut() {
+            state.update_modifiers(
+                mods.base as u32,
+                mods.latched as u32,
+                mods.locked as u32,
+                group.base as u32,
+                group.latched as u32,
+                group.locked as u32,
+            );
+
+            let mods = state.modifiers();
+            self.send_modifiers(mods.into(), &mut callback);
+        }
+    }
+
+    pub fn udpate_mods_from_core_event<T: 'static, F>(&mut self, state: u16, mut callback: F)
+    where
+        F: FnMut(&RootELW, Event<T>),
+    {
+        let xkb_mask = self.xkb_mod_mask_from_core(state);
+        let xkb_state = match self.xkb_context.state_mut() {
+            Some(xkb_state) => xkb_state,
+            None => return,
+        };
+
+        // NOTE: this is inspired by Qt impl.
+        let mut depressed = xkb_state.depressed_modifiers() & xkb_mask;
+        let latched = xkb_state.latched_modifiers() & xkb_mask;
+        let locked = xkb_state.locked_modifiers() & xkb_mask;
+        // Set modifiers in depressed if they don't appear in any of the final masks.
+        depressed |= !(depressed | latched | locked) & xkb_mask;
+
+        xkb_state.update_modifiers(
+            depressed,
+            latched,
+            locked,
+            0,
+            0,
+            // Bits 13 and 14 report the state keyboard group.
+            ((state >> 13) & 3) as u32,
+        );
+
+        let mods = xkb_state.modifiers();
+        self.send_modifiers(mods.into(), &mut callback);
+    }
+
+    pub fn xkb_mod_mask_from_core(&mut self, state: u16) -> xkb_mod_mask_t {
+        let mods_indices = match self.xkb_context.keymap_mut() {
+            Some(keymap) => keymap.mods_indices(),
+            None => return 0,
+        };
+
+        // Build the XKB modifiers from the regular state.
+        let mut depressed = 0u32;
+        if let Some(shift) = mods_indices
+            .shift
+            .filter(|_| ModMask::SHIFT.intersects(state))
+        {
+            depressed |= 1 << shift;
+        }
+        if let Some(caps) = mods_indices
+            .caps
+            .filter(|_| ModMask::LOCK.intersects(state))
+        {
+            depressed |= 1 << caps;
+        }
+        if let Some(ctrl) = mods_indices
+            .ctrl
+            .filter(|_| ModMask::CONTROL.intersects(state))
+        {
+            depressed |= 1 << ctrl;
+        }
+        if let Some(alt) = mods_indices.alt.filter(|_| ModMask::M1.intersects(state)) {
+            depressed |= 1 << alt;
+        }
+        if let Some(num) = mods_indices.num.filter(|_| ModMask::M2.intersects(state)) {
+            depressed |= 1 << num;
+        }
+        if let Some(mod3) = mods_indices.mod3.filter(|_| ModMask::M3.intersects(state)) {
+            depressed |= 1 << mod3;
+        }
+        if let Some(logo) = mods_indices.logo.filter(|_| ModMask::M4.intersects(state)) {
+            depressed |= 1 << logo;
+        }
+        if let Some(mod5) = mods_indices.mod5.filter(|_| ModMask::M5.intersects(state)) {
+            depressed |= 1 << mod5;
+        }
+
+        depressed
     }
 
     /// Send modifiers for the active window.
@@ -1580,7 +1718,7 @@ impl EventProcessor {
         target: &RootELW,
         window_id: crate::window::WindowId,
         state: ElementState,
-        kb_state: &mut KbdState,
+        xkb_context: &mut Context,
         callback: &mut F,
     ) where
         F: FnMut(&RootELW, Event<T>),
@@ -1589,14 +1727,33 @@ impl EventProcessor {
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         let window_target = Self::window_target(target);
+        let xcb = window_target
+            .xconn
+            .xcb_connection()
+            .get_raw_xcb_connection();
+
+        let keymap = match xkb_context.keymap_mut() {
+            Some(keymap) => keymap,
+            None => return,
+        };
+
+        // Send the keys using the sythetic state to not alter the main state.
+        let mut xkb_state = match XkbState::new_x11(xcb, keymap) {
+            Some(xkb_state) => xkb_state,
+            None => return,
+        };
+        let mut key_processor = match xkb_context.key_context_with_state(&mut xkb_state) {
+            Some(key_processor) => key_processor,
+            None => return,
+        };
+
         for keycode in window_target
             .xconn
             .query_keymap()
             .into_iter()
             .filter(|k| *k >= KEYCODE_OFFSET)
         {
-            let keycode = keycode as u32;
-            let event = kb_state.process_key_event(keycode, state, false);
+            let event = key_processor.process_key_event(keycode as u32, state, false);
             let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
