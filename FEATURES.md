@@ -141,6 +141,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Full-size content view
 * Accepts first mouse
 * Set a preferred theme and get current theme.
+* Dock icon click event
 
 ### Unix
 * Window urgency
