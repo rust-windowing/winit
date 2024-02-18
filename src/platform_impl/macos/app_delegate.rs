@@ -115,6 +115,16 @@ declare_class!(
             // TODO: Notify every window that it will be destroyed, like done in iOS?
             self.internal_exit();
         }
+
+        #[method(applicationShouldHandleReopen:hasVisibleWindows:)]
+        fn should_handle_reopen(&self, _sender: &Option<&AnyObject>, has_visible_windows: bool) -> bool {
+            trace_scope!("applicationShouldHandleReopen:hasVisibleWindows:");
+
+            self.handle_event(Event::Reopen{ has_visible_windows });
+            // return true to preserve the default behavior, such as showing the minimized window.
+            true
+        }
+
     }
 );
 
