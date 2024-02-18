@@ -18,7 +18,7 @@ pub struct Subsurface(Arc<SubsurfaceInner>);
 struct SubsurfaceInner {
     pub surface: WlSurface,
     pub subsurface: WlSubsurface,
-    pub position: RwLock<PhysicalPosition<i32>>
+    pub position: RwLock<PhysicalPosition<i32>>,
 }
 
 impl Subsurface {
@@ -26,16 +26,16 @@ impl Subsurface {
         parent: &WlSurface,
         subcompositor: &SubcompositorState,
         queue_handle: &QueueHandle<T>,
-    ) -> Subsurface where
+    ) -> Subsurface
+    where
         T: Dispatch<WlSurface, SurfaceData> + Dispatch<WlSubsurface, SubsurfaceData> + 'static,
     {
-        let (subsurface, surface) =
-            subcompositor.create_subsurface(parent.clone(), queue_handle);
+        let (subsurface, surface) = subcompositor.create_subsurface(parent.clone(), queue_handle);
 
-        Subsurface(Arc::new(SubsurfaceInner { 
-            surface, 
+        Subsurface(Arc::new(SubsurfaceInner {
+            surface,
             subsurface,
-            position: RwLock::new(PhysicalPosition::new(0, 0))
+            position: RwLock::new(PhysicalPosition::new(0, 0)),
         }))
     }
 

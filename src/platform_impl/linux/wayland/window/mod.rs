@@ -11,8 +11,8 @@ use sctk::reexports::client::QueueHandle;
 
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::xdg::window::Window as SctkWindow;
+use sctk::shell::xdg::window::WindowDecorations;
 use sctk::shell::WaylandSurface;
 
 use log::warn;
@@ -342,13 +342,9 @@ impl Window {
             WindowRole::Toplevel(_) => {
                 warn!("Toplevel windows cannot get their position");
                 Err(NotSupportedError::new())
-            },
-            WindowRole::Subsurface(window) => {
-                Ok(window.get_position())
-            },
+            }
+            WindowRole::Subsurface(window) => Ok(window.get_position()),
         }
-
-        
     }
 
     #[inline]
@@ -357,10 +353,8 @@ impl Window {
             WindowRole::Toplevel(_) => {
                 warn!("Toplevel windows cannot get their position");
                 Err(NotSupportedError::new())
-            },
-            WindowRole::Subsurface(window) => {
-                Ok(window.get_position())
-            },
+            }
+            WindowRole::Subsurface(window) => Ok(window.get_position()),
         }
     }
 
@@ -371,7 +365,7 @@ impl Window {
             WindowRole::Subsurface(window) => {
                 let physical_pos: PhysicalPosition<i32> = pos.to_physical(self.scale_factor());
                 window.set_position(physical_pos);
-            },
+            }
         }
     }
 

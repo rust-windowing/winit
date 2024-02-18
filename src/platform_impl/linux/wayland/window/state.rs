@@ -83,7 +83,7 @@ pub enum SurfaceRoleState {
     },
     Subsurface {
         /// The underlying subsurface.
-        window: Subsurface
+        window: Subsurface,
     },
 }
 
@@ -208,20 +208,16 @@ impl WindowState {
             compositor,
             connection,
             surface_role: match window {
-                WindowRole::Toplevel(window) => {
-                    SurfaceRoleState::Toplevel {
-                        window,
-                        frame: None,
-                        has_pending_move: None,
-                        title: String::default(),
-                        resizable: true,
-                        csd_fails: false,
-                        decorate: true,
-                    }
+                WindowRole::Toplevel(window) => SurfaceRoleState::Toplevel {
+                    window,
+                    frame: None,
+                    has_pending_move: None,
+                    title: String::default(),
+                    resizable: true,
+                    csd_fails: false,
+                    decorate: true,
                 },
-                WindowRole::Subsurface(window) => {
-                    SurfaceRoleState::Subsurface { window }
-                },
+                WindowRole::Subsurface(window) => SurfaceRoleState::Subsurface { window },
             },
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -1231,8 +1227,7 @@ impl WindowState {
 
             window.set_title(&title);
             *self_title = title;
-        }
-        else {
+        } else {
             warn!("Only toplevel windows may have a title");
         }
     }
@@ -1265,7 +1260,7 @@ impl WindowState {
     pub fn title(&self) -> &str {
         match &self.surface_role {
             SurfaceRoleState::Toplevel { title, .. } => title.as_ref(),
-            _ => ""
+            _ => "",
         }
     }
 
@@ -1274,8 +1269,7 @@ impl WindowState {
     pub fn set_position(&mut self, pos: PhysicalPosition<i32>) {
         if let SurfaceRoleState::Subsurface { window } = &self.surface_role {
             window.set_position(pos);
-        }
-        else {
+        } else {
             warn!("Only subsurfaces can set their (parent-relative) position")
         }
     }
