@@ -11,6 +11,9 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, don't require XIM to run.
+- On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
+- Fix compatibility with 32-bit platforms without 64-bit atomics.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
@@ -47,6 +50,27 @@ Unreleased` header.
 - On X11, fix deadlock when adjusting DPI and resizing at the same time.
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.
 - On Wayland, fix `Window::set_{min,max}_inner_size` not always applied.
+- On Windows, fix inconsistent resizing behavior with multi-monitor setups when repositioning outside the event loop.
+- On Wayland, fix `WAYLAND_SOCKET` not used when detecting platform.
+- On Orbital, fix `logical_key` and `text` not reported in `KeyEvent`.
+- On Orbital, implement `KeyEventExtModifierSupplement`.
+- On Orbital, map keys to `NamedKey` when possible.
+- On Orbital, implement `set_cursor_grab`.
+- On Orbital, implement `set_cursor_visible`.
+- On Orbital, implement `drag_window`.
+- On Orbital, implement `drag_resize_window`.
+- On Orbital, implement `set_transparent`.
+- On Orbital, implement `set_visible`.
+- On Orbital, implement `is_visible`.
+- On Orbital, implement `set_resizable`.
+- On Orbital, implement `is_resizable`.
+- On Orbital, implement `set_maximized`.
+- On Orbital, implement `is_maximized`.
+- On Orbital, implement `set_decorations`.
+- On Orbital, implement `is_decorated`.
+- On Orbital, implement `set_window_level`.
+- On Orbital, emit `DeviceEvent::MouseMotion`.
+- On Wayland, fix title in CSD not updated from `AboutToWait`.
 - On Windows, gamepad and joysticks now also report device events.
 
 # 0.29.10

@@ -41,7 +41,7 @@ impl From<io::Error> for DndDataParseError {
     }
 }
 
-pub(crate) struct Dnd {
+pub struct Dnd {
     xconn: Arc<XConnection>,
     // Populated by XdndEnter event handler
     pub version: Option<c_long>,

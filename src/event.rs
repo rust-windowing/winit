@@ -536,9 +536,8 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
-    /// by the OS, but it can be changed to any value.
+    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the window is
+    /// resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     ScaleFactorChanged {

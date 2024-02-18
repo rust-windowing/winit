@@ -1,5 +1,44 @@
 #![cfg(x11_platform)]
 
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::ffi::CStr;
+use std::fmt;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::os::raw::*;
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Weak};
+use std::time::{Duration, Instant};
+use std::{ptr, slice, str};
+
+use calloop::generic::Generic;
+use calloop::EventLoop as Loop;
+use calloop::{ping::Ping, Readiness};
+use libc::{self, setlocale, LC_CTYPE};
+use log::warn;
+
+use x11rb::connection::RequestConnection;
+use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
+use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::protocol::xkb;
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::x11_utils::X11Error as LogicalError;
+use x11rb::xcb_ffi::ReplyOrIdError;
+
+use super::{ControlFlow, OsError};
+use crate::{
+    error::{EventLoopError, OsError as RootOsError},
+    event::{Event, StartCause, WindowEvent},
+    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    platform::pump_events::PumpStatus,
+    platform_impl::common::xkb::Context,
+    platform_impl::platform::{min_timeout, WindowId},
+    window::WindowAttributes,
+};
+
 mod activation;
 mod atoms;
 mod dnd;
@@ -7,75 +46,20 @@ mod event_processor;
 pub mod ffi;
 mod ime;
 mod monitor;
-pub mod util;
+mod util;
 mod window;
 mod xdisplay;
 mod xsettings;
 
-pub(crate) use self::{
-    monitor::{MonitorHandle, VideoModeHandle},
-    window::UnownedWindow,
-    xdisplay::{XConnection, XError, XNotSupported},
-};
-
-use calloop::generic::Generic;
-use calloop::EventLoop as Loop;
-use calloop::{ping::Ping, Readiness};
-use log::warn;
-
-use std::{
-    cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
-    ffi::CStr,
-    fmt,
-    marker::PhantomData,
-    mem::MaybeUninit,
-    ops::Deref,
-    os::{
-        raw::*,
-        unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd},
-    },
-    ptr,
-    rc::Rc,
-    slice, str,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
-    sync::{mpsc, Arc, Weak},
-    time::{Duration, Instant},
-};
-
-use libc::{self, setlocale, LC_CTYPE};
-
 use atoms::*;
+use dnd::{Dnd, DndState};
+use event_processor::EventProcessor;
+use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
+pub(crate) use monitor::{MonitorHandle, VideoModeHandle};
+use window::UnownedWindow;
+pub(crate) use xdisplay::{XConnection, XError, XNotSupported};
 
-use x11rb::x11_utils::X11Error as LogicalError;
-use x11rb::{
-    connection::RequestConnection,
-    protocol::{
-        xinput::{self, ConnectionExt as _},
-        xkb,
-        xproto::{self, ConnectionExt as _},
-    },
-};
-use x11rb::{
-    errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError},
-    xcb_ffi::ReplyOrIdError,
-};
-
-pub(super) use self::util::CustomCursor;
-use self::{
-    dnd::{Dnd, DndState},
-    event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
-};
-use super::{common::xkb_state::KbdState, ControlFlow, OsError};
-use crate::{
-    error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    platform::pump_events::PumpStatus,
-    platform_impl::platform::{min_timeout, WindowId},
-    window::WindowAttributes,
-};
+pub use util::CustomCursor;
 
 // Xinput constants not defined in x11rb
 const ALL_DEVICES: u16 = 0;
@@ -150,7 +134,7 @@ pub struct EventLoopWindowTarget {
     control_flow: Cell<ControlFlow>,
     exit: Cell<Option<i32>>,
     root: xproto::Window,
-    ime: RefCell<Ime>,
+    ime: Option<RefCell<Ime>>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<ActivationToken>,
@@ -166,7 +150,6 @@ pub struct EventLoop<T: 'static> {
     user_receiver: PeekableReceiver<T>,
     activation_receiver: PeekableReceiver<ActivationToken>,
     user_sender: Sender<T>,
-    target: Rc<RootELW>,
 
     /// The current state of the event loop.
     state: EventLoopState,
@@ -227,13 +210,15 @@ impl<T: 'static> EventLoop<T> {
                 setlocale(LC_CTYPE, default_locale);
             }
         }
-        let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {state:#?}");
-            }
-            result.expect("Failed to set input method destruction callback")
-        });
+
+        let ime = Ime::new(Arc::clone(&xconn), ime_event_sender);
+        if let Err(ImeCreationError::OpenFailure(state)) = ime.as_ref() {
+            warn!("Failed to open input method: {state:#?}");
+        } else if let Err(err) = ime.as_ref() {
+            warn!("Failed to set input method destruction callback: {err:?}");
+        }
+
+        let ime = ime.ok().map(RefCell::new);
 
         let randr_event_offset = xconn
             .select_xrandr_input(root)
@@ -297,8 +282,8 @@ impl<T: 'static> EventLoop<T> {
         // Create a channel for sending user events.
         let (user_sender, user_channel) = mpsc::channel();
 
-        let kb_state =
-            KbdState::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context =
+            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
         let window_target = EventLoopWindowTarget {
             ime,
@@ -324,13 +309,13 @@ impl<T: 'static> EventLoop<T> {
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let target = Rc::new(RootELW {
+        let root_window_target = RootELW {
             p: super::EventLoopWindowTarget::X(window_target),
             _marker: PhantomData,
-        });
+        };
 
         let event_processor = EventProcessor {
-            target: target.clone(),
+            target: root_window_target,
             dnd,
             devices: Default::default(),
             randr_event_offset,
@@ -338,7 +323,7 @@ impl<T: 'static> EventLoop<T> {
             ime_event_receiver,
             xi2ext,
             xkbext,
-            kb_state,
+            xkb_context,
             num_touch: 0,
             held_key_press: None,
             first_touch: None,
@@ -349,8 +334,9 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
-            .xconn
+        let xconn = &EventProcessor::window_target(&event_processor.target).xconn;
+
+        xconn
             .select_xinput_events(
                 root,
                 ALL_DEVICES,
@@ -358,8 +344,7 @@ impl<T: 'static> EventLoop<T> {
             )
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
-        get_xtarget(&target)
-            .xconn
+        xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
                 xkb::EventType::NEW_KEYBOARD_NOTIFY
@@ -379,7 +364,6 @@ impl<T: 'static> EventLoop<T> {
             activation_receiver: PeekableReceiver::from_recv(activation_token_channel),
             user_receiver: PeekableReceiver::from_recv(user_channel),
             user_sender,
-            target,
             state: EventLoopState {
                 x11_readiness: Readiness::EMPTY,
             },
@@ -396,7 +380,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub(crate) fn window_target(&self) -> &RootELW {
-        &self.target
+        &self.event_processor.target
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
@@ -421,7 +405,7 @@ impl<T: 'static> EventLoop<T> {
         // `run_on_demand` calls but if they have only just dropped their
         // windows we need to make sure those last requests are sent to the
         // X Server.
-        let wt = get_xtarget(&self.target);
+        let wt = EventProcessor::window_target(&self.event_processor.target);
         wt.x_connection().sync_with_server().map_err(|x_err| {
             EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
         })?;
@@ -544,12 +528,12 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootELW),
     {
-        callback(crate::event::Event::NewEvents(cause), &self.target);
+        callback(Event::NewEvents(cause), &self.event_processor.target);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though X11
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            callback(crate::event::Event::Resumed, &self.target);
+            callback(Event::Resumed, &self.event_processor.target);
         }
 
         // Process all pending events
@@ -564,16 +548,16 @@ impl<T: 'static> EventLoop<T> {
                 });
 
             match token {
-                Some(Ok(token)) => callback(
-                    crate::event::Event::WindowEvent {
+                Some(Ok(token)) => {
+                    let event = Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
-                        event: crate::event::WindowEvent::ActivationTokenDone {
+                        event: WindowEvent::ActivationTokenDone {
                             serial,
                             token: crate::window::ActivationToken::_new(token),
                         },
-                    },
-                    &self.target,
-                ),
+                    };
+                    callback(event, &self.event_processor.target)
+                }
                 Some(Err(e)) => {
                     log::error!("Failed to get activation token: {}", e);
                 }
@@ -584,7 +568,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_receiver.try_recv() {
-                callback(crate::event::Event::UserEvent(event), &self.target);
+                callback(Event::UserEvent(event), &self.event_processor.target);
             }
         }
 
@@ -603,14 +587,14 @@ impl<T: 'static> EventLoop<T> {
                         window_id,
                         event: WindowEvent::RedrawRequested,
                     },
-                    &self.target,
+                    &self.event_processor.target,
                 );
             }
         }
 
         // This is always the last event we dispatch before poll again
         {
-            callback(crate::event::Event::AboutToWait, &self.target);
+            callback(Event::AboutToWait, &self.event_processor.target);
         }
     }
 
@@ -618,40 +602,44 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootELW),
     {
-        let target = &self.target;
         let mut xev = MaybeUninit::uninit();
-        let wt = get_xtarget(&self.target);
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |event| {
-                if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
-                    event: WindowEvent::RedrawRequested,
-                } = event
-                {
-                    wt.redraw_sender.send(wid).unwrap();
-                } else {
-                    callback(event, target);
-                }
-            });
+            self.event_processor
+                .process_event(&mut xev, |window_target, event| {
+                    if let Event::WindowEvent {
+                        window_id: crate::window::WindowId(wid),
+                        event: WindowEvent::RedrawRequested,
+                    } = event
+                    {
+                        let window_target = EventProcessor::window_target(window_target);
+                        window_target.redraw_sender.send(wid).unwrap();
+                    } else {
+                        callback(event, window_target);
+                    }
+                });
         }
     }
 
     fn control_flow(&self) -> ControlFlow {
-        self.target.p.control_flow()
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.control_flow()
     }
 
     fn exiting(&self) -> bool {
-        self.target.p.exiting()
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.exiting()
     }
 
     fn set_exit_code(&self, code: i32) {
-        self.target.p.set_exit_code(code)
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.set_exit_code(code);
     }
 
     fn exit_code(&self) -> Option<i32> {
-        self.target.p.exit_code()
+        let window_target = EventProcessor::window_target(&self.event_processor.target);
+        window_target.exit_code()
     }
 }
 
@@ -664,14 +652,6 @@ impl<T> AsFd for EventLoop<T> {
 impl<T> AsRawFd for EventLoop<T> {
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
-    }
-}
-
-pub(crate) fn get_xtarget(target: &RootELW) -> &EventLoopWindowTarget {
-    match target.p {
-        super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(wayland_platform)]
-        _ => unreachable!(),
     }
 }
 
@@ -1048,7 +1028,7 @@ fn mkdid(w: xinput::DeviceId) -> crate::event::DeviceId {
 }
 
 #[derive(Debug)]
-struct Device {
+pub struct Device {
     _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).

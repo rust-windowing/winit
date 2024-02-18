@@ -83,14 +83,6 @@ impl FrameExtents {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct LogicalFrameExtents {
-    pub left: f64,
-    pub right: f64,
-    pub top: f64,
-    pub bottom: f64,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameExtentsHeuristicPath {
     Supported,

@@ -123,7 +123,7 @@ impl SharedState {
 unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
-pub(crate) struct UnownedWindow {
+pub struct UnownedWindow {
     pub(crate) xconn: Arc<XConnection>, // never changes
     xwindow: xproto::Window,            // never changes
     #[allow(dead_code)]
@@ -555,9 +555,9 @@ impl UnownedWindow {
             leap!(xconn.select_xinput_events(window.xwindow, super::ALL_MASTER_DEVICES, mask))
                 .ignore_error();
 
-            {
-                let result = event_loop
-                    .ime
+            // Try to create input context for the window.
+            if let Some(ime) = event_loop.ime.as_ref() {
+                let result = ime
                     .borrow_mut()
                     .create_context(window.xwindow as ffi::Window, false);
                 leap!(result);
