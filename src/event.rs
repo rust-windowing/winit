@@ -263,7 +263,7 @@ pub enum Event<T: 'static> {
     /// On macOS, the `Reopen` event is emitted in response to an [`applicationShouldHandleReopen`]
     /// callback, which is typically called when the user clicks on the application's icon in the Dock.
     /// The application should create a new window if it doesn't have any, or bring the
-    /// existing windows to the front. [has_visible_windows] is `true` if the application has
+    /// existing windows to the front. `has_visible_windows` is `true` if the application has
     /// at least one visible window.
     ///
     /// [`applicationShouldHandleReopen`]: https://developer.apple.com/documentation/appkit/nsapplicationdelegate/1428638-applicationshouldhandlereopen
