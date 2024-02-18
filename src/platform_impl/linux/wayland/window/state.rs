@@ -31,7 +31,7 @@ use sctk::subcompositor::SubcompositorState;
 use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 
 use crate::cursor::CustomCursor as RootCustomCursor;
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
 use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
@@ -44,11 +44,8 @@ use crate::platform_impl::wayland::seat::{
 };
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 
-use self::subsurface::SubsurfaceState;
-use self::toplevel::ToplevelState;
-
-mod subsurface;
-mod toplevel;
+use super::subsurface::Subsurface;
+use super::WindowRole;
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame<WinitState>;
@@ -84,14 +81,17 @@ pub enum SurfaceRoleState {
         /// Whether we should decorate the frame.
         decorate: bool,
     },
-    Subsurface(SubsurfaceState),
+    Subsurface {
+        /// The underlying subsurface.
+        window: Subsurface
+    },
 }
 
 impl WaylandSurface for SurfaceRoleState {
     fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
         match self {
-            SurfaceRoleState::Toplevel { window: window, .. } => window.wl_surface(),
-            SurfaceRoleState::Subsurface(subsurface) => subsurface.wl_surface(),
+            SurfaceRoleState::Toplevel { window, .. } => window.wl_surface(),
+            SurfaceRoleState::Subsurface { window } => window.wl_surface(),
         }
     }
 }
@@ -188,7 +188,7 @@ impl WindowState {
         queue_handle: &QueueHandle<WinitState>,
         winit_state: &WinitState,
         initial_size: Size,
-        window: Window,
+        window: WindowRole,
         theme: Option<Theme>,
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
@@ -207,14 +207,21 @@ impl WindowState {
             blur_manager: winit_state.kwin_blur_manager.clone(),
             compositor,
             connection,
-            surface_role: SurfaceRoleState::Toplevel {
-                window,
-                frame: None,
-                has_pending_move: None,
-                title: String::default(),
-                resizable: true,
-                csd_fails: false,
-                decorate: true,
+            surface_role: match window {
+                WindowRole::Toplevel(window) => {
+                    SurfaceRoleState::Toplevel {
+                        window,
+                        frame: None,
+                        has_pending_move: None,
+                        title: String::default(),
+                        resizable: true,
+                        csd_fails: false,
+                        decorate: true,
+                    }
+                },
+                WindowRole::Subsurface(window) => {
+                    SurfaceRoleState::Subsurface { window }
+                },
             },
             cursor_grab_mode: GrabState::new(),
             selected_cursor: Default::default(),
@@ -1225,6 +1232,9 @@ impl WindowState {
             window.set_title(&title);
             *self_title = title;
         }
+        else {
+            warn!("Only toplevel windows may have a title");
+        }
     }
 
     /// Mark the window as transparent.
@@ -1256,6 +1266,17 @@ impl WindowState {
         match &self.surface_role {
             SurfaceRoleState::Toplevel { title, .. } => title.as_ref(),
             _ => ""
+        }
+    }
+
+    /// Set
+    #[inline]
+    pub fn set_position(&mut self, pos: PhysicalPosition<i32>) {
+        if let SurfaceRoleState::Subsurface { window } = &self.surface_role {
+            window.set_position(pos);
+        }
+        else {
+            warn!("Only subsurfaces can set their (parent-relative) position")
         }
     }
 }

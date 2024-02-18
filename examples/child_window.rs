@@ -1,13 +1,13 @@
 #[cfg(all(
     feature = "rwh_06",
-    any(x11_platform, macos_platform, windows_platform)
+    any(x11_platform, wayland_platform, macos_platform, windows_platform)
 ))]
 #[path = "util/fill.rs"]
 mod fill;
 
 #[cfg(all(
     feature = "rwh_06",
-    any(x11_platform, macos_platform, windows_platform)
+    any(x11_platform, wayland_platform, macos_platform, windows_platform)
 ))]
 #[allow(deprecated)]
 fn main() -> Result<(), impl std::error::Error> {
@@ -90,7 +90,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
 #[cfg(not(all(
     feature = "rwh_06",
-    any(x11_platform, macos_platform, windows_platform)
+    any(x11_platform, wayland_platform, macos_platform, windows_platform)
 )))]
 fn main() {
     panic!("This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature enabled.");

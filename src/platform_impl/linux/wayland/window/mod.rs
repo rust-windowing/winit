@@ -11,11 +11,12 @@ use sctk::reexports::client::QueueHandle;
 
 use sctk::compositor::{CompositorState, Region, SurfaceData};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
-use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::xdg::window::WindowDecorations;
+use sctk::shell::xdg::window::Window as SctkWindow;
 use sctk::shell::WaylandSurface;
 
 use log::warn;
+use wayland_backend::client::ObjectId;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -29,6 +30,8 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowLevel,
 };
 
+use self::subsurface::Subsurface;
+
 use super::event_loop::sink::EventSink;
 use super::output::MonitorHandle;
 use super::state::WinitState;
@@ -36,13 +39,30 @@ use super::types::xdg_activation::XdgActivationTokenData;
 use super::{EventLoopWindowTarget, WaylandError, WindowId};
 
 pub(crate) mod state;
+pub(crate) mod subsurface;
 
 pub use state::WindowState;
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum WindowRole {
+    Toplevel(SctkWindow),
+    Subsurface(Subsurface),
+}
+
+impl WaylandSurface for WindowRole {
+    fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
+        match self {
+            WindowRole::Toplevel(window) => window.wl_surface(),
+            WindowRole::Subsurface(window) => window.wl_surface(),
+        }
+    }
+}
 
 /// The Wayland window.
 pub struct Window {
     /// Reference to the underlying SCTK window.
-    window: SctkWindow,
+    window: WindowRole,
 
     /// Xdg activation to request user attention.
     xdg_activation: Option<XdgActivationV1>,
@@ -109,19 +129,63 @@ impl Window {
             WindowDecorations::RequestClient
         };
 
-        let window =
-            state
-                .xdg_shell
-                .create_window(surface.clone(), default_decorations, &queue_handle);
+        // if let Some(parent_window) = attributes.parent_window() {
+        //     match parent_window {
+        //         rwh_06::RawWindowHandle::Wayland(_) => {
 
-        let mut window_state = WindowState::new(
-            event_loop_window_target.connection.clone(),
-            &event_loop_window_target.queue_handle,
-            &state,
-            size,
-            window.clone(),
-            attributes.preferred_theme,
-        );
+        //         },
+        //         _ => panic!("Parent window of a Wayland window must be a Wayland window"),
+        //     }
+        // }
+        let (window, mut window_state) = match attributes.parent_window() {
+            Some(rwh_06::RawWindowHandle::Wayland(wl_handle)) => unsafe {
+                let parent_surface = WlSurface::from_id(
+                    &event_loop_window_target.connection,
+                    ObjectId::from_ptr(
+                        WlSurface::interface(),
+                        wl_handle.surface.as_ptr() as *mut wayland_sys::client::wl_proxy,
+                    )
+                    .expect("Invalid parent surface handle!"),
+                )
+                .expect("Broke!");
+
+                let window = WindowRole::Subsurface(Subsurface::from_parent(
+                    &parent_surface,
+                    state.subcompositor_state.as_ref().unwrap(),
+                    &queue_handle,
+                ));
+
+                let window_state = WindowState::new(
+                    event_loop_window_target.connection.clone(),
+                    &event_loop_window_target.queue_handle,
+                    &state,
+                    size,
+                    window.clone(),
+                    attributes.preferred_theme,
+                );
+
+                (window, window_state)
+            },
+            None => {
+                let window = WindowRole::Toplevel(state.xdg_shell.create_window(
+                    surface.clone(),
+                    default_decorations,
+                    &queue_handle,
+                ));
+
+                let window_state = WindowState::new(
+                    event_loop_window_target.connection.clone(),
+                    &event_loop_window_target.queue_handle,
+                    &state,
+                    size,
+                    window.clone(),
+                    attributes.preferred_theme,
+                );
+
+                (window, window_state)
+            }
+            _ => panic!("Parent window of a Wayland surface must be a Wayland surface"),
+        };
 
         // Set transparency hint.
         window_state.set_transparent(attributes.transparent);
@@ -133,7 +197,11 @@ impl Window {
 
         // Set the app_id.
         if let Some(name) = attributes.platform_specific.name.map(|name| name.general) {
-            window.set_app_id(name);
+            if let WindowRole::Toplevel(window) = &window {
+                window.set_app_id(name);
+            } else {
+                warn!("Only toplevel windows can have an app ID");
+            }
         }
 
         // Set the window title.
@@ -150,22 +218,24 @@ impl Window {
         window_state.set_resizable(attributes.resizable);
 
         // Set startup mode.
-        match attributes.fullscreen.map(Into::into) {
-            Some(Fullscreen::Exclusive(_)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            }
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.and_then(|monitor| match monitor {
-                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(x11_platform)]
-                    PlatformMonitorHandle::X(_) => None,
-                });
+        if let WindowRole::Toplevel(window) = &window {
+            match attributes.fullscreen.map(Into::into) {
+                Some(Fullscreen::Exclusive(_)) => {
+                    warn!("`Fullscreen::Exclusive` is ignored on Wayland");
+                }
+                Some(Fullscreen::Borderless(monitor)) => {
+                    let output = monitor.and_then(|monitor| match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                        #[cfg(x11_platform)]
+                        PlatformMonitorHandle::X(_) => None,
+                    });
 
-                window.set_fullscreen(output.as_ref())
-            }
-            _ if attributes.maximized => window.set_maximized(),
-            _ => (),
-        };
+                    window.set_fullscreen(output.as_ref())
+                }
+                _ if attributes.maximized => window.set_maximized(),
+                _ => (),
+            };
+        }
 
         match attributes.cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
@@ -268,17 +338,41 @@ impl Window {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+        match &self.window {
+            WindowRole::Toplevel(_) => {
+                warn!("Toplevel windows cannot get their position");
+                Err(NotSupportedError::new())
+            },
+            WindowRole::Subsurface(window) => {
+                Ok(window.get_position())
+            },
+        }
+
+        
     }
 
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+        match &self.window {
+            WindowRole::Toplevel(_) => {
+                warn!("Toplevel windows cannot get their position");
+                Err(NotSupportedError::new())
+            },
+            WindowRole::Subsurface(window) => {
+                Ok(window.get_position())
+            },
+        }
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _: Position) {
-        // Not possible on Wayland.
+    pub fn set_outer_position(&self, pos: Position) {
+        match &self.window {
+            WindowRole::Toplevel(_) => warn!("Toplevel windows cannot set their position"),
+            WindowRole::Subsurface(window) => {
+                let physical_pos: PhysicalPosition<i32> = pos.to_physical(self.scale_factor());
+                window.set_position(physical_pos);
+            },
+        }
     }
 
     #[inline]
@@ -446,13 +540,16 @@ impl Window {
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
-        // You can't unminimize the window on Wayland.
-        if !minimized {
-            warn!("Unminimizing is ignored on Wayland.");
-            return;
+        if let WindowRole::Toplevel(window) = &self.window {
+            // You can't unminimize the window on Wayland.
+            if !minimized {
+                warn!("Unminimizing is ignored on Wayland.");
+                return;
+            }
+            window.set_minimized();
+        } else {
+            warn!("Only toplevel windows can be minimized on Wayland.");
         }
-
-        self.window.set_minimized();
     }
 
     #[inline]
@@ -468,10 +565,14 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        if maximized {
-            self.window.set_maximized()
+        if let WindowRole::Toplevel(window) = &self.window {
+            if maximized {
+                window.set_maximized();
+            } else {
+                window.unset_maximized();
+            }
         } else {
-            self.window.unset_maximized()
+            warn!("Only toplevel windows can be maximized on Wayland.");
         }
     }
 
@@ -496,20 +597,22 @@ impl Window {
 
     #[inline]
     pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        match fullscreen {
-            Some(Fullscreen::Exclusive(_)) => {
-                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
-            }
-            Some(Fullscreen::Borderless(monitor)) => {
-                let output = monitor.and_then(|monitor| match monitor {
-                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                    #[cfg(x11_platform)]
-                    PlatformMonitorHandle::X(_) => None,
-                });
+        if let WindowRole::Toplevel(window) = &self.window {
+            match fullscreen {
+                Some(Fullscreen::Exclusive(_)) => {
+                    warn!("`Fullscreen::Exclusive` is ignored on Wayland");
+                }
+                Some(Fullscreen::Borderless(monitor)) => {
+                    let output = monitor.and_then(|monitor| match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                        #[cfg(x11_platform)]
+                        PlatformMonitorHandle::X(_) => None,
+                    });
 
-                self.window.set_fullscreen(output.as_ref())
+                    window.set_fullscreen(output.as_ref())
+                }
+                None => window.unset_fullscreen(),
             }
-            None => self.window.unset_fullscreen(),
         }
     }
 
