@@ -980,7 +980,7 @@ impl EventProcessor {
     {
         let wt = Self::window_target(&self.target);
         let window_id = mkwid(event.event as xproto::Window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
@@ -1053,7 +1053,7 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
 
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
         let new_cursor_pos = (event.event_x, event.event_y);
@@ -1146,7 +1146,7 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into()) {
             let mut devices = self.devices.borrow_mut();
@@ -1202,7 +1202,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id: mkwid(window),
                 event: WindowEvent::CursorLeft {
-                    device_id: mkdid(event.deviceid as xinput::DeviceId),
+                    device_id: mkdid(event.sourceid as xinput::DeviceId),
                 },
             };
             callback(&self.target, event);
@@ -1265,7 +1265,7 @@ impl EventProcessor {
         let pointer_id = self
             .devices
             .borrow()
-            .get(&DeviceId(xev.deviceid as xinput::DeviceId))
+            .get(&DeviceId(xev.sourceid as xinput::DeviceId))
             .map(|device| device.attachment)
             .unwrap_or(2);
 
@@ -1366,7 +1366,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::Touch(Touch {
-                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                    device_id: mkdid(xev.sourceid as xinput::DeviceId),
                     phase,
                     location,
                     force: None, // TODO
@@ -1392,7 +1392,7 @@ impl EventProcessor {
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
             let event = Event::DeviceEvent {
-                device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                device_id: mkdid(xev.sourceid as xinput::DeviceId),
                 event: DeviceEvent::Button {
                     state,
                     button: xev.detail as u32,
@@ -1411,11 +1411,11 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        let did = mkdid(xev.deviceid as xinput::DeviceId);
+        let device_id = mkdid(xev.sourceid as xinput::DeviceId);
 
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-        let mut value = xev.raw_values;
+        let mut value = xev.valuators.values;
         let mut mouse_delta = (0.0, 0.0);
         let mut scroll_delta = (0.0, 0.0);
         for i in 0..xev.valuators.mask_len * 8 {
@@ -1435,7 +1435,7 @@ impl EventProcessor {
             }
 
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::Motion {
                     axis: i as u32,
                     value: x,
@@ -1448,7 +1448,7 @@ impl EventProcessor {
 
         if mouse_delta != (0.0, 0.0) {
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::MouseMotion { delta: mouse_delta },
             };
             callback(&self.target, event);
@@ -1456,7 +1456,7 @@ impl EventProcessor {
 
         if scroll_delta != (0.0, 0.0) {
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::MouseWheel {
                     delta: MouseScrollDelta::LineDelta(scroll_delta.0, scroll_delta.1),
                 },
