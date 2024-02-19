@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::ops::Deref;
 use std::os::raw::c_char;
 use std::ptr::{self, NonNull};
