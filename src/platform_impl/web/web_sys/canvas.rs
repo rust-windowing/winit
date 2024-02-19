@@ -120,6 +120,10 @@ impl Canvas {
         };
 
         if let Some(size) = attr.inner_size {
+            common
+                .current_size
+                .set(size.to_physical(super::scale_factor(&common.window)));
+
             let size = size.to_logical(super::scale_factor(&common.window));
             super::set_canvas_size(&common.document, &common.raw, &common.style, size);
         }
