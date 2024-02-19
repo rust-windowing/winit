@@ -7,7 +7,6 @@ pub fn main() {
 #[cfg(wasm_platform)]
 mod wasm {
     use wasm_bindgen::prelude::*;
-    use wasm_bindgen::JsCast;
     use web_sys::HtmlCanvasElement;
     use winit::{
         dpi::PhysicalSize,

@@ -1,5 +1,4 @@
 use std::{
-    self,
     ffi::c_void,
     panic::{AssertUnwindSafe, UnwindSafe},
     ptr,

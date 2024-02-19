@@ -14,7 +14,6 @@ use crate::window::WindowId;
 
 use std::{
     cell::{Cell, RefCell},
-    clone::Clone,
     collections::{HashSet, VecDeque},
     iter,
     ops::Deref,
