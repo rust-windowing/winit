@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::iter;
 use std::marker::PhantomData;
