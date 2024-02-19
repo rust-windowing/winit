@@ -189,7 +189,7 @@ wayland-protocols = { version = "0.31.0", features = [ "staging"], optional = tr
 wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
-xkbcommon-dl = "0.4.0"
+xkbcommon-dl = "0.4.2"
 
 [target.'cfg(target_os = "redox")'.dependencies]
 orbclient = { version = "0.3.47", default-features = false }
