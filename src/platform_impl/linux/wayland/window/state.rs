@@ -663,7 +663,11 @@ impl WindowState {
     /// Whether the window received initial configure event from the compositor.
     #[inline]
     pub fn is_configured(&self) -> bool {
-        self.last_configure.is_some()
+        if let SurfaceRoleState::Toplevel { .. } = &self.surface_role {
+            self.last_configure.is_some()
+        } else {
+            true
+        }
     }
 
     #[inline]

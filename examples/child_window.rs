@@ -13,77 +13,81 @@ mod fill;
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
 
+    use rwh_06::HasRawWindowHandle;
     use winit::{
-        dpi::{LogicalPosition, LogicalSize, Position},
+        dpi::{LogicalPosition, LogicalSize},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{EventLoop, EventLoopWindowTarget},
-        raw_window_handle::HasRawWindowHandle,
+        keyboard::{KeyCode, PhysicalKey},
         window::{Window, WindowId},
     };
 
-    fn spawn_child_window(
+    fn spawn_child(
         parent: &Window,
         event_loop: &EventLoopWindowTarget,
-        windows: &mut HashMap<WindowId, Window>,
+        children: &mut HashMap<WindowId, Window>,
     ) {
-        let parent = parent.raw_window_handle().unwrap();
         let mut builder = Window::builder()
-            .with_title("child window")
+            .with_position(LogicalPosition::new(0, 0))
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
-            .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
             .with_visible(true);
-        // `with_parent_window` is unsafe. Parent window must be a valid window.
-        builder = unsafe { builder.with_parent_window(Some(parent)) };
-        let child_window = builder.build(event_loop).unwrap();
 
-        let id = child_window.id();
-        windows.insert(id, child_window);
-        println!("child window created with id: {id:?}");
+        builder = unsafe { builder.with_parent_window(parent.raw_window_handle().ok()) };
+
+        let child = builder.build(event_loop).unwrap();
+        let child_id = child.id();
+
+        children.insert(child_id, child);
     }
 
-    let mut windows = HashMap::new();
+    let event_loop = EventLoop::new().unwrap();
 
-    let event_loop: EventLoop<()> = EventLoop::new().unwrap();
-    let parent_window = Window::builder()
+    let window = Window::builder()
         .with_title("parent window")
-        .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
-        .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
+        .with_inner_size(winit::dpi::LogicalSize::new(640.0, 480.0))
         .build(&event_loop)
         .unwrap();
+    let mut children = HashMap::<WindowId, Window>::new();
 
-    println!("parent window: {parent_window:?})");
-
-    event_loop.run(move |event: Event<()>, elwt| {
-        if let Event::WindowEvent { event, window_id } = event {
-            match event {
+    event_loop.run(move |event, elwt| {
+        match event {
+            Event::WindowEvent { event, window_id } => match event {
                 WindowEvent::CloseRequested => {
-                    windows.clear();
+                    children.clear();
                     elwt.exit();
                 }
-                WindowEvent::CursorEntered { device_id: _ } => {
-                    // On x11, println when the cursor entered in a window even if the child window is created
-                    // by some key inputs.
-                    // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
-                    // so we also can see this log when we move the cursor arround (200, 200) in parent window.
-                    println!("cursor entered in the window {window_id:?}");
+                WindowEvent::RedrawRequested => {
+                    // Notify the windowing system that we'll be presenting to the window.
+                    if let Some(child_window) = children.get(&window_id) {
+                        child_window.pre_present_notify();
+                        fill::fill_window(&child_window);
+                    } else if window_id == window.id() {
+                        window.pre_present_notify();
+                        fill::fill_window(&window);
+                    }
                 }
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
+                            physical_key: PhysicalKey::Code(KeyCode::Enter),
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => {
-                    spawn_child_window(&parent_window, elwt, &mut windows);
+                    println!("Spawning child...");
+                    spawn_child(&window, &elwt, &mut children);
                 }
-                WindowEvent::RedrawRequested => {
-                    if let Some(window) = windows.get(&window_id) {
-                        fill::fill_window(window);
-                    }
+                WindowEvent::CursorEntered { .. } => {
+                    println!("cursor entered window {window_id:?}");
                 }
                 _ => (),
+            },
+            Event::AboutToWait => {
+                window.request_redraw();
             }
+
+            _ => (),
         }
     })
 }
@@ -93,5 +97,5 @@ fn main() -> Result<(), impl std::error::Error> {
     any(x11_platform, wayland_platform, macos_platform, windows_platform)
 )))]
 fn main() {
-    panic!("This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature enabled.");
+    panic!("This example is supported only on X11, Wayland, macOS, and Windows, with the `rwh_06` feature enabled.");
 }

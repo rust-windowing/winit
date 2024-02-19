@@ -21,6 +21,13 @@ struct SubsurfaceInner {
     pub position: RwLock<PhysicalPosition<i32>>,
 }
 
+impl Drop for SubsurfaceInner {
+    fn drop(&mut self) {
+        self.subsurface.destroy();
+        self.surface.destroy();
+    }
+}
+
 impl Subsurface {
     pub fn from_parent<T>(
         parent: &WlSurface,

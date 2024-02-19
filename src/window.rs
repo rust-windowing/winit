@@ -705,8 +705,9 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
-    ///    same value as [`Window::outer_position`]._
-    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
+    ///    same value as [`Window::outer_position`].
+    /// - **Wayland:** Returns [`NotSupportedError`] for toplevel windows.
+    /// - **Android:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
@@ -729,7 +730,8 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
-    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
+    /// - **Wayland:** Returns [`NotSupportedError`] for toplevel windows.
+    /// - **Android:** Always returns [`NotSupportedError`].
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.maybe_wait_on_main(|w| w.outer_position())
@@ -759,7 +761,8 @@ impl Window {
     ///   window in the screen space coordinate system.
     /// - **Web:** Sets the top-left coordinates relative to the viewport. Doesn't account for CSS
     ///   [`transform`].
-    /// - **Android / Wayland:** Unsupported.
+    /// - **Wayland:** Only supported on child windows.
+    /// - **Android** Unsupported.
     ///
     /// [`transform`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transform
     #[inline]

@@ -147,7 +147,7 @@ impl Window {
                     )
                     .expect("Invalid parent surface handle!"),
                 )
-                .expect("Broke!");
+                .expect("Invalid parent surface handle!");
 
                 let window = WindowRole::Subsurface(Subsurface::from_parent(
                     &parent_surface,
