@@ -14,6 +14,7 @@ Unreleased` header.
 - On X11, don't require XIM to run.
 - On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
 - Fix compatibility with 32-bit platforms without 64-bit atomics.
+- Implement `Sync` for `EventLoopProxy<T: Send>`.
 - On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
