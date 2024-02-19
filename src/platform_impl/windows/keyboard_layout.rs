@@ -192,7 +192,7 @@ pub(crate) struct Layout {
 
     /// Maps numpad keys from Windows virtual key to a `Key`.
     ///
-    /// This is useful because some numpad keys generate different charcaters based on the locale.
+    /// This is useful because some numpad keys generate different characters based on the locale.
     /// For example `VK_DECIMAL` is sometimes "." and sometimes ",". Note: numpad-specific virtual
     /// keys are only produced by Windows when the NumLock is active.
     ///
@@ -790,7 +790,7 @@ fn vkey_to_non_char_key(
         //VK_HANGEUL => Key::Named(NamedKey::HangulMode), // Deprecated in favour of VK_HANGUL
 
         // VK_HANGUL and VK_KANA are defined as the same constant, therefore
-        // we use appropriate conditions to differentate between them
+        // we use appropriate conditions to differentiate between them
         VK_HANGUL if is_korean => Key::Named(NamedKey::HangulMode),
         VK_KANA if is_japanese => Key::Named(NamedKey::KanaMode),
 
@@ -798,7 +798,7 @@ fn vkey_to_non_char_key(
         VK_FINAL => Key::Named(NamedKey::FinalMode),
 
         // VK_HANJA and VK_KANJI are defined as the same constant, therefore
-        // we use appropriate conditions to differentate between them
+        // we use appropriate conditions to differentiate between them
         VK_HANJA if is_korean => Key::Named(NamedKey::HanjaMode),
         VK_KANJI if is_japanese => Key::Named(NamedKey::KanjiMode),
 
@@ -983,7 +983,7 @@ fn vkey_to_non_char_key(
                 // This matches IE and Firefox behaviour according to
                 // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
                 // At the time of writing, there is no `NamedKey::Finish` variant as
-                // Finish is not mentionned at https://w3c.github.io/uievents-key/
+                // Finish is not mentioned at https://w3c.github.io/uievents-key/
                 // Also see: https://github.com/pyfisch/keyboard-types/issues/9
                 Key::Unidentified(native_code)
             }

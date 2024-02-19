@@ -551,7 +551,7 @@ pub fn did_finish_launching(mtm: MainThreadMarker) {
         //
         // relevant iOS log:
         // ```
-        // [ApplicationLifecycle] Windows were created before application initialzation
+        // [ApplicationLifecycle] Windows were created before application initialization
         // completed. This may result in incorrect visual appearance.
         // ```
         let screen = window.screen();

@@ -177,7 +177,7 @@ impl ApplicationDelegate {
     }
 
     /// If `pump_events` is called to progress the event loop then we
-    /// bootstrap the event loop via `-[NSAppplication run]` but will use
+    /// bootstrap the event loop via `-[NSApplication run]` but will use
     /// `CFRunLoopRunInMode` for subsequent calls to `pump_events`.
     pub fn set_stop_on_launch(&self) {
         self.ivars().stop_on_launch.set(true);
@@ -538,7 +538,7 @@ fn window_activation_hack(app: &NSApplication) {
     // TODO: Proper ordering of the windows
     app.windows().into_iter().for_each(|window| {
         // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
-        // This way we preserve the user's desired initial visiblity status
+        // This way we preserve the user's desired initial visibility status
         // TODO: Also filter on the type/"level" of the window, and maybe other things?
         if window.isVisible() {
             log::trace!("Activating visible window");

@@ -51,7 +51,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     match key.as_ref() {
                         Key::Character("y") => {

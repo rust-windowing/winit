@@ -66,7 +66,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     ..
                 } => match key {
                     Key::Named(NamedKey::Escape) => elwt.exit(),
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {
                         "f" | "b" if window.fullscreen().is_some() => {

@@ -513,7 +513,7 @@ pub enum DeviceEvents {
 /// This could be used to identify the async request once it's done
 /// and a specific action must be taken.
 ///
-/// One of the handling scenarious could be to maintain a working list
+/// One of the handling scenarios could be to maintain a working list
 /// containing [`AsyncRequestSerial`] and some closure associated with it.
 /// Then once event is arriving the working list is being traversed and a job
 /// executed and removed from the list.

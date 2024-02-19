@@ -94,7 +94,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 let window_id = wayland::make_wid(&surface);
 
                 // XXX this check is essential, because `leave` could have a
-                // refence to nil surface...
+                // reference to nil surface...
                 let mut window = match windows.get(&window_id) {
                     Some(window) => window.lock().unwrap(),
                     None => return,

@@ -73,7 +73,7 @@ impl XConnection {
                 new_value
                     .len()
                     .try_into()
-                    .expect("too many items for propery"),
+                    .expect("too many items for property"),
                 bytemuck::cast_slice::<T, u8>(new_value),
             )
             .map_err(Into::into)

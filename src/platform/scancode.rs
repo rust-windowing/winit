@@ -9,7 +9,7 @@ use crate::keyboard::{KeyCode, PhysicalKey};
 pub trait PhysicalKeyExtScancode {
     /// The raw value of the platform-specific physical key identifier.
     ///
-    /// Returns `Some(key_id)` if the conversion was succesful; returns `None` otherwise.
+    /// Returns `Some(key_id)` if the conversion was successful; returns `None` otherwise.
     ///
     /// ## Platform-specific
     /// - **Windows:** A 16bit extended scancode

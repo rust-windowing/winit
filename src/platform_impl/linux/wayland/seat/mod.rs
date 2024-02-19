@@ -54,7 +54,7 @@ pub struct WinitSeatState {
     /// The current modifiers state on the seat.
     modifiers: ModifiersState,
 
-    /// Wether we have pending modifiers.
+    /// Whether we have pending modifiers.
     modifiers_pending: bool,
 }
 

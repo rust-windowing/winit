@@ -328,7 +328,7 @@ impl KeyEventBuilder {
         }
     }
 
-    // Alowing nominimal_bool lint because the `is_key_pressed` macro triggers this warning
+    // Allowing nominimal_bool lint because the `is_key_pressed` macro triggers this warning
     // and I don't know of another way to resolve it and also keeping the macro
     #[allow(clippy::nonminimal_bool)]
     fn synthesize_kbd_state(
@@ -737,7 +737,7 @@ fn get_async_kbd_state() -> [u8; 256] {
 
 /// On windows, AltGr == Ctrl + Alt
 ///
-/// Due to this equivalence, the system generates a fake Ctrl key-press (and key-release) preceeding
+/// Due to this equivalence, the system generates a fake Ctrl key-press (and key-release) preceding
 /// every AltGr key-press (and key-release). We check if the current event is a Ctrl event and if
 /// the next event is a right Alt (AltGr) event. If this is the case, the current event must be the
 /// fake Ctrl event.

@@ -168,7 +168,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// A position represented in logical pixels.
 ///
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
-/// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
+/// fractional part, which can cause noticeable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
