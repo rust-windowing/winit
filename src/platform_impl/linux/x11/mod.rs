@@ -17,7 +17,7 @@ use std::{ptr, slice, str};
 use calloop::generic::Generic;
 use calloop::EventLoop as Loop;
 use calloop::{ping::Ping, Readiness};
-use libc::{self, setlocale, LC_CTYPE};
+use libc::{setlocale, LC_CTYPE};
 use log::warn;
 
 use x11rb::connection::RequestConnection;
