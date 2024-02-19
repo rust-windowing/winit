@@ -196,7 +196,7 @@ impl PointerHandler for WinitState {
                         TouchPhase::Ended
                     } else {
                         match pointer_data.phase {
-                            // Descrete scroll only results in moved events.
+                            // Discrete scroll only results in moved events.
                             _ if has_discrete_scroll => TouchPhase::Moved,
                             TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
                             _ => TouchPhase::Started,

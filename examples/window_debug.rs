@@ -27,7 +27,7 @@ fn main() -> Result<(), impl std::error::Error> {
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
-    eprintln!("  (P) Toggle borderless fullscreen on system's preffered monitor");
+    eprintln!("  (P) Toggle borderless fullscreen on system's preferred monitor");
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
@@ -76,7 +76,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key_str.as_ref() {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     "e" => {
                         fn area(size: PhysicalSize<u32>) -> u32 {

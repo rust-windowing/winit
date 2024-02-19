@@ -20,7 +20,7 @@
 // the W3C short notice apply to the `Key` and `KeyCode` enums and their variants and the
 // documentation attached to their variants.
 
-// --------- BEGGINING OF W3C LICENSE --------------------------------------------------------------
+// --------- BEGINNING OF W3C LICENSE --------------------------------------------------------------
 //
 // License
 //
@@ -55,7 +55,7 @@
 //
 // --------- END OF W3C LICENSE --------------------------------------------------------------------
 
-// --------- BEGGINING OF W3C SHORT NOTICE ---------------------------------------------------------
+// --------- BEGINNING OF W3C SHORT NOTICE ---------------------------------------------------------
 //
 // winit: https://github.com/rust-windowing/winit
 //
@@ -744,7 +744,7 @@ pub enum KeyCode {
 /// - The `Super` variant here, is named `Meta` in the aforementioned specification. (There's
 ///   another key which the specification calls `Super`. That does not exist here.)
 /// - The `Space` variant here, can be identified by the character it generates in the
-///   specificaiton.
+///   specification.
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
@@ -914,7 +914,7 @@ pub enum NamedKey {
     Standby,
     /// The WakeUp key. (`KEYCODE_WAKEUP`)
     WakeUp,
-    /// Initate the multi-candidate mode.
+    /// Initiate the multi-candidate mode.
     AllCandidates,
     Alphanumeric,
     /// Initiate the Code Input mode to allow characters to be entered by
@@ -1459,7 +1459,7 @@ pub enum NamedKey {
 /// This is a superset of the UI Events Specification's [`KeyboardEvent.key`] with
 /// additions:
 /// - All simple variants are wrapped under the `Named` variant
-/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+/// - The `Unidentified` variant here, can still identify a key through it's `NativeKeyCode`.
 /// - The `Dead` variant here, can specify the character which is inserted when pressing the
 ///   dead-key twice.
 ///

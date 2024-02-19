@@ -74,7 +74,7 @@ pub struct WindowState {
 
     selected_cursor: SelectedCursor,
 
-    /// Wether the cursor is visible.
+    /// Whether the cursor is visible.
     pub cursor_visible: bool,
 
     /// Pointer constraints to lock/confine pointer.
@@ -83,7 +83,7 @@ pub struct WindowState {
     /// Queue handle.
     pub queue_handle: QueueHandle<WinitState>,
 
-    /// Theme varaint.
+    /// Theme variant.
     theme: Option<Theme>,
 
     /// The current window title.
@@ -218,7 +218,7 @@ impl WindowState {
     }
 
     /// Apply closure on the given pointer.
-    fn apply_on_poiner<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
+    fn apply_on_pointer<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
         &self,
         callback: F,
     ) {
@@ -402,7 +402,7 @@ impl WindowState {
         let xdg_toplevel = self.window.xdg_toplevel();
 
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             xdg_toplevel.resize(seat, serial, direction.into());
@@ -415,7 +415,7 @@ impl WindowState {
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let xdg_toplevel = self.window.xdg_toplevel();
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             xdg_toplevel._move(seat, serial);
@@ -710,7 +710,7 @@ impl WindowState {
             return;
         }
 
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
@@ -745,7 +745,7 @@ impl WindowState {
     }
 
     fn apply_custom_cursor(&self, cursor: &CustomCursor) {
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             let surface = pointer.surface();
 
             let scale = surface
@@ -850,21 +850,21 @@ impl WindowState {
 
         match old_mode {
             CursorGrabMode::None => (),
-            CursorGrabMode::Confined => self.apply_on_poiner(|_, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|_, data| {
                 data.unconfine_pointer();
             }),
             CursorGrabMode::Locked => {
-                self.apply_on_poiner(|_, data| data.unlock_pointer());
+                self.apply_on_pointer(|_, data| data.unlock_pointer());
             }
         }
 
         let surface = self.window.wl_surface();
         match mode {
-            CursorGrabMode::Locked => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Locked => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
-            CursorGrabMode::Confined => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
@@ -878,7 +878,7 @@ impl WindowState {
 
     pub fn show_window_menu(&self, position: LogicalPosition<u32>) {
         // TODO(kchibisov) handle touch serials.
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             let serial = data.latest_button_serial();
             let seat = data.seat();
             self.window.show_window_menu(seat, serial, position.into());
@@ -891,7 +891,7 @@ impl WindowState {
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        // Positon can be set only for locked cursor.
+        // Position can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
             return Err(ExternalError::Os(os_error!(
                 crate::platform_impl::OsError::Misc(
@@ -900,7 +900,7 @@ impl WindowState {
             )));
         }
 
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             data.set_locked_cursor_position(position.x, position.y);
         });
 
@@ -1055,7 +1055,7 @@ impl WindowState {
 
     /// Set the window title to a new value.
     ///
-    /// This will autmatically truncate the title to something meaningfull.
+    /// This will automatically truncate the title to something meaningful.
     pub fn set_title(&mut self, mut title: String) {
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
@@ -1147,7 +1147,7 @@ impl GrabState {
 /// The state of the frame callback.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameCallbackState {
-    /// No frame callback was requsted.
+    /// No frame callback was requested.
     #[default]
     None,
     /// The frame callback was requested, but not yet arrived, the redraw events are throttled.

@@ -300,12 +300,12 @@ declare_class!(
         /// Invoked when fail to enter fullscreen
         ///
         /// When this window launch from a fullscreen app (e.g. launch from VS Code
-        /// terminal), it creates a new virtual destkop and a transition animation.
+        /// terminal), it creates a new virtual desktop and a transition animation.
         /// This animation takes one second and cannot be disable without
         /// elevated privileges. In this animation time, all toggleFullscreen events
         /// will be failed. In this implementation, we will try again by using
         /// performSelector:withObject:afterDelay: until window_did_enter_fullscreen.
-        /// It should be fine as we only do this at initialzation (i.e with_fullscreen
+        /// It should be fine as we only do this at initialization (i.e with_fullscreen
         /// was set).
         ///
         /// From Apple doc:
@@ -1128,7 +1128,7 @@ impl WindowDelegate {
 
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
-        // we make it resizable temporalily.
+        // we make it resizable temporarily.
         let curr_mask = self.window().styleMask();
 
         let required = NSWindowStyleMaskTitled | NSWindowStyleMaskResizable;

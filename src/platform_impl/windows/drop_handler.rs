@@ -214,10 +214,10 @@ impl FileDropHandler {
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
-            debug!("Error occured while processing dropped/hovered item: item is not a file.");
+            debug!("Error occurred while processing dropped/hovered item: item is not a file.");
             None
         } else {
-            debug!("Unexpected error occured while processing dropped/hovered item.");
+            debug!("Unexpected error occurred while processing dropped/hovered item.");
             None
         }
     }

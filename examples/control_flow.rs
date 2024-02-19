@@ -70,7 +70,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key.as_ref() {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character("1") => {
                         mode = Mode::Wait;
