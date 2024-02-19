@@ -4,7 +4,6 @@ use crate::keyboard::{Key, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
 
 use smol_str::SmolStr;
 use std::cell::OnceCell;
-use std::convert::TryInto;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{KeyboardEvent, MouseEvent, PointerEvent, WheelEvent};

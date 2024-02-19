@@ -1,7 +1,5 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::convert::TryInto;
-
 use icrate::Foundation::{NSInteger, NSUInteger};
 use objc2::encode::{Encode, Encoding};
 
