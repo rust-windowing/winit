@@ -60,19 +60,34 @@ impl Dispatch<ZwpRelativePointerV1, GlobalData, WinitState> for RelativePointerS
         _conn: &Connection,
         _qhandle: &QueueHandle<WinitState>,
     ) {
-        if let zwp_relative_pointer_v1::Event::RelativeMotion {
-            dx_unaccel,
-            dy_unaccel,
-            ..
-        } = event
-        {
-            state.events_sink.push_device_event(
-                DeviceEvent::MouseMotion {
-                    delta: (dx_unaccel, dy_unaccel),
-                },
-                super::DeviceId,
-            );
-        }
+        let (dx_unaccel, dy_unaccel) = match event {
+            zwp_relative_pointer_v1::Event::RelativeMotion {
+                dx_unaccel,
+                dy_unaccel,
+                ..
+            } => (dx_unaccel, dy_unaccel),
+            _ => return,
+        };
+        state.events_sink.push_device_event(
+            DeviceEvent::Motion {
+                axis: 0,
+                value: dx_unaccel,
+            },
+            super::DeviceId,
+        );
+        state.events_sink.push_device_event(
+            DeviceEvent::Motion {
+                axis: 1,
+                value: dy_unaccel,
+            },
+            super::DeviceId,
+        );
+        state.events_sink.push_device_event(
+            DeviceEvent::MouseMotion {
+                delta: (dx_unaccel, dy_unaccel),
+            },
+            super::DeviceId,
+        );
     }
 }
 
