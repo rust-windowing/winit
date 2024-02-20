@@ -57,8 +57,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// ## Platform-specific
 ///
-/// **Web:** The [`Window`], which is represented by a `HTMLElementCanvas`, can
-/// not be closed by dropping the [`Window`].
+/// - **Web:** The window is represented by a `HTMLElementCanvas`, and cannot
+///   currently be closed by dropping the [`Window`].
+/// - **Android:** Each window is spawned inside its own process, and as such
+///   Winit does not support multiple windows on Android. Create a new
+///   activity instead.
 pub struct Window {
     pub(crate) window: platform_impl::Window,
 }
