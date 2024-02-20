@@ -36,6 +36,7 @@ fn main() -> Result<(), impl std::error::Error> {
 
         let child = builder.build(event_loop).unwrap();
         let child_id = child.id();
+        println!("child ID: {child_id:?}");
 
         children.insert(child_id, child);
     }

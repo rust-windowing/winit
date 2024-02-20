@@ -1268,13 +1268,21 @@ impl WindowState {
         }
     }
 
-    /// Set
+    /// Set the window's position, if it can be set.
     #[inline]
     pub fn set_position(&mut self, pos: PhysicalPosition<i32>) {
         if let SurfaceRoleState::Subsurface { window } = &self.surface_role {
             window.set_position(pos);
         } else {
             warn!("Only subsurfaces can set their (parent-relative) position")
+        }
+    }
+
+    /// Returns true if the window is a subsurface.
+    pub fn is_subsurface(&self) -> bool {
+        match &self.surface_role {
+            SurfaceRoleState::Subsurface { .. } => true,
+            SurfaceRoleState::Toplevel { .. } => false,
         }
     }
 }

@@ -44,22 +44,54 @@ impl PointerHandler for WinitState {
 
         let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
 
-        for event in events {
+        'processing_events: for event in events {
             let surface = &event.surface;
 
             // The parent surface.
             let parent_surface = match event.surface.data::<SurfaceData>() {
-                Some(data) => data.parent_surface().unwrap_or(surface),
+                Some(data) => data.parent_surface(),
                 None => continue,
             };
 
-            let window_id = wayland::make_wid(parent_surface);
+            // Determine which window to direct the events to, and also whether
+            // the event came from a decoration frame.
+            let (mut window, window_id, is_decoration) = {
+                let surface_wid = wayland::make_wid(surface);
+                match parent_surface {
+                    Some(parent_surface) => 'found_surface: {
+                        // If the current window is a registered subsurface, then use it.
+                        if let Some(window_mutex) = self.windows.get_mut().get_mut(&surface_wid) {
+                            let window = window_mutex.lock().unwrap();
+                            if window.is_subsurface() {
+                                break 'found_surface (window, surface_wid, false);
+                            }
+                        }
+
+                        // If the current window's parent is a registered surface, it is likely a
+                        // decoration frame provided by SCTK.
+                        let parent_wid = wayland::make_wid(parent_surface);
+                        if let Some(window_mutex) = self.windows.get_mut().get_mut(&parent_wid) {
+                            let window = window_mutex.lock().unwrap();
+                            break 'found_surface (window, parent_wid, true);
+                        }
+
+                        continue 'processing_events;
+                    }
+                    // Toplevel windows can easily handle themselves.
+                    None => match self.windows.get_mut().get_mut(&surface_wid) {
+                        Some(window) => (window.lock().unwrap(), surface_wid, false),
+                        None => continue 'processing_events,
+                    },
+                }
+            };
+
+            // let window_id = wayland::make_wid(parent_surface);
 
             // Ensure that window exists.
-            let mut window = match self.windows.get_mut().get_mut(&window_id) {
-                Some(window) => window.lock().unwrap(),
-                None => continue,
-            };
+            // let mut window = match self.windows.get_mut().get_mut(&window_id) {
+            //     Some(window) => window.lock().unwrap(),
+            //     None => continue,
+            // };
 
             let scale_factor = window.scale_factor();
             let position: PhysicalPosition<f64> =
@@ -68,7 +100,7 @@ impl PointerHandler for WinitState {
             match event.kind {
                 // Pointer movements on decorations.
                 PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. }
-                    if parent_surface != surface =>
+                    if is_decoration =>
                 {
                     if let Some(icon) = window.frame_point_moved(
                         seat,
@@ -82,7 +114,7 @@ impl PointerHandler for WinitState {
                         }
                     }
                 }
-                PointerEventKind::Leave { .. } if parent_surface != surface => {
+                PointerEventKind::Leave { .. } if is_decoration => {
                     window.frame_point_left();
                 }
                 ref kind @ PointerEventKind::Press {
@@ -94,7 +126,7 @@ impl PointerHandler for WinitState {
                     button,
                     serial,
                     time,
-                } if parent_surface != surface => {
+                } if is_decoration => {
                     let click = match wayland_button_to_winit(button) {
                         MouseButton::Left => FrameClick::Normal,
                         MouseButton::Right => FrameClick::Alternate,

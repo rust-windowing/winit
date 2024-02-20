@@ -108,7 +108,6 @@ impl Window {
 
         let monitors = state.monitors.clone();
 
-        let surface = state.compositor_state.create_surface(&queue_handle);
         let compositor = state.compositor_state.clone();
         let xdg_activation = state
             .xdg_activation
@@ -128,44 +127,46 @@ impl Window {
             WindowDecorations::RequestClient
         };
 
-        // if let Some(parent_window) = attributes.parent_window() {
-        //     match parent_window {
-        //         rwh_06::RawWindowHandle::Wayland(_) => {
-
-        //         },
-        //         _ => panic!("Parent window of a Wayland window must be a Wayland window"),
-        //     }
-        // }
-        let (window, mut window_state) = match attributes.parent_window() {
-            Some(rwh_06::RawWindowHandle::Wayland(wl_handle)) => unsafe {
-                let parent_surface = WlSurface::from_id(
-                    &event_loop_window_target.connection,
-                    ObjectId::from_ptr(
-                        WlSurface::interface(),
-                        wl_handle.surface.as_ptr() as *mut wayland_sys::client::wl_proxy,
+        // Subsurfaces have very different behaviour from toplevels. We handle that here.
+        let (surface, window, mut window_state) = match attributes.parent_window() {
+            Some(rwh_06::RawWindowHandle::Wayland(wl_handle)) => {
+                // wayland-rs has lots of layers involved in converting *mut wl_proxy to an actual object.
+                // This would be a single pointer cast in C.
+                let parent_surface = unsafe {
+                    WlSurface::from_id(
+                        &event_loop_window_target.connection,
+                        ObjectId::from_ptr(
+                            WlSurface::interface(),
+                            wl_handle.surface.as_ptr() as *mut wayland_sys::client::wl_proxy,
+                        )
+                        .expect("Invalid parent surface handle!"),
                     )
-                    .expect("Invalid parent surface handle!"),
-                )
-                .expect("Invalid parent surface handle!");
+                    .expect("Invalid parent surface handle!")
+                };
 
-                let window = WindowRole::Subsurface(Subsurface::from_parent(
+                let subsurface = Subsurface::from_parent(
                     &parent_surface,
                     state.subcompositor_state.as_ref().unwrap(),
                     &queue_handle,
-                ));
+                );
+
+                let surface = subsurface.wl_surface().clone();
+                let window_role = WindowRole::Subsurface(subsurface);
 
                 let window_state = WindowState::new(
                     event_loop_window_target.connection.clone(),
                     &event_loop_window_target.queue_handle,
                     &state,
                     size,
-                    window.clone(),
+                    window_role.clone(),
                     attributes.preferred_theme,
                 );
 
-                (window, window_state)
-            },
+                (surface, window_role, window_state)
+            }
             None => {
+                let surface = state.compositor_state.create_surface(&queue_handle);
+
                 let window = WindowRole::Toplevel(state.xdg_shell.create_window(
                     surface.clone(),
                     default_decorations,
@@ -181,7 +182,7 @@ impl Window {
                     attributes.preferred_theme,
                 );
 
-                (window, window_state)
+                (surface, window, window_state)
             }
             _ => panic!("Parent window of a Wayland surface must be a Wayland surface"),
         };
