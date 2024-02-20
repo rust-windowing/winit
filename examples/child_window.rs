@@ -18,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
         dpi::{LogicalPosition, LogicalSize},
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{EventLoop, EventLoopWindowTarget},
-        keyboard::{KeyCode, PhysicalKey},
+        keyboard::{Key, NamedKey},
         window::{Window, WindowId},
     };
 
@@ -32,6 +32,8 @@ fn main() -> Result<(), impl std::error::Error> {
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
             .with_visible(true);
 
+        // Adding a parent window handle is inherently unsafe, as it is the programmer's
+        // responsibility to ensure that the parent handle is valid.
         builder = unsafe { builder.with_parent_window(parent.raw_window_handle().ok()) };
 
         let child = builder.build(event_loop).unwrap();
@@ -70,7 +72,7 @@ fn main() -> Result<(), impl std::error::Error> {
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
-                            physical_key: PhysicalKey::Code(KeyCode::Enter),
+                            logical_key: Key::Named(NamedKey::Enter),
                             state: ElementState::Pressed,
                             ..
                         },

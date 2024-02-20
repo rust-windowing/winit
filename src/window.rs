@@ -523,7 +523,11 @@ impl WindowBuilder {
     /// to the client area of its parent window. For more information, see
     /// <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     /// - **X11**: A child window is confined to the client area of its parent window.
-    /// - **Android / iOS / Wayland / Web:** Unsupported.
+    /// - **Wayland**: A child window (or in Wayland speak, "subsurface") is *not* confined
+    /// to the client area of its parent window. In addition, it must be created on the same
+    /// event loop as its parent. For more information, see
+    /// <https://wayland.app/protocols/wayland#wl_subsurface>
+    /// - **Android / iOS / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
     #[inline]
     pub unsafe fn with_parent_window(

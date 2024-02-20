@@ -129,6 +129,7 @@ impl Window {
 
         // Subsurfaces have very different behaviour from toplevels. We handle that here.
         let (surface, window, mut window_state) = match attributes.parent_window() {
+            #[cfg(feature = "rwh_06")]
             Some(rwh_06::RawWindowHandle::Wayland(wl_handle)) => {
                 // wayland-rs has lots of layers involved in converting *mut wl_proxy to an actual object.
                 // This would be a single pointer cast in C.
@@ -164,7 +165,7 @@ impl Window {
 
                 (surface, window_role, window_state)
             }
-            None => {
+            _ => {
                 let surface = state.compositor_state.create_surface(&queue_handle);
 
                 let window = WindowRole::Toplevel(state.xdg_shell.create_window(
