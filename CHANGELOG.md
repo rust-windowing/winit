@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On Wayland, fixed DeviceEvent::Motion behaviour
 - On X11, don't require XIM to run.
 - On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
 - Fix compatibility with 32-bit platforms without 64-bit atomics.
