@@ -128,8 +128,8 @@ impl Window {
         };
 
         // Subsurfaces have very different behaviour from toplevels. We handle that here.
+        #[cfg(feature = "rwh_06")]
         let (surface, window, mut window_state) = match attributes.parent_window() {
-            #[cfg(feature = "rwh_06")]
             Some(rwh_06::RawWindowHandle::Wayland(wl_handle)) => {
                 // wayland-rs has lots of layers involved in converting *mut wl_proxy to an actual object.
                 // This would be a single pointer cast in C.
@@ -165,7 +165,7 @@ impl Window {
 
                 (surface, window_role, window_state)
             }
-            _ => {
+            None => {
                 let surface = state.compositor_state.create_surface(&queue_handle);
 
                 let window = WindowRole::Toplevel(state.xdg_shell.create_window(
@@ -186,6 +186,28 @@ impl Window {
                 (surface, window, window_state)
             }
             _ => panic!("Parent window of a Wayland surface must be a Wayland surface"),
+        };
+        // Revert to old behaviour if rwh_06 isn't supported.
+        #[cfg(not(feature = "rwh_06"))]
+        let (surface, window, mut window_state) = {
+            let surface = state.compositor_state.create_surface(&queue_handle);
+
+            let window = WindowRole::Toplevel(state.xdg_shell.create_window(
+                surface.clone(),
+                default_decorations,
+                &queue_handle,
+            ));
+
+            let window_state = WindowState::new(
+                event_loop_window_target.connection.clone(),
+                &event_loop_window_target.queue_handle,
+                &state,
+                size,
+                window.clone(),
+                attributes.preferred_theme,
+            );
+
+            (surface, window, window_state)
         };
 
         // Set transparency hint.

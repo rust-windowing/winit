@@ -72,6 +72,7 @@ Unreleased` header.
 - On Orbital, implement `set_window_level`.
 - On Orbital, emit `DeviceEvent::MouseMotion`.
 - On Wayland, fix title in CSD not updated from `AboutToWait`.
+- Implemented `WindowBuilder::with_parent_window` for Wayland. 
 
 # 0.29.10
 
