@@ -979,11 +979,13 @@ impl EventProcessor {
         F: FnMut(&RootELW, Event<T>),
     {
         let wt = Self::window_target(&self.target);
-        let window_id = mkwid(event.event as xproto::Window);
-        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
+
+        let window_id = mkwid(event.event as xproto::Window);
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
@@ -1053,9 +1055,10 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
 
-        let device_id = mkdid(event.sourceid as xinput::DeviceId);
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
         let new_cursor_pos = (event.event_x, event.event_y);
 
         let cursor_moved = self.with_window(window, |window| {
@@ -1146,6 +1149,7 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into()) {
@@ -1411,6 +1415,7 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(xev.sourceid as xinput::DeviceId);
 
         let mask =
@@ -1423,7 +1428,7 @@ impl EventProcessor {
                 continue;
             }
             let x = unsafe { *value };
-
+   
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
             match i {
@@ -1434,14 +1439,16 @@ impl EventProcessor {
                 _ => {}
             }
 
-            let event = Event::DeviceEvent {
-                device_id,
-                event: DeviceEvent::Motion {
-                    axis: i as u32,
-                    value: x,
-                },
-            };
-            callback(&self.target, event);
+            if x != 0.0 {
+                let event = Event::DeviceEvent {
+                    device_id,
+                    event: DeviceEvent::Motion {
+                        axis: i as u32,
+                        value: x,
+                    },
+                };
+                callback(&self.target, event);
+            }
 
             value = unsafe { value.offset(1) };
         }
@@ -1478,7 +1485,9 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(xev.sourceid as xinput::DeviceId);
+
         let keycode = xev.detail as u32;
         if keycode < KEYCODE_OFFSET as u32 {
             return;
