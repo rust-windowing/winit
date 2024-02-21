@@ -117,10 +117,10 @@ declare_class!(
         }
 
         #[method(applicationShouldHandleReopen:hasVisibleWindows:)]
-        fn should_handle_reopen(&self, _sender: &Option<&AnyObject>, has_visible_windows: bool) -> bool {
+        fn should_handle_reopen(&self, _sender: &Option<&AnyObject>, _has_visible_windows: bool) -> bool {
             trace_scope!("applicationShouldHandleReopen:hasVisibleWindows:");
 
-            self.handle_event(Event::Reopen{ has_visible_windows });
+            self.handle_event(Event::Reopen);
             // return true to preserve the default behavior, such as showing the minimized window.
             true
         }

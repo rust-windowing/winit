@@ -1,5 +1,5 @@
-#![allow(clippy::single_match)]
-
+// TODO: merge examples
+// https://github.com/rust-windowing/winit/pull/3447
 use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
@@ -47,14 +47,10 @@ fn main() -> Result<(), impl std::error::Error> {
                 }
                 _ => (),
             }
-        } else if let Event::Reopen {
-            has_visible_windows,
-        } = event
-        {
-            println!("Reopen event: has_visible_windows={}", has_visible_windows);
+        } else if let Event::Reopen = event {
             // If there are no visible windows, open a new one.
-            if !has_visible_windows {
-                new_window(elwt, &mut windows);
+            if windows.is_empty() {
+                new_window(elwt, &mut windows)
             }
         }
     })

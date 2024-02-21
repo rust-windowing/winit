@@ -270,7 +270,7 @@ pub enum Event<T: 'static> {
     /// ### Others
     ///
     /// - **Android / iOS / Web / Wayland / Windows / Orbital:** Unsupported.
-    Reopen { has_visible_windows: bool },
+    Reopen,
 }
 
 impl<T> Event<T> {
@@ -287,11 +287,7 @@ impl<T> Event<T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
-            Reopen {
-                has_visible_windows,
-            } => Ok(Reopen {
-                has_visible_windows,
-            }),
+            Reopen => Ok(Reopen),
         }
     }
 }
