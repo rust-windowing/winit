@@ -214,7 +214,7 @@ impl Shared {
 
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
-    // over a RootEventLoopWindowTarget reference
+    // over a RootActiveEventLoop reference
     pub fn set_listener(&self, event_handler: Box<EventHandler>) {
         {
             let mut runner = self.0.runner.borrow_mut();
@@ -735,7 +735,7 @@ impl Shared {
         // * `self`, i.e. the item which triggered this event loop wakeup, which
         //   is usually a `wasm-bindgen` `Closure`, which will be dropped after
         //   returning to the JS glue code.
-        // * The `EventLoopWindowTarget` leaked inside `EventLoop::run` due to the
+        // * The `ActiveEventLoop` leaked inside `EventLoop::run` due to the
         //   JS exception thrown at the end.
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.

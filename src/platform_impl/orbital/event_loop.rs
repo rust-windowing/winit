@@ -22,7 +22,7 @@ use crate::{
         Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey,
         NativeKeyCode, PhysicalKey,
     },
-    window::WindowId as RootWindowId,
+    window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowId as RootWindowId},
 };
 
 use super::{
@@ -308,7 +308,7 @@ impl EventState {
 
 pub struct EventLoop<T> {
     windows: Vec<(Arc<RedoxSocket>, EventState)>,
-    window_target: event_loop::EventLoopWindowTarget,
+    window_target: event_loop::ActiveEventLoop,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
 }
@@ -340,8 +340,8 @@ impl<T: 'static> EventLoop<T> {
 
         Ok(Self {
             windows: Vec::new(),
-            window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
+            window_target: event_loop::ActiveEventLoop {
+                p: ActiveEventLoop {
                     control_flow: Cell::new(ControlFlow::default()),
                     exit: Cell::new(false),
                     creates: Mutex::new(VecDeque::new()),
@@ -544,10 +544,10 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, mut event_handler_inner: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
         let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::EventLoopWindowTarget| {
+            move |event: event::Event<T>, window_target: &event_loop::ActiveEventLoop| {
                 event_handler_inner(event, window_target);
             };
 
@@ -754,7 +754,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(())
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
         &self.window_target
     }
 
@@ -794,7 +794,7 @@ impl<T> Clone for EventLoopProxy<T> {
 
 impl<T> Unpin for EventLoopProxy<T> {}
 
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     pub(super) creates: Mutex<VecDeque<Arc<RedoxSocket>>>,
@@ -804,7 +804,14 @@ pub struct EventLoopWindowTarget {
     pub(super) wake_socket: Arc<TimeSocket>,
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
+        let _ = source.inner;
+        RootCustomCursor {
+            inner: super::PlatformCustomCursor,
+        }
+    }
+
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle)
     }

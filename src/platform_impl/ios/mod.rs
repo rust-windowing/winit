@@ -72,14 +72,14 @@ use crate::event::DeviceId as RootDeviceId;
 
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
         PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
-    window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
+    window::{PlatformSpecificWindowAttributes, Window, WindowId},
 };
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

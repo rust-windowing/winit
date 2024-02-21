@@ -28,16 +28,16 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use super::{ControlFlow, OsError};
-use crate::{
-    error::{EventLoopError, OsError as RootOsError},
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{DeviceEvents, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    platform::pump_events::PumpStatus,
-    platform_impl::common::xkb::Context,
-    platform_impl::platform::{min_timeout, WindowId},
-    window::WindowAttributes,
+use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
+use crate::platform::pump_events::PumpStatus;
+use crate::platform_impl::common::xkb::Context;
+use crate::platform_impl::platform::{min_timeout, WindowId};
+use crate::platform_impl::{
+    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
 };
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
 
 mod activation;
 mod atoms;
@@ -126,7 +126,7 @@ impl<T> PeekableReceiver<T> {
     }
 }
 
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: xproto::Atom,
     net_wm_ping: xproto::Atom,
@@ -285,7 +285,7 @@ impl<T: 'static> EventLoop<T> {
         let xkb_context =
             Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
-        let window_target = EventLoopWindowTarget {
+        let window_target = ActiveEventLoop {
             ime,
             root,
             control_flow: Cell::new(ControlFlow::default()),
@@ -309,8 +309,8 @@ impl<T: 'static> EventLoop<T> {
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let root_window_target = RootELW {
-            p: super::EventLoopWindowTarget::X(window_target),
+        let root_window_target = RootAEL {
+            p: PlatformActiveEventLoop::X(window_target),
             _marker: PhantomData,
         };
 
@@ -379,13 +379,13 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub(crate) fn window_target(&self) -> &RootELW {
+    pub(crate) fn window_target(&self) -> &RootAEL {
         &self.event_processor.target
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         let exit = loop {
             match self.pump_events(None, &mut event_handler) {
@@ -415,7 +415,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -448,7 +448,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         let start = Instant::now();
 
@@ -526,7 +526,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         callback(Event::NewEvents(cause), &self.event_processor.target);
 
@@ -600,7 +600,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn drain_events<F>(&mut self, callback: &mut F)
     where
-        F: FnMut(Event<T>, &RootELW),
+        F: FnMut(Event<T>, &RootAEL),
     {
         let mut xev = MaybeUninit::uninit();
 
@@ -655,7 +655,7 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     /// Returns the `XConnection` of this events loop.
     #[inline]
     pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
@@ -668,6 +668,12 @@ impl EventLoopWindowTarget {
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.xconn.primary_monitor().ok()
+    }
+
+    pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: PlatformCustomCursor::X(CustomCursor::new(self, cursor.inner)),
+        }
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
@@ -815,7 +821,7 @@ impl Deref for Window {
 
 impl Window {
     pub(crate) fn new(
-        event_loop: &EventLoopWindowTarget,
+        event_loop: &ActiveEventLoop,
         attribs: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);

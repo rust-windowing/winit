@@ -44,7 +44,7 @@ use crate::window::{
 };
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
@@ -58,7 +58,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub option_as_alt: OptionAsAlt,
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     #[inline]
     fn default() -> Self {
         Self {
@@ -104,7 +104,7 @@ pub(crate) struct State {
     /// bar in exclusive fullscreen but want to restore the original options when
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Cell<Option<NSApplicationPresentationOptions>>,
-    // This is set when WindowBuilder::with_fullscreen was set,
+    // This is set when WindowAttributes::with_fullscreen was set,
     // see comments of `window_did_fail_to_enter_fullscreen`
     initial_fullscreen: Cell<bool>,
     /// This field tracks the current fullscreen state of the window
@@ -1492,7 +1492,7 @@ impl WindowDelegate {
         // only be used when the window is in some way representing a specific
         // file/directory. For instance, Terminal.app uses this for the CWD.
         // Anyway, that should eventually be implemented as
-        // `WindowBuilderExt::with_represented_file` or something, and doesn't
+        // `WindowAttributesExt::with_represented_file` or something, and doesn't
         // have anything to do with `set_window_icon`.
         // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
     }

@@ -3,7 +3,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::EventLoopWindowTarget as RootEventLoopWindowTarget;
+use crate::event_loop::ActiveEventLoop as RootActiveEventLoop;
 
 use super::{backend, device, window};
 
@@ -13,10 +13,10 @@ mod state;
 mod window_target;
 
 pub(crate) use proxy::EventLoopProxy;
-pub(crate) use window_target::{EventLoopWindowTarget, OwnedDisplayHandle};
+pub(crate) use window_target::{ActiveEventLoop, OwnedDisplayHandle};
 
 pub struct EventLoop<T: 'static> {
-    elw: RootEventLoopWindowTarget,
+    elw: RootActiveEventLoop,
     user_event_sender: Sender<T>,
     user_event_receiver: Receiver<T>,
 }
@@ -27,8 +27,8 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 impl<T> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let (user_event_sender, user_event_receiver) = mpsc::channel();
-        let elw = RootEventLoopWindowTarget {
-            p: EventLoopWindowTarget::new(),
+        let elw = RootActiveEventLoop {
+            p: ActiveEventLoop::new(),
             _marker: PhantomData,
         };
         Ok(EventLoop {
@@ -40,9 +40,9 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: FnMut(Event<T>, &RootActiveEventLoop),
     {
-        let target = RootEventLoopWindowTarget {
+        let target = RootActiveEventLoop {
             p: self.elw.p.clone(),
             _marker: PhantomData,
         };
@@ -77,9 +77,9 @@ impl<T> EventLoop<T> {
 
     pub fn spawn<F>(self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget),
+        F: 'static + FnMut(Event<T>, &RootActiveEventLoop),
     {
-        let target = RootEventLoopWindowTarget {
+        let target = RootActiveEventLoop {
             p: self.elw.p.clone(),
             _marker: PhantomData,
         };
@@ -105,7 +105,7 @@ impl<T> EventLoop<T> {
         EventLoopProxy::new(self.elw.p.waker(), self.user_event_sender.clone())
     }
 
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget {
+    pub fn window_target(&self) -> &RootActiveEventLoop {
         &self.elw
     }
 }

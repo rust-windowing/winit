@@ -8,7 +8,6 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 use std::marker::PhantomData;
-use std::ops::Deref;
 #[cfg(any(x11_platform, wayland_platform))]
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -19,7 +18,8 @@ use std::time::{Duration, Instant};
 #[cfg(web_platform)]
 use web_time::{Duration, Instant};
 
-use crate::error::EventLoopError;
+use crate::error::{EventLoopError, OsError};
+use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -45,11 +45,9 @@ pub struct EventLoop<T: 'static> {
 /// Target that associates windows with an [`EventLoop`].
 ///
 /// This type exists to allow you to create new windows while Winit executes
-/// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
-/// EventLoop<T>`), so functions that take this as a parameter can also take
-/// `&EventLoop`.
-pub struct EventLoopWindowTarget {
-    pub(crate) p: platform_impl::EventLoopWindowTarget,
+/// your callback.
+pub struct ActiveEventLoop {
+    pub(crate) p: platform_impl::ActiveEventLoop,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -135,13 +133,13 @@ impl<T> fmt::Debug for EventLoop<T> {
     }
 }
 
-impl fmt::Debug for EventLoopWindowTarget {
+impl fmt::Debug for ActiveEventLoop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("EventLoopWindowTarget { .. }")
+        f.pad("ActiveEventLoop { .. }")
     }
 }
 
-/// Set through [`EventLoopWindowTarget::set_control_flow()`].
+/// Set through [`ActiveEventLoop::set_control_flow()`].
 ///
 /// Indicates the desired behavior of the event loop after [`Event::AboutToWait`] is emitted.
 ///
@@ -241,14 +239,14 @@ impl<T> EventLoop<T> {
     ///
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
-    /// [`set_control_flow()`]: EventLoopWindowTarget::set_control_flow()
+    /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
     /// [`run()`]: Self::run()
     /// [^1]: `EventLoopExtWebSys::spawn()` is only available on Web.
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<T>, &EventLoopWindowTarget),
+        F: FnMut(Event<T>, &ActiveEventLoop),
     {
         self.event_loop.run(event_handler)
     }
@@ -260,12 +258,61 @@ impl<T> EventLoop<T> {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
+
+    /// Gets a persistent reference to the underlying platform display.
+    ///
+    /// See the [`OwnedDisplayHandle`] type for more information.
+    pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle {
+            platform: self.event_loop.window_target().p.owned_display_handle(),
+        }
+    }
+
+    /// Change if or when [`DeviceEvent`]s are captured.
+    ///
+    /// See [`ActiveEventLoop::listen_device_events`] for details.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        self.event_loop
+            .window_target()
+            .p
+            .listen_device_events(allowed);
+    }
+
+    /// Sets the [`ControlFlow`].
+    pub fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.event_loop
+            .window_target()
+            .p
+            .set_control_flow(control_flow)
+    }
+
+    /// Create a window.
+    ///
+    /// Creating window without event loop running often leads to improper window creation;
+    /// use [`ActiveEventLoop::create_window`] instead.
+    #[deprecated = "use `ActiveEventLoop::create_window` instead"]
+    #[inline]
+    pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let window =
+            platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
+        Ok(Window { window })
+    }
+
+    /// Create custom cursor.
+    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+        self.event_loop
+            .window_target()
+            .p
+            .create_custom_cursor(custom_cursor)
+    }
 }
 
 #[cfg(feature = "rwh_06")]
 impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
-        rwh_06::HasDisplayHandle::display_handle(&**self)
+        rwh_06::HasDisplayHandle::display_handle(self.event_loop.window_target())
     }
 }
 
@@ -273,7 +320,7 @@ impl<T> rwh_06::HasDisplayHandle for EventLoop<T> {
 unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
-        rwh_05::HasRawDisplayHandle::raw_display_handle(&**self)
+        rwh_05::HasRawDisplayHandle::raw_display_handle(self.event_loop.window_target())
     }
 }
 
@@ -305,14 +352,26 @@ impl<T> AsRawFd for EventLoop<T> {
     }
 }
 
-impl<T> Deref for EventLoop<T> {
-    type Target = EventLoopWindowTarget;
-    fn deref(&self) -> &EventLoopWindowTarget {
-        self.event_loop.window_target()
+impl ActiveEventLoop {
+    /// Create the window.
+    ///
+    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
+    ///   see the web platform module for more information.
+    #[inline]
+    pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let window = platform_impl::Window::new(&self.p, window_attributes)?;
+        Ok(Window { window })
     }
-}
 
-impl EventLoopWindowTarget {
+    /// Create custom cursor.
+    pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+        self.p.create_custom_cursor(custom_cursor)
+    }
+
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
@@ -387,7 +446,7 @@ impl EventLoopWindowTarget {
 }
 
 #[cfg(feature = "rwh_06")]
-impl rwh_06::HasDisplayHandle for EventLoopWindowTarget {
+impl rwh_06::HasDisplayHandle for ActiveEventLoop {
     fn display_handle(&self) -> Result<rwh_06::DisplayHandle<'_>, rwh_06::HandleError> {
         let raw = self.p.raw_display_handle_rwh_06()?;
         // SAFETY: The display will never be deallocated while the event loop is alive.
@@ -396,7 +455,7 @@ impl rwh_06::HasDisplayHandle for EventLoopWindowTarget {
 }
 
 #[cfg(feature = "rwh_05")]
-unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
+unsafe impl rwh_05::HasRawDisplayHandle for ActiveEventLoop {
     /// Returns a [`rwh_05::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> rwh_05::RawDisplayHandle {
         self.p.raw_display_handle_rwh_05()
@@ -407,7 +466,7 @@ unsafe impl rwh_05::HasRawDisplayHandle for EventLoopWindowTarget {
 ///
 /// The purpose of this type is to provide a cheaply clonable handle to the underlying
 /// display handle. This is often used by graphics APIs to connect to the underlying APIs.
-/// It is difficult to keep a handle to the [`EventLoop`] type or the [`EventLoopWindowTarget`]
+/// It is difficult to keep a handle to the [`EventLoop`] type or the [`ActiveEventLoop`]
 /// type. In contrast, this type involves no lifetimes and can be persisted for as long as
 /// needed.
 ///

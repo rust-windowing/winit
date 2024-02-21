@@ -11,9 +11,7 @@ use crate::{
     keyboard::Key,
 };
 
-pub(crate) use self::event_loop::{
-    EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
-};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
 mod event_loop;
 
 pub use self::window::Window;
@@ -135,7 +133,7 @@ impl DeviceId {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowAttributes;
 
 struct WindowProperties<'a> {
     flags: &'a str,
@@ -201,7 +199,7 @@ impl Display for OsError {
 }
 
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

@@ -25,38 +25,40 @@ fn main() -> std::process::ExitCode {
     let mut event_loop = EventLoop::new().unwrap();
 
     SimpleLogger::new().init().unwrap();
-    let window = Window::builder()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
 
-    'main: loop {
+    let mut window = None;
+
+    loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_events(timeout, |event, elwt| {
+        let status = event_loop.pump_events(timeout, |event, event_loop| {
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{event:?}");
             }
 
             match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    window_id,
-                } if window_id == window.id() => elwt.exit(),
-                Event::AboutToWait => {
-                    window.request_redraw();
+                Event::Resumed => {
+                    let window_attributes =
+                        Window::default_attributes().with_title("A fantastic window!");
+                    window = Some(event_loop.create_window(window_attributes).unwrap());
                 }
-                Event::WindowEvent {
-                    event: WindowEvent::RedrawRequested,
-                    ..
-                } => {
-                    fill::fill_window(&window);
+                Event::WindowEvent { event, .. } => {
+                    let window = window.as_ref().unwrap();
+                    match event {
+                        WindowEvent::CloseRequested => event_loop.exit(),
+                        WindowEvent::RedrawRequested => fill::fill_window(window),
+                        _ => (),
+                    }
+                }
+                Event::AboutToWait => {
+                    window.as_ref().unwrap().request_redraw();
                 }
                 _ => (),
             }
         });
+
         if let PumpStatus::Exit(exit_code) = status {
-            break 'main ExitCode::from(exit_code as u8);
+            break ExitCode::from(exit_code as u8);
         }
 
         // Sleep for 1/60 second to simulate application work

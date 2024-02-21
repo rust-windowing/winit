@@ -29,7 +29,7 @@ use super::view::WinitUIWindow;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget},
+    event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow},
     window::WindowId as RootWindowId,
 };
 
@@ -50,8 +50,8 @@ pub(crate) struct HandlePendingUserEvents;
 
 pub(crate) struct EventLoopHandler {
     #[allow(clippy::type_complexity)]
-    pub(crate) handler: Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootEventLoopWindowTarget)>,
-    pub(crate) event_loop: RootEventLoopWindowTarget,
+    pub(crate) handler: Box<dyn FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop)>,
+    pub(crate) event_loop: RootActiveEventLoop,
 }
 
 impl fmt::Debug for EventLoopHandler {

@@ -19,18 +19,18 @@ use std::fmt;
 pub(crate) use self::{
     event::{physicalkey_to_scancode, scancode_to_physicalkey, KeyEventExtra},
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
         PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoModeHandle},
     window::WindowId,
-    window_delegate::PlatformSpecificWindowBuilderAttributes,
+    window_delegate::PlatformSpecificWindowAttributes,
 };
 use crate::event::DeviceId as RootDeviceId;
 
 pub(crate) use self::cursor::CustomCursor as PlatformCustomCursor;
 pub(crate) use self::window::Window;
-pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
 

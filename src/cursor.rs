@@ -5,8 +5,7 @@ use std::{error::Error, hash::Hash};
 
 use cursor_icon::CursorIcon;
 
-use crate::event_loop::EventLoopWindowTarget;
-use crate::platform_impl::{self, PlatformCustomCursor, PlatformCustomCursorBuilder};
+use crate::platform_impl::{PlatformCustomCursor, PlatformCustomCursorSource};
 
 /// The maximum width and height for a cursor when using [`CustomCursor::from_rgba`].
 pub const MAX_CURSOR_SIZE: u16 = 2048;
@@ -49,31 +48,28 @@ impl From<CustomCursor> for Cursor {
 /// # Example
 ///
 /// ```no_run
-/// use winit::{
-///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
-///     window::{CustomCursor, Window},
-/// };
-///
-/// let mut event_loop = EventLoop::new().unwrap();
+/// # use winit::event_loop::ActiveEventLoop;
+/// # use winit::window::Window;
+/// # fn scope(event_loop: &ActiveEventLoop, window: &Window) {
+/// use winit::window::CustomCursor;
 ///
 /// let w = 10;
 /// let h = 10;
 /// let rgba = vec![255; (w * h * 4) as usize];
 ///
 /// #[cfg(not(target_family = "wasm"))]
-/// let builder = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
+/// let source = CustomCursor::from_rgba(rgba, w, h, w / 2, h / 2).unwrap();
 ///
 /// #[cfg(target_family = "wasm")]
-/// let builder = {
+/// let source = {
 ///     use winit::platform::web::CustomCursorExtWebSys;
 ///     CustomCursor::from_url(String::from("http://localhost:3000/cursor.png"), 0, 0)
 /// };
 ///
-/// let custom_cursor = builder.build(&event_loop);
+/// let custom_cursor = event_loop.create_custom_cursor(source);
 ///
-/// let window = Window::new(&event_loop).unwrap();
 /// window.set_cursor(custom_cursor.clone());
+/// # }
 /// ```
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CustomCursor {
@@ -91,9 +87,9 @@ impl CustomCursor {
         height: u16,
         hotspot_x: u16,
         hotspot_y: u16,
-    ) -> Result<CustomCursorBuilder, BadImage> {
-        Ok(CustomCursorBuilder {
-            inner: PlatformCustomCursorBuilder::from_rgba(
+    ) -> Result<CustomCursorSource, BadImage> {
+        Ok(CustomCursorSource {
+            inner: PlatformCustomCursorSource::from_rgba(
                 rgba.into(),
                 width,
                 height,
@@ -104,20 +100,12 @@ impl CustomCursor {
     }
 }
 
-/// Builds a [`CustomCursor`].
+/// Source for [`CustomCursor`].
 ///
 /// See [`CustomCursor`] for more details.
 #[derive(Debug)]
-pub struct CustomCursorBuilder {
-    pub(crate) inner: PlatformCustomCursorBuilder,
-}
-
-impl CustomCursorBuilder {
-    pub fn build(self, window_target: &EventLoopWindowTarget) -> CustomCursor {
-        CustomCursor {
-            inner: PlatformCustomCursor::build(self.inner, &window_target.p),
-        }
-    }
+pub struct CustomCursorSource {
+    pub(crate) inner: PlatformCustomCursorSource,
 }
 
 /// An error produced when using [`CustomCursor::from_rgba`] with invalid arguments.
@@ -178,12 +166,14 @@ impl fmt::Display for BadImage {
 
 impl Error for BadImage {}
 
-/// Platforms export this directly as `PlatformCustomCursorBuilder` if they need to only work with images.
+/// Platforms export this directly as `PlatformCustomCursorSource` if they need to only work with
+/// images.
+#[allow(dead_code)]
 #[derive(Debug)]
-pub(crate) struct OnlyCursorImageBuilder(pub(crate) CursorImage);
+pub(crate) struct OnlyCursorImageSource(pub(crate) CursorImage);
 
 #[allow(dead_code)]
-impl OnlyCursorImageBuilder {
+impl OnlyCursorImageSource {
     pub(crate) fn from_rgba(
         rgba: Vec<u8>,
         width: u16,
@@ -212,16 +202,6 @@ impl PartialEq for OnlyCursorImage {
 }
 
 impl Eq for OnlyCursorImage {}
-
-#[allow(dead_code)]
-impl OnlyCursorImage {
-    pub(crate) fn build(
-        builder: OnlyCursorImageBuilder,
-        _: &platform_impl::EventLoopWindowTarget,
-    ) -> Self {
-        Self(Arc::new(builder.0))
-    }
-}
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -296,9 +276,5 @@ impl NoCustomCursor {
     ) -> Result<Self, BadImage> {
         CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
         Ok(Self)
-    }
-
-    fn build(self, _: &platform_impl::EventLoopWindowTarget) -> NoCustomCursor {
-        self
     }
 }

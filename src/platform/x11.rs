@@ -2,9 +2,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 use crate::dpi::Size;
@@ -89,13 +89,13 @@ pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     }
 }
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to X11.
-pub trait EventLoopWindowTargetExtX11 {
-    /// True if the [`EventLoopWindowTarget`] uses X11.
+/// Additional methods on [`ActiveEventLoop`] that are specific to X11.
+pub trait ActiveEventLoopExtX11 {
+    /// True if the [`ActiveEventLoop`] uses X11.
     fn is_x11(&self) -> bool;
 }
 
-impl EventLoopWindowTargetExtX11 for EventLoopWindowTarget {
+impl ActiveEventLoopExtX11 for ActiveEventLoop {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.p.is_wayland()
@@ -133,8 +133,8 @@ pub trait WindowExtX11 {}
 
 impl WindowExtX11 for Window {}
 
-/// Additional methods on [`WindowBuilder`] that are specific to X11.
-pub trait WindowBuilderExtX11 {
+/// Additional methods on [`WindowAttributes`] that are specific to X11.
+pub trait WindowAttributesExtX11 {
     /// Create this window with a specific X11 visual.
     fn with_x11_visual(self, visual_id: XVisualID) -> Self;
 
@@ -160,12 +160,12 @@ pub trait WindowBuilderExtX11 {
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
     /// # use winit::window::Window;
-    /// # use winit::platform::x11::WindowBuilderExtX11;
+    /// # use winit::platform::x11::WindowAttributesExtX11;
     /// // Specify the size in logical dimensions like this:
-    /// Window::builder().with_base_size(LogicalSize::new(400.0, 200.0));
+    /// Window::default_attributes().with_base_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// Window::builder().with_base_size(PhysicalSize::new(400, 200));
+    /// Window::default_attributes().with_base_size(PhysicalSize::new(400, 200));
     /// ```
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
@@ -175,34 +175,33 @@ pub trait WindowBuilderExtX11 {
     ///
     /// ```no_run
     /// use winit::window::Window;
-    /// use winit::platform::x11::{XWindow, WindowBuilderExtX11};
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let event_loop = winit::event_loop::EventLoop::new().unwrap();
+    /// use winit::event_loop::ActiveEventLoop;
+    /// use winit::platform::x11::{XWindow, WindowAttributesExtX11};
+    /// # fn create_window(event_loop: &ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
     /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
-    /// let window = Window::builder()
-    ///     .with_embed_parent_window(parent_window_id)
-    ///     .build(&event_loop)?;
+    /// let window_attributes = Window::default_attributes().with_embed_parent_window(parent_window_id);
+    /// let window = event_loop.create_window(window_attributes)?;
     /// # Ok(()) }
     /// ```
     fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
 }
 
-impl WindowBuilderExtX11 for WindowBuilder {
+impl WindowAttributesExtX11 for WindowAttributes {
     #[inline]
     fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
-        self.window.platform_specific.x11.visual_id = Some(visual_id);
+        self.platform_specific.x11.visual_id = Some(visual_id);
         self
     }
 
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.window.platform_specific.x11.screen_id = Some(screen_id);
+        self.platform_specific.x11.screen_id = Some(screen_id);
         self
     }
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.window.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
             general.into(),
             instance.into(),
         ));
@@ -211,25 +210,25 @@ impl WindowBuilderExtX11 for WindowBuilder {
 
     #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
-        self.window.platform_specific.x11.override_redirect = override_redirect;
+        self.platform_specific.x11.override_redirect = override_redirect;
         self
     }
 
     #[inline]
     fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
-        self.window.platform_specific.x11.x11_window_types = x11_window_types;
+        self.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }
 
     #[inline]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
-        self.window.platform_specific.x11.base_size = Some(base_size.into());
+        self.platform_specific.x11.base_size = Some(base_size.into());
         self
     }
 
     #[inline]
     fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
-        self.window.platform_specific.x11.embed_window = Some(parent_window_id);
+        self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
     }
 }

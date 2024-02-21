@@ -5,7 +5,7 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    window::{BadIcon, Icon, Window, WindowAttributes},
 };
 
 /// Window Handle type used by Win32 API
@@ -198,7 +198,7 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
+    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must enable
     /// the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
@@ -296,11 +296,11 @@ impl WindowExtWindows for Window {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to Windows.
+/// Additional methods on `WindowAttributes` that are specific to Windows.
 #[allow(rustdoc::broken_intra_doc_links)]
-pub trait WindowBuilderExtWindows {
+pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
-    /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
+    /// This only works when [`WindowAttributes::with_parent_window`] isn't called or set to `None`.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
@@ -386,88 +386,88 @@ pub trait WindowBuilderExtWindows {
     fn with_corner_preference(self, corners: CornerPreference) -> Self;
 }
 
-impl WindowBuilderExtWindows for WindowBuilder {
+impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
     fn with_owner_window(mut self, parent: HWND) -> Self {
-        self.window.platform_specific.owner = Some(parent);
+        self.platform_specific.owner = Some(parent);
         self
     }
 
     #[inline]
     fn with_menu(mut self, menu: HMENU) -> Self {
-        self.window.platform_specific.menu = Some(menu);
+        self.platform_specific.menu = Some(menu);
         self
     }
 
     #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
-        self.window.platform_specific.taskbar_icon = taskbar_icon;
+        self.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
     #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
-        self.window.platform_specific.no_redirection_bitmap = flag;
+        self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> Self {
-        self.window.platform_specific.drag_and_drop = flag;
+        self.platform_specific.drag_and_drop = flag;
         self
     }
 
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> Self {
-        self.window.platform_specific.skip_taskbar = skip;
+        self.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
     fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
-        self.window.platform_specific.class_name = class_name.into();
+        self.platform_specific.class_name = class_name.into();
         self
     }
 
     #[inline]
     fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
-        self.window.platform_specific.decoration_shadow = shadow;
+        self.platform_specific.decoration_shadow = shadow;
         self
     }
 
     #[inline]
     fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
-        self.window.platform_specific.backdrop_type = backdrop_type;
+        self.platform_specific.backdrop_type = backdrop_type;
         self
     }
 
     #[inline]
     fn with_clip_children(mut self, flag: bool) -> Self {
-        self.window.platform_specific.clip_children = flag;
+        self.platform_specific.clip_children = flag;
         self
     }
 
     #[inline]
     fn with_border_color(mut self, color: Option<Color>) -> Self {
-        self.window.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
+        self.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
     #[inline]
     fn with_title_background_color(mut self, color: Option<Color>) -> Self {
-        self.window.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
+        self.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
         self
     }
 
     #[inline]
     fn with_title_text_color(mut self, color: Color) -> Self {
-        self.window.platform_specific.title_text_color = Some(color);
+        self.platform_specific.title_text_color = Some(color);
         self
     }
 
     #[inline]
     fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
-        self.window.platform_specific.corner_preference = Some(corners);
+        self.platform_specific.corner_preference = Some(corners);
         self
     }
 }

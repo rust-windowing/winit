@@ -18,11 +18,11 @@ fn window_sync() {
 
 #[test]
 fn window_builder_sync() {
-    needs_sync::<winit::window::WindowBuilder>();
+    needs_sync::<winit::window::WindowAttributes>();
 }
 
 #[test]
 fn custom_cursor_sync() {
-    needs_sync::<winit::window::CustomCursorBuilder>();
+    needs_sync::<winit::window::CustomCursorSource>();
     needs_sync::<winit::window::CustomCursor>();
 }

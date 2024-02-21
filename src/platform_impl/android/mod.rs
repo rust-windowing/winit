@@ -24,15 +24,20 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, Force, InnerSizeWriter, StartCause},
-    event_loop::{self, ControlFlow, DeviceEvents, EventLoopWindowTarget as RootELW},
+    event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents},
     platform::pump_events::PumpStatus,
     window::{
-        self, CursorGrabMode, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel,
+        self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme,
+        WindowButtons, WindowLevel,
     },
 };
 use crate::{error::EventLoopError, platform_impl::Fullscreen};
 
 mod keycodes;
+
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
 
@@ -141,7 +146,7 @@ pub struct KeyEventExtra {}
 
 pub struct EventLoop<T: 'static> {
     android_app: AndroidApp,
-    window_target: event_loop::EventLoopWindowTarget,
+    window_target: event_loop::ActiveEventLoop,
     redraw_flag: SharedFlag,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: PeekableReceiver<T>, //must wake looper whenever something gets sent
@@ -179,8 +184,8 @@ impl<T: 'static> EventLoop<T> {
 
         Ok(Self {
             android_app: android_app.clone(),
-            window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
+            window_target: event_loop::ActiveEventLoop {
+                p: ActiveEventLoop {
                     app: android_app.clone(),
                     control_flow: Cell::new(ControlFlow::default()),
                     exit: Cell::new(false),
@@ -205,7 +210,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn single_iteration<F>(&mut self, main_event: Option<MainEvent<'_>>, callback: &mut F)
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &RootAEL),
     {
         trace!("Mainloop iteration");
 
@@ -377,7 +382,7 @@ impl<T: 'static> EventLoop<T> {
         callback: &mut F,
     ) -> InputStatus
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &RootAEL),
     {
         let mut input_status = InputStatus::Handled;
         match event {
@@ -482,14 +487,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
         self.run_on_demand(event_handler)
     }
 
     pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget),
+        F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
         loop {
             match self.pump_events(None, &mut event_handler) {
@@ -508,7 +513,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &RootAEL),
     {
         if !self.loop_running {
             self.loop_running = true;
@@ -541,7 +546,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
     where
-        F: FnMut(event::Event<T>, &RootELW),
+        F: FnMut(event::Event<T>, &RootAEL),
     {
         let start = Instant::now();
 
@@ -617,7 +622,7 @@ impl<T: 'static> EventLoop<T> {
         });
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget {
+    pub fn window_target(&self) -> &event_loop::ActiveEventLoop {
         &self.window_target
     }
 
@@ -661,16 +666,23 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-pub struct EventLoopWindowTarget {
+pub struct ActiveEventLoop {
     app: AndroidApp,
     control_flow: Cell<ControlFlow>,
     exit: Cell<bool>,
     redraw_requester: RedrawRequester,
 }
 
-impl EventLoopWindowTarget {
+impl ActiveEventLoop {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle::new(self.app.clone()))
+    }
+
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
+        let _ = source.inner;
+        CustomCursor {
+            inner: PlatformCustomCursor,
+        }
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -773,7 +785,7 @@ impl DeviceId {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowAttributes;
 
 pub(crate) struct Window {
     app: AndroidApp,
@@ -782,7 +794,7 @@ pub(crate) struct Window {
 
 impl Window {
     pub(crate) fn new(
-        el: &EventLoopWindowTarget,
+        el: &ActiveEventLoop,
         _window_attrs: window::WindowAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
@@ -1053,10 +1065,6 @@ impl Display for OsError {
         write!(fmt, "Android OS Error")
     }
 }
-
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
-pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorBuilder;
-pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MonitorHandle {

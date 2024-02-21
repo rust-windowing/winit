@@ -8,7 +8,7 @@ use windows_sys::Win32::{
 
 pub(crate) use self::{
     event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, OwnedDisplayHandle,
+        ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
         PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
@@ -19,7 +19,7 @@ pub(crate) use self::{
 
 pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
 pub use self::icon::WinIcon as PlatformIcon;
-pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
+pub(crate) use crate::cursor::OnlyCursorImageSource as PlatformCustomCursorSource;
 use crate::platform_impl::Fullscreen;
 
 use crate::event::DeviceId as RootDeviceId;
@@ -28,7 +28,7 @@ use crate::keyboard::Key;
 use crate::platform::windows::{BackdropType, Color, CornerPreference};
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub owner: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
@@ -45,7 +45,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub corner_preference: Option<CornerPreference>,
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
         Self {
             owner: None,
@@ -66,8 +66,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     }
 }
 
-unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
-unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
+unsafe impl Send for PlatformSpecificWindowAttributes {}
+unsafe impl Sync for PlatformSpecificWindowAttributes {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);

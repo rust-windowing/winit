@@ -8,7 +8,7 @@ use crate::window::{
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
 use super::r#async::Dispatcher;
-use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
+use super::{backend, monitor::MonitorHandle, ActiveEventLoop, Fullscreen};
 use web_sys::HtmlCanvasElement;
 
 use std::cell::RefCell;
@@ -29,7 +29,7 @@ pub struct Inner {
 
 impl Window {
     pub(crate) fn new(
-        target: &EventLoopWindowTarget,
+        target: &ActiveEventLoop,
         mut attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
@@ -466,14 +466,14 @@ impl From<u64> for WindowId {
 }
 
 #[derive(Clone, Debug)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
     pub(crate) append: bool,
 }
 
-impl PlatformSpecificWindowBuilderAttributes {
+impl PlatformSpecificWindowAttributes {
     pub(crate) fn set_canvas(&mut self, canvas: Option<backend::RawCanvasType>) {
         let Some(canvas) = canvas else {
             self.canvas = None;
@@ -487,7 +487,7 @@ impl PlatformSpecificWindowBuilderAttributes {
     }
 }
 
-impl Default for PlatformSpecificWindowBuilderAttributes {
+impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
         Self {
             canvas: None,
