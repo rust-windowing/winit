@@ -35,6 +35,10 @@ use winit::platform::startup_notify::{
 /// The amount of points to around the window for drag resize direction calculations.
 const BORDER_SIZE: f64 = 20.;
 
+/// Whether application should keep in the background even if all windows are closed.
+/// Default is `true` on macOS and `false` on other platforms.
+const KEEP_IN_BACKGROUND: bool = cfg!(macos_platform);
+
 fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     let _event_loop_proxy = event_loop.create_proxy();
@@ -67,7 +71,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             state.print_help();
         }
         Event::AboutToWait => {
-            if state.windows.is_empty() {
+            if state.windows.is_empty() && !KEEP_IN_BACKGROUND {
                 println!("No windows left, exiting...");
                 event_loop.exit();
             }
@@ -80,6 +84,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Event::UserEvent(event) => {
             println!("User event: {event:?}");
+        }
+        #[cfg(macos_platform)]
+        Event::Reopen => {
+            if state.windows.is_empty() {
+                state
+                    .create_window(event_loop, None)
+                    .expect("failed to create window");
+            }
         }
         Event::Suspended | Event::LoopExiting | Event::MemoryWarning => (),
     })?;
