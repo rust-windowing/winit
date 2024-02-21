@@ -85,8 +85,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         Event::UserEvent(event) => {
             println!("User event: {event:?}");
         }
-        #[cfg(macos_platform)]
-        Event::Reopen => {
+        Event::Reopen =>
+        {
+            #[cfg(macos_platform)]
             if state.windows.is_empty() {
                 state
                     .create_window(event_loop, None)
