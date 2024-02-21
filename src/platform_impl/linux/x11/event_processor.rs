@@ -1124,7 +1124,7 @@ impl EventProcessor {
                 WindowEvent::AxisMotion {
                     device_id,
                     axis: i as u32,
-                    value: unsafe { *value },
+                    value: x,
                 }
             };
 
@@ -1420,14 +1420,18 @@ impl EventProcessor {
 
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-        let mut value = xev.valuators.values;
+        let mut value = xev.raw_values;
         let mut mouse_delta = (0.0, 0.0);
         let mut scroll_delta = (0.0, 0.0);
         for i in 0..xev.valuators.mask_len * 8 {
             if !xinput2::XIMaskIsSet(mask, i) {
                 continue;
             }
+
             let x = unsafe { *value };
+            if x == 0.0 {
+                continue;
+            }
 
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
@@ -1439,16 +1443,14 @@ impl EventProcessor {
                 _ => {}
             }
 
-            if x != 0.0 {
-                let event = Event::DeviceEvent {
-                    device_id,
-                    event: DeviceEvent::Motion {
-                        axis: i as u32,
-                        value: x,
-                    },
-                };
-                callback(&self.target, event);
-            }
+            let event = Event::DeviceEvent {
+                device_id,
+                event: DeviceEvent::Motion {
+                    axis: i as u32,
+                    value: x,
+                },
+            };
+            callback(&self.target, event);
 
             value = unsafe { value.offset(1) };
         }
