@@ -1428,7 +1428,7 @@ impl EventProcessor {
                 continue;
             }
             let x = unsafe { *value };
-   
+
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
             match i {
