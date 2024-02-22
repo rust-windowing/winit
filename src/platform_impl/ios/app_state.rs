@@ -25,7 +25,7 @@ use objc2::{msg_send, sel};
 use once_cell::sync::Lazy;
 
 use super::uikit::UIView;
-use super::view::WinitUIWindow;
+use super::window::WinitUIWindow;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, InnerSizeWriter, StartCause, WindowEvent},

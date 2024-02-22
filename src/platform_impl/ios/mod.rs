@@ -58,12 +58,14 @@
 #![cfg(ios_platform)]
 #![allow(clippy::let_unit_value)]
 
+mod app_delegate;
 mod app_state;
 mod event_loop;
 mod ffi;
 mod monitor;
 mod uikit;
 mod view;
+mod view_controller;
 mod window;
 
 use std::fmt;
