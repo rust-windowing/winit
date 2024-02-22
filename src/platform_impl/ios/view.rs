@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 
-use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
+use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{
@@ -10,7 +10,7 @@ use objc2::{
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
-    UIApplication, UIDevice, UIEvent, UIForceTouchCapability, UIGestureRecognizerState,
+    UIDevice, UIEvent, UIForceTouchCapability, UIGestureRecognizerState,
     UIInterfaceOrientationMask, UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer,
     UIStatusBarStyle, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
     UITraitCollection, UIView, UIViewController, UIWindow,
@@ -635,98 +635,5 @@ impl WinitUIWindow {
 
     pub(crate) fn id(&self) -> WindowId {
         (self as *const Self as usize as u64).into()
-    }
-}
-
-declare_class!(
-    pub struct WinitApplicationDelegate;
-
-    unsafe impl ClassType for WinitApplicationDelegate {
-        type Super = NSObject;
-        type Mutability = mutability::InteriorMutable;
-        const NAME: &'static str = "WinitApplicationDelegate";
-    }
-
-    impl DeclaredClass for WinitApplicationDelegate {}
-
-    // UIApplicationDelegate protocol
-    unsafe impl WinitApplicationDelegate {
-        #[method(application:didFinishLaunchingWithOptions:)]
-        fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
-            app_state::did_finish_launching(MainThreadMarker::new().unwrap());
-            true
-        }
-
-        #[method(applicationDidBecomeActive:)]
-        fn did_become_active(&self, _application: &UIApplication) {
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed))
-        }
-
-        #[method(applicationWillResignActive:)]
-        fn will_resign_active(&self, _application: &UIApplication) {
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended))
-        }
-
-        #[method(applicationWillEnterForeground:)]
-        fn will_enter_foreground(&self, application: &UIApplication) {
-            self.send_occluded_event_for_all_windows(application, false);
-        }
-
-        #[method(applicationDidEnterBackground:)]
-        fn did_enter_background(&self, application: &UIApplication) {
-            self.send_occluded_event_for_all_windows(application, true);
-        }
-
-        #[method(applicationWillTerminate:)]
-        fn will_terminate(&self, application: &UIApplication) {
-            let mut events = Vec::new();
-            for window in application.windows().iter() {
-                if window.is_kind_of::<WinitUIWindow>() {
-                    // SAFETY: We just checked that the window is a `winit` window
-                    let window = unsafe {
-                        let ptr: *const UIWindow = window;
-                        let ptr: *const WinitUIWindow = ptr.cast();
-                        &*ptr
-                    };
-                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.id()),
-                        event: WindowEvent::Destroyed,
-                    }));
-                }
-            }
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_events(mtm, events);
-            app_state::terminated(mtm);
-        }
-
-        #[method(applicationDidReceiveMemoryWarning:)]
-        fn did_receive_memory_warning(&self, _application: &UIApplication) {
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::MemoryWarning))
-        }
-    }
-);
-
-impl WinitApplicationDelegate {
-    fn send_occluded_event_for_all_windows(&self, application: &UIApplication, occluded: bool) {
-        let mut events = Vec::new();
-        for window in application.windows().iter() {
-            if window.is_kind_of::<WinitUIWindow>() {
-                // SAFETY: We just checked that the window is a `winit` window
-                let window = unsafe {
-                    let ptr: *const UIWindow = window;
-                    let ptr: *const WinitUIWindow = ptr.cast();
-                    &*ptr
-                };
-                events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(window.id()),
-                    event: WindowEvent::Occluded(occluded),
-                }));
-            }
-        }
-        let mtm = MainThreadMarker::new().unwrap();
-        app_state::handle_nonuser_events(mtm, events);
     }
 }
