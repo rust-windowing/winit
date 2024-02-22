@@ -12,7 +12,8 @@ use super::app_state::EventWrapper;
 use super::uikit::{
     UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
-use super::view::{WinitView, WinitViewController};
+use super::view::WinitView;
+use super::view_controller::WinitViewController;
 use crate::{
     cursor::Cursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},

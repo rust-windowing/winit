@@ -65,6 +65,7 @@ mod ffi;
 mod monitor;
 mod uikit;
 mod view;
+mod view_controller;
 mod window;
 
 use std::fmt;
