@@ -985,6 +985,7 @@ impl EventProcessor {
 
         let window_id = mkwid(event.event as xproto::Window);
         // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
+        // Note that this requires XInput 2.1.
         let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         // Deliver multi-touch events instead of emulated mouse events.
@@ -1057,7 +1058,6 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
-        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(event.sourceid as xinput::DeviceId);
         let new_cursor_pos = (event.event_x, event.event_y);
 
@@ -1152,7 +1152,6 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
-        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into()) {
@@ -1418,7 +1417,6 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(xev.sourceid as xinput::DeviceId);
 
         let mask =
@@ -1490,7 +1488,6 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
         let device_id = mkdid(xev.sourceid as xinput::DeviceId);
 
         let keycode = xev.detail as u32;
