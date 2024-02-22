@@ -13,16 +13,16 @@ use super::uikit::{
     UIDevice, UIEvent, UIForceTouchCapability, UIGestureRecognizerState,
     UIInterfaceOrientationMask, UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer,
     UIStatusBarStyle, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
-    UITraitCollection, UIView, UIViewController, UIWindow,
+    UITraitCollection, UIView, UIViewController,
 };
-use super::window::WindowId;
+use super::window::WinitUIWindow;
 use crate::{
     dpi::PhysicalPosition,
     event::{Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::ValidOrientations,
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
-        Fullscreen, DEVICE_ID,
+        DEVICE_ID,
     },
     window::{WindowAttributes, WindowId as RootWindowId},
 };
@@ -560,80 +560,5 @@ impl WinitViewController {
         this.setView(Some(view));
 
         this
-    }
-}
-
-declare_class!(
-    #[derive(Debug, PartialEq, Eq, Hash)]
-    pub(crate) struct WinitUIWindow;
-
-    unsafe impl ClassType for WinitUIWindow {
-        #[inherits(UIResponder, NSObject)]
-        type Super = UIWindow;
-        type Mutability = mutability::InteriorMutable;
-        const NAME: &'static str = "WinitUIWindow";
-    }
-
-    impl DeclaredClass for WinitUIWindow {}
-
-    unsafe impl WinitUIWindow {
-        #[method(becomeKeyWindow)]
-        fn become_key_window(&self) {
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
-                    event: WindowEvent::Focused(true),
-                }),
-            );
-            let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
-        }
-
-        #[method(resignKeyWindow)]
-        fn resign_key_window(&self) {
-            let mtm = MainThreadMarker::new().unwrap();
-            app_state::handle_nonuser_event(
-                mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(self.id()),
-                    event: WindowEvent::Focused(false),
-                }),
-            );
-            let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
-        }
-    }
-);
-
-impl WinitUIWindow {
-    pub(crate) fn new(
-        mtm: MainThreadMarker,
-        window_attributes: &WindowAttributes,
-        frame: CGRect,
-        view_controller: &UIViewController,
-    ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
-
-        this.setRootViewController(Some(view_controller));
-
-        match window_attributes.fullscreen.clone().map(Into::into) {
-            Some(Fullscreen::Exclusive(ref video_mode)) => {
-                let monitor = video_mode.monitor();
-                let screen = monitor.ui_screen(mtm);
-                screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
-                this.setScreen(screen);
-            }
-            Some(Fullscreen::Borderless(Some(ref monitor))) => {
-                let screen = monitor.ui_screen(mtm);
-                this.setScreen(screen);
-            }
-            _ => (),
-        }
-
-        this
-    }
-
-    pub(crate) fn id(&self) -> WindowId {
-        (self as *const Self as usize as u64).into()
     }
 }

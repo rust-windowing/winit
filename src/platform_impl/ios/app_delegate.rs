@@ -3,7 +3,7 @@ use objc2::{declare_class, mutability, ClassType, DeclaredClass};
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{UIApplication, UIWindow};
-use super::view::WinitUIWindow;
+use super::window::WinitUIWindow;
 use crate::{
     event::{Event, WindowEvent},
     window::WindowId as RootWindowId,
