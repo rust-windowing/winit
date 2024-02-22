@@ -1099,6 +1099,9 @@ impl EventProcessor {
             }
 
             let x = unsafe { *value };
+            if x == 0.0 {
+                continue;
+            }
 
             let event = if let Some(&mut (_, ref mut info)) = physical_device
                 .scroll_axes
