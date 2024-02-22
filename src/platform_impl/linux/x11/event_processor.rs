@@ -11,9 +11,10 @@ use x11_dl::xinput2::{
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
     XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XMapEvent, XPropertyEvent,
-    XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent,
+    XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent, XkbStateRec,
 };
 use x11rb::protocol::xinput;
+use x11rb::protocol::xkb::ID as XkbId;
 use x11rb::protocol::xproto::{self, ConnectionExt as _, ModMask};
 use x11rb::x11_utils::ExtensionInformation;
 use x11rb::x11_utils::Serialize;
@@ -180,12 +181,22 @@ impl EventProcessor {
                         };
 
                         let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
+                        self.update_mods_from_xinput2_event(
+                            &xev.mods,
+                            &xev.group,
+                            false,
+                            &mut callback,
+                        );
                         self.xinput2_button_input(xev, state, &mut callback);
                     }
                     xinput2::XI_Motion => {
                         let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
+                        self.update_mods_from_xinput2_event(
+                            &xev.mods,
+                            &xev.group,
+                            false,
+                            &mut callback,
+                        );
                         self.xinput2_mouse_motion(xev, &mut callback);
                     }
                     xinput2::XI_Enter => {
@@ -194,7 +205,12 @@ impl EventProcessor {
                     }
                     xinput2::XI_Leave => {
                         let xev: &XILeaveEvent = unsafe { &*(xev.data as *const _) };
-                        self.update_mods_from_xinput2_event(&xev.mods, &xev.group, &mut callback);
+                        self.update_mods_from_xinput2_event(
+                            &xev.mods,
+                            &xev.group,
+                            false,
+                            &mut callback,
+                        );
                         self.xinput2_mouse_left(xev, &mut callback);
                     }
                     xinput2::XI_FocusIn => {
@@ -925,7 +941,7 @@ impl EventProcessor {
         };
 
         // Always update the modifiers.
-        self.udpate_mods_from_core_event(xev.state as u16, &mut callback);
+        self.udpate_mods_from_core_event(window_id, xev.state as u16, &mut callback);
 
         if keycode != 0 && !self.is_composing {
             if let Some(mut key_processor) = self.xkb_context.key_context() {
@@ -1255,10 +1271,7 @@ impl EventProcessor {
             &mut callback,
         );
 
-        if let Some(state) = self.xkb_context.state_mut() {
-            let mods = state.modifiers().into();
-            self.send_modifiers(mods, &mut callback);
-        }
+        self.update_mods_from_query(window_id, &mut callback);
 
         // The deviceid for this event is for a keyboard instead of a pointer,
         // so we have to do a little extra work.
@@ -1304,7 +1317,12 @@ impl EventProcessor {
 
             wt.update_listen_device_events(false);
 
-            self.send_modifiers(ModifiersState::empty(), &mut callback);
+            // Clear the modifiers when unfocusing the window.
+            if let Some(xkb_state) = self.xkb_context.state_mut() {
+                xkb_state.update_modifiers(0, 0, 0, 0, 0, 0);
+                let mods = xkb_state.modifiers();
+                self.send_modifiers(window_id, mods.into(), true, &mut callback);
+            }
 
             // Issue key release events for all pressed keys
             Self::handle_pressed_keys(
@@ -1554,18 +1572,28 @@ impl EventProcessor {
                     let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
                     self.xkb_context.set_keymap_from_x11(xcb);
 
+                    let window_id = match self.active_window.map(super::mkwid) {
+                        Some(window_id) => window_id,
+                        None => return,
+                    };
+
                     if let Some(state) = self.xkb_context.state_mut() {
                         let mods = state.modifiers().into();
-                        self.send_modifiers(mods, &mut callback);
+                        self.send_modifiers(window_id, mods, true, &mut callback);
                     }
                 }
             }
             xlib::XkbMapNotify => {
                 let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
                 self.xkb_context.set_keymap_from_x11(xcb);
+                let window_id = match self.active_window.map(super::mkwid) {
+                    Some(window_id) => window_id,
+                    None => return,
+                };
+
                 if let Some(state) = self.xkb_context.state_mut() {
                     let mods = state.modifiers().into();
-                    self.send_modifiers(mods, &mut callback);
+                    self.send_modifiers(window_id, mods, true, &mut callback);
                 }
             }
             xlib::XkbStateNotify => {
@@ -1583,8 +1611,14 @@ impl EventProcessor {
                         xev.latched_group as u32,
                         xev.locked_group as u32,
                     );
+
+                    let window_id = match self.active_window.map(super::mkwid) {
+                        Some(window_id) => window_id,
+                        None => return,
+                    };
+
                     let mods = state.modifiers().into();
-                    self.send_modifiers(mods, &mut callback);
+                    self.send_modifiers(window_id, mods, true, &mut callback);
                 }
             }
             _ => {}
@@ -1595,6 +1629,7 @@ impl EventProcessor {
         &mut self,
         mods: &XIModifierState,
         group: &XIModifierState,
+        force: bool,
         mut callback: F,
     ) where
         F: FnMut(&RootAEL, Event<T>),
@@ -1609,13 +1644,58 @@ impl EventProcessor {
                 group.locked as u32,
             );
 
+            // NOTE: we use active window since generally sub windows don't have keyboard input,
+            // and winit assumes that unfocused window doesn't have modifiers.
+            let window_id = match self.active_window.map(super::mkwid) {
+                Some(window_id) => window_id,
+                None => return,
+            };
+
             let mods = state.modifiers();
-            self.send_modifiers(mods.into(), &mut callback);
+            self.send_modifiers(window_id, mods.into(), force, &mut callback);
         }
     }
 
-    pub fn udpate_mods_from_core_event<T: 'static, F>(&mut self, state: u16, mut callback: F)
-    where
+    fn update_mods_from_query<T: 'static, F>(
+        &mut self,
+        window_id: crate::window::WindowId,
+        mut callback: F,
+    ) where
+        F: FnMut(&RootAEL, Event<T>),
+    {
+        let wt = Self::window_target(&self.target);
+
+        let xkb_state = match self.xkb_context.state_mut() {
+            Some(xkb_state) => xkb_state,
+            None => return,
+        };
+
+        unsafe {
+            let mut state: XkbStateRec = std::mem::zeroed();
+            if (wt.xconn.xlib.XkbGetState)(wt.xconn.display, XkbId::USE_CORE_KBD.into(), &mut state)
+                == xlib::True
+            {
+                xkb_state.update_modifiers(
+                    state.base_mods as u32,
+                    state.latched_mods as u32,
+                    state.locked_mods as u32,
+                    state.base_group as u32,
+                    state.latched_group as u32,
+                    state.locked_group as u32,
+                );
+            }
+        }
+
+        let mods = xkb_state.modifiers();
+        self.send_modifiers(window_id, mods.into(), true, &mut callback)
+    }
+
+    pub fn udpate_mods_from_core_event<T: 'static, F>(
+        &mut self,
+        window_id: crate::window::WindowId,
+        state: u16,
+        mut callback: F,
+    ) where
         F: FnMut(&RootAEL, Event<T>),
     {
         let xkb_mask = self.xkb_mod_mask_from_core(state);
@@ -1642,7 +1722,7 @@ impl EventProcessor {
         );
 
         let mods = xkb_state.modifiers();
-        self.send_modifiers(mods.into(), &mut callback);
+        self.send_modifiers(window_id, mods.into(), false, &mut callback);
     }
 
     pub fn xkb_mod_mask_from_core(&mut self, state: u16) -> xkb_mod_mask_t {
@@ -1692,25 +1772,23 @@ impl EventProcessor {
 
     /// Send modifiers for the active window.
     ///
-    /// The event won't be sent when the `modifiers` match the previously `sent` modifiers value.
+    /// The event won't be sent when the `modifiers` match the previously `sent` modifiers value,
+    /// unless `force` is passed. The `force` should be passed when the active window changes.
     fn send_modifiers<T: 'static, F: FnMut(&RootAEL, Event<T>)>(
         &self,
+        window_id: crate::window::WindowId,
         modifiers: ModifiersState,
+        force: bool,
         callback: &mut F,
     ) {
-        let window_id = match self.active_window {
-            Some(window) => mkwid(window),
-            None => return,
-        };
-
-        if self.modifiers.replace(modifiers) != modifiers {
-            callback(
-                &self.target,
-                Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
-                },
-            );
+        // NOTE: Always update the modifiers to account for case when they've changed
+        // and forced was `true`.
+        if self.modifiers.replace(modifiers) != modifiers || force {
+            let event = Event::WindowEvent {
+                window_id,
+                event: WindowEvent::ModifiersChanged(self.modifiers.get().into()),
+            };
+            callback(&self.target, event);
         }
     }
 
