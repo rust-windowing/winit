@@ -126,6 +126,25 @@
 //! [`visible` set to `false`](crate::window::WindowAttributes::with_visible) and explicitly make the
 //! window visible only once you're ready to render into it.
 //!
+//! # UI scaling
+//!
+//! UI scaling is important, go read the docs for the [`dpi`] crate for an
+//! introduction.
+//!
+//! All of Winit's functions return physical types, but can take either logical or physical
+//! coordinates as input, allowing you to use the most convenient coordinate system for your
+//! particular application.
+//!
+//! Winit will dispatch a [`ScaleFactorChanged`] event whenever a window's scale factor has changed.
+//! This can happen if the user drags their window from a standard-resolution monitor to a high-DPI
+//! monitor or if the user changes their DPI settings. This allows you to rescale your application's
+//! UI elements and adjust how the platform changes the window's size to reflect the new scale
+//! factor. If a window hasn't received a [`ScaleFactorChanged`] event, its scale factor
+//! can be found by calling [`window.scale_factor()`].
+//!
+//! [`ScaleFactorChanged`]: event::WindowEvent::ScaleFactorChanged
+//! [`window.scale_factor()`]: window::Window::scale_factor
+//!
 //! # Cargo Features
 //!
 //! Winit provides the following Cargo features:
@@ -177,7 +196,9 @@
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 
-pub mod dpi;
+// Re-export DPI types so that users don't have to put it in Cargo.toml.
+pub use dpi;
+
 #[macro_use]
 pub mod error;
 mod cursor;
