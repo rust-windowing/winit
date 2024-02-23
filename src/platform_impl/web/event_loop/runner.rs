@@ -75,8 +75,8 @@ enum RunnerEnum {
     Pending,
     /// The `EventLoop` is being run.
     Running(Runner),
-    /// The `EventLoop` is exited after being started with `EventLoop::run`. Since
-    /// `EventLoop::run` takes ownership of the `EventLoop`, we can be certain
+    /// The `EventLoop` is exited after being started with `EventLoop::run_app`. Since
+    /// `EventLoop::run_app` takes ownership of the `EventLoop`, we can be certain
     /// that this event loop will never be run again.
     Destroyed,
 }
@@ -735,7 +735,7 @@ impl Shared {
         // * `self`, i.e. the item which triggered this event loop wakeup, which
         //   is usually a `wasm-bindgen` `Closure`, which will be dropped after
         //   returning to the JS glue code.
-        // * The `ActiveEventLoop` leaked inside `EventLoop::run` due to the
+        // * The `ActiveEventLoop` leaked inside `EventLoop::run_app` due to the
         //   JS exception thrown at the end.
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.

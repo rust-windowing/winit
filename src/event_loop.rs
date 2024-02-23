@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 #[cfg(web_platform)]
 use web_time::{Duration, Instant};
 
+use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, OsError};
 use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
@@ -215,8 +216,22 @@ impl<T> EventLoop<T> {
         }
     }
 
-    /// Runs the event loop in the calling thread and calls the given `event_handler` closure
-    /// to dispatch any pending events.
+    /// See [`run_app`].
+    ///
+    /// [`run_app`]: Self::run_app
+    #[inline]
+    #[deprecated = "use `EventLoop::run_app` instead"]
+    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
+    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
+    where
+        F: FnMut(Event<T>, &ActiveEventLoop),
+    {
+        let _span = tracing::debug_span!("winit::EventLoop::run").entered();
+
+        self.event_loop.run(event_handler)
+    }
+
+    /// Run the application with the event loop on the calling thread.
     ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
     ///
@@ -231,10 +246,10 @@ impl<T> EventLoop<T> {
     ///   Web applications are recommended to use
     #[cfg_attr(
         web_platform,
-        doc = "[`EventLoopExtWebSys::spawn()`][crate::platform::web::EventLoopExtWebSys::spawn()]"
+        doc = "[`EventLoopExtWebSys::spawn_app()`][crate::platform::web::EventLoopExtWebSys::spawn_app()]"
     )]
     #[cfg_attr(not(web_platform), doc = "`EventLoopExtWebSys::spawn()`")]
-    ///   [^1] instead of [`run()`] to avoid the need
+    ///   [^1] instead of [`run_app()`] to avoid the need
     ///   for the Javascript exception trick, and to make it clearer that the event loop runs
     ///   asynchronously (via the browser's own, internal, event loop) and doesn't block the
     ///   current thread of execution like it does on other platforms.
@@ -242,17 +257,13 @@ impl<T> EventLoop<T> {
     ///   This function won't be available with `target_feature = "exception-handling"`.
     ///
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()
-    /// [`run()`]: Self::run()
-    /// [^1]: `EventLoopExtWebSys::spawn()` is only available on Web.
+    /// [`run_app()`]: Self::run_app()
+    /// [^1]: `EventLoopExtWebSys::spawn_app()` is only available on Web.
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &ActiveEventLoop),
-    {
-        let _span = tracing::debug_span!("winit::EventLoop::run").entered();
-
-        self.event_loop.run(event_handler)
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
+        self.event_loop
+            .run(|event, event_loop| dispatch_event_for_app(app, event_loop, event))
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -344,11 +355,11 @@ unsafe impl<T> rwh_05::HasRawDisplayHandle for EventLoop<T> {
 impl<T> AsFd for EventLoop<T> {
     /// Get the underlying [EventLoop]'s `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_events`] API.
+    /// loop must be polled with the [`pump_app_events`] API.
     ///
     /// [`calloop`]: https://crates.io/crates/calloop
     /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_events
+    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.event_loop.as_fd()
     }
@@ -358,11 +369,11 @@ impl<T> AsFd for EventLoop<T> {
 impl<T> AsRawFd for EventLoop<T> {
     /// Get the underlying [EventLoop]'s raw `fd` which you can register
     /// into other event loop, like [`calloop`] or [`mio`]. When doing so, the
-    /// loop must be polled with the [`pump_events`] API.
+    /// loop must be polled with the [`pump_app_events`] API.
     ///
     /// [`calloop`]: https://crates.io/crates/calloop
     /// [`mio`]: https://crates.io/crates/mio
-    /// [`pump_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_events
+    /// [`pump_app_events`]: crate::platform::pump_events::EventLoopExtPumpEvents::pump_app_events
     fn as_raw_fd(&self) -> RawFd {
         self.event_loop.as_raw_fd()
     }
@@ -628,5 +639,25 @@ impl AsyncRequestSerial {
         // in the loop usize::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
+    }
+}
+
+/// Shim for various run APIs.
+#[inline(always)]
+pub(crate) fn dispatch_event_for_app<T: 'static, A: ApplicationHandler<T>>(
+    app: &mut A,
+    event_loop: &ActiveEventLoop,
+    event: Event<T>,
+) {
+    match event {
+        Event::NewEvents(cause) => app.new_events(event_loop, cause),
+        Event::WindowEvent { window_id, event } => app.window_event(event_loop, window_id, event),
+        Event::DeviceEvent { device_id, event } => app.device_event(event_loop, device_id, event),
+        Event::UserEvent(event) => app.user_event(event_loop, event),
+        Event::Suspended => app.suspended(event_loop),
+        Event::Resumed => app.resumed(event_loop),
+        Event::AboutToWait => app.about_to_wait(event_loop),
+        Event::LoopExiting => app.exiting(event_loop),
+        Event::MemoryWarning => app.memory_warning(event_loop),
     }
 }

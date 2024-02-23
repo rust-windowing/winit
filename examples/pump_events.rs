@@ -11,50 +11,59 @@
 fn main() -> std::process::ExitCode {
     use std::{process::ExitCode, thread::sleep, time::Duration};
 
-    use winit::{
-        event::{Event, WindowEvent},
-        event_loop::EventLoop,
-        platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
-        window::Window,
-    };
+    use winit::application::ApplicationHandler;
+    use winit::event::WindowEvent;
+    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::platform::pump_events::{EventLoopExtPumpEvents, PumpStatus};
+    use winit::window::{Window, WindowId};
 
     #[path = "util/fill.rs"]
     mod fill;
+
+    #[derive(Default)]
+    struct PumpDemo {
+        window: Option<Window>,
+    }
+
+    impl ApplicationHandler for PumpDemo {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            let window_attributes = Window::default_attributes().with_title("A fantastic window!");
+            self.window = Some(event_loop.create_window(window_attributes).unwrap());
+        }
+
+        fn window_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            _window_id: WindowId,
+            event: WindowEvent,
+        ) {
+            println!("{event:?}");
+
+            let window = match self.window.as_ref() {
+                Some(window) => window,
+                None => return,
+            };
+
+            match event {
+                WindowEvent::CloseRequested => event_loop.exit(),
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(window);
+                    window.request_redraw();
+                }
+                _ => (),
+            }
+        }
+    }
 
     let mut event_loop = EventLoop::new().unwrap();
 
     tracing_subscriber::fmt::init();
 
-    let mut window = None;
+    let mut app = PumpDemo::default();
 
     loop {
         let timeout = Some(Duration::ZERO);
-        let status = event_loop.pump_events(timeout, |event, event_loop| {
-            if let Event::WindowEvent { event, .. } = &event {
-                // Print only Window events to reduce noise
-                println!("{event:?}");
-            }
-
-            match event {
-                Event::Resumed => {
-                    let window_attributes =
-                        Window::default_attributes().with_title("A fantastic window!");
-                    window = Some(event_loop.create_window(window_attributes).unwrap());
-                }
-                Event::WindowEvent { event, .. } => {
-                    let window = window.as_ref().unwrap();
-                    match event {
-                        WindowEvent::CloseRequested => event_loop.exit(),
-                        WindowEvent::RedrawRequested => fill::fill_window(window),
-                        _ => (),
-                    }
-                }
-                Event::AboutToWait => {
-                    window.as_ref().unwrap().request_redraw();
-                }
-                _ => (),
-            }
-        });
+        let status = event_loop.pump_app_events(timeout, &mut app);
 
         if let PumpStatus::Exit(exit_code) = status {
             break ExitCode::from(exit_code as u8);

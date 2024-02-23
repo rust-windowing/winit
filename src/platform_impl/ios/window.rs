@@ -689,7 +689,7 @@ impl Inner {
             let screen_frame = self.rect_to_screen_space(bounds);
             let status_bar_frame = {
                 let app = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
-                    "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS",
+                    "`Window::get_inner_position` cannot be called before `EventLoop::run_app` on iOS",
                 );
                 app.statusBarFrame()
             };

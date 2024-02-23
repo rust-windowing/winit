@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// The window is closed when dropped.
 ///
-/// # Threading
+/// ## Threading
 ///
 /// This is `Send + Sync`, meaning that it can be freely used from other
 /// threads.
@@ -29,37 +29,6 @@ use serde::{Deserialize, Serialize};
 /// interactions on the main thread, so on those platforms, if you use the
 /// window from a thread other than the main, the code is scheduled to run on
 /// the main thread, and your thread may be blocked until that completes.
-///
-/// # Example
-///
-/// ```no_run
-/// use winit::{
-///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
-///     window::Window,
-/// };
-///
-/// let mut event_loop = EventLoop::new().unwrap();
-/// event_loop.set_control_flow(ControlFlow::Wait);
-/// let mut windows = Vec::new();
-///
-/// event_loop.run(move |event, event_loop| {
-///     match event {
-///         Event::Resumed => {
-///             let window = event_loop.create_window(Window::default_attributes()).unwrap();
-///             windows.push(window);
-///         }
-///         Event::WindowEvent {
-///             event: WindowEvent::CloseRequested,
-///             ..
-///         } => {
-///             windows.clear();
-///             event_loop.exit();
-///         }
-///         _ => (),
-///     }
-/// });
-/// ```
 ///
 /// ## Platform-specific
 ///

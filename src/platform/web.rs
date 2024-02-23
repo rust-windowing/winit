@@ -53,9 +53,10 @@ use std::time::Duration;
 #[cfg(web_platform)]
 use web_sys::HtmlCanvasElement;
 
+use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
 use crate::event::Event;
-use crate::event_loop::{ActiveEventLoop, EventLoop};
+use crate::event_loop::{self, ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -160,18 +161,18 @@ impl WindowAttributesExtWebSys for WindowAttributes {
 /// Additional methods on `EventLoop` that are specific to the web.
 pub trait EventLoopExtWebSys {
     /// A type provided by the user that can be passed through `Event::UserEvent`.
-    type UserEvent;
+    type UserEvent: 'static;
 
     /// Initializes the winit event loop.
     ///
     /// Unlike
     #[cfg_attr(
         all(web_platform, target_feature = "exception-handling"),
-        doc = "`run()`"
+        doc = "`run_app()`"
     )]
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run()`]"
+        doc = "[`run_app()`]"
     )]
     /// [^1], this returns immediately, and doesn't throw an exception in order to
     /// satisfy its [`!`] return type.
@@ -183,9 +184,15 @@ pub trait EventLoopExtWebSys {
     ///
     #[cfg_attr(
         not(all(web_platform, target_feature = "exception-handling")),
-        doc = "[`run()`]: EventLoop::run()"
+        doc = "[`run_app()`]: EventLoop::run_app()"
     )]
-    /// [^1]: `run()` is _not_ available on WASM when the target supports `exception-handling`.
+    /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
+
+    /// See [`spawn_app`].
+    ///
+    /// [`spawn_app`]: Self::spawn_app
+    #[deprecated = "use EventLoopExtWebSys::spawn_app"]
     fn spawn<F>(self, event_handler: F)
     where
         F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
@@ -193,6 +200,12 @@ pub trait EventLoopExtWebSys {
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
+
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, mut app: A) {
+        self.event_loop.spawn(move |event, event_loop| {
+            event_loop::dispatch_event_for_app(&mut app, event_loop, event)
+        });
+    }
 
     fn spawn<F>(self, event_handler: F)
     where

@@ -182,7 +182,7 @@ impl<T: 'static> EventLoop<T> {
             application.is_none(),
             "\
                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
-                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS",
+                 Note: `EventLoop::run_app` calls `UIApplicationMain` on iOS",
         );
 
         let handler = map_user_event(handler, self.receiver);

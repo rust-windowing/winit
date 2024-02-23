@@ -1,22 +1,13 @@
 use std::time::Duration;
 
-use crate::{
-    event::Event,
-    event_loop::{ActiveEventLoop, EventLoop},
-};
-
-/// The return status for `pump_events`
-pub enum PumpStatus {
-    /// Continue running external loop.
-    Continue,
-    /// Exit external loop.
-    Exit(i32),
-}
+use crate::application::ApplicationHandler;
+use crate::event::Event;
+use crate::event_loop::{self, ActiveEventLoop, EventLoop};
 
 /// Additional methods on [`EventLoop`] for pumping events within an external event loop
 pub trait EventLoopExtPumpEvents {
     /// A type provided by the user that can be passed through [`Event::UserEvent`].
-    type UserEvent;
+    type UserEvent: 'static;
 
     /// Pump the `EventLoop` to check for and dispatch pending events.
     ///
@@ -113,6 +104,21 @@ pub trait EventLoopExtPumpEvents {
     ///   If you render outside of Winit you are likely to see window resizing artifacts
     ///   since MacOS expects applications to render synchronously during any `drawRect`
     ///   callback.
+    fn pump_app_events<A: ApplicationHandler<Self::UserEvent>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
+        #[allow(deprecated)]
+        self.pump_events(timeout, |event, event_loop| {
+            event_loop::dispatch_event_for_app(app, event_loop, event)
+        })
+    }
+
+    /// See [`pump_app_events`].
+    ///
+    /// [`pump_app_events`]: Self::pump_app_events
+    #[deprecated = "use EventLoopExtPumpEvents::pump_app_events"]
     fn pump_events<F>(&mut self, timeout: Option<Duration>, event_handler: F) -> PumpStatus
     where
         F: FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
@@ -127,4 +133,12 @@ impl<T> EventLoopExtPumpEvents for EventLoop<T> {
     {
         self.event_loop.pump_events(timeout, event_handler)
     }
+}
+
+/// The return status for `pump_events`
+pub enum PumpStatus {
+    /// Continue running external loop.
+    Continue,
+    /// Exit external loop.
+    Exit(i32),
 }
