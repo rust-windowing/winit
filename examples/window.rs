@@ -14,8 +14,9 @@ use rwh_05::HasRawDisplayHandle;
 #[cfg(not(any(android_platform, ios_platform)))]
 use softbuffer::{Context, Surface};
 
+use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Event, Ime, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent};
 use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -53,38 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut state = Application::new(&event_loop);
 
-    event_loop.run(move |event, event_loop| match event {
-        Event::NewEvents(_) => (),
-        Event::Resumed => {
-            println!("Resumed the event loop");
-            state.dump_monitors(event_loop);
-
-            // Create initial window.
-            state
-                .create_window(event_loop, None)
-                .expect("failed to create initial window");
-
-            state.print_help();
-        }
-        Event::AboutToWait => {
-            if state.windows.is_empty() {
-                println!("No windows left, exiting...");
-                event_loop.exit();
-            }
-        }
-        Event::WindowEvent { window_id, event } => {
-            state.handle_window_event(event_loop, window_id, event)
-        }
-        Event::DeviceEvent { device_id, event } => {
-            state.handle_device_event(event_loop, device_id, event)
-        }
-        Event::UserEvent(event) => {
-            println!("User event: {event:?}");
-        }
-        Event::Suspended | Event::LoopExiting | Event::MemoryWarning => (),
-    })?;
-
-    Ok(())
+    event_loop.run_app(&mut state).map_err(Into::into)
 }
 
 #[allow(dead_code)]
@@ -104,15 +74,14 @@ struct Application {
     ///
     /// With OpenGL it could be EGLDisplay.
     #[cfg(not(any(android_platform, ios_platform)))]
-    context: Context,
+    context: Option<Context>,
 }
 
 impl Application {
     fn new<T>(event_loop: &EventLoop<T>) -> Self {
-        // SAFETY: the context is dropped inside the loop, since the state we're using
-        // is moved inside the closure.
+        // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
         #[cfg(not(any(android_platform, ios_platform)))]
-        let context = unsafe { Context::from_raw(event_loop.raw_display_handle()).unwrap() };
+        let context = Some(unsafe { Context::from_raw(event_loop.raw_display_handle()).unwrap() });
 
         // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
         // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
@@ -227,7 +196,97 @@ impl Application {
         }
     }
 
-    fn handle_window_event(
+    fn dump_monitors(&self, event_loop: &ActiveEventLoop) {
+        println!("Monitors information");
+        let primary_monitor = event_loop.primary_monitor();
+        for monitor in event_loop.available_monitors() {
+            let intro = if primary_monitor.as_ref() == Some(&monitor) {
+                "Primary monitor"
+            } else {
+                "Monitor"
+            };
+
+            if let Some(name) = monitor.name() {
+                println!("{intro}: {name}");
+            } else {
+                println!("{intro}: [no name]");
+            }
+
+            let PhysicalSize { width, height } = monitor.size();
+            print!("  Current mode: {width}x{height}");
+            if let Some(m_hz) = monitor.refresh_rate_millihertz() {
+                println!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
+            } else {
+                println!();
+            }
+
+            let PhysicalPosition { x, y } = monitor.position();
+            println!("  Position: {x},{y}");
+
+            println!("  Scale factor: {}", monitor.scale_factor());
+
+            println!("  Available modes (width x height x bit-depth):");
+            for mode in monitor.video_modes() {
+                let PhysicalSize { width, height } = mode.size();
+                let bits = mode.bit_depth();
+                let m_hz = mode.refresh_rate_millihertz();
+                println!(
+                    "    {width}x{height}x{bits} @ {}.{} Hz",
+                    m_hz / 1000,
+                    m_hz % 1000
+                );
+            }
+        }
+    }
+
+    /// Process the key binding.
+    fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
+        KEY_BINDINGS.iter().find_map(|binding| {
+            binding
+                .is_triggered_by(&key, mods)
+                .then_some(binding.action)
+        })
+    }
+
+    /// Process mouse binding.
+    fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
+        MOUSE_BINDINGS.iter().find_map(|binding| {
+            binding
+                .is_triggered_by(&button, mods)
+                .then_some(binding.action)
+        })
+    }
+
+    fn print_help(&self) {
+        println!("Keyboard bindings:");
+        for binding in KEY_BINDINGS {
+            println!(
+                "{}{:<10} - {} ({})",
+                modifiers_to_string(binding.mods),
+                binding.trigger,
+                binding.action,
+                binding.action.help(),
+            );
+        }
+        println!("Mouse bindings:");
+        for binding in MOUSE_BINDINGS {
+            println!(
+                "{}{:<10} - {} ({})",
+                modifiers_to_string(binding.mods),
+                mouse_button_to_string(binding.trigger),
+                binding.action,
+                binding.action.help(),
+            );
+        }
+    }
+}
+
+impl ApplicationHandler<UserEvent> for Application {
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        println!("User event: {event:?}");
+    }
+
+    fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
         window_id: WindowId,
@@ -371,92 +430,37 @@ impl Application {
         }
     }
 
-    fn handle_device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
-        println!("Device event: {event:?}");
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        println!("Device {device_id:?} event: {event:?}");
     }
 
-    fn dump_monitors(&self, event_loop: &ActiveEventLoop) {
-        println!("Monitors information");
-        let primary_monitor = event_loop.primary_monitor();
-        for monitor in event_loop.available_monitors() {
-            let intro = if primary_monitor.as_ref() == Some(&monitor) {
-                "Primary monitor"
-            } else {
-                "Monitor"
-            };
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        println!("Resumed the event loop");
+        self.dump_monitors(event_loop);
 
-            if let Some(name) = monitor.name() {
-                println!("{intro}: {name}");
-            } else {
-                println!("{intro}: [no name]");
-            }
+        // Create initial window.
+        self.create_window(event_loop, None)
+            .expect("failed to create initial window");
 
-            let PhysicalSize { width, height } = monitor.size();
-            print!("  Current mode: {width}x{height}");
-            if let Some(m_hz) = monitor.refresh_rate_millihertz() {
-                println!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
-            } else {
-                println!();
-            }
+        self.print_help();
+    }
 
-            let PhysicalPosition { x, y } = monitor.position();
-            println!("  Position: {x},{y}");
-
-            println!("  Scale factor: {}", monitor.scale_factor());
-
-            println!("  Available modes (width x height x bit-depth):");
-            for mode in monitor.video_modes() {
-                let PhysicalSize { width, height } = mode.size();
-                let bits = mode.bit_depth();
-                let m_hz = mode.refresh_rate_millihertz();
-                println!(
-                    "    {width}x{height}x{bits} @ {}.{} Hz",
-                    m_hz / 1000,
-                    m_hz % 1000
-                );
-            }
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.windows.is_empty() {
+            println!("No windows left, exiting...");
+            event_loop.exit();
         }
     }
 
-    /// Process the key binding.
-    fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
-        KEY_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&key, mods)
-                .then_some(binding.action)
-        })
-    }
-
-    /// Process mouse binding.
-    fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
-        MOUSE_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&button, mods)
-                .then_some(binding.action)
-        })
-    }
-
-    fn print_help(&self) {
-        println!("Keyboard bindings:");
-        for binding in KEY_BINDINGS {
-            println!(
-                "{}{:<10} - {} ({})",
-                modifiers_to_string(binding.mods),
-                binding.trigger,
-                binding.action,
-                binding.action.help(),
-            );
-        }
-        println!("Mouse bindings:");
-        for binding in MOUSE_BINDINGS {
-            println!(
-                "{}{:<10} - {} ({})",
-                modifiers_to_string(binding.mods),
-                mouse_button_to_string(binding.trigger),
-                binding.action,
-                binding.action.help(),
-            );
-        }
+    #[cfg(not(any(android_platform, ios_platform)))]
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        // We must drop the context here.
+        self.context = None;
     }
 }
 
@@ -496,11 +500,11 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn new(application: &Application, window: Window) -> Result<Self, Box<dyn Error>> {
+    fn new(app: &Application, window: Window) -> Result<Self, Box<dyn Error>> {
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
         #[cfg(not(any(android_platform, ios_platform)))]
-        let surface = unsafe { Surface::new(&application.context, &window)? };
+        let surface = unsafe { Surface::new(app.context.as_ref().unwrap(), &window)? };
 
         let theme = window.theme().unwrap_or(Theme::Dark);
         println!("Theme: {theme:?}");
@@ -515,7 +519,7 @@ impl WindowState {
         let mut state = Self {
             #[cfg(macos_platform)]
             option_as_alt: window.option_as_alt(),
-            custom_idx: application.custom_cursors.len() - 1,
+            custom_idx: app.custom_cursors.len() - 1,
             cursor_grab: CursorGrabMode::None,
             named_idx,
             #[cfg(not(any(android_platform, ios_platform)))]

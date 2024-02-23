@@ -1,36 +1,37 @@
 //! The [`Event`] enum and assorted supporting types.
 //!
-//! These are sent to the closure given to [`EventLoop::run(...)`], where they get
+//! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
+//! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
 //!
 //! ```rust,ignore
 //! let mut start_cause = StartCause::Init;
 //!
 //! while !elwt.exiting() {
-//!     event_handler(NewEvents(start_cause), elwt);
+//!     app.new_events(event_loop, start_cause);
 //!
-//!     for e in (window events, user events, device events) {
-//!         event_handler(e, elwt);
+//!     for event in (window events, user events, device events) {
+//!         // This will pick the right method on the application based on the event.
+//!         app.handle_event(event_loop, event);
 //!     }
 //!
-//!     for w in (redraw windows) {
-//!         event_handler(RedrawRequested(w), elwt);
+//!     for window_id in (redraw windows) {
+//!         app.window_event(event_loop, window_id, RedrawRequested);
 //!     }
 //!
-//!     event_handler(AboutToWait, elwt);
+//!     app.about_to_wait(event_loop);
 //!     start_cause = wait_if_necessary();
 //! }
 //!
-//! event_handler(LoopExiting, elwt);
+//! app.exiting(event_loop);
 //! ```
 //!
 //! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
 //! describes what happens in what order.
 //!
-//! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
+//! [`EventLoop::run_app(...)`]: crate::event_loop::EventLoop::run_app
 //! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use std::path::PathBuf;
 use std::sync::{Mutex, Weak};
@@ -59,199 +60,55 @@ use crate::{
 /// See the module-level docs for more information on the event loop manages each event.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event<T: 'static> {
-    /// Emitted when new events arrive from the OS to be processed.
+    /// See [`ApplicationHandler::new_events`] for details.
     ///
-    /// This event type is useful as a place to put code that should be done before you start
-    /// processing events, such as updating frame timing information for benchmarking or checking
-    /// the [`StartCause`] to see if a timer set by
-    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    /// [`ApplicationHandler::new_events`]: crate::application::ApplicationHandler::new_events
     NewEvents(StartCause),
 
-    /// Emitted when the OS sends an event to a winit window.
+    /// See [`ApplicationHandler::window_event`] for details.
+    ///
+    /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
     WindowEvent {
         window_id: WindowId,
         event: WindowEvent,
     },
 
-    /// Emitted when the OS sends an event to a device.
+    /// See [`ApplicationHandler::device_event`] for details.
+    ///
+    /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
     DeviceEvent {
         device_id: DeviceId,
         event: DeviceEvent,
     },
 
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
+    /// See [`ApplicationHandler::user_event`] for details.
+    ///
+    /// [`ApplicationHandler::user_event`]: crate::application::ApplicationHandler::user_event
     UserEvent(T),
 
-    /// Emitted when the application has been suspended.
+    /// See [`ApplicationHandler::suspended`] for details.
     ///
-    /// # Portability
-    ///
-    /// Not all platforms support the notion of suspending applications, and there may be no
-    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
-    /// no formal application lifecycle (currently only Android, iOS, and Web do). For this reason,
-    /// Winit does not currently try to emit pseudo `Suspended` events before the application
-    /// quits on platforms without an application lifecycle.
-    ///
-    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
-    ///
-    /// Also see [`Resumed`] notes.
-    ///
-    /// ## Android
-    ///
-    /// On Android, the `Suspended` event is only sent when the application's associated
-    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
-    /// lifecycle event but there may technically be a discrepancy.
-    ///
-    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
-    ///
-    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
-    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
-    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
-    ///
-    /// After being `Suspended` on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
-    ///
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
-    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
-    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Suspended` event is currently emitted in response to an
-    /// [`applicationWillResignActive`] callback which means that the application is
-    /// about to transition from the active to inactive state (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Suspended` event is emitted in response to a [`pagehide`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// put in the [`bfcache`] (back/forward cache) - an in-memory cache that stores a
-    /// complete snapshot of a page (including the JavaScript heap) as the user is
-    /// navigating away.
-    ///
-    /// [`pagehide`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    ///
-    /// [`Resumed`]: Self::Resumed
+    /// [`ApplicationHandler::suspended`]: crate::application::ApplicationHandler::suspended
     Suspended,
 
-    /// Emitted when the application has been resumed.
+    /// See [`ApplicationHandler::resumed`] for details.
     ///
-    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
-    /// formal suspend/resume lifecycle. For systems without a standard suspend/resume lifecycle
-    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
-    /// event.
-    ///
-    /// # Portability
-    ///
-    /// It's recommended that applications should only initialize their graphics context and create
-    /// a window after they have received their first `Resumed` event. Some systems
-    /// (specifically Android) won't allow applications to create a render surface until they are
-    /// resumed.
-    ///
-    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
-    /// driven by multiple platform-specific events, and that there may be subtle differences across
-    /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
-    ///
-    /// Also see [`Suspended`] notes.
-    ///
-    /// ## Android
-    ///
-    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
-    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
-    /// be a discrepancy.
-    ///
-    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
-    ///
-    /// Applications that need to run on Android must wait until they have been `Resumed`
-    /// before they will be able to create a render surface (such as an `EGLSurface`,
-    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
-    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
-    /// render surfaces are invalid and should be dropped.
-    ///
-    /// Also see [`Suspended`] notes.
-    ///
-    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
-    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
-    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
-    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
-    ///
-    /// ## iOS
-    ///
-    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
-    /// callback which means the application is "active" (according to the
-    /// [iOS application lifecycle]).
-    ///
-    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
-    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
-    ///
-    /// ## Web
-    ///
-    /// On Web, the `Resumed` event is emitted in response to a [`pageshow`] event
-    /// with the property [`persisted`] being true, which means that the page is being
-    /// restored from the [`bfcache`] (back/forward cache) - an in-memory cache that
-    /// stores a complete snapshot of a page (including the JavaScript heap) as the
-    /// user is navigating away.
-    ///
-    /// [`pageshow`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
-    /// [`persisted`]: https://developer.mozilla.org/en-US/docs/Web/API/PageTransitionEvent/persisted
-    /// [`bfcache`]: https://web.dev/bfcache/
-    ///
-    /// [`Suspended`]: Self::Suspended
+    /// [`ApplicationHandler::resumed`]: crate::application::ApplicationHandler::resumed
     Resumed,
 
-    /// Emitted when the event loop is about to block and wait for new events.
+    /// See [`ApplicationHandler::about_to_wait`] for details.
     ///
-    /// Most applications shouldn't need to hook into this event since there is no real relationship
-    /// between how often the event loop needs to wake up and the dispatching of any specific events.
-    ///
-    /// High frequency event sources, such as input devices could potentially lead to lots of wake
-    /// ups and also lots of corresponding `AboutToWait` events.
-    ///
-    /// This is not an ideal event to drive application rendering from and instead applications
-    /// should render in response to [`WindowEvent::RedrawRequested`] events.
+    /// [`ApplicationHandler::about_to_wait`]: crate::application::ApplicationHandler::about_to_wait
     AboutToWait,
 
-    /// Emitted when the event loop is being shut down.
+    /// See [`ApplicationHandler::exiting`] for details.
     ///
-    /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
-    /// gets emitted. You generally want to treat this as a "do on quit" event.
+    /// [`ApplicationHandler::exiting`]: crate::application::ApplicationHandler::exiting
     LoopExiting,
 
-    /// Emitted when the application has received a memory warning.
+    /// See [`ApplicationHandler::memory_warning`] for details.
     ///
-    /// ## Platform-specific
-    ///
-    /// ### Android
-    ///
-    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
-    /// must [release memory] or risk being killed.
-    ///
-    /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
-    /// [release memory]: https://developer.android.com/topic/performance/memory#release
-    ///
-    /// ### iOS
-    ///
-    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
-    /// callback. The application must free as much memory as possible or risk being terminated, see
-    /// [how to respond to memory warnings].
-    ///
-    /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
-    /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings
-    ///
-    /// ### Others
-    ///
-    /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
+    /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
     MemoryWarning,
 }
 

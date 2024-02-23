@@ -2,86 +2,94 @@
 
 // Limit this example to only compatible platforms.
 #[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform,))]
-fn main() -> Result<(), impl std::error::Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
-    use winit::{
-        error::EventLoopError,
-        event::{Event, WindowEvent},
-        event_loop::EventLoop,
-        platform::run_on_demand::EventLoopExtRunOnDemand,
-        window::{Window, WindowId},
-    };
+    use winit::application::ApplicationHandler;
+    use winit::event::WindowEvent;
+    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
+    use winit::window::{Window, WindowId};
 
     #[path = "util/fill.rs"]
     mod fill;
 
     #[derive(Default)]
     struct App {
+        idx: usize,
         window_id: Option<WindowId>,
         window: Option<Window>,
     }
 
-    tracing_subscriber::fmt::init();
-    let mut event_loop = EventLoop::new().unwrap();
-
-    fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopError> {
-        let mut app = App::default();
-
-        event_loop.run_on_demand(move |event, event_loop| {
-            println!("Run {idx}: {:?}", event);
-
-            if let Some(window) = &app.window {
-                match event {
-                    Event::WindowEvent {
-                        event: WindowEvent::CloseRequested,
-                        window_id,
-                    } if window.id() == window_id => {
-                        println!("--------------------------------------------------------- Window {idx} CloseRequested");
-                        fill::cleanup_window(window);
-                        app.window = None;
-                    }
-                    Event::AboutToWait => window.request_redraw(),
-                    Event::WindowEvent {
-                        event: WindowEvent::RedrawRequested,
-                        ..
-                    }  => {
-                        fill::fill_window(window);
-                    }
-                    _ => (),
-                }
-            } else if let Some(id) = app.window_id {
-                match event {
-                    Event::WindowEvent {
-                        event: WindowEvent::Destroyed,
-                        window_id,
-                    } if id == window_id => {
-                        println!("--------------------------------------------------------- Window {idx} Destroyed");
-                        app.window_id = None;
-                        event_loop.exit();
-                    }
-                    _ => (),
-                }
-            } else if let Event::Resumed = event {
-                let window_attributes = Window::default_attributes()
-                        .with_title("Fantastic window number one!")
-                        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0));
-                let window = event_loop.create_window(window_attributes).unwrap();
-                app.window_id = Some(window.id());
-                app.window = Some(window);
+    impl ApplicationHandler for App {
+        fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
             }
-        })
+        }
+
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            let window_attributes = Window::default_attributes()
+                .with_title("Fantastic window number one!")
+                .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0));
+            let window = event_loop.create_window(window_attributes).unwrap();
+            self.window_id = Some(window.id());
+            self.window = Some(window);
+        }
+
+        fn window_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            window_id: WindowId,
+            event: WindowEvent,
+        ) {
+            if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {
+                println!(
+                    "--------------------------------------------------------- Window {} Destroyed",
+                    self.idx
+                );
+                self.window_id = None;
+                event_loop.exit();
+                return;
+            }
+
+            let window = match self.window.as_mut() {
+                Some(window) => window,
+                None => return,
+            };
+
+            match event {
+                WindowEvent::CloseRequested => {
+                    println!("--------------------------------------------------------- Window {} CloseRequested", self.idx);
+                    fill::cleanup_window(window);
+                    self.window = None;
+                }
+                WindowEvent::RedrawRequested => {
+                    fill::fill_window(window);
+                }
+                _ => (),
+            }
+        }
     }
 
-    run_app(&mut event_loop, 1)?;
+    tracing_subscriber::fmt::init();
+
+    let mut event_loop = EventLoop::new().unwrap();
+
+    let mut app = App {
+        idx: 1,
+        ..Default::default()
+    };
+    event_loop.run_app_on_demand(&mut app)?;
 
     println!("--------------------------------------------------------- Finished first loop");
     println!("--------------------------------------------------------- Waiting 5 seconds");
     std::thread::sleep(Duration::from_secs(5));
 
-    let ret = run_app(&mut event_loop, 2);
+    app.idx += 1;
+    event_loop.run_app_on_demand(&mut app)?;
     println!("--------------------------------------------------------- Finished second loop");
-    ret
+    Ok(())
 }
 
 #[cfg(not(any(windows_platform, macos_platform, x11_platform, wayland_platform,)))]

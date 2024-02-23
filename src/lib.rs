@@ -21,7 +21,7 @@
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
 //! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if desired.
 //!
-//! You can retrieve events by calling [`EventLoop::run()`]. This function will
+//! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until [`exit()`] is used, at which point [`Event::LoopExiting`].
 //!
@@ -36,7 +36,7 @@
         x11_platform,
         wayland_platform
     ),
-    doc = "[`EventLoopExtPumpEvents::pump_events()`][platform::pump_events::EventLoopExtPumpEvents::pump_events()]"
+    doc = "[`EventLoopExtPumpEvents::pump_app_events()`][platform::pump_events::EventLoopExtPumpEvents::pump_app_events()]"
 )]
 #![cfg_attr(
     not(any(
@@ -46,18 +46,54 @@
         x11_platform,
         wayland_platform
     )),
-    doc = "`EventLoopExtPumpEvents::pump_events()`"
+    doc = "`EventLoopExtPumpEvents::pump_app_events()`"
 )]
 //! [^1]. See that method's documentation for more reasons about why
 //! it's discouraged beyond compatibility reasons.
 //!
 //!
 //! ```no_run
-//! use winit::{
-//!     event::{Event, WindowEvent},
-//!     event_loop::{ControlFlow, EventLoop},
-//!     window::Window,
-//! };
+//! use winit::application::ApplicationHandler;
+//! use winit::event::WindowEvent;
+//! use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+//! use winit::window::{Window, WindowId};
+//!
+//! #[derive(Default)]
+//! struct App {
+//!     window: Option<Window>,
+//! }
+//!
+//! impl ApplicationHandler for App {
+//!     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+//!         self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+//!     }
+//!
+//!     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+//!         match event {
+//!             WindowEvent::CloseRequested => {
+//!                 println!("The close button was pressed; stopping");
+//!                 event_loop.exit();
+//!             },
+//!             WindowEvent::RedrawRequested => {
+//!                 // Redraw the application.
+//!                 //
+//!                 // It's preferable for applications that do not render continuously to render in
+//!                 // this event rather than in AboutToWait, since rendering in here allows
+//!                 // the program to gracefully handle redraws requested by the OS.
+//!
+//!                 // Draw.
+//!
+//!                 // Queue a RedrawRequested event.
+//!                 //
+//!                 // You only need to call this if you've determined that you need to redraw in
+//!                 // applications which do not always need to. Applications that redraw continuously
+//!                 // can render here instead.
+//!                 self.window.as_ref().unwrap().request_redraw();
+//!             }
+//!             _ => (),
+//!         }
+//!     }
+//! }
 //!
 //! let event_loop = EventLoop::new().unwrap();
 //!
@@ -70,43 +106,8 @@
 //! // input, and uses significantly less power/CPU time than ControlFlow::Poll.
 //! event_loop.set_control_flow(ControlFlow::Wait);
 //!
-//! let mut window = None;
-//!
-//! event_loop.run(move |event, event_loop| {
-//!     match event {
-//!         Event::Resumed => {
-//!             window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
-//!         }
-//!         Event::WindowEvent {
-//!             event: WindowEvent::CloseRequested,
-//!             ..
-//!         } => {
-//!             println!("The close button was pressed; stopping");
-//!             event_loop.exit();
-//!         },
-//!         Event::AboutToWait => {
-//!             // Application update code.
-//!
-//!             // Queue a RedrawRequested event.
-//!             //
-//!             // You only need to call this if you've determined that you need to redraw in
-//!             // applications which do not always need to. Applications that redraw continuously
-//!             // can render here instead.
-//!             window.as_ref().unwrap().request_redraw();
-//!         },
-//!         Event::WindowEvent {
-//!             event: WindowEvent::RedrawRequested,
-//!             ..
-//!         } => {
-//!             // Redraw the application.
-//!             //
-//!             // It's preferable for applications that do not render continuously to render in
-//!             // this event rather than in AboutToWait, since rendering in here allows
-//!             // the program to gracefully handle redraws requested by the OS.
-//!         },
-//!         _ => ()
-//!     }
-//! });
+//! let mut app = App::default();
+//! event_loop.run_app(&mut app);
 //! ```
 //!
 //! [`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
@@ -164,7 +165,7 @@
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
-//! [`EventLoop::run()`]: event_loop::EventLoop::run
+//! [`EventLoop::run_app()`]: event_loop::EventLoop::run_app
 //! [`exit()`]: event_loop::ActiveEventLoop::exit
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
@@ -178,7 +179,7 @@
 //! [`Event::LoopExiting`]: event::Event::LoopExiting
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 //! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
-//! [^1]: `EventLoopExtPumpEvents::pump_events()` is only available on Windows, macOS, Android, X11 and Wayland.
+//! [^1]: `EventLoopExtPumpEvents::pump_app_events()` is only available on Windows, macOS, Android, X11 and Wayland.
 
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]
@@ -200,6 +201,7 @@ pub use rwh_06 as raw_window_handle;
 #[doc(inline)]
 pub use dpi;
 
+pub mod application;
 #[macro_use]
 pub mod error;
 mod cursor;

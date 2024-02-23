@@ -91,7 +91,7 @@ declare_class!(
             self.set_is_running(true);
             self.dispatch_init_events();
 
-            // If the application is being launched via `EventLoop::pump_events()` then we'll
+            // If the application is being launched via `EventLoop::pump_app_events()` then we'll
             // want to stop the app once it is launched (and return to the external loop)
             //
             // In this case we still want to consider Winit's `EventLoop` to be "running",
