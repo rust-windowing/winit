@@ -10,7 +10,7 @@ pub(crate) struct Lazy<T, F = fn() -> T> {
     init: Cell<Option<F>>,
 }
 
-unsafe impl<T, F> Sync for Lazy<T, F> {}
+unsafe impl<T: Send, F: Send> Sync for Lazy<T, F> {}
 
 impl<T, F: FnOnce() -> T> Lazy<T, F> {
     pub const fn new(f: F) -> Self {
