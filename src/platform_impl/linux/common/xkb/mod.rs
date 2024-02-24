@@ -7,7 +7,7 @@ use log::warn;
 use smol_str::SmolStr;
 #[cfg(wayland_platform)]
 use std::os::unix::io::OwnedFd;
-use utils::Lazy;
+use crate::utils::Lazy;
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
     xkbcommon_handle, XkbCommon, XkbCommonCompose,
