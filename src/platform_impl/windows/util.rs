@@ -9,7 +9,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{

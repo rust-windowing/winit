@@ -8,7 +8,7 @@ use std::{
 };
 
 use super::{super::atoms::*, ffi, util, XConnection, XError};
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use x11rb::protocol::xproto;
 
 static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);

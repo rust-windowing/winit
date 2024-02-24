@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
