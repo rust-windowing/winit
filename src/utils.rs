@@ -19,19 +19,15 @@ impl<T, F: FnOnce() -> T> Lazy<T, F> {
             init: Cell::new(Some(f)),
         }
     }
-
-    pub fn get(&self) -> &'_ T {
-        self.cell.get_or_init(|| match self.init.take() {
-            Some(f) => f(),
-            None => unreachable!(),
-        })
-    }
 }
 
 impl<T, F: FnOnce() -> T> Deref for Lazy<T, F> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &'_ T {
-        self.get()
+        self.cell.get_or_init(|| match self.init.take() {
+            Some(f) => f(),
+            None => unreachable!(),
+        })
     }
 }
