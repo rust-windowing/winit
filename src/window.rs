@@ -1363,7 +1363,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         let position = position.into();
@@ -1371,7 +1372,7 @@ impl Window {
             .maybe_wait_on_main(|w| w.set_cursor_position(position))
     }
 
-    /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
+    /// Set grabbing [mode](CursorGrabMode) on the cursor preventing it from leaving the window.
     ///
     /// # Example
     ///
