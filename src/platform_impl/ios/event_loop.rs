@@ -27,7 +27,8 @@ use crate::{
     window::{CustomCursor, CustomCursorSource},
 };
 
-use super::{app_state, monitor, view, MonitorHandle};
+use super::app_delegate::AppDelegate;
+use super::{app_state, monitor, MonitorHandle};
 use super::{
     app_state::AppState,
     uikit::{UIApplication, UIApplicationMain, UIDevice, UIScreen},
@@ -201,14 +202,14 @@ impl<T: 'static> EventLoop<T> {
         app_state::will_launch(self.mtm, handler);
 
         // Ensure application delegate is initialized
-        view::WinitApplicationDelegate::class();
+        let _ = AppDelegate::class();
 
         unsafe {
             UIApplicationMain(
                 0,
                 ptr::null(),
                 None,
-                Some(&NSString::from_str("WinitApplicationDelegate")),
+                Some(&NSString::from_str(AppDelegate::NAME)),
             )
         };
         unreachable!()

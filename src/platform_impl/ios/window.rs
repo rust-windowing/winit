@@ -5,12 +5,15 @@ use std::collections::VecDeque;
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
 use log::{debug, warn};
 use objc2::rc::Id;
-use objc2::runtime::AnyObject;
-use objc2::{class, msg_send};
+use objc2::runtime::{AnyObject, NSObject};
+use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::EventWrapper;
-use super::uikit::{UIApplication, UIScreen, UIScreenOverscanCompensation};
-use super::view::{WinitUIWindow, WinitView, WinitViewController};
+use super::uikit::{
+    UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
+};
+use super::view::WinitView;
+use super::view_controller::WinitViewController;
 use crate::{
     cursor::Cursor,
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
@@ -24,6 +27,81 @@ use crate::{
         WindowButtons, WindowId as RootWindowId, WindowLevel,
     },
 };
+
+declare_class!(
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct WinitUIWindow;
+
+    unsafe impl ClassType for WinitUIWindow {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIWindow;
+        type Mutability = mutability::InteriorMutable;
+        const NAME: &'static str = "WinitUIWindow";
+    }
+
+    impl DeclaredClass for WinitUIWindow {}
+
+    unsafe impl WinitUIWindow {
+        #[method(becomeKeyWindow)]
+        fn become_key_window(&self) {
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(self.id()),
+                    event: WindowEvent::Focused(true),
+                }),
+            );
+            let _: () = unsafe { msg_send![super(self), becomeKeyWindow] };
+        }
+
+        #[method(resignKeyWindow)]
+        fn resign_key_window(&self) {
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(self.id()),
+                    event: WindowEvent::Focused(false),
+                }),
+            );
+            let _: () = unsafe { msg_send![super(self), resignKeyWindow] };
+        }
+    }
+);
+
+impl WinitUIWindow {
+    pub(crate) fn new(
+        mtm: MainThreadMarker,
+        window_attributes: &WindowAttributes,
+        frame: CGRect,
+        view_controller: &UIViewController,
+    ) -> Id<Self> {
+        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
+
+        this.setRootViewController(Some(view_controller));
+
+        match window_attributes.fullscreen.clone().map(Into::into) {
+            Some(Fullscreen::Exclusive(ref video_mode)) => {
+                let monitor = video_mode.monitor();
+                let screen = monitor.ui_screen(mtm);
+                screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
+                this.setScreen(screen);
+            }
+            Some(Fullscreen::Borderless(Some(ref monitor))) => {
+                let screen = monitor.ui_screen(mtm);
+                this.setScreen(screen);
+            }
+            _ => (),
+        }
+
+        this
+    }
+
+    pub(crate) fn id(&self) -> WindowId {
+        (self as *const Self as usize as u64).into()
+    }
+}
 
 pub struct Inner {
     window: Id<WinitUIWindow>,

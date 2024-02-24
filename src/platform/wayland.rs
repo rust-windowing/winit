@@ -1,3 +1,18 @@
+//! # Wayland
+//!
+//! **Note:** Windows don't appear on Wayland until you draw/present to them.
+//!
+//! By default, Winit loads system libraries using `dlopen`. This can be
+//! disabled by disabling the `"wayland-dlopen"` cargo feature.
+//!
+//! ## Client-side decorations
+//!
+//! Winit provides client-side decorations by default, but the behaviour can
+//! be controlled with the following feature flags:
+//!
+//! * `wayland-csd-adwaita` (default).
+//! * `wayland-csd-adwaita-crossfont`.
+//! * `wayland-csd-adwaita-notitle`.
 use crate::{
     event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
