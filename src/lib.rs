@@ -197,6 +197,7 @@
 pub use rwh_06 as raw_window_handle;
 
 // Re-export DPI types so that users don't have to put it in Cargo.toml.
+#[doc(inline)]
 pub use dpi;
 
 #[macro_use]
