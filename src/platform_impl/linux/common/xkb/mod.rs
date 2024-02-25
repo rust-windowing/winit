@@ -3,8 +3,8 @@ use std::os::raw::c_char;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::utils::Lazy;
 use log::warn;
-use once_cell::sync::Lazy;
 use smol_str::SmolStr;
 #[cfg(wayland_platform)]
 use std::os::unix::io::OwnedFd;

@@ -9,7 +9,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
@@ -262,27 +262,27 @@ pub type GetPointerTouchInfo =
 pub type GetPointerPenInfo =
     unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
 
-pub static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
+pub(crate) static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
     Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
-pub static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
+pub(crate) static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
     Lazy::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
-pub static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
+pub(crate) static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
     Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
-pub static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
+pub(crate) static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
     Lazy::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
-pub static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
+pub(crate) static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
     Lazy::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
-pub static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
+pub(crate) static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
     Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
-pub static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
+pub(crate) static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
     Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));
-pub static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
+pub(crate) static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
-pub static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
+pub(crate) static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
     Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
-pub static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
+pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
-pub static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
+pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
-pub static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
+pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));

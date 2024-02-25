@@ -187,6 +187,7 @@ mod icon;
 pub mod keyboard;
 pub mod monitor;
 mod platform_impl;
+mod utils;
 pub mod window;
 
 pub mod platform;

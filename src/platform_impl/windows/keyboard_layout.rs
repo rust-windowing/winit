@@ -5,7 +5,7 @@ use std::{
     sync::Mutex,
 };
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use smol_str::SmolStr;
 use windows_sys::Win32::{
     System::SystemServices::{LANG_JAPANESE, LANG_KOREAN},

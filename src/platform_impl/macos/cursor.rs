@@ -1,3 +1,4 @@
+use crate::utils::Lazy;
 use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use icrate::Foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
@@ -6,7 +7,6 @@ use icrate::Foundation::{
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::{msg_send_id, sel, ClassType};
-use once_cell::sync::Lazy;
 use std::ffi::c_uchar;
 use std::slice;
 
