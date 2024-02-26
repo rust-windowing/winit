@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, filter close to zero values in mouse device events
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
 - **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
