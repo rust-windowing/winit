@@ -12,16 +12,11 @@ Unreleased` header.
 # Unreleased
 
 - Move `dpi` types to its own crate, and re-export it from the root crate.
-- On Wayland, fix DeviceEvent::Motion not being sent
-- On X11, don't require XIM to run.
-- On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
-- Fix compatibility with 32-bit platforms without 64-bit atomics.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
 - **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
 - **Breaking:** Rename `EventLoopWindowTarget` to `ActiveEventLoop`.
 - **Breaking:** Remove `Deref` implementation for `EventLoop` that gave `EventLoopWindowTarget`.
 - **Breaking**: Remove `WindowBuilder` in favor of `WindowAttributes`.
-- On X11, fix swapped instance and general class names.
 - **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
@@ -46,17 +41,27 @@ Unreleased` header.
 - on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
 - on Windows: add `with_system_backdrop`, `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
-- On Windows, fixed a race condition when sending an event through the loop proxy.
 - **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.
-- On Wayland, disable `Occluded` event handling.
 - Added `EventLoop::builder`, which is intended to replace the (now deprecated) `EventLoopBuilder::new`.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
+
+# 0.29.11
+
+- Fix compatibility with 32-bit platforms without 64-bit atomics.
+- On macOS, fix incorrect IME cursor rect origin.
+- On Windows, fixed a race condition when sending an event through the loop proxy.
+- On X11, fix swapped instance and general class names.
+- On X11, don't require XIM to run.
+- On X11, fix xkb state not being updated correctly sometimes leading to wrong input.
 - On X11, reload dpi on `_XSETTINGS_SETTINGS` update.
 - On X11, fix deadlock when adjusting DPI and resizing at the same time.
+- On Wayland, disable `Occluded` event handling.
+- On Wayland, fix DeviceEvent::Motion not being sent
 - On Wayland, fix `Focused(false)` being send when other seats still have window focused.
 - On Wayland, fix `Window::set_{min,max}_inner_size` not always applied.
+- On Wayland, fix title in CSD not updated from `AboutToWait`.
 - On Windows, fix inconsistent resizing behavior with multi-monitor setups when repositioning outside the event loop.
 - On Wayland, fix `WAYLAND_SOCKET` not used when detecting platform.
 - On Orbital, fix `logical_key` and `text` not reported in `KeyEvent`.
@@ -77,7 +82,6 @@ Unreleased` header.
 - On Orbital, implement `is_decorated`.
 - On Orbital, implement `set_window_level`.
 - On Orbital, emit `DeviceEvent::MouseMotion`.
-- On Wayland, fix title in CSD not updated from `AboutToWait`.
 
 # 0.29.10
 
