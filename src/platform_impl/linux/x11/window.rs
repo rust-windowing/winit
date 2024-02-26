@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use x11rb::{
     connection::Connection,
     properties::{WmHints, WmSizeHints, WmSizeHintsSpecification},
@@ -1573,7 +1573,7 @@ impl UnownedWindow {
             #[cfg(wayland_platform)]
             Cursor::Custom(RootCustomCursor {
                 inner: PlatformCustomCursor::Wayland(_),
-            }) => log::error!("passed a Wayland cursor to X11 backend"),
+            }) => tracing::error!("passed a Wayland cursor to X11 backend"),
         }
     }
 
@@ -1857,7 +1857,7 @@ impl UnownedWindow {
                 )
                 .expect_then_ignore_error("Failed to send client message");
             if let Err(e) = self.xconn.flush_requests() {
-                log::error!(
+                tracing::error!(
                     "`flush` returned an error when focusing the window. Error was: {}",
                     e
                 );

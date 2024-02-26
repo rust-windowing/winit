@@ -4,10 +4,10 @@ use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::utils::Lazy;
-use log::warn;
 use smol_str::SmolStr;
 #[cfg(wayland_platform)]
 use std::os::unix::io::OwnedFd;
+use tracing::warn;
 use xkbcommon_dl::{
     self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
     xkbcommon_handle, XkbCommon, XkbCommonCompose,
@@ -451,7 +451,7 @@ fn byte_slice_to_smol_str(bytes: &[u8]) -> Option<SmolStr> {
     std::str::from_utf8(bytes)
         .map(SmolStr::new)
         .map_err(|e| {
-            log::warn!(
+            tracing::warn!(
                 "UTF-8 received from libxkbcommon ({:?}) was invalid: {e}",
                 bytes
             )

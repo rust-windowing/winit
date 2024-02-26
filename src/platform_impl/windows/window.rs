@@ -59,7 +59,7 @@ use windows_sys::Win32::{
     },
 };
 
-use log::warn;
+use tracing::warn;
 
 use crate::{
     cursor::Cursor,

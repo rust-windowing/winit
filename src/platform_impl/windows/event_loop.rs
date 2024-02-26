@@ -536,7 +536,7 @@ impl ActiveEventLoop {
         let inner = match WinCursor::new(&source.inner.0) {
             Ok(cursor) => cursor,
             Err(err) => {
-                log::warn!("Failed to create custom cursor: {err}");
+                tracing::warn!("Failed to create custom cursor: {err}");
                 WinCursor::Failed
             }
         };

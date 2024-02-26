@@ -121,7 +121,7 @@ impl XConnection {
 
         let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
         if xsettings_screen.is_none() {
-            log::warn!("error setting XSETTINGS; Xft options won't reload automatically")
+            tracing::warn!("error setting XSETTINGS; Xft options won't reload automatically")
         }
 
         // Fetch atoms.

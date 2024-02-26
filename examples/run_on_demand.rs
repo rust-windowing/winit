@@ -5,8 +5,6 @@
 fn main() -> Result<(), impl std::error::Error> {
     use std::time::Duration;
 
-    use simple_logger::SimpleLogger;
-
     use winit::{
         error::EventLoopError,
         event::{Event, WindowEvent},
@@ -24,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
         window: Option<Window>,
     }
 
-    SimpleLogger::new().init().unwrap();
+    tracing_subscriber::fmt::init();
     let mut event_loop = EventLoop::new().unwrap();
 
     fn run_app(event_loop: &mut EventLoop<()>, idx: usize) -> Result<(), EventLoopError> {

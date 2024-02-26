@@ -11,7 +11,6 @@
 fn main() -> std::process::ExitCode {
     use std::{process::ExitCode, thread::sleep, time::Duration};
 
-    use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::EventLoop,
@@ -24,7 +23,7 @@ fn main() -> std::process::ExitCode {
 
     let mut event_loop = EventLoop::new().unwrap();
 
-    SimpleLogger::new().init().unwrap();
+    tracing_subscriber::fmt::init();
 
     let mut window = None;
 

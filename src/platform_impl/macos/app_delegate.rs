@@ -471,10 +471,10 @@ fn window_activation_hack(app: &NSApplication) {
         // This way we preserve the user's desired initial visibility status
         // TODO: Also filter on the type/"level" of the window, and maybe other things?
         if window.isVisible() {
-            log::trace!("Activating visible window");
+            tracing::trace!("Activating visible window");
             window.makeKeyAndOrderFront(None);
         } else {
-            log::trace!("Skipping activating invisible window");
+            tracing::trace!("Skipping activating invisible window");
         }
     })
 }

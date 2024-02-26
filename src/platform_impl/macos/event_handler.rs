@@ -71,7 +71,7 @@ impl EventHandler {
                         *data = None;
                     }
                     Ok(None) => {
-                        log::error!("tried to clear handler, but no handler was set");
+                        tracing::error!("tried to clear handler, but no handler was set");
                     }
                     Err(_) => {
                         // Note: This is not expected to ever happen, this
@@ -125,7 +125,7 @@ impl EventHandler {
                 // `NSApplication`, our app delegate and this handler are all
                 // global state and so it's not impossible that we could get
                 // an event after the application has exited the `EventLoop`.
-                log::error!("tried to run event handler, but no handler was set");
+                tracing::error!("tried to run event handler, but no handler was set");
             }
             Err(_) => {
                 // Prevent re-entrancy.

@@ -64,17 +64,18 @@ cfg_aliases = "0.2.0"
 [dependencies]
 bitflags = "2"
 cursor-icon = "1.1.0"
-log = "0.4"
 rwh_04 = { package = "raw-window-handle", version = "0.4", optional = true }
 rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = ["std"], optional = true }
 rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"], optional = true }
 serde = { workspace = true, optional = true }
 smol_str = "0.2.0"
 dpi = { path = "dpi" }
+tracing = { version = "0.1.40", default_features = false }
 
 [dev-dependencies]
 image = { version = "0.24.0", default-features = false, features = ["png"] }
-simple_logger = { version = "4.2.0", default_features = false }
+tracing = { version = "0.1.40", default_features = false, features = ["log"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 winit = { path = ".", features = ["rwh_05"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]

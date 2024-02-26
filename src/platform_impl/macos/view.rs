@@ -338,7 +338,7 @@ declare_class!(
                 // Leave the Preedit self.ivars()
                 self.ivars().ime_state.set(ImeState::Ground);
             } else {
-                log::warn!("Expected to have IME enabled when receiving unmarkText");
+                tracing::warn!("Expected to have IME enabled when receiving unmarkText");
             }
         }
 

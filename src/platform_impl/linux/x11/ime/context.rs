@@ -86,7 +86,7 @@ extern "C" fn preedit_draw_callback(
     let chg_range =
         call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
     if chg_range.start > client_data.text.len() || chg_range.end > client_data.text.len() {
-        log::warn!(
+        tracing::warn!(
             "invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}",
             client_data.text.len(),
             call_data.chg_first,

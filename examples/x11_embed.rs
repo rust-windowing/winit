@@ -3,8 +3,6 @@ use std::error::Error;
 
 #[cfg(x11_platform)]
 fn main() -> Result<(), Box<dyn Error>> {
-    use simple_logger::SimpleLogger;
-
     use winit::{
         event::{Event, WindowEvent},
         event_loop::EventLoop,
@@ -21,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ok_or("Expected a 32-bit X11 window ID as the first argument.")?
         .parse::<u32>()?;
 
-    SimpleLogger::new().init().unwrap();
+    tracing_subscriber::fmt::init();
     let event_loop = EventLoop::new()?;
 
     let mut window = None;

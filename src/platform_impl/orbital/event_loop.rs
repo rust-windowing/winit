@@ -537,7 +537,7 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
             other => {
-                log::warn!("unhandled event: {:?}", other);
+                tracing::warn!("unhandled event: {:?}", other);
             }
         }
     }

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
-use log::warn;
+use tracing::warn;
 
 use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_keyboard::{

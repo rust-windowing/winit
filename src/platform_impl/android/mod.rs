@@ -16,7 +16,7 @@ use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
 };
-use log::{debug, trace, warn};
+use tracing::{debug, trace, warn};
 
 use crate::{
     cursor::Cursor,
@@ -330,7 +330,7 @@ impl<T: 'static> EventLoop<T> {
                 }
             },
             Err(err) => {
-                log::warn!("Failed to get input events iterator: {err:?}");
+                tracing::warn!("Failed to get input events iterator: {err:?}");
             }
         }
 
@@ -1014,7 +1014,7 @@ impl Window {
         if let Some(native_window) = self.app.native_window().as_ref() {
             native_window.raw_window_handle()
         } else {
-            log::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            tracing::error!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
             Err(rwh_06::HandleError::Unavailable)
         }
     }

@@ -584,7 +584,7 @@ impl<T: 'static> EventLoop<T> {
         };
 
         self.event_loop.dispatch(timeout, state).map_err(|error| {
-            log::error!("Error dispatching event loop: {}", error);
+            tracing::error!("Error dispatching event loop: {}", error);
             error.into()
         })
     }
