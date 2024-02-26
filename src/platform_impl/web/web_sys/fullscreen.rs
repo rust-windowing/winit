@@ -83,7 +83,7 @@ pub fn exit_fullscreen(document: &Document, canvas: &HtmlCanvasElement) {
 
 fn has_fullscreen_api_support(canvas: &HtmlCanvasElement) -> bool {
     thread_local! {
-        static FULLSCREEN_API_SUPPORT: OnceCell<bool> = OnceCell::new();
+        static FULLSCREEN_API_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
     }
 
     FULLSCREEN_API_SUPPORT.with(|support| {
