@@ -6,7 +6,6 @@ use std::time;
 #[cfg(web_platform)]
 use web_time as time;
 
-use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -28,7 +27,7 @@ const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
 const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
 
 fn main() -> Result<(), impl std::error::Error> {
-    SimpleLogger::new().init().unwrap();
+    tracing_subscriber::fmt::init();
 
     println!("Press '1' to switch to Wait mode.");
     println!("Press '2' to switch to WaitUntil mode.");

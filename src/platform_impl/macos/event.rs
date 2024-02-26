@@ -36,14 +36,14 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
     unsafe {
         input_source = ffi::TISCopyCurrentKeyboardLayoutInputSource();
         if input_source.is_null() {
-            log::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
+            tracing::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
             return Key::Unidentified(NativeKey::MacOS(scancode));
         }
         let layout_data =
             ffi::TISGetInputSourceProperty(input_source, ffi::kTISPropertyUnicodeKeyLayoutData);
         if layout_data.is_null() {
             CFRelease(input_source as *mut c_void);
-            log::error!("`TISGetInputSourceProperty` returned null ptr");
+            tracing::error!("`TISGetInputSourceProperty` returned null ptr");
             return Key::Unidentified(NativeKey::MacOS(scancode));
         }
         layout = CFDataGetBytePtr(layout_data as CFDataRef) as *const ffi::UCKeyboardLayout;
@@ -71,7 +71,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         CFRelease(input_source as *mut c_void);
     }
     if translate_result != 0 {
-        log::error!(
+        tracing::error!(
             "`UCKeyTranslate` returned with the non-zero value: {}",
             translate_result
         );

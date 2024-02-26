@@ -236,7 +236,7 @@ impl MonitorHandle {
         let monitor_info = match get_monitor_info(self.0) {
             Ok(monitor_info) => monitor_info,
             Err(error) => {
-                log::warn!("Error from get_monitor_info: {error}");
+                tracing::warn!("Error from get_monitor_info: {error}");
                 return modes.into_iter().map(mod_map);
             }
         };

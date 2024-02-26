@@ -46,6 +46,7 @@ Unreleased` header.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
+- `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
 
 # 0.29.12
 

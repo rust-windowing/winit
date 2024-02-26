@@ -10,9 +10,9 @@ use std::sync::{
     Arc,
 };
 
-use log::debug;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use super::{ffi, util, XConnection, XError};
 

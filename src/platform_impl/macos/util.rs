@@ -1,5 +1,5 @@
 use icrate::Foundation::{NSNotFound, NSRange, NSUInteger};
-use log::trace;
+use tracing::trace;
 
 pub const EMPTY_RANGE: NSRange = NSRange {
     location: NSNotFound as NSUInteger,
@@ -20,7 +20,7 @@ pub(crate) struct TraceGuard {
 impl TraceGuard {
     #[inline]
     pub(crate) fn new(module_path: &'static str, called_from_fn: &'static str) -> Self {
-        trace!(target: module_path, "Triggered `{}`", called_from_fn);
+        trace!(target = module_path, "Triggered `{}`", called_from_fn);
         Self {
             module_path,
             called_from_fn,
@@ -31,6 +31,10 @@ impl TraceGuard {
 impl Drop for TraceGuard {
     #[inline]
     fn drop(&mut self) {
-        trace!(target: self.module_path, "Completed `{}`", self.called_from_fn);
+        trace!(
+            target = self.module_path,
+            "Completed `{}`",
+            self.called_from_fn
+        );
     }
 }

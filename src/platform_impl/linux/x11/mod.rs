@@ -18,7 +18,7 @@ use calloop::generic::Generic;
 use calloop::EventLoop as Loop;
 use calloop::{ping::Ping, Readiness};
 use libc::{setlocale, LC_CTYPE};
-use log::warn;
+use tracing::warn;
 
 use x11rb::connection::RequestConnection;
 use x11rb::errors::{ConnectError, ConnectionError, IdsExhausted, ReplyError};
@@ -483,7 +483,7 @@ impl<T: 'static> EventLoop<T> {
             .dispatch(timeout, &mut self.state)
             .map_err(std::io::Error::from)
         {
-            log::error!("Failed to poll for events: {error:?}");
+            tracing::error!("Failed to poll for events: {error:?}");
             let exit_code = error.raw_os_error().unwrap_or(1);
             self.set_exit_code(exit_code);
             return;
@@ -567,7 +567,7 @@ impl<T: 'static> EventLoop<T> {
                     callback(event, &self.event_processor.target)
                 }
                 Some(Err(e)) => {
-                    log::error!("Failed to get activation token: {}", e);
+                    tracing::error!("Failed to get activation token: {}", e);
                 }
                 None => {}
             }

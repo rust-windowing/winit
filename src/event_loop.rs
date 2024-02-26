@@ -109,6 +109,8 @@ impl<T> EventLoopBuilder<T> {
     )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
+        let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
+
         if EVENT_LOOP_CREATED.swap(true, Ordering::Relaxed) {
             return Err(EventLoopError::RecreationAttempt);
         }
@@ -248,6 +250,8 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<T>, &ActiveEventLoop),
     {
+        let _span = tracing::debug_span!("winit::EventLoop::run").entered();
+
         self.event_loop.run(event_handler)
     }
 
@@ -274,6 +278,12 @@ impl<T> EventLoop<T> {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        let _span = tracing::debug_span!(
+            "winit::EventLoop::listen_device_events",
+            allowed = ?allowed
+        )
+        .entered();
+
         self.event_loop
             .window_target()
             .p
@@ -295,6 +305,12 @@ impl<T> EventLoop<T> {
     #[deprecated = "use `ActiveEventLoop::create_window` instead"]
     #[inline]
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let _span = tracing::debug_span!(
+            "winit::EventLoop::create_window",
+            window_attributes = ?window_attributes
+        )
+        .entered();
+
         let window =
             platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
         Ok(Window { window })
@@ -363,18 +379,28 @@ impl ActiveEventLoop {
     ///   see the web platform module for more information.
     #[inline]
     pub fn create_window(&self, window_attributes: WindowAttributes) -> Result<Window, OsError> {
+        let _span = tracing::debug_span!(
+            "winit::ActiveEventLoop::create_window",
+            window_attributes = ?window_attributes
+        )
+        .entered();
+
         let window = platform_impl::Window::new(&self.p, window_attributes)?;
         Ok(Window { window })
     }
 
     /// Create custom cursor.
     pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
+        let _span = tracing::debug_span!("winit::ActiveEventLoop::create_custom_cursor",).entered();
+
         self.p.create_custom_cursor(custom_cursor)
     }
 
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        let _span = tracing::debug_span!("winit::ActiveEventLoop::available_monitors",).entered();
+
         #[allow(clippy::useless_conversion)] // false positive on some platforms
         self.p
             .available_monitors()
@@ -391,6 +417,8 @@ impl ActiveEventLoop {
     /// **Wayland / Web:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        let _span = tracing::debug_span!("winit::ActiveEventLoop::primary_monitor",).entered();
+
         self.p
             .primary_monitor()
             .map(|inner| MonitorHandle { inner })
@@ -408,6 +436,12 @@ impl ActiveEventLoop {
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
+        let _span = tracing::debug_span!(
+            "winit::ActiveEventLoop::listen_device_events",
+            allowed = ?allowed
+        )
+        .entered();
+
         self.p.listen_device_events(allowed);
     }
 
@@ -425,6 +459,8 @@ impl ActiveEventLoop {
     ///
     /// See [`LoopExiting`](Event::LoopExiting).
     pub fn exit(&self) {
+        let _span = tracing::debug_span!("winit::ActiveEventLoop::exit",).entered();
+
         self.p.exit()
     }
 
@@ -530,6 +566,8 @@ impl<T: 'static> EventLoopProxy<T> {
     ///
     /// [`UserEvent(event)`]: Event::UserEvent
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        let _span = tracing::debug_span!("winit::EventLoopProxy::send_event",).entered();
+
         self.event_loop_proxy.send_event(event)
     }
 }

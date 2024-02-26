@@ -133,7 +133,7 @@ impl WinitState {
         ) {
             Ok(c) => Some(c),
             Err(e) => {
-                log::warn!("Subcompositor protocol not available, ignoring CSD: {e:?}");
+                tracing::warn!("Subcompositor protocol not available, ignoring CSD: {e:?}");
                 None
             }
         };

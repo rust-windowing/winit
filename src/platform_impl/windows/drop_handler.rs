@@ -18,7 +18,7 @@ use windows_sys::{
     },
 };
 
-use log::debug;
+use tracing::debug;
 
 use crate::platform_impl::platform::{
     definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},

@@ -301,7 +301,9 @@ impl CursorHandler {
                         };
                     }
                     ImageState::Failed(error) => {
-                        log::error!("trying to load custom cursor that has failed to load: {error}")
+                        tracing::error!(
+                            "trying to load custom cursor that has failed to load: {error}"
+                        )
                     }
                     ImageState::Image(_) => {
                         drop(state);
@@ -413,7 +415,7 @@ impl Inner {
                 self.set_style();
             }
             ImageState::Failed(error) => {
-                log::error!("custom cursor failed to load: {error}");
+                tracing::error!("custom cursor failed to load: {error}");
                 self.cursor = previous.into()
             }
             ImageState::Loading { .. } => unreachable!("notified without being ready"),

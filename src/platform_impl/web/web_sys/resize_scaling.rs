@@ -1,5 +1,5 @@
 use js_sys::{Array, Object};
-use log::warn;
+use tracing::warn;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{

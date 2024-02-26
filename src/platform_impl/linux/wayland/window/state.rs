@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use ahash::HashSet;
-use log::{info, warn};
+use tracing::{info, warn};
 
 use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
@@ -727,7 +727,7 @@ impl WindowState {
             RootCustomCursor {
                 inner: PlatformCustomCursor::X(_),
             } => {
-                log::error!("passed a X11 cursor to Wayland backend");
+                tracing::error!("passed a X11 cursor to Wayland backend");
                 return;
             }
         };

@@ -88,6 +88,15 @@ impl CustomCursor {
         hotspot_x: u16,
         hotspot_y: u16,
     ) -> Result<CustomCursorSource, BadImage> {
+        let _span = tracing::debug_span!(
+            "winit::Cursor::from_rgba",
+            width,
+            height,
+            hotspot_x,
+            hotspot_y
+        )
+        .entered();
+
         Ok(CustomCursorSource {
             inner: PlatformCustomCursorSource::from_rgba(
                 rgba.into(),

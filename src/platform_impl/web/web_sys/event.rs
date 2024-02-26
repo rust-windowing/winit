@@ -190,7 +190,7 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
         KeyboardEvent::DOM_KEY_LOCATION_NUMPAD => KeyLocation::Numpad,
         KeyboardEvent::DOM_KEY_LOCATION_STANDARD => KeyLocation::Standard,
         location => {
-            log::warn!("Unexpected key location: {location}");
+            tracing::warn!("Unexpected key location: {location}");
             KeyLocation::Standard
         }
     }

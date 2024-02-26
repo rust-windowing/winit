@@ -32,8 +32,8 @@ use windows_sys::Win32::{
     },
 };
 
-use log::{trace, warn};
 use smol_str::SmolStr;
+use tracing::{trace, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{

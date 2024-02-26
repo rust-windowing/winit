@@ -3,10 +3,10 @@
 use std::collections::VecDeque;
 
 use icrate::Foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
-use log::{debug, warn};
 use objc2::rc::Id;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
+use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
 use super::uikit::{

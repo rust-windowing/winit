@@ -174,7 +174,7 @@ pub fn character_map_and_combine_key(
     let key_map = match app.device_key_character_map(device_id) {
         Ok(key_map) => key_map,
         Err(err) => {
-            log::warn!("Failed to look up `KeyCharacterMap` for device {device_id}: {err:?}");
+            tracing::warn!("Failed to look up `KeyCharacterMap` for device {device_id}: {err:?}");
             return None;
         }
     };
@@ -188,7 +188,7 @@ pub fn character_map_and_combine_key(
                         Ok(Some(key)) => Some(key),
                         Ok(None) => None,
                         Err(err) => {
-                            log::warn!("KeyEvent: Failed to combine 'dead key' accent '{accent}' with '{unicode}': {err:?}");
+                            tracing::warn!("KeyEvent: Failed to combine 'dead key' accent '{accent}' with '{unicode}': {err:?}");
                             None
                         }
                     }
@@ -213,7 +213,7 @@ pub fn character_map_and_combine_key(
             None
         }
         Err(err) => {
-            log::warn!("KeyEvent: Failed to get key map character: {err:?}");
+            tracing::warn!("KeyEvent: Failed to get key map character: {err:?}");
             *combining_accent = None;
             None
         }
