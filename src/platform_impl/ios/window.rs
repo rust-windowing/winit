@@ -16,7 +16,7 @@ use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use crate::{
     cursor::Cursor,
-    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
@@ -537,7 +537,7 @@ impl Window {
             let screen = window.screen();
             let screen_space = screen.coordinateSpace();
             let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
-            let size = crate::dpi::LogicalSize {
+            let size = LogicalSize {
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };

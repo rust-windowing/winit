@@ -145,7 +145,7 @@ impl MonitorHandle {
     /// Returns the scale factor of the underlying monitor. To map logical pixels to physical
     /// pixels and vice versa, use [`Window::scale_factor`].
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the [`dpi`] module for more information.
     ///
     /// ## Platform-specific
     ///

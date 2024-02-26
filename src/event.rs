@@ -539,7 +539,7 @@ pub enum WindowEvent {
     /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the window is
     /// resized to the value suggested by the OS, but it can be changed to any value.
     ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    /// For more information about DPI in general, see the [`dpi`] crate.
     ScaleFactorChanged {
         scale_factor: f64,
         /// Handle to update inner size during scale changes.
