@@ -1,7 +1,7 @@
 #![cfg(x11_platform)]
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::CStr;
 use std::fmt;
 use std::marker::PhantomData;
@@ -58,7 +58,7 @@ mod xsettings;
 
 use atoms::*;
 use dnd::{Dnd, DndState};
-use event_processor::EventProcessor;
+use event_processor::{EventProcessor, MAX_MOD_REPLAY_LEN};
 use ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender};
 pub(crate) use monitor::{MonitorHandle, VideoMode};
 use window::UnownedWindow;
@@ -289,6 +289,9 @@ impl<T: 'static> EventLoop<T> {
         let xkb_context =
             Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
+        let mut xmodmap = util::ModifierKeymap::new();
+        xmodmap.reload_from_x_connection(&xconn);
+
         let window_target = EventLoopWindowTarget {
             ime,
             root,
@@ -327,6 +330,8 @@ impl<T: 'static> EventLoop<T> {
             ime_receiver,
             ime_event_receiver,
             xi2ext,
+            xfiltered_modifiers: VecDeque::with_capacity(MAX_MOD_REPLAY_LEN),
+            xmodmap,
             xkbext,
             xkb_context,
             num_touch: 0,
