@@ -11,7 +11,7 @@ use web_sys::{Document, Element, HtmlCanvasElement};
 use super::EventListenerHandle;
 
 thread_local! {
-    static FULLSCREEN_API_SUPPORT: OnceCell<bool> = OnceCell::new();
+    static FULLSCREEN_API_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
 }
 
 pub struct FullscreenHandler {

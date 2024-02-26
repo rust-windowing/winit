@@ -256,7 +256,7 @@ pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEv
 // See <https://github.com/rust-windowing/winit/issues/2875>.
 pub fn has_pointer_raw_support(window: &web_sys::Window) -> bool {
     thread_local! {
-        static POINTER_RAW_SUPPORT: OnceCell<bool> = OnceCell::new();
+        static POINTER_RAW_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
     }
 
     POINTER_RAW_SUPPORT.with(|support| {
@@ -279,7 +279,7 @@ pub fn has_pointer_raw_support(window: &web_sys::Window) -> bool {
 // See <https://bugs.webkit.org/show_bug.cgi?id=210454>.
 pub fn has_coalesced_events_support(event: &PointerEvent) -> bool {
     thread_local! {
-        static COALESCED_EVENTS_SUPPORT: OnceCell<bool> = OnceCell::new();
+        static COALESCED_EVENTS_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
     }
 
     COALESCED_EVENTS_SUPPORT.with(|support| {
