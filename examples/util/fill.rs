@@ -28,7 +28,7 @@ mod platform {
         // ManuallyDrop to prevent destructors from running.
         //
         // A static, thread-local map of graphics contexts to open windows.
-        static GC: ManuallyDrop<RefCell<Option<GraphicsContext>>> = ManuallyDrop::new(RefCell::new(None));
+        static GC: ManuallyDrop<RefCell<Option<GraphicsContext>>> = const { ManuallyDrop::new(RefCell::new(None)) };
     }
 
     /// The graphics context used to draw to a window.

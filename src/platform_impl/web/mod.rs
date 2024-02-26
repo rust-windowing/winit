@@ -17,6 +17,9 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
+// TODO: FP, remove when <https://github.com/rust-lang/rust/issues/121621> is fixed.
+#![allow(unknown_lints, non_local_definitions)]
+
 mod r#async;
 mod cursor;
 mod device;
