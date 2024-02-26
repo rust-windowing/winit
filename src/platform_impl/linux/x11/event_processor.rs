@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::slice;
 use std::sync::{Arc, Mutex};
@@ -38,6 +38,9 @@ use crate::platform_impl::x11::{
     GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
+/// The maximum amount of X modifiers to replay.
+pub const MAX_MOD_REPLAY_LEN: usize = 32;
+
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
@@ -63,6 +66,8 @@ pub struct EventProcessor {
     pub active_window: Option<xproto::Window>,
     /// Latest modifiers we've sent for the user to trigger change in event.
     pub modifiers: Cell<ModifiersState>,
+    pub xfiltered_modifiers: VecDeque<c_ulong>,
+    pub xmodmap: util::ModifierKeymap,
     pub is_composing: bool,
 }
 
@@ -138,11 +143,25 @@ impl EventProcessor {
     where
         F: FnMut(&RootAEL, Event<T>),
     {
+        let event_type = xev.get_type();
+
         if self.filter_event(xev) {
+            if event_type == xlib::KeyPress || event_type == xlib::KeyRelease {
+                let xev: &XKeyEvent = xev.as_ref();
+                if self.xmodmap.is_modifier(xev.keycode as u8) {
+                    // Don't grow the buffer past the `MAX_MOD_REPLAY_LEN`. This could happen
+                    // when the modifiers are consumed entirely or serials are altered.
+                    //
+                    // Both cases shouldn't happen in well behaving clients.
+                    if self.xfiltered_modifiers.len() == MAX_MOD_REPLAY_LEN {
+                        self.xfiltered_modifiers.pop_back();
+                    }
+                    self.xfiltered_modifiers.push_front(xev.serial);
+                }
+            }
             return;
         }
 
-        let event_type = xev.get_type();
         match event_type {
             xlib::ClientMessage => self.client_message(xev.as_ref(), &mut callback),
             xlib::SelectionNotify => self.selection_notify(xev.as_ref(), &mut callback),
@@ -940,10 +959,35 @@ impl EventProcessor {
             false
         };
 
-        // Always update the modifiers.
-        self.udpate_mods_from_core_event(window_id, xev.state as u16, &mut callback);
+        // NOTE: When the modifier was captured by the XFilterEvents the modifiers for the modifier
+        // itself are out of sync due to XkbState being delivered before XKeyEvent, since it's
+        // being replayed by the XIM, thus we should replay ourselves.
+        let replay = if let Some(position) = self
+            .xfiltered_modifiers
+            .iter()
+            .rev()
+            .position(|&s| s == xev.serial)
+        {
+            // We don't have to replay modifiers pressed before the current event if some events
+            // were not forwarded to us, since their state is irrelevant.
+            self.xfiltered_modifiers
+                .resize(self.xfiltered_modifiers.len() - 1 - position, 0);
+            true
+        } else {
+            false
+        };
+
+        // Always update the modifiers when we're not replaying.
+        if !replay {
+            self.udpate_mods_from_core_event(window_id, xev.state as u16, &mut callback);
+        }
 
         if keycode != 0 && !self.is_composing {
+            // Don't alter the modifiers state from replaying.
+            if replay {
+                self.send_synthic_modifier_from_core(window_id, xev.state as u16, &mut callback);
+            }
+
             if let Some(mut key_processor) = self.xkb_context.key_context() {
                 let event = key_processor.process_key_event(keycode, state, repeat);
                 let event = Event::WindowEvent {
@@ -955,6 +999,11 @@ impl EventProcessor {
                     },
                 };
                 callback(&self.target, event);
+            }
+
+            // Restore the client's modifiers state after replay.
+            if replay {
+                self.send_modifiers(window_id, self.modifiers.get(), true, &mut callback);
             }
 
             return;
@@ -984,6 +1033,41 @@ impl EventProcessor {
                 callback(&self.target, event);
             }
         }
+    }
+
+    fn send_synthic_modifier_from_core<T: 'static, F>(
+        &mut self,
+        window_id: crate::window::WindowId,
+        state: u16,
+        mut callback: F,
+    ) where
+        F: FnMut(&RootAEL, Event<T>),
+    {
+        let keymap = match self.xkb_context.keymap_mut() {
+            Some(keymap) => keymap,
+            None => return,
+        };
+
+        let wt = Self::window_target(&self.target);
+        let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
+
+        // Use synthetic state since we're replaying the modifier. The user modifier state
+        // will be restored later.
+        let mut xkb_state = match XkbState::new_x11(xcb, keymap) {
+            Some(xkb_state) => xkb_state,
+            None => return,
+        };
+
+        let mask = self.xkb_mod_mask_from_core(state);
+        xkb_state.update_modifiers(mask, 0, 0, 0, 0, Self::core_keyboard_group(state));
+        let mods: ModifiersState = xkb_state.modifiers().into();
+
+        let event = Event::WindowEvent {
+            window_id,
+            event: WindowEvent::ModifiersChanged(mods.into()),
+        };
+
+        callback(&self.target, event);
     }
 
     fn xinput2_button_input<T: 'static, F>(
@@ -1571,6 +1655,7 @@ impl EventProcessor {
                 {
                     let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
                     self.xkb_context.set_keymap_from_x11(xcb);
+                    self.xmodmap.reload_from_x_connection(&wt.xconn);
 
                     let window_id = match self.active_window.map(super::mkwid) {
                         Some(window_id) => window_id,
@@ -1586,6 +1671,7 @@ impl EventProcessor {
             xlib::XkbMapNotify => {
                 let xcb = wt.xconn.xcb_connection().get_raw_xcb_connection();
                 self.xkb_context.set_keymap_from_x11(xcb);
+                self.xmodmap.reload_from_x_connection(&wt.xconn);
                 let window_id = match self.active_window.map(super::mkwid) {
                     Some(window_id) => window_id,
                     None => return,
@@ -1717,12 +1803,16 @@ impl EventProcessor {
             locked,
             0,
             0,
-            // Bits 13 and 14 report the state keyboard group.
-            ((state >> 13) & 3) as u32,
+            Self::core_keyboard_group(state),
         );
 
         let mods = xkb_state.modifiers();
         self.send_modifiers(window_id, mods.into(), false, &mut callback);
+    }
+
+    // Bits 13 and 14 report the state keyboard group.
+    pub fn core_keyboard_group(state: u16) -> u32 {
+        ((state >> 13) & 3) as u32
     }
 
     pub fn xkb_mod_mask_from_core(&mut self, state: u16) -> xkb_mod_mask_t {

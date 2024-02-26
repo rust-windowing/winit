@@ -1,6 +1,12 @@
 // Welcome to the util module, where we try to keep you from shooting yourself in the foot.
 // *results may vary
 
+use std::{
+    mem::{self, MaybeUninit},
+    ops::BitAnd,
+    os::raw::*,
+};
+
 mod client_msg;
 mod cursor;
 mod geometry;
@@ -12,13 +18,10 @@ pub(crate) mod memory;
 mod randr;
 mod window_property;
 mod wm;
+mod xmodmap;
 
-pub use self::{cursor::*, geometry::*, hint::*, input::*, window_property::*, wm::*};
-
-use std::{
-    mem::{self, MaybeUninit},
-    ops::BitAnd,
-    os::raw::*,
+pub use self::{
+    cursor::*, geometry::*, hint::*, input::*, window_property::*, wm::*, xmodmap::ModifierKeymap,
 };
 
 use super::{atoms::*, ffi, VoidCookie, X11Error, XConnection, XError};
