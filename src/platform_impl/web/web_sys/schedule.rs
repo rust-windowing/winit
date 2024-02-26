@@ -199,7 +199,7 @@ fn duration_millis_ceil(duration: Duration) -> u32 {
 
 fn has_scheduler_support(window: &web_sys::Window) -> bool {
     thread_local! {
-        static SCHEDULER_SUPPORT: OnceCell<bool> = OnceCell::new();
+        static SCHEDULER_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
     }
 
     SCHEDULER_SUPPORT.with(|support| {
@@ -221,7 +221,7 @@ fn has_scheduler_support(window: &web_sys::Window) -> bool {
 
 fn has_idle_callback_support(window: &web_sys::Window) -> bool {
     thread_local! {
-        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = OnceCell::new();
+        static IDLE_CALLBACK_SUPPORT: OnceCell<bool> = const { OnceCell::new() };
     }
 
     IDLE_CALLBACK_SUPPORT.with(|support| {
