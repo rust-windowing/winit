@@ -6,11 +6,10 @@ use std::{
     fmt, mem,
     os::raw::c_void,
     ptr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::Instant,
 };
 
-use crate::utils::Lazy;
 use core_foundation::base::CFRelease;
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
@@ -902,10 +901,10 @@ macro_rules! os_capabilities {
             os_version: NSOperatingSystemVersion,
         }
 
-        impl From<NSOperatingSystemVersion> for OSCapabilities {
-            fn from(os_version: NSOperatingSystemVersion) -> OSCapabilities {
+        impl OSCapabilities {
+            fn from_os_version(os_version: NSOperatingSystemVersion) -> Self {
                 $(let $name = meets_requirements(os_version, $major, $minor);)*
-                OSCapabilities { $($name,)* os_version, }
+                Self { $($name,)* os_version, }
             }
         }
 
@@ -950,25 +949,29 @@ fn meets_requirements(
     (version.majorVersion, version.minorVersion) >= (required_major, required_minor)
 }
 
+fn get_version() -> NSOperatingSystemVersion {
+    unsafe {
+        let process_info = NSProcessInfo::processInfo();
+        let atleast_ios_8: bool = msg_send![
+            &process_info,
+            respondsToSelector: sel!(operatingSystemVersion)
+        ];
+        // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
+        // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
+        // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
+        // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
+        // has been tested to not even run on macOS 10.15 - Xcode 8 might?
+        //
+        // The minimum required iOS version is likely to grow in the future.
+        assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
+        process_info.operatingSystemVersion()
+    }
+}
+
 pub fn os_capabilities() -> OSCapabilities {
-    static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
-        let version: NSOperatingSystemVersion = unsafe {
-            let process_info = NSProcessInfo::processInfo();
-            let atleast_ios_8: bool = msg_send![
-                &process_info,
-                respondsToSelector: sel!(operatingSystemVersion)
-            ];
-            // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
-            // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
-            // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
-            // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
-            // has been tested to not even run on macOS 10.15 - Xcode 8 might?
-            //
-            // The minimum required iOS version is likely to grow in the future.
-            assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
-            process_info.operatingSystemVersion()
-        };
-        version.into()
-    });
-    OS_CAPABILITIES.clone()
+    // Cache the version lookup for efficiency
+    static OS_CAPABILITIES: OnceLock<OSCapabilities> = OnceLock::new();
+    OS_CAPABILITIES
+        .get_or_init(|| OSCapabilities::from_os_version(get_version()))
+        .clone()
 }
