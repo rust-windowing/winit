@@ -27,7 +27,7 @@ use crate::{
     window::{CustomCursor, CustomCursorSource},
 };
 
-use super::app_delegate::AppDelegate;
+use super::{app_delegate::AppDelegate, uikit::UIUserInterfaceIdiom};
 use super::{app_state, monitor, MonitorHandle};
 use super::{
     app_state::AppState,
@@ -227,7 +227,14 @@ impl<T: 'static> EventLoop<T> {
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
-        UIDevice::current(self.mtm).userInterfaceIdiom().into()
+        match UIDevice::current(self.mtm).userInterfaceIdiom() {
+            UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
+            UIUserInterfaceIdiom::Phone => Idiom::Phone,
+            UIUserInterfaceIdiom::Pad => Idiom::Pad,
+            UIUserInterfaceIdiom::TV => Idiom::TV,
+            UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
+            _ => Idiom::Unspecified,
+        }
     }
 }
 

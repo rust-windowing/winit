@@ -4,7 +4,6 @@
 mod app_delegate;
 mod app_state;
 mod event_loop;
-mod ffi;
 mod monitor;
 mod uikit;
 mod view;

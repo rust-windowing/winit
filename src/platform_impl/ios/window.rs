@@ -628,7 +628,7 @@ impl Inner {
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
         self.view_controller
-            .set_preferred_screen_edges_deferring_system_gestures(edges.into());
+            .set_preferred_screen_edges_deferring_system_gestures(edges);
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
@@ -637,7 +637,7 @@ impl Inner {
 
     pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.view_controller
-            .set_preferred_status_bar_style(status_bar_style.into());
+            .set_preferred_status_bar_style(status_bar_style);
     }
 
     pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
