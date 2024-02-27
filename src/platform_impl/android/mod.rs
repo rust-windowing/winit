@@ -12,7 +12,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::utils::Lazy;
 use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
@@ -39,7 +38,7 @@ pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
-static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
+static HAS_FOCUS: RwLock<bool> = RwLock::new(true);
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
