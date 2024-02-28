@@ -6,13 +6,11 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
 use super::app_state::{self};
 use super::uikit::{
-    UIDevice, UIInterfaceOrientationMask, UIResponder, UIStatusBarStyle, UIView, UIViewController,
+    UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
+    UIUserInterfaceIdiom, UIView, UIViewController,
 };
-use crate::{
-    platform::ios::ValidOrientations,
-    platform_impl::platform::ffi::{UIRectEdge, UIUserInterfaceIdiom},
-    window::WindowAttributes,
-};
+use crate::platform::ios::{ScreenEdge, StatusBarStyle};
+use crate::{platform::ios::ValidOrientations, window::WindowAttributes};
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
@@ -77,7 +75,12 @@ impl WinitViewController {
         self.setNeedsStatusBarAppearanceUpdate();
     }
 
-    pub(crate) fn set_preferred_status_bar_style(&self, val: UIStatusBarStyle) {
+    pub(crate) fn set_preferred_status_bar_style(&self, val: StatusBarStyle) {
+        let val = match val {
+            StatusBarStyle::Default => UIStatusBarStyle::Default,
+            StatusBarStyle::LightContent => UIStatusBarStyle::LightContent,
+            StatusBarStyle::DarkContent => UIStatusBarStyle::DarkContent,
+        };
         self.ivars().preferred_status_bar_style.set(val);
         self.setNeedsStatusBarAppearanceUpdate();
     }
@@ -92,7 +95,15 @@ impl WinitViewController {
         }
     }
 
-    pub(crate) fn set_preferred_screen_edges_deferring_system_gestures(&self, val: UIRectEdge) {
+    pub(crate) fn set_preferred_screen_edges_deferring_system_gestures(&self, val: ScreenEdge) {
+        let val = {
+            assert_eq!(
+                val.bits() & !ScreenEdge::ALL.bits(),
+                0,
+                "invalid `ScreenEdge`"
+            );
+            UIRectEdge(val.bits().into())
+        };
         self.ivars()
             .preferred_screen_edges_deferring_system_gestures
             .set(val);
@@ -154,8 +165,7 @@ impl WinitViewController {
         this.set_preferred_status_bar_style(
             window_attributes
                 .platform_specific
-                .preferred_status_bar_style
-                .into(),
+                .preferred_status_bar_style,
         );
 
         this.set_supported_interface_orientations(
@@ -172,8 +182,7 @@ impl WinitViewController {
         this.set_preferred_screen_edges_deferring_system_gestures(
             window_attributes
                 .platform_specific
-                .preferred_screen_edges_deferring_system_gestures
-                .into(),
+                .preferred_screen_edges_deferring_system_gestures,
         );
 
         this.setView(Some(view));

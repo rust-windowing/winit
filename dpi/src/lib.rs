@@ -1,4 +1,4 @@
-//! UI scaling is important, so read the docs for this module if you don't want to be confused.
+//! # DPI
 //!
 //! ## Why should I care about UI scaling?
 //!
@@ -35,14 +35,11 @@
 //!
 //! ### Position and Size types
 //!
-//! Winit's [`PhysicalPosition`] / [`PhysicalSize`] types correspond with the actual pixels on the
+//! The [`PhysicalPosition`] / [`PhysicalSize`] types correspond with the actual pixels on the
 //! device, and the [`LogicalPosition`] / [`LogicalSize`] types correspond to the physical pixels
 //! divided by the scale factor.
-//! All of Winit's functions return physical types, but can take either logical or physical
-//! coordinates as input, allowing you to use the most convenient coordinate system for your
-//! particular application.
 //!
-//! Winit's position and size types are generic over their exact pixel type, `P`, to allow the
+//! The position and size types are generic over their exact pixel type, `P`, to allow the
 //! API to have integer precision where appropriate (e.g. most window manipulation functions) and
 //! floating precision when necessary (e.g. logical sizes for fractional scale factors and touch
 //! input). If `P` is a floating-point type, please do not cast the values with `as {int}`. Doing so
@@ -51,58 +48,24 @@
 //! rounding properly. Note that precision loss will still occur when rounding from a float to an
 //! int, although rounding lessens the problem.
 //!
-//! ### Events
+//! ## Cargo Features
 //!
-//! Winit will dispatch a [`ScaleFactorChanged`] event whenever a window's scale factor has changed.
-//! This can happen if the user drags their window from a standard-resolution monitor to a high-DPI
-//! monitor or if the user changes their DPI settings. This allows you to rescale your application's
-//! UI elements and adjust how the platform changes the window's size to reflect the new scale
-//! factor. If a window hasn't received a [`ScaleFactorChanged`] event, its scale factor
-//! can be found by calling [`window.scale_factor()`].
+//! This crate provides the following Cargo features:
 //!
-//! ## How is the scale factor calculated?
-//!
-//! The scale factor is calculated differently on different platforms:
-//!
-//! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the
-//!   display settings. While users are free to select any option they want, they're only given a
-//!   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7. The scale factor is
-//!   global and changing it requires logging out. See [this article][windows_1] for technical
-//!   details.
-//! - **macOS:** Recent macOS versions allow the user to change the scaling factor for specific
-//!   displays. When available, the user may pick a per-monitor scaling factor from a set of
-//!   pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default,
-//!   but the specific value varies across devices.
-//! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
-//!   currently uses a three-pronged approach:
-//!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable if present.
-//!   + If not present, use the value set in `Xft.dpi` in Xresources.
-//!   + Otherwise, calculate the scale factor based on the millimeter monitor dimensions provided by XRandR.
-//!
-//!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
-//!   XRandR scaling method. Generally speaking, you should try to configure the standard system
-//!   variables to do what you want before resorting to `WINIT_X11_SCALE_FACTOR`.
-//! - **Wayland:** The scale factor is suggested by the compositor for each window individually. The
-//!   monitor scale factor may differ from the window scale factor.
-//! - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
-//!   from `1.0` to `3.0`. See [this article][apple_1] and [this article][apple_2] for more
-//!   information.
-//! - **Android:** Scale factors are set by the manufacturer to the value that best suits the
-//!   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
-//! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
-//!   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
-//!   both the screen scaling and the browser zoom level and can go below `1.0`.
+//! * `serde`: Enables serialization/deserialization of certain types with
+//!   [Serde](https://crates.io/crates/serde).
+//! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
-//! [`ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
-//! [`window.scale_factor()`]: crate::window::Window::scale_factor
-//! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
-//! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
-//! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
-//! [android_1]: https://developer.android.com/training/multiscreen/screendensities
-//! [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
+
+#![cfg_attr(
+    docsrs,
+    feature(doc_auto_cfg, doc_cfg_hide),
+    doc(cfg_hide(doc, docsrs))
+)]
+#![forbid(unsafe_code)]
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -587,15 +550,13 @@ impl<P: Pixel> From<LogicalPosition<P>> for Position {
 
 #[cfg(test)]
 mod tests {
-    use crate::dpi;
+    use super::*;
     use std::collections::HashSet;
 
     macro_rules! test_pixel_int_impl {
         ($($name:ident => $ty:ty),*) => {$(
             #[test]
             fn $name() {
-                use dpi::Pixel;
-
                 assert_eq!(
                     <$ty as Pixel>::from_f64(37.0),
                     37,
@@ -664,8 +625,6 @@ mod tests {
     ($($name:ident => $ty:ty),*) => {$(
         #[test]
         fn $name() {
-            use dpi::Pixel;
-
             assert_approx_eq!(
                 <$ty as Pixel>::from_f64(37.0),
                 37.0,
@@ -758,46 +717,40 @@ mod tests {
 
     #[test]
     fn test_validate_scale_factor() {
-        assert!(dpi::validate_scale_factor(1.0));
-        assert!(dpi::validate_scale_factor(2.0));
-        assert!(dpi::validate_scale_factor(3.0));
-        assert!(dpi::validate_scale_factor(1.5));
-        assert!(dpi::validate_scale_factor(0.5));
+        assert!(validate_scale_factor(1.0));
+        assert!(validate_scale_factor(2.0));
+        assert!(validate_scale_factor(3.0));
+        assert!(validate_scale_factor(1.5));
+        assert!(validate_scale_factor(0.5));
 
-        assert!(!dpi::validate_scale_factor(0.0));
-        assert!(!dpi::validate_scale_factor(-1.0));
-        assert!(!dpi::validate_scale_factor(f64::INFINITY));
-        assert!(!dpi::validate_scale_factor(f64::NAN));
-        assert!(!dpi::validate_scale_factor(f64::NEG_INFINITY));
+        assert!(!validate_scale_factor(0.0));
+        assert!(!validate_scale_factor(-1.0));
+        assert!(!validate_scale_factor(f64::INFINITY));
+        assert!(!validate_scale_factor(f64::NAN));
+        assert!(!validate_scale_factor(f64::NEG_INFINITY));
     }
 
     #[test]
     fn test_logical_position() {
-        let log_pos = dpi::LogicalPosition::new(1.0, 2.0);
-        assert_eq!(
-            log_pos.to_physical::<u32>(1.0),
-            dpi::PhysicalPosition::new(1, 2)
-        );
-        assert_eq!(
-            log_pos.to_physical::<u32>(2.0),
-            dpi::PhysicalPosition::new(2, 4)
-        );
-        assert_eq!(log_pos.cast::<u32>(), dpi::LogicalPosition::new(1, 2));
+        let log_pos = LogicalPosition::new(1.0, 2.0);
+        assert_eq!(log_pos.to_physical::<u32>(1.0), PhysicalPosition::new(1, 2));
+        assert_eq!(log_pos.to_physical::<u32>(2.0), PhysicalPosition::new(2, 4));
+        assert_eq!(log_pos.cast::<u32>(), LogicalPosition::new(1, 2));
         assert_eq!(
             log_pos,
-            dpi::LogicalPosition::from_physical(dpi::PhysicalPosition::new(1.0, 2.0), 1.0)
+            LogicalPosition::from_physical(PhysicalPosition::new(1.0, 2.0), 1.0)
         );
         assert_eq!(
             log_pos,
-            dpi::LogicalPosition::from_physical(dpi::PhysicalPosition::new(2.0, 4.0), 2.0)
+            LogicalPosition::from_physical(PhysicalPosition::new(2.0, 4.0), 2.0)
         );
         assert_eq!(
-            dpi::LogicalPosition::from((2.0, 2.0)),
-            dpi::LogicalPosition::new(2.0, 2.0)
+            LogicalPosition::from((2.0, 2.0)),
+            LogicalPosition::new(2.0, 2.0)
         );
         assert_eq!(
-            dpi::LogicalPosition::from([2.0, 3.0]),
-            dpi::LogicalPosition::new(2.0, 3.0)
+            LogicalPosition::from([2.0, 3.0]),
+            LogicalPosition::new(2.0, 3.0)
         );
 
         let x: (f64, f64) = log_pos.into();
@@ -809,56 +762,44 @@ mod tests {
     #[test]
     fn test_physical_position() {
         assert_eq!(
-            dpi::PhysicalPosition::from_logical(dpi::LogicalPosition::new(1.0, 2.0), 1.0),
-            dpi::PhysicalPosition::new(1, 2)
+            PhysicalPosition::from_logical(LogicalPosition::new(1.0, 2.0), 1.0),
+            PhysicalPosition::new(1, 2)
         );
         assert_eq!(
-            dpi::PhysicalPosition::from_logical(dpi::LogicalPosition::new(2.0, 4.0), 0.5),
-            dpi::PhysicalPosition::new(1, 2)
+            PhysicalPosition::from_logical(LogicalPosition::new(2.0, 4.0), 0.5),
+            PhysicalPosition::new(1, 2)
         );
         assert_eq!(
-            dpi::PhysicalPosition::from((2.0, 2.0)),
-            dpi::PhysicalPosition::new(2.0, 2.0)
+            PhysicalPosition::from((2.0, 2.0)),
+            PhysicalPosition::new(2.0, 2.0)
         );
         assert_eq!(
-            dpi::PhysicalPosition::from([2.0, 3.0]),
-            dpi::PhysicalPosition::new(2.0, 3.0)
+            PhysicalPosition::from([2.0, 3.0]),
+            PhysicalPosition::new(2.0, 3.0)
         );
 
-        let x: (f64, f64) = dpi::PhysicalPosition::new(1, 2).into();
+        let x: (f64, f64) = PhysicalPosition::new(1, 2).into();
         assert_eq!(x, (1.0, 2.0));
-        let x: [f64; 2] = dpi::PhysicalPosition::new(1, 2).into();
+        let x: [f64; 2] = PhysicalPosition::new(1, 2).into();
         assert_eq!(x, [1.0, 2.0]);
     }
 
     #[test]
     fn test_logical_size() {
-        let log_size = dpi::LogicalSize::new(1.0, 2.0);
-        assert_eq!(
-            log_size.to_physical::<u32>(1.0),
-            dpi::PhysicalSize::new(1, 2)
-        );
-        assert_eq!(
-            log_size.to_physical::<u32>(2.0),
-            dpi::PhysicalSize::new(2, 4)
-        );
-        assert_eq!(log_size.cast::<u32>(), dpi::LogicalSize::new(1, 2));
+        let log_size = LogicalSize::new(1.0, 2.0);
+        assert_eq!(log_size.to_physical::<u32>(1.0), PhysicalSize::new(1, 2));
+        assert_eq!(log_size.to_physical::<u32>(2.0), PhysicalSize::new(2, 4));
+        assert_eq!(log_size.cast::<u32>(), LogicalSize::new(1, 2));
         assert_eq!(
             log_size,
-            dpi::LogicalSize::from_physical(dpi::PhysicalSize::new(1.0, 2.0), 1.0)
+            LogicalSize::from_physical(PhysicalSize::new(1.0, 2.0), 1.0)
         );
         assert_eq!(
             log_size,
-            dpi::LogicalSize::from_physical(dpi::PhysicalSize::new(2.0, 4.0), 2.0)
+            LogicalSize::from_physical(PhysicalSize::new(2.0, 4.0), 2.0)
         );
-        assert_eq!(
-            dpi::LogicalSize::from((2.0, 2.0)),
-            dpi::LogicalSize::new(2.0, 2.0)
-        );
-        assert_eq!(
-            dpi::LogicalSize::from([2.0, 3.0]),
-            dpi::LogicalSize::new(2.0, 3.0)
-        );
+        assert_eq!(LogicalSize::from((2.0, 2.0)), LogicalSize::new(2.0, 2.0));
+        assert_eq!(LogicalSize::from([2.0, 3.0]), LogicalSize::new(2.0, 3.0));
 
         let x: (f64, f64) = log_size.into();
         assert_eq!(x, (1.0, 2.0));
@@ -869,136 +810,130 @@ mod tests {
     #[test]
     fn test_physical_size() {
         assert_eq!(
-            dpi::PhysicalSize::from_logical(dpi::LogicalSize::new(1.0, 2.0), 1.0),
-            dpi::PhysicalSize::new(1, 2)
+            PhysicalSize::from_logical(LogicalSize::new(1.0, 2.0), 1.0),
+            PhysicalSize::new(1, 2)
         );
         assert_eq!(
-            dpi::PhysicalSize::from_logical(dpi::LogicalSize::new(2.0, 4.0), 0.5),
-            dpi::PhysicalSize::new(1, 2)
+            PhysicalSize::from_logical(LogicalSize::new(2.0, 4.0), 0.5),
+            PhysicalSize::new(1, 2)
         );
-        assert_eq!(
-            dpi::PhysicalSize::from((2.0, 2.0)),
-            dpi::PhysicalSize::new(2.0, 2.0)
-        );
-        assert_eq!(
-            dpi::PhysicalSize::from([2.0, 3.0]),
-            dpi::PhysicalSize::new(2.0, 3.0)
-        );
+        assert_eq!(PhysicalSize::from((2.0, 2.0)), PhysicalSize::new(2.0, 2.0));
+        assert_eq!(PhysicalSize::from([2.0, 3.0]), PhysicalSize::new(2.0, 3.0));
 
-        let x: (f64, f64) = dpi::PhysicalSize::new(1, 2).into();
+        let x: (f64, f64) = PhysicalSize::new(1, 2).into();
         assert_eq!(x, (1.0, 2.0));
-        let x: [f64; 2] = dpi::PhysicalSize::new(1, 2).into();
+        let x: [f64; 2] = PhysicalSize::new(1, 2).into();
         assert_eq!(x, [1.0, 2.0]);
     }
 
     #[test]
     fn test_size() {
         assert_eq!(
-            dpi::Size::new(dpi::PhysicalSize::new(1, 2)),
-            dpi::Size::Physical(dpi::PhysicalSize::new(1, 2))
+            Size::new(PhysicalSize::new(1, 2)),
+            Size::Physical(PhysicalSize::new(1, 2))
         );
         assert_eq!(
-            dpi::Size::new(dpi::LogicalSize::new(1.0, 2.0)),
-            dpi::Size::Logical(dpi::LogicalSize::new(1.0, 2.0))
+            Size::new(LogicalSize::new(1.0, 2.0)),
+            Size::Logical(LogicalSize::new(1.0, 2.0))
         );
 
         assert_eq!(
-            dpi::Size::new(dpi::PhysicalSize::new(1, 2)).to_logical::<f64>(1.0),
-            dpi::LogicalSize::new(1.0, 2.0)
+            Size::new(PhysicalSize::new(1, 2)).to_logical::<f64>(1.0),
+            LogicalSize::new(1.0, 2.0)
         );
         assert_eq!(
-            dpi::Size::new(dpi::PhysicalSize::new(1, 2)).to_logical::<f64>(2.0),
-            dpi::LogicalSize::new(0.5, 1.0)
+            Size::new(PhysicalSize::new(1, 2)).to_logical::<f64>(2.0),
+            LogicalSize::new(0.5, 1.0)
         );
         assert_eq!(
-            dpi::Size::new(dpi::LogicalSize::new(1.0, 2.0)).to_logical::<f64>(1.0),
-            dpi::LogicalSize::new(1.0, 2.0)
+            Size::new(LogicalSize::new(1.0, 2.0)).to_logical::<f64>(1.0),
+            LogicalSize::new(1.0, 2.0)
         );
 
         assert_eq!(
-            dpi::Size::new(dpi::PhysicalSize::new(1, 2)).to_physical::<u32>(1.0),
-            dpi::PhysicalSize::new(1, 2)
+            Size::new(PhysicalSize::new(1, 2)).to_physical::<u32>(1.0),
+            PhysicalSize::new(1, 2)
         );
         assert_eq!(
-            dpi::Size::new(dpi::PhysicalSize::new(1, 2)).to_physical::<u32>(2.0),
-            dpi::PhysicalSize::new(1, 2)
+            Size::new(PhysicalSize::new(1, 2)).to_physical::<u32>(2.0),
+            PhysicalSize::new(1, 2)
         );
         assert_eq!(
-            dpi::Size::new(dpi::LogicalSize::new(1.0, 2.0)).to_physical::<u32>(1.0),
-            dpi::PhysicalSize::new(1, 2)
+            Size::new(LogicalSize::new(1.0, 2.0)).to_physical::<u32>(1.0),
+            PhysicalSize::new(1, 2)
         );
         assert_eq!(
-            dpi::Size::new(dpi::LogicalSize::new(1.0, 2.0)).to_physical::<u32>(2.0),
-            dpi::PhysicalSize::new(2, 4)
+            Size::new(LogicalSize::new(1.0, 2.0)).to_physical::<u32>(2.0),
+            PhysicalSize::new(2, 4)
         );
 
-        let small = dpi::Size::Physical((1, 2).into());
-        let medium = dpi::Size::Logical((3, 4).into());
-        let medium_physical = dpi::Size::new(medium.to_physical::<u32>(1.0));
-        let large = dpi::Size::Physical((5, 6).into());
-        assert_eq!(dpi::Size::clamp(medium, small, large, 1.0), medium_physical);
-        assert_eq!(dpi::Size::clamp(small, medium, large, 1.0), medium_physical);
-        assert_eq!(dpi::Size::clamp(large, small, medium, 1.0), medium_physical);
+        let small = Size::Physical((1, 2).into());
+        let medium = Size::Logical((3, 4).into());
+        let medium_physical = Size::new(medium.to_physical::<u32>(1.0));
+        let large = Size::Physical((5, 6).into());
+        assert_eq!(Size::clamp(medium, small, large, 1.0), medium_physical);
+        assert_eq!(Size::clamp(small, medium, large, 1.0), medium_physical);
+        assert_eq!(Size::clamp(large, small, medium, 1.0), medium_physical);
     }
 
     #[test]
     fn test_position() {
         assert_eq!(
-            dpi::Position::new(dpi::PhysicalPosition::new(1, 2)),
-            dpi::Position::Physical(dpi::PhysicalPosition::new(1, 2))
+            Position::new(PhysicalPosition::new(1, 2)),
+            Position::Physical(PhysicalPosition::new(1, 2))
         );
         assert_eq!(
-            dpi::Position::new(dpi::LogicalPosition::new(1.0, 2.0)),
-            dpi::Position::Logical(dpi::LogicalPosition::new(1.0, 2.0))
-        );
-
-        assert_eq!(
-            dpi::Position::new(dpi::PhysicalPosition::new(1, 2)).to_logical::<f64>(1.0),
-            dpi::LogicalPosition::new(1.0, 2.0)
-        );
-        assert_eq!(
-            dpi::Position::new(dpi::PhysicalPosition::new(1, 2)).to_logical::<f64>(2.0),
-            dpi::LogicalPosition::new(0.5, 1.0)
-        );
-        assert_eq!(
-            dpi::Position::new(dpi::LogicalPosition::new(1.0, 2.0)).to_logical::<f64>(1.0),
-            dpi::LogicalPosition::new(1.0, 2.0)
+            Position::new(LogicalPosition::new(1.0, 2.0)),
+            Position::Logical(LogicalPosition::new(1.0, 2.0))
         );
 
         assert_eq!(
-            dpi::Position::new(dpi::PhysicalPosition::new(1, 2)).to_physical::<u32>(1.0),
-            dpi::PhysicalPosition::new(1, 2)
+            Position::new(PhysicalPosition::new(1, 2)).to_logical::<f64>(1.0),
+            LogicalPosition::new(1.0, 2.0)
         );
         assert_eq!(
-            dpi::Position::new(dpi::PhysicalPosition::new(1, 2)).to_physical::<u32>(2.0),
-            dpi::PhysicalPosition::new(1, 2)
+            Position::new(PhysicalPosition::new(1, 2)).to_logical::<f64>(2.0),
+            LogicalPosition::new(0.5, 1.0)
         );
         assert_eq!(
-            dpi::Position::new(dpi::LogicalPosition::new(1.0, 2.0)).to_physical::<u32>(1.0),
-            dpi::PhysicalPosition::new(1, 2)
+            Position::new(LogicalPosition::new(1.0, 2.0)).to_logical::<f64>(1.0),
+            LogicalPosition::new(1.0, 2.0)
+        );
+
+        assert_eq!(
+            Position::new(PhysicalPosition::new(1, 2)).to_physical::<u32>(1.0),
+            PhysicalPosition::new(1, 2)
         );
         assert_eq!(
-            dpi::Position::new(dpi::LogicalPosition::new(1.0, 2.0)).to_physical::<u32>(2.0),
-            dpi::PhysicalPosition::new(2, 4)
+            Position::new(PhysicalPosition::new(1, 2)).to_physical::<u32>(2.0),
+            PhysicalPosition::new(1, 2)
+        );
+        assert_eq!(
+            Position::new(LogicalPosition::new(1.0, 2.0)).to_physical::<u32>(1.0),
+            PhysicalPosition::new(1, 2)
+        );
+        assert_eq!(
+            Position::new(LogicalPosition::new(1.0, 2.0)).to_physical::<u32>(2.0),
+            PhysicalPosition::new(2, 4)
         );
     }
 
     // Eat coverage for the Debug impls et al
     #[test]
     fn ensure_attrs_do_not_panic() {
-        let _ = format!("{:?}", dpi::LogicalPosition::<u32>::default().clone());
-        HashSet::new().insert(dpi::LogicalPosition::<u32>::default());
+        let _ = format!("{:?}", LogicalPosition::<u32>::default().clone());
+        HashSet::new().insert(LogicalPosition::<u32>::default());
 
-        let _ = format!("{:?}", dpi::PhysicalPosition::<u32>::default().clone());
-        HashSet::new().insert(dpi::PhysicalPosition::<u32>::default());
+        let _ = format!("{:?}", PhysicalPosition::<u32>::default().clone());
+        HashSet::new().insert(PhysicalPosition::<u32>::default());
 
-        let _ = format!("{:?}", dpi::LogicalSize::<u32>::default().clone());
-        HashSet::new().insert(dpi::LogicalSize::<u32>::default());
+        let _ = format!("{:?}", LogicalSize::<u32>::default().clone());
+        HashSet::new().insert(LogicalSize::<u32>::default());
 
-        let _ = format!("{:?}", dpi::PhysicalSize::<u32>::default().clone());
-        HashSet::new().insert(dpi::PhysicalSize::<u32>::default());
+        let _ = format!("{:?}", PhysicalSize::<u32>::default().clone());
+        HashSet::new().insert(PhysicalSize::<u32>::default());
 
-        let _ = format!("{:?}", dpi::Size::Physical((1, 2).into()).clone());
-        let _ = format!("{:?}", dpi::Position::Physical((1, 2).into()).clone());
+        let _ = format!("{:?}", Size::Physical((1, 2).into()).clone());
+        let _ = format!("{:?}", Position::Physical((1, 2).into()).clone());
     }
 }

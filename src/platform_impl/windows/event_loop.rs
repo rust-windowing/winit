@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -848,16 +848,16 @@ static USER_EVENT_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::WakeupMsg\0
 static EXEC_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::ExecMsg\0");
 // Message sent by a `Window` when it wants to be destroyed by the main thread.
 // WPARAM and LPARAM are unused.
-pub static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg\0");
+pub(crate) static DESTROY_MSG_ID: LazyMessageId = LazyMessageId::new("Winit::DestroyMsg\0");
 // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
 // documentation in the `window_state` module for more information.
-pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
+pub(crate) static SET_RETAIN_STATE_ON_SIZE_MSG_ID: LazyMessageId =
     LazyMessageId::new("Winit::SetRetainMaximized\0");
 static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
     Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
 /// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
-pub static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
+pub(crate) static TASKBAR_CREATED: LazyMessageId = LazyMessageId::new("TaskbarCreated\0");
 
 fn create_event_target_window() -> HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;

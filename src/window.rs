@@ -540,17 +540,54 @@ impl Window {
     ///
     /// This value may differ from [`MonitorHandle::scale_factor`].
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the [`dpi`] crate for more information.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
-    /// - **Wayland:** Uses the wp-fractional-scale protocol if available. Falls back to integer-scale factors otherwise.
-    /// - **Android:** Always returns 1.0.
-    /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
-    ///   [`contentScaleFactor`].
+    /// The scale factor is calculated differently on different platforms:
+    ///
+    /// - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the
+    ///   display settings. While users are free to select any option they want, they're only given a
+    ///   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7. The scale factor is
+    ///   global and changing it requires logging out. See [this article][windows_1] for technical
+    ///   details.
+    /// - **macOS:** Recent macOS versions allow the user to change the scaling factor for specific
+    ///   displays. When available, the user may pick a per-monitor scaling factor from a set of
+    ///   pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default,
+    ///   but the specific value varies across devices.
+    /// - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
+    ///   currently uses a three-pronged approach:
+    ///   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable if present.
+    ///   + If not present, use the value set in `Xft.dpi` in Xresources.
+    ///   + Otherwise, calculate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+    ///
+    ///   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
+    ///   XRandR scaling method. Generally speaking, you should try to configure the standard system
+    ///   variables to do what you want before resorting to `WINIT_X11_SCALE_FACTOR`.
+    /// - **Wayland:** The scale factor is suggested by the compositor for each window individually by
+    ///   using the wp-fractional-scale protocol if available. Falls back to integer-scale factors otherwise.
+    ///
+    ///   The monitor scale factor may differ from the window scale factor.
+    /// - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
+    ///   from `1.0` to `3.0`. See [this article][apple_1] and [this article][apple_2] for more
+    ///   information.
+    ///
+    ///   This uses the underlying `UIView`'s [`contentScaleFactor`].
+    /// - **Android:** Scale factors are set by the manufacturer to the value that best suits the
+    ///   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
+    ///
+    ///   This is currently unimplemented, and this function always returns 1.0.
+    /// - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
+    ///   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
+    ///   both the screen scaling and the browser zoom level and can go below `1.0`.
+    /// - **Orbital:** This is currently unimplemented, and this function always returns 1.0.
     ///
     /// [`WindowEvent::ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
+    /// [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
+    /// [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
+    /// [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
+    /// [android_1]: https://developer.android.com/training/multiscreen/screendensities
+    /// [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
     pub fn scale_factor(&self) -> f64 {
@@ -1353,7 +1390,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **Wayland**: Cursor must be in [`CursorGrabMode::Locked`].
+    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         let position = position.into();
@@ -1361,7 +1399,7 @@ impl Window {
             .maybe_wait_on_main(|w| w.set_cursor_position(position))
     }
 
-    /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
+    /// Set grabbing [mode](CursorGrabMode) on the cursor preventing it from leaving the window.
     ///
     /// # Example
     ///

@@ -9,6 +9,7 @@ mod application;
 mod coordinate_space;
 mod device;
 mod event;
+mod geometry;
 mod gesture_recognizer;
 mod responder;
 mod screen;
@@ -22,8 +23,9 @@ mod window;
 
 pub(crate) use self::application::UIApplication;
 pub(crate) use self::coordinate_space::UICoordinateSpace;
-pub(crate) use self::device::UIDevice;
+pub(crate) use self::device::{UIDevice, UIUserInterfaceIdiom};
 pub(crate) use self::event::UIEvent;
+pub(crate) use self::geometry::UIRectEdge;
 pub(crate) use self::gesture_recognizer::{
     UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer,
     UIRotationGestureRecognizer, UITapGestureRecognizer,

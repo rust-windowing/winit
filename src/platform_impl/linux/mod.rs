@@ -11,7 +11,7 @@ use std::{collections::VecDeque, env, fmt};
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
 #[cfg(x11_platform)]
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]

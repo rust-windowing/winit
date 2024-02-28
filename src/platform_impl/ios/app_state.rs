@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use crate::utils::Lazy;
 use core_foundation::base::CFRelease;
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
@@ -22,7 +23,6 @@ use icrate::Foundation::{
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
-use once_cell::sync::Lazy;
 
 use super::uikit::UIView;
 use super::window::WinitUIWindow;

@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 
 use super::*;
 

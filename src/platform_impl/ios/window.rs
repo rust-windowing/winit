@@ -16,7 +16,7 @@ use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use crate::{
     cursor::Cursor,
-    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
@@ -537,7 +537,7 @@ impl Window {
             let screen = window.screen();
             let screen_space = screen.coordinateSpace();
             let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
-            let size = crate::dpi::LogicalSize {
+            let size = LogicalSize {
                 width: screen_frame.size.width as f64,
                 height: screen_frame.size.height as f64,
             };
@@ -628,7 +628,7 @@ impl Inner {
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
         self.view_controller
-            .set_preferred_screen_edges_deferring_system_gestures(edges.into());
+            .set_preferred_screen_edges_deferring_system_gestures(edges);
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
@@ -637,7 +637,7 @@ impl Inner {
 
     pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
         self.view_controller
-            .set_preferred_status_bar_style(status_bar_style.into());
+            .set_preferred_status_bar_style(status_bar_style);
     }
 
     pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
