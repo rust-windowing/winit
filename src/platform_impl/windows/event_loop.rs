@@ -3,8 +3,8 @@
 mod runner;
 
 use std::{
-    cell::Cell,
-    collections::VecDeque,
+    cell::{Cell, RefCell},
+    collections::{HashMap, VecDeque},
     ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
@@ -20,7 +20,9 @@ use std::{
 use crate::utils::Lazy;
 
 use windows_sys::Win32::{
-    Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
+    Devices::HumanInterfaceDevice::{
+        HidP_GetData, HidP_Input, HIDP_STATUS_SUCCESS, MOUSE_MOVE_RELATIVE,
+    },
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
     Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, RedrawWindow, ScreenToClient,
@@ -42,7 +44,7 @@ use windows_sys::Win32::{
                 CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
                 TOUCHEVENTF_UP, TOUCHINPUT,
             },
-            RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+            RAWINPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
@@ -71,7 +73,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::EventLoopError,
     event::{
-        DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
+        DeviceEvent, DeviceId, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
     event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed},
@@ -139,6 +141,8 @@ impl WindowData {
 
 struct ThreadMsgTargetData {
     event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
+
+    hid_states: RefCell<HashMap<DeviceId, raw_input::HidState>>,
 }
 
 impl ThreadMsgTargetData {
@@ -208,10 +212,7 @@ impl<T: 'static> EventLoop<T> {
 
         let (user_event_sender, user_event_receiver) = mpsc::channel();
         insert_event_target_window_data(thread_msg_target, runner_shared.clone());
-        raw_input::register_all_mice_and_keyboards_for_raw_input(
-            thread_msg_target,
-            Default::default(),
-        );
+        raw_input::register_for_raw_input(thread_msg_target, Default::default());
 
         Ok(EventLoop {
             user_event_sender,
@@ -569,7 +570,7 @@ impl ActiveEventLoop {
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {
-        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, allowed);
+        raw_input::register_for_raw_input(self.thread_msg_target, allowed);
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -923,7 +924,10 @@ fn insert_event_target_window_data(
     thread_msg_target: HWND,
     event_loop_runner: EventLoopRunnerShared<UserEventPlaceholder>,
 ) {
-    let userdata = ThreadMsgTargetData { event_loop_runner };
+    let userdata = ThreadMsgTargetData {
+        event_loop_runner,
+        hid_states: Default::default(),
+    };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
     unsafe { super::set_window_long(thread_msg_target, GWL_USERDATA, input_ptr as isize) };
@@ -2409,16 +2413,28 @@ unsafe extern "system" fn thread_event_target_callback(
         },
 
         WM_INPUT_DEVICE_CHANGE => {
+            let device_id = wrap_device_id(lparam as u32);
             let event = match wparam as u32 {
-                GIDC_ARRIVAL => DeviceEvent::Added,
-                GIDC_REMOVAL => DeviceEvent::Removed,
+                GIDC_ARRIVAL => {
+                    if let Some(hid_state) = raw_input::HidState::new(lparam as _) {
+                        userdata
+                            .hid_states
+                            .borrow_mut()
+                            .insert(device_id, hid_state);
+                    }
+
+                    let info = raw_input::get_raw_input_device_info(lparam as _);
+                    DeviceEvent::Added { info }
+                }
+                GIDC_REMOVAL => {
+                    userdata.hid_states.borrow_mut().remove(&device_id);
+
+                    DeviceEvent::Removed
+                }
                 _ => unreachable!(),
             };
 
-            userdata.send_event(Event::DeviceEvent {
-                device_id: wrap_device_id(lparam as u32),
-                event,
-            });
+            userdata.send_event(Event::DeviceEvent { device_id, event });
 
             0
         }
@@ -2460,99 +2476,197 @@ unsafe extern "system" fn thread_event_target_callback(
     result
 }
 
-unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
+unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: raw_input::RawInputData) {
     use crate::event::{
         DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
         ElementState::{Pressed, Released},
         MouseScrollDelta::LineDelta,
     };
 
+    let data = match &data {
+        raw_input::RawInputData::MouseOrKeyboard(value) => value,
+        raw_input::RawInputData::Other(value) => unsafe { &*(value.as_ptr() as *const RAWINPUT) },
+    };
     let device_id = wrap_device_id(data.header.hDevice as _);
 
-    if data.header.dwType == RIM_TYPEMOUSE {
-        let mouse = unsafe { data.data.mouse };
+    match data.header.dwType {
+        RIM_TYPEMOUSE => {
+            let mouse = unsafe { data.data.mouse };
 
-        if util::has_flag(mouse.usFlags as u32, MOUSE_MOVE_RELATIVE) {
-            let x = mouse.lLastX as f64;
-            let y = mouse.lLastY as f64;
+            if util::has_flag(mouse.usFlags as u32, MOUSE_MOVE_RELATIVE) {
+                let x = mouse.lLastX as f64;
+                let y = mouse.lLastY as f64;
 
-            if x != 0.0 {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: Motion { axis: 0, value: x },
-                });
+                if x != 0.0 {
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: Motion { axis: 0, value: x },
+                    });
+                }
+
+                if y != 0.0 {
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: Motion { axis: 1, value: y },
+                    });
+                }
+
+                if x != 0.0 || y != 0.0 {
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: MouseMotion { delta: (x, y) },
+                    });
+                }
             }
 
-            if y != 0.0 {
+            let button_flags = unsafe { mouse.Anonymous.Anonymous.usButtonFlags };
+            if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
+                let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
+                let delta = button_data as f32 / WHEEL_DELTA as f32;
                 userdata.send_event(Event::DeviceEvent {
                     device_id,
-                    event: Motion { axis: 1, value: y },
-                });
-            }
-
-            if x != 0.0 || y != 0.0 {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: MouseMotion { delta: (x, y) },
-                });
-            }
-        }
-
-        let button_flags = unsafe { mouse.Anonymous.Anonymous.usButtonFlags };
-        if util::has_flag(button_flags as u32, RI_MOUSE_WHEEL) {
-            let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
-            let delta = button_data as f32 / WHEEL_DELTA as f32;
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: MouseWheel {
-                    delta: LineDelta(0.0, delta),
-                },
-            });
-        }
-        if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
-            let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
-            let delta = -button_data as f32 / WHEEL_DELTA as f32;
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: MouseWheel {
-                    delta: LineDelta(delta, 0.0),
-                },
-            });
-        }
-
-        let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);
-        for (button, state) in button_state.iter().enumerate() {
-            if let Some(state) = *state {
-                userdata.send_event(Event::DeviceEvent {
-                    device_id,
-                    event: Button {
-                        button: button as _,
-                        state,
+                    event: MouseWheel {
+                        delta: LineDelta(0.0, delta),
                     },
                 });
             }
+            if util::has_flag(button_flags as u32, RI_MOUSE_HWHEEL) {
+                let button_data = unsafe { mouse.Anonymous.Anonymous.usButtonData } as i16;
+                let delta = -button_data as f32 / WHEEL_DELTA as f32;
+                userdata.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: MouseWheel {
+                        delta: LineDelta(delta, 0.0),
+                    },
+                });
+            }
+
+            let button_state = raw_input::get_raw_mouse_button_state(button_flags as u32);
+            for (button, state) in button_state.iter().enumerate() {
+                if let Some(state) = *state {
+                    userdata.send_event(Event::DeviceEvent {
+                        device_id,
+                        event: Button {
+                            button: button as _,
+                            state,
+                        },
+                    });
+                }
+            }
         }
-    } else if data.header.dwType == RIM_TYPEKEYBOARD {
-        let keyboard = unsafe { data.data.keyboard };
+        RIM_TYPEKEYBOARD => {
+            let keyboard = unsafe { data.data.keyboard };
 
-        let pressed = keyboard.Message == WM_KEYDOWN || keyboard.Message == WM_SYSKEYDOWN;
-        let released = keyboard.Message == WM_KEYUP || keyboard.Message == WM_SYSKEYUP;
+            let pressed = keyboard.Message == WM_KEYDOWN || keyboard.Message == WM_SYSKEYDOWN;
+            let released = keyboard.Message == WM_KEYUP || keyboard.Message == WM_SYSKEYUP;
 
-        if !pressed && !released {
-            return;
+            if !pressed && !released {
+                return;
+            }
+
+            if let Some(physical_key) = raw_input::get_keyboard_physical_key(keyboard) {
+                let state = if pressed { Pressed } else { Released };
+
+                userdata.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: Key(RawKeyEvent {
+                        physical_key,
+                        state,
+                    }),
+                });
+            }
         }
+        RIM_TYPEHID => {
+            let mut hid_states = userdata.hid_states.borrow_mut();
+            let Some(hid_state) = hid_states.get_mut(&wrap_device_id(data.header.hDevice as _))
+            else {
+                return;
+            };
+            let report = unsafe {
+                std::slice::from_raw_parts(
+                    data.data.hid.bRawData.as_ptr(),
+                    (data.data.hid.dwSizeHid * data.data.hid.dwCount) as _,
+                )
+            };
 
-        if let Some(physical_key) = raw_input::get_keyboard_physical_key(keyboard) {
-            let state = if pressed { Pressed } else { Released };
+            let mut data_len = hid_state.data.capacity() as u32;
+            let status = unsafe {
+                HidP_GetData(
+                    HidP_Input,
+                    hid_state.data.as_mut_ptr(),
+                    &mut data_len,
+                    hid_state.preparsed_data.as_ptr() as _,
+                    report.as_ptr() as _,
+                    report.len() as _,
+                )
+            };
+            if status != HIDP_STATUS_SUCCESS {
+                return;
+            }
+            unsafe { hid_state.data.set_len(data_len as _) };
 
-            userdata.send_event(Event::DeviceEvent {
-                device_id,
-                event: Key(RawKeyEvent {
-                    physical_key,
+            // Reset all button states to be able to detect changes, as only pressed buttons are reported
+            for input in &mut hid_state.inputs {
+                if let raw_input::HidStateInput::Button { state, .. } = input {
+                    *state = false;
+                }
+            }
+
+            // Set button states for buttons which have been pressed and send motion events
+            for data in &hid_state.data {
+                match &mut hid_state.inputs[data.DataIndex as usize] {
+                    raw_input::HidStateInput::Button { state, .. } => {
+                        *state = true;
+                    }
+                    raw_input::HidStateInput::Axis {
+                        axis,
+                        prev_value,
+                        minimum,
+                        maximum,
+                    } => {
+                        let value = unsafe { data.Anonymous.RawValue } as u16;
+                        if value != *prev_value {
+                            *prev_value = value;
+
+                            let value = if *minimum < 0 {
+                                (value as f64 + *minimum as f64) / *maximum as f64
+                            } else {
+                                (value as f64 - *minimum as f64) / (*maximum as f64 - *minimum as f64)
+                            };
+
+                            userdata.send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Motion { axis: *axis, value },
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            // Send all button events for which have changed
+            for input in &mut hid_state.inputs {
+                if let raw_input::HidStateInput::Button {
+                    button,
                     state,
-                }),
-            });
+                    prev_state,
+                } = input
+                {
+                    if state != prev_state {
+                        *prev_state = *state;
+
+                        userdata.send_event(Event::DeviceEvent {
+                            device_id,
+                            event: Button {
+                                button: *button,
+                                state: if *state { Pressed } else { Released },
+                            },
+                        });
+                    }
+                }
+            }
         }
+        _ => unreachable!(),
     }
 }
 

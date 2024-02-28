@@ -1615,7 +1615,7 @@ impl EventProcessor {
                     &self.target,
                     Event::DeviceEvent {
                         device_id: mkdid(info.deviceid as xinput::DeviceId),
-                        event: DeviceEvent::Added,
+                        event: DeviceEvent::Added { info: None },
                     },
                 );
             } else if 0 != info.flags & (xinput2::XISlaveRemoved | xinput2::XIMasterRemoved) {

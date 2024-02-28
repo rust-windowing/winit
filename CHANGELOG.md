@@ -78,6 +78,7 @@ Unreleased` header.
 - On Orbital, implement `set_window_level`.
 - On Orbital, emit `DeviceEvent::MouseMotion`.
 - On Wayland, fix title in CSD not updated from `AboutToWait`.
+- On Windows, gamepad and joysticks now also report device events.
 
 # 0.29.10
 

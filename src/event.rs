@@ -632,7 +632,12 @@ impl DeviceId {
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
-    Added,
+    /// New device was connected.
+    Added {
+        info: Option<DeviceInfo>,
+    },
+
+    /// Device was removed and is no longer valid.
     Removed,
 
     /// Change in physical position of a pointing device.
@@ -658,6 +663,8 @@ pub enum DeviceEvent {
         value: f64,
     },
 
+    /// Button has been pressed or released. This event will only be reported once when the event occurs, not
+    /// repeatedly and the next reported event for the same button should always be the opposite.
     Button {
         button: ButtonId,
         state: ElementState,
@@ -1145,6 +1152,19 @@ impl PartialEq for InnerSizeWriter {
     }
 }
 
+/// Describes which kind of device was connected and associated details with it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DeviceInfo {
+    /// Mouse devices can emit MouseMotion, MouseWheel, Motion and Button events.
+    Mouse,
+
+    /// Keyboard devices can only emit Key events.
+    Keyboard,
+
+    /// Hid devices are for example gamepads or joysticks and can emit Motion and Button events.
+    Hid { vendor_id: u32, product_id: u32 },
+}
+
 #[cfg(test)]
 mod tests {
     use crate::event;
@@ -1247,7 +1267,7 @@ mod tests {
                     })
                 };
 
-                with_device_event(Added);
+                with_device_event(Added { info: None });
                 with_device_event(Removed);
                 with_device_event(MouseMotion {
                     delta: (0.0, 0.0).into(),
