@@ -8,10 +8,9 @@ use std::{
 };
 
 use super::{super::atoms::*, ffi, util, XConnection, XError};
-use crate::utils::Lazy;
 use x11rb::protocol::xproto;
 
-static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
+static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();
