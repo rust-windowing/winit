@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::mem;
-use std::rc::{Rc, Weak};
+use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -11,13 +11,14 @@ use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
-use super::event_loop::{stop_app_immediately, PanicInfo};
+use super::event_handler::EventHandler;
+use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
 use super::window::WinitWindow;
 use super::{menu, WindowId, DEVICE_ID};
 use crate::dpi::PhysicalSize;
 use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow};
+use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug, Default)]
@@ -25,10 +26,7 @@ pub(super) struct State {
     activation_policy: NSApplicationActivationPolicy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
-    /// Whether the application is currently executing a callback.
-    in_callback: Cell<bool>,
-    /// The lifetime-erased callback.
-    callback: RefCell<Option<EventLoopHandler>>,
+    event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
     stop_after_wait: Cell<bool>,
@@ -146,34 +144,14 @@ impl ApplicationDelegate {
         }
     }
 
-    /// Associate the application's event callback with the application delegate.
-    ///
-    /// # Safety
-    /// This is ignoring the lifetime of the application callback (which may not be 'static)
-    /// and can lead to undefined behaviour if the callback is not cleared before the end of
-    /// its real lifetime.
-    ///
-    /// All public APIs that take an event callback (`run`, `run_on_demand`,
-    /// `pump_events`) _must_ pair a call to `set_callback` with
-    /// a call to `clear_callback` before returning to avoid undefined behaviour.
-    #[allow(clippy::type_complexity)]
-    pub unsafe fn set_callback(
+    /// Place the event handler in the application delegate for the duration
+    /// of the given closure.
+    pub fn set_event_handler<R>(
         &self,
-        callback: Weak<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
-        window_target: Rc<RootWindowTarget>,
-    ) {
-        *self.ivars().callback.borrow_mut() = Some(EventLoopHandler {
-            callback,
-            window_target,
-        });
-    }
-
-    pub fn clear_callback(&self) {
-        self.ivars().callback.borrow_mut().take();
-    }
-
-    fn have_callback(&self) -> bool {
-        self.ivars().callback.borrow().is_some()
+        handler: impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop),
+        closure: impl FnOnce() -> R,
+    ) -> R {
+        self.ivars().event_handler.set(handler, closure)
     }
 
     /// If `pump_events` is called to progress the event loop then we
@@ -204,16 +182,13 @@ impl ApplicationDelegate {
     /// Note: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(&self) {
-        self.set_in_callback(true);
         self.handle_event(Event::LoopExiting);
-        self.set_in_callback(false);
 
         self.set_is_running(false);
         self.set_stop_on_redraw(false);
         self.set_stop_before_wait(false);
         self.set_stop_after_wait(false);
         self.set_wait_timeout(None);
-        self.clear_callback();
     }
 
     pub fn is_launched(&self) -> bool {
@@ -238,10 +213,6 @@ impl ApplicationDelegate {
 
     pub fn exiting(&self) -> bool {
         self.ivars().exit.get()
-    }
-
-    fn set_in_callback(&self, value: bool) {
-        self.ivars().in_callback.set(value)
     }
 
     pub fn set_control_flow(&self, value: ControlFlow) {
@@ -285,13 +256,12 @@ impl ApplicationDelegate {
     pub fn handle_redraw(&self, window_id: WindowId) {
         let mtm = MainThreadMarker::from(self);
         // Redraw request might come out of order from the OS.
-        // -> Don't go back into the callback when our callstack originates from there
-        if !self.ivars().in_callback.get() {
+        // -> Don't go back into the event handler when our callstack originates from there
+        if !self.ivars().event_handler.in_use() {
             self.handle_event(Event::WindowEvent {
                 window_id: RootWindowId(window_id),
                 event: WindowEvent::RedrawRequested,
             });
-            self.ivars().in_callback.set(false);
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
             // as a way to ensure that `pump_events` can't block an external loop indefinitely
@@ -311,19 +281,17 @@ impl ApplicationDelegate {
     }
 
     fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
-        if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-            callback.handle_event(event)
-        }
+        self.ivars()
+            .event_handler
+            .handle_event(event, &ActiveEventLoop::new_root(self.retain()))
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
     pub fn dispatch_init_events(&self) {
-        self.set_in_callback(true);
         self.handle_event(Event::NewEvents(StartCause::Init));
         // NB: For consistency all platforms must emit a 'resumed' event even though macOS
         // applications don't themselves have a formal suspend/resume lifecycle.
         self.handle_event(Event::Resumed);
-        self.set_in_callback(false);
     }
 
     // Called by RunLoopObserver after finishing waiting for new events
@@ -333,12 +301,8 @@ impl ApplicationDelegate {
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
-        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
-        if panic_info.is_panicking()
-            || self.ivars().in_callback.get()
-            || !self.have_callback()
-            || !self.is_running()
-        {
+        // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
+        if panic_info.is_panicking() || !self.ivars().event_handler.ready() || !self.is_running() {
             return;
         }
 
@@ -369,9 +333,7 @@ impl ApplicationDelegate {
             }
         };
 
-        self.set_in_callback(true);
         self.handle_event(Event::NewEvents(cause));
-        self.set_in_callback(false);
     }
 
     // Called by RunLoopObserver before waiting for new events
@@ -381,18 +343,13 @@ impl ApplicationDelegate {
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
 
-        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
-        // XXX: how does it make sense that `in_callback()` can ever return `true` here if we're
-        // about to return to the `CFRunLoop` to poll for new events?
-        if panic_info.is_panicking()
-            || self.ivars().in_callback.get()
-            || !self.have_callback()
-            || !self.is_running()
-        {
+        // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
+        // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
+        // we're about to return to the `CFRunLoop` to poll for new events?
+        if panic_info.is_panicking() || !self.ivars().event_handler.ready() || !self.is_running() {
             return;
         }
 
-        self.set_in_callback(true);
         self.handle_event(Event::UserEvent(HandlePendingUserEvents));
 
         let events = mem::take(&mut *self.ivars().pending_events.borrow_mut());
@@ -415,32 +372,30 @@ impl ApplicationDelegate {
                     suggested_size,
                     scale_factor,
                 } => {
-                    if let Some(ref mut callback) = *self.ivars().callback.borrow_mut() {
-                        let new_inner_size = Arc::new(Mutex::new(suggested_size));
-                        let scale_factor_changed_event = Event::WindowEvent {
-                            window_id: RootWindowId(window.id()),
-                            event: WindowEvent::ScaleFactorChanged {
-                                scale_factor,
-                                inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                    &new_inner_size,
-                                )),
-                            },
-                        };
+                    let new_inner_size = Arc::new(Mutex::new(suggested_size));
+                    let scale_factor_changed_event = Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
+                                &new_inner_size,
+                            )),
+                        },
+                    };
 
-                        callback.handle_event(scale_factor_changed_event);
+                    self.handle_event(scale_factor_changed_event);
 
-                        let physical_size = *new_inner_size.lock().unwrap();
-                        drop(new_inner_size);
-                        let logical_size = physical_size.to_logical(scale_factor);
-                        let size = NSSize::new(logical_size.width, logical_size.height);
-                        window.setContentSize(size);
+                    let physical_size = *new_inner_size.lock().unwrap();
+                    drop(new_inner_size);
+                    let logical_size = physical_size.to_logical(scale_factor);
+                    let size = NSSize::new(logical_size.width, logical_size.height);
+                    window.setContentSize(size);
 
-                        let resized_event = Event::WindowEvent {
-                            window_id: RootWindowId(window.id()),
-                            event: WindowEvent::Resized(physical_size),
-                        };
-                        callback.handle_event(resized_event);
-                    }
+                    let resized_event = Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::Resized(physical_size),
+                    };
+                    self.handle_event(resized_event);
                 }
             }
         }
@@ -454,7 +409,6 @@ impl ApplicationDelegate {
         }
 
         self.handle_event(Event::AboutToWait);
-        self.set_in_callback(false);
 
         if self.exiting() {
             let app = NSApplication::sharedApplication(mtm);
@@ -492,30 +446,6 @@ pub(crate) enum QueuedEvent {
 
 #[derive(Debug)]
 pub(crate) struct HandlePendingUserEvents;
-
-#[derive(Debug)]
-struct EventLoopHandler {
-    #[allow(clippy::type_complexity)]
-    callback: Weak<RefCell<dyn FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget)>>,
-    window_target: Rc<RootWindowTarget>,
-}
-
-impl EventLoopHandler {
-    fn handle_event(&mut self, event: Event<HandlePendingUserEvents>) {
-        // `NSApplication` and our app delegate are global state and so it's possible
-        // that we could get a delegate callback after the application has exit an
-        // `EventLoop`. If the loop has been exit then our weak `self.callback`
-        // will fail to upgrade.
-        //
-        // We don't want to panic or output any verbose logging if we fail to
-        // upgrade the weak reference since it might be valid that the application
-        // re-starts the `NSApplication` after exiting a Winit `EventLoop`
-        if let Some(callback) = self.callback.upgrade() {
-            let mut callback = callback.borrow_mut();
-            (callback)(event, &self.window_target);
-        }
-    }
-}
 
 /// Returns the minimum `Option<Instant>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
