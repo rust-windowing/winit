@@ -199,8 +199,6 @@ impl Application {
         window.set_ime_allowed(ime);
 
         let state = WindowState {
-            #[cfg(macos_platform)]
-            option_as_alt: window.option_as_alt(),
             window,
             custom_idx: self.custom_cursors.len() - 1,
             cursor_grab: CursorGrabMode::None,
@@ -372,14 +370,14 @@ impl Application {
             Action::PrintHelp => self.print_help(),
             #[cfg(macos_platform)]
             Action::CycleOptionAsAlt => {
-                state.option_as_alt = match state.option_as_alt {
+                let new = match window.option_as_alt() {
                     OptionAsAlt::None => OptionAsAlt::OnlyLeft,
                     OptionAsAlt::OnlyLeft => OptionAsAlt::OnlyRight,
                     OptionAsAlt::OnlyRight => OptionAsAlt::Both,
                     OptionAsAlt::Both => OptionAsAlt::None,
                 };
-                println!("Setting option as alt {:?}", state.option_as_alt);
-                window.set_option_as_alt(state.option_as_alt);
+                println!("Setting option as alt {:?}", new);
+                window.set_option_as_alt(new);
             }
             #[cfg(macos_platform)]
             Action::CreateNewTab => {
@@ -649,10 +647,6 @@ struct WindowState {
     zoom: f64,
     /// The amount of rotation of the window.
     rotated: f32,
-
-    #[cfg(macos_platform)]
-    option_as_alt: OptionAsAlt,
-
     // Cursor states.
     named_idx: usize,
     custom_idx: usize,
