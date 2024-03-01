@@ -1,4 +1,7 @@
-//! Simple winit application.
+//! An example showcasing various functionality that Winit has.
+//!
+//! Often used by Winit developers to test certain functionality, may be a bit
+//! verbose.
 
 use std::collections::HashMap;
 use std::error::Error;
