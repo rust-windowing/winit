@@ -781,6 +781,31 @@ pub struct KeyEvent {
     /// On some systems, holding down a key for some period of time causes that key to be repeated
     /// as though it were being pressed and released repeatedly. This field is `true` if and only if
     /// this event is the result of one of those repeats.
+    ///
+    /// # Example
+    ///
+    /// In games, you often want to ignore repated key events - this can be
+    /// done by ignoring events where this property is set.
+    ///
+    /// ```
+    /// use winit::event::{WindowEvent, KeyEvent, ElementState};
+    /// use winit::keyboard::{KeyCode, PhysicalKey};
+    /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
+    /// match window_event {
+    ///     WindowEvent::KeyboardInput {
+    ///         event: KeyEvent {
+    ///             physical_key: PhysicalKey::Code(KeyCode::KeyW),
+    ///             state: ElementState::Pressed,
+    ///             repeat: false,
+    ///             ..
+    ///         },
+    ///         ..
+    ///     } => {
+    ///          // The physical key `W` was pressed, and it was not a repeat
+    ///     }
+    ///     _ => {} // Handle other events
+    /// }
+    /// ```
     pub repeat: bool,
 
     /// Platform-specific key event information.
