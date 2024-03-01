@@ -11,7 +11,7 @@ use x11_dl::xinput2::{
 use x11_dl::xlib::{
     self, Display as XDisplay, Window as XWindow, XAnyEvent, XClientMessageEvent, XConfigureEvent,
     XDestroyWindowEvent, XEvent, XExposeEvent, XKeyEvent, XMapEvent, XPropertyEvent,
-    XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent, XkbStateRec,
+    XReparentEvent, XSelectionEvent, XVisibilityEvent, XkbAnyEvent, _XkbStateRec,
 };
 use x11rb::protocol::xinput;
 use x11rb::protocol::xkb::ID as XkbId;
@@ -1759,7 +1759,7 @@ impl EventProcessor {
         };
 
         unsafe {
-            let mut state: XkbStateRec = std::mem::zeroed();
+            let mut state: _XkbStateRec = std::mem::zeroed();
             if (wt.xconn.xlib.XkbGetState)(wt.xconn.display, XkbId::USE_CORE_KBD.into(), &mut state)
                 == xlib::True
             {
