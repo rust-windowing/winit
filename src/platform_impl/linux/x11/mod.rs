@@ -66,6 +66,9 @@ const ALL_DEVICES: u16 = 0;
 const ALL_MASTER_DEVICES: u16 = 1;
 const ICONIC_STATE: u32 = 3;
 
+/// The underlying x11rb connection that we are using.
+type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
+
 type X11Source = Generic<BorrowedFd<'static>>;
 
 struct WakeSender<T> {
@@ -985,9 +988,6 @@ impl From<xsettings::ParserError> for X11Error {
     }
 }
 
-/// The underlying x11rb connection that we are using.
-type X11rbConnection = x11rb::xcb_ffi::XCBConnection;
-
 /// Type alias for a void cookie.
 type VoidCookie<'a> = x11rb::cookie::VoidCookie<'a, X11rbConnection>;
 
@@ -1000,34 +1000,6 @@ trait CookieResultExt {
 impl<'a, E: fmt::Debug> CookieResultExt for Result<VoidCookie<'a>, E> {
     fn expect_then_ignore_error(self, msg: &str) {
         self.expect(msg).ignore_error()
-    }
-}
-
-/// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure. This is a wrapper to
-/// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
-struct GenericEventCookie<'a> {
-    xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie,
-}
-
-impl<'a> GenericEventCookie<'a> {
-    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
-        unsafe {
-            let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
-                Some(GenericEventCookie { xconn, cookie })
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl<'a> Drop for GenericEventCookie<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
-        }
     }
 }
 

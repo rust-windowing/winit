@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, fix use after free during xinput2 handling.
 - On X11, filter close to zero values in mouse device events
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
