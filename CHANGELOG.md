@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, filter close to zero values in mouse device events
+
 # 0.29.11
 
 - On Wayland, fix DeviceEvent::Motion not being sent
