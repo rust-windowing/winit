@@ -11,8 +11,6 @@ Unreleased` header.
 
 # Unreleased
 
-- On X11, fix use after free during xinput2 handling.
-- On X11, filter close to zero values in mouse device events
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
 - **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
@@ -48,6 +46,11 @@ Unreleased` header.
 - **Breaking:** Changed the signature of `EventLoop::with_user_event` to return a builder.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
+
+# 0.29.12
+
+- On X11, fix use after free during xinput2 handling.
+- On X11, filter close to zero values in mouse device events
 
 # 0.29.11
 
