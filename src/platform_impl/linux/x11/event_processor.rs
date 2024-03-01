@@ -33,9 +33,10 @@ use crate::platform_impl::platform::common::xkb::Context;
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::platform_impl::platform::x11::ActiveEventLoop;
 use crate::platform_impl::platform::ActiveEventLoop as PlatformActiveEventLoop;
+use crate::platform_impl::x11::util::cookie::GenericEventCookie;
 use crate::platform_impl::x11::{
     atoms::*, mkdid, mkwid, util, CookieResultExt, Device, DeviceId, DeviceInfo, Dnd, DndState,
-    GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
+    ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
 };
 
 /// The maximum amount of X modifiers to replay.
@@ -184,14 +185,15 @@ impl EventProcessor {
             }
             xlib::GenericEvent => {
                 let wt = Self::window_target(&self.target);
-                let xev = match GenericEventCookie::from_event(&wt.xconn, *xev) {
-                    Some(xev) if xev.cookie.extension as u8 == self.xi2ext.major_opcode => {
-                        xev.cookie
-                    }
-                    _ => return,
-                };
+                let xev: GenericEventCookie =
+                    match GenericEventCookie::from_event(wt.xconn.clone(), *xev) {
+                        Some(xev) if xev.extension() == self.xi2ext.major_opcode => xev,
+                        _ => return,
+                    };
 
-                match xev.evtype {
+                let evtype = xev.evtype();
+
+                match evtype {
                     ty @ xinput2::XI_ButtonPress | ty @ xinput2::XI_ButtonRelease => {
                         let state = if ty == xinput2::XI_ButtonPress {
                             ElementState::Pressed
@@ -199,7 +201,7 @@ impl EventProcessor {
                             ElementState::Released
                         };
 
-                        let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIDeviceEvent = unsafe { xev.as_event() };
                         self.update_mods_from_xinput2_event(
                             &xev.mods,
                             &xev.group,
@@ -209,7 +211,7 @@ impl EventProcessor {
                         self.xinput2_button_input(xev, state, &mut callback);
                     }
                     xinput2::XI_Motion => {
-                        let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIDeviceEvent = unsafe { xev.as_event() };
                         self.update_mods_from_xinput2_event(
                             &xev.mods,
                             &xev.group,
@@ -219,11 +221,11 @@ impl EventProcessor {
                         self.xinput2_mouse_motion(xev, &mut callback);
                     }
                     xinput2::XI_Enter => {
-                        let xev: &XIEnterEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIEnterEvent = unsafe { xev.as_event() };
                         self.xinput2_mouse_enter(xev, &mut callback);
                     }
                     xinput2::XI_Leave => {
-                        let xev: &XILeaveEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XILeaveEvent = unsafe { xev.as_event() };
                         self.update_mods_from_xinput2_event(
                             &xev.mods,
                             &xev.group,
@@ -233,51 +235,51 @@ impl EventProcessor {
                         self.xinput2_mouse_left(xev, &mut callback);
                     }
                     xinput2::XI_FocusIn => {
-                        let xev: &XIFocusInEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIFocusInEvent = unsafe { xev.as_event() };
                         self.xinput2_focused(xev, &mut callback);
                     }
                     xinput2::XI_FocusOut => {
-                        let xev: &XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIFocusOutEvent = unsafe { xev.as_event() };
                         self.xinput2_unfocused(xev, &mut callback);
                     }
                     xinput2::XI_TouchBegin | xinput2::XI_TouchUpdate | xinput2::XI_TouchEnd => {
-                        let phase = match xev.evtype {
+                        let phase = match evtype {
                             xinput2::XI_TouchBegin => TouchPhase::Started,
                             xinput2::XI_TouchUpdate => TouchPhase::Moved,
                             xinput2::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!(),
                         };
 
-                        let xev: &XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIDeviceEvent = unsafe { xev.as_event() };
                         self.xinput2_touch(xev, phase, &mut callback);
                     }
                     xinput2::XI_RawButtonPress | xinput2::XI_RawButtonRelease => {
-                        let state = match xev.evtype {
+                        let state = match evtype {
                             xinput2::XI_RawButtonPress => ElementState::Pressed,
                             xinput2::XI_RawButtonRelease => ElementState::Released,
                             _ => unreachable!(),
                         };
 
-                        let xev: &XIRawEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIRawEvent = unsafe { xev.as_event() };
                         self.xinput2_raw_button_input(xev, state, &mut callback);
                     }
                     xinput2::XI_RawMotion => {
-                        let xev: &XIRawEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIRawEvent = unsafe { xev.as_event() };
                         self.xinput2_raw_mouse_motion(xev, &mut callback);
                     }
                     xinput2::XI_RawKeyPress | xinput2::XI_RawKeyRelease => {
-                        let state = match xev.evtype {
+                        let state = match evtype {
                             xinput2::XI_RawKeyPress => ElementState::Pressed,
                             xinput2::XI_RawKeyRelease => ElementState::Released,
                             _ => unreachable!(),
                         };
 
-                        let xev: &xinput2::XIRawEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &xinput2::XIRawEvent = unsafe { xev.as_event() };
                         self.xinput2_raw_key_input(xev, state, &mut callback);
                     }
 
                     xinput2::XI_HierarchyChanged => {
-                        let xev: &XIHierarchyEvent = unsafe { &*(xev.data as *const _) };
+                        let xev: &XIHierarchyEvent = unsafe { xev.as_event() };
                         self.xinput2_hierarchy_changed(xev, &mut callback);
                     }
                     _ => {}
@@ -1518,8 +1520,8 @@ impl EventProcessor {
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
         let mut value = xev.raw_values;
-        let mut mouse_delta = (0.0, 0.0);
-        let mut scroll_delta = (0.0, 0.0);
+        let mut mouse_delta = util::Delta::default();
+        let mut scroll_delta = util::Delta::default();
         for i in 0..xev.valuators.mask_len * 8 {
             if !xinput2::XIMaskIsSet(mask, i) {
                 continue;
@@ -1529,10 +1531,10 @@ impl EventProcessor {
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
             match i {
-                0 => mouse_delta.0 = x,
-                1 => mouse_delta.1 = x,
-                2 => scroll_delta.0 = x as f32,
-                3 => scroll_delta.1 = x as f32,
+                0 => mouse_delta.set_x(x),
+                1 => mouse_delta.set_y(x),
+                2 => scroll_delta.set_x(x as f32),
+                3 => scroll_delta.set_y(x as f32),
                 _ => {}
             }
 
@@ -1548,7 +1550,7 @@ impl EventProcessor {
             value = unsafe { value.offset(1) };
         }
 
-        if mouse_delta != (0.0, 0.0) {
+        if let Some(mouse_delta) = mouse_delta.consume() {
             let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseMotion { delta: mouse_delta },
@@ -1556,7 +1558,7 @@ impl EventProcessor {
             callback(&self.target, event);
         }
 
-        if scroll_delta != (0.0, 0.0) {
+        if let Some(scroll_delta) = scroll_delta.consume() {
             let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseWheel {

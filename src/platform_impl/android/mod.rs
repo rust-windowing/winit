@@ -7,12 +7,11 @@ use std::{
     marker::PhantomData,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex, RwLock,
+        mpsc, Arc, Mutex,
     },
     time::{Duration, Instant},
 };
 
-use crate::utils::Lazy;
 use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{
     AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect,
@@ -39,7 +38,7 @@ pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
 pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
-static HAS_FOCUS: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
+static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -236,7 +235,7 @@ impl<T: 'static> EventLoop<T> {
                     warn!("TODO: find a way to notify application of content rect change");
                 }
                 MainEvent::GainedFocus => {
-                    *HAS_FOCUS.write().unwrap() = true;
+                    HAS_FOCUS.store(true, Ordering::Relaxed);
                     callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
@@ -246,7 +245,7 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 MainEvent::LostFocus => {
-                    *HAS_FOCUS.write().unwrap() = false;
+                    HAS_FOCUS.store(false, Ordering::Relaxed);
                     callback(
                         event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
@@ -1046,7 +1045,7 @@ impl Window {
     pub fn set_content_protected(&self, _protected: bool) {}
 
     pub fn has_focus(&self) -> bool {
-        *HAS_FOCUS.read().unwrap()
+        HAS_FOCUS.load(Ordering::Relaxed)
     }
 
     pub fn title(&self) -> String {

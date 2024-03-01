@@ -1,7 +1,5 @@
 use std::sync::Mutex;
 
-use crate::utils::Lazy;
-
 use super::*;
 
 // https://specifications.freedesktop.org/wm-spec/latest/ar01s04.html#idm46075117309248
@@ -16,9 +14,8 @@ pub const MOVERESIZE_LEFT: isize = 7;
 pub const MOVERESIZE_MOVE: isize = 8;
 
 // This info is global to the window manager.
-static SUPPORTED_HINTS: Lazy<Mutex<Vec<xproto::Atom>>> =
-    Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
-static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+static SUPPORTED_HINTS: Mutex<Vec<xproto::Atom>> = Mutex::new(Vec::new());
+static WM_NAME: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn hint_is_supported(hint: xproto::Atom) -> bool {
     (*SUPPORTED_HINTS.lock().unwrap()).contains(&hint)
