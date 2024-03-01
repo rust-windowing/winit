@@ -8,6 +8,7 @@ use std::{
 };
 
 mod client_msg;
+pub mod cookie;
 mod cursor;
 mod geometry;
 mod hint;
