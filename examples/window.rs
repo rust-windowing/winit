@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::error::Error;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
-use std::path::Path;
 
 use cursor_icon::CursorIcon;
 #[cfg(not(any(android_platform, ios_platform)))]
@@ -18,8 +17,7 @@ use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 use winit::window::{
-    Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme,
+    Cursor, CursorGrabMode, CustomCursor, Fullscreen, Icon, ResizeDirection, Theme,
 };
 use winit::window::{Window, WindowId};
 
@@ -29,9 +27,6 @@ use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMac
 use winit::platform::startup_notify::{
     self, EventLoopExtStartupNotify, WindowAttributesExtStartupNotify, WindowExtStartupNotify,
 };
-
-/// The amount of points to around the window for drag resize direction calculations.
-const BORDER_SIZE: f64 = 20.;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
@@ -116,9 +111,24 @@ impl Application {
         // you'll be bitten by the low-quality downscaling built into the WM.
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/data/icon.png");
 
-        let icon = load_icon(Path::new(path));
+        // Load icon
+        let icon = {
+            let image = image::open(path)
+                .expect("Failed to open icon path")
+                .into_rgba8();
+            let (width, height) = image.dimensions();
+            let rgba = image.into_raw();
+            Icon::from_rgba(rgba, width, height).expect("Failed to open icon")
+        };
 
         println!("Loading cursor assets");
+        let decode_cursor = |bytes| {
+            let img = image::load_from_memory(bytes).unwrap().to_rgba8();
+            let samples = img.into_flat_samples();
+            let (_, w, h) = samples.extents();
+            let (w, h) = (w as u16, h as u16);
+            CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
+        };
         let custom_cursors = vec![
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross.png"))),
             event_loop.create_custom_cursor(decode_cursor(include_bytes!("data/cross2.png"))),
@@ -189,8 +199,6 @@ impl Application {
 
         let theme = window.theme().unwrap_or(Theme::Dark);
         println!("Theme: {theme:?}");
-        let named_idx = 0;
-        window.set_cursor(CURSORS[named_idx]);
 
         // Allow IME out of the box.
         let ime = true;
@@ -200,7 +208,7 @@ impl Application {
             window,
             custom_idx: self.custom_cursors.len() - 1,
             cursor_grab: CursorGrabMode::None,
-            named_idx,
+            named_idx: 0,
             #[cfg(not(any(android_platform, ios_platform)))]
             surface,
             theme,
@@ -284,6 +292,44 @@ impl Application {
                 window.set_minimized(true);
             }
             Action::NextCursor => {
+                // Cursor list to cycle through.
+                const CURSORS: &[CursorIcon] = &[
+                    CursorIcon::Default,
+                    CursorIcon::Crosshair,
+                    CursorIcon::Pointer,
+                    CursorIcon::Move,
+                    CursorIcon::Text,
+                    CursorIcon::Wait,
+                    CursorIcon::Help,
+                    CursorIcon::Progress,
+                    CursorIcon::NotAllowed,
+                    CursorIcon::ContextMenu,
+                    CursorIcon::Cell,
+                    CursorIcon::VerticalText,
+                    CursorIcon::Alias,
+                    CursorIcon::Copy,
+                    CursorIcon::NoDrop,
+                    CursorIcon::Grab,
+                    CursorIcon::Grabbing,
+                    CursorIcon::AllScroll,
+                    CursorIcon::ZoomIn,
+                    CursorIcon::ZoomOut,
+                    CursorIcon::EResize,
+                    CursorIcon::NResize,
+                    CursorIcon::NeResize,
+                    CursorIcon::NwResize,
+                    CursorIcon::SResize,
+                    CursorIcon::SeResize,
+                    CursorIcon::SwResize,
+                    CursorIcon::WResize,
+                    CursorIcon::EwResize,
+                    CursorIcon::NsResize,
+                    CursorIcon::NeswResize,
+                    CursorIcon::NwseResize,
+                    CursorIcon::ColResize,
+                    CursorIcon::RowResize,
+                ];
+
                 // Pick the next cursor
                 state.named_idx = (state.named_idx + 1) % CURSORS.len();
                 println!("Setting cursor to \"{:?}\"", CURSORS[state.named_idx]);
@@ -320,6 +366,9 @@ impl Application {
                         return;
                     }
                 };
+
+                // The amount of points around the window.
+                const BORDER_SIZE: f64 = 20.0;
 
                 let win_size = window.inner_size();
                 let border_size = BORDER_SIZE * window.scale_factor();
@@ -597,6 +646,24 @@ impl Application {
     }
 
     fn print_help(&self) {
+        fn modifiers_to_string(mods: ModifiersState) -> String {
+            let mut mods_line = String::new();
+            // Always add + since it's printed as a part of the bindings.
+            for (modifier, desc) in [
+                (ModifiersState::SUPER, "Super+"),
+                (ModifiersState::ALT, "Alt+"),
+                (ModifiersState::CONTROL, "Ctrl+"),
+                (ModifiersState::SHIFT, "Shift+"),
+            ] {
+                if !mods.contains(modifier) {
+                    continue;
+                }
+
+                mods_line.push_str(desc);
+            }
+            mods_line
+        }
+
         println!("Keyboard bindings:");
         for binding in KEY_BINDINGS {
             println!(
@@ -609,10 +676,19 @@ impl Application {
         }
         println!("Mouse bindings:");
         for binding in MOUSE_BINDINGS {
+            let button_name = match binding.trigger {
+                MouseButton::Left => "LMB",
+                MouseButton::Right => "RMB",
+                MouseButton::Middle => "MMB",
+                MouseButton::Back => "Back",
+                MouseButton::Forward => "Forward",
+                MouseButton::Other(_) => "",
+            };
+
             println!(
                 "{}{:<10} - {:?} ({})",
                 modifiers_to_string(binding.mods),
-                mouse_button_to_string(binding.trigger),
+                button_name,
                 binding.action,
                 binding.action.help(),
             );
@@ -724,93 +800,6 @@ impl Action {
         }
     }
 }
-
-fn decode_cursor(bytes: &[u8]) -> CustomCursorSource {
-    let img = image::load_from_memory(bytes).unwrap().to_rgba8();
-    let samples = img.into_flat_samples();
-    let (_, w, h) = samples.extents();
-    let (w, h) = (w as u16, h as u16);
-    CustomCursor::from_rgba(samples.samples, w, h, w / 2, h / 2).unwrap()
-}
-
-fn load_icon(path: &Path) -> Icon {
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path)
-            .expect("Failed to open icon path")
-            .into_rgba8();
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
-    };
-    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
-}
-
-fn modifiers_to_string(mods: ModifiersState) -> String {
-    let mut mods_line = String::new();
-    // Always add + since it's printed as a part of the bindings.
-    for (modifier, desc) in [
-        (ModifiersState::SUPER, "Super+"),
-        (ModifiersState::ALT, "Alt+"),
-        (ModifiersState::CONTROL, "Ctrl+"),
-        (ModifiersState::SHIFT, "Shift+"),
-    ] {
-        if !mods.contains(modifier) {
-            continue;
-        }
-
-        mods_line.push_str(desc);
-    }
-    mods_line
-}
-
-fn mouse_button_to_string(button: MouseButton) -> &'static str {
-    match button {
-        MouseButton::Left => "LMB",
-        MouseButton::Right => "RMB",
-        MouseButton::Middle => "MMB",
-        MouseButton::Back => "Back",
-        MouseButton::Forward => "Forward",
-        MouseButton::Other(_) => "",
-    }
-}
-
-/// Cursor list to cycle through.
-const CURSORS: &[CursorIcon] = &[
-    CursorIcon::Default,
-    CursorIcon::Crosshair,
-    CursorIcon::Pointer,
-    CursorIcon::Move,
-    CursorIcon::Text,
-    CursorIcon::Wait,
-    CursorIcon::Help,
-    CursorIcon::Progress,
-    CursorIcon::NotAllowed,
-    CursorIcon::ContextMenu,
-    CursorIcon::Cell,
-    CursorIcon::VerticalText,
-    CursorIcon::Alias,
-    CursorIcon::Copy,
-    CursorIcon::NoDrop,
-    CursorIcon::Grab,
-    CursorIcon::Grabbing,
-    CursorIcon::AllScroll,
-    CursorIcon::ZoomIn,
-    CursorIcon::ZoomOut,
-    CursorIcon::EResize,
-    CursorIcon::NResize,
-    CursorIcon::NeResize,
-    CursorIcon::NwResize,
-    CursorIcon::SResize,
-    CursorIcon::SeResize,
-    CursorIcon::SwResize,
-    CursorIcon::WResize,
-    CursorIcon::EwResize,
-    CursorIcon::NsResize,
-    CursorIcon::NeswResize,
-    CursorIcon::NwseResize,
-    CursorIcon::ColResize,
-    CursorIcon::RowResize,
-];
 
 const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("Q", ModifiersState::CONTROL, Action::CloseWindow),
