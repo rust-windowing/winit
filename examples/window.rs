@@ -57,7 +57,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         Event::NewEvents(_) => (),
         Event::Resumed => {
             println!("Resumed the event loop");
-            state.dump_monitors(event_loop);
 
             // Create initial window.
             state
@@ -373,49 +372,6 @@ impl Application {
 
     fn handle_device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         println!("Device event: {event:?}");
-    }
-
-    fn dump_monitors(&self, event_loop: &ActiveEventLoop) {
-        println!("Monitors information");
-        let primary_monitor = event_loop.primary_monitor();
-        for monitor in event_loop.available_monitors() {
-            let intro = if primary_monitor.as_ref() == Some(&monitor) {
-                "Primary monitor"
-            } else {
-                "Monitor"
-            };
-
-            if let Some(name) = monitor.name() {
-                println!("{intro}: {name}");
-            } else {
-                println!("{intro}: [no name]");
-            }
-
-            let PhysicalSize { width, height } = monitor.size();
-            print!("  Current mode: {width}x{height}");
-            if let Some(m_hz) = monitor.refresh_rate_millihertz() {
-                println!(" @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
-            } else {
-                println!();
-            }
-
-            let PhysicalPosition { x, y } = monitor.position();
-            println!("  Position: {x},{y}");
-
-            println!("  Scale factor: {}", monitor.scale_factor());
-
-            println!("  Available modes (width x height x bit-depth):");
-            for mode in monitor.video_modes() {
-                let PhysicalSize { width, height } = mode.size();
-                let bits = mode.bit_depth();
-                let m_hz = mode.refresh_rate_millihertz();
-                println!(
-                    "    {width}x{height}x{bits} @ {}.{} Hz",
-                    m_hz / 1000,
-                    m_hz % 1000
-                );
-            }
-        }
     }
 
     /// Process the key binding.
