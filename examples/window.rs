@@ -2,8 +2,6 @@
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt;
-use std::fmt::Debug;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
 use std::path::Path;
@@ -602,7 +600,7 @@ impl Application {
         println!("Keyboard bindings:");
         for binding in KEY_BINDINGS {
             println!(
-                "{}{:<10} - {} ({})",
+                "{}{:<10} - {:?} ({})",
                 modifiers_to_string(binding.mods),
                 binding.trigger,
                 binding.action,
@@ -612,7 +610,7 @@ impl Application {
         println!("Mouse bindings:");
         for binding in MOUSE_BINDINGS {
             println!(
-                "{}{:<10} - {} ({})",
+                "{}{:<10} - {:?} ({})",
                 modifiers_to_string(binding.mods),
                 mouse_button_to_string(binding.trigger),
                 binding.action,
@@ -724,12 +722,6 @@ impl Action {
             #[cfg(macos_platform)]
             Action::CreateNewTab => "Create new tab",
         }
-    }
-}
-
-impl fmt::Display for Action {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Debug::fmt(&self, f)
     }
 }
 
