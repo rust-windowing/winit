@@ -15,13 +15,14 @@ mod icon;
 mod input;
 pub mod keys;
 pub(crate) mod memory;
+mod mouse;
 mod randr;
 mod window_property;
 mod wm;
 mod xmodmap;
 
 pub use self::{
-    geometry::*, hint::*, input::*, window_property::*, wm::*, xmodmap::ModifierKeymap,
+    geometry::*, hint::*, input::*, mouse::*, window_property::*, wm::*, xmodmap::ModifierKeymap,
 };
 
 use super::{atoms::*, ffi, VoidCookie, X11Error, XConnection, XError};

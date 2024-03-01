@@ -1502,8 +1502,8 @@ impl<T: 'static> EventProcessor<T> {
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
         let mut value = xev.raw_values;
-        let mut mouse_delta = (0.0, 0.0);
-        let mut scroll_delta = (0.0, 0.0);
+        let mut mouse_delta = util::Delta::default();
+        let mut scroll_delta = util::Delta::default();
         for i in 0..xev.valuators.mask_len * 8 {
             if !xinput2::XIMaskIsSet(mask, i) {
                 continue;
@@ -1513,10 +1513,10 @@ impl<T: 'static> EventProcessor<T> {
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
             match i {
-                0 => mouse_delta.0 = x,
-                1 => mouse_delta.1 = x,
-                2 => scroll_delta.0 = x as f32,
-                3 => scroll_delta.1 = x as f32,
+                0 => mouse_delta.set_x(x),
+                1 => mouse_delta.set_y(x),
+                2 => scroll_delta.set_x(x as f32),
+                3 => scroll_delta.set_y(x as f32),
                 _ => {}
             }
 
@@ -1532,7 +1532,7 @@ impl<T: 'static> EventProcessor<T> {
             value = unsafe { value.offset(1) };
         }
 
-        if mouse_delta != (0.0, 0.0) {
+        if let Some(mouse_delta) = mouse_delta.consume() {
             let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseMotion { delta: mouse_delta },
@@ -1540,7 +1540,7 @@ impl<T: 'static> EventProcessor<T> {
             callback(&self.target, event);
         }
 
-        if scroll_delta != (0.0, 0.0) {
+        if let Some(scroll_delta) = scroll_delta.consume() {
             let event = Event::DeviceEvent {
                 device_id: did,
                 event: DeviceEvent::MouseWheel {
