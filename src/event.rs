@@ -253,6 +253,24 @@ pub enum Event<T: 'static> {
     ///
     /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
     MemoryWarning,
+
+    /// Emitted when the application has received a reopen request from OS.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### macOS
+    ///
+    /// On macOS, the `Reopen` event is emitted in response to an [`applicationShouldHandleReopen`]
+    /// callback, which is usually called whenever the Finder reactivates an already running
+    /// application because the user double-clicked it again or used the dock to activate it.
+    /// Usually, the user would expect you to create a new window if there isn't any.
+    ///
+    /// [`applicationShouldHandleReopen`]: https://developer.apple.com/documentation/appkit/nsapplicationdelegate/1428638-applicationshouldhandlereopen
+    ///
+    /// ### Others
+    ///
+    /// - **Android / iOS / Web / Wayland / Windows / Orbital:** Unsupported.
+    Reopen,
 }
 
 impl<T> Event<T> {
@@ -269,6 +287,7 @@ impl<T> Event<T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
+            Reopen => Ok(Reopen),
         }
     }
 }
