@@ -117,9 +117,7 @@ impl Schedule {
         let channel = MessageChannel::new().unwrap();
         let closure = Closure::new(f);
         let port_1 = channel.port1();
-        port_1
-            .add_event_listener_with_callback("message", closure.as_ref().unchecked_ref())
-            .expect("Failed to set message handler");
+        port_1.set_onmessage(Some(closure.as_ref().unchecked_ref()));
         port_1.start();
 
         let port_2 = channel.port2();
@@ -178,6 +176,7 @@ impl Drop for Schedule {
             } => {
                 window.clear_timeout_with_handle(*handle);
                 port.close();
+                port.set_onmessage(None);
             }
         }
     }
