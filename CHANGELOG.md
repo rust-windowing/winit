@@ -47,6 +47,9 @@ Unreleased` header.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
+
+# 0.29.13
+
 - On Web, fix possible crash with `ControlFlow::Wait` and `ControlFlow::WaitUntil`.
 
 # 0.29.12
