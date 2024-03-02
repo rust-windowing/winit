@@ -7,7 +7,7 @@ on:
 
 jobs:
   fmt:
-    name: Check formatting
+    name: Tidy Code
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -16,6 +16,8 @@ jobs:
         components: rustfmt
     - name: Check Formatting
       run: cargo fmt -- --check
+    - name: Check Spelling
+      run: npx -y cspell --no-progress --no-summary '**/*.rs' '**/*.md'
 
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
