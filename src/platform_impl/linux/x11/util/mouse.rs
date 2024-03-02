@@ -30,8 +30,8 @@ macro_rules! consume {
         let this = $this;
         let (x, y) = match (this.x.abs() < <$ty>::EPSILON, this.y.abs() < <$ty>::EPSILON) {
             (true, true) => return None,
-            (true, false) => (this.x, 0.0),
-            (false, true) => (0.0, this.y),
+            (false, true) => (this.x, 0.0),
+            (true, false) => (0.0, this.y),
             (false, false) => (this.x, this.y),
         };
 
