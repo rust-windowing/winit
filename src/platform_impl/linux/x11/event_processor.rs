@@ -981,7 +981,7 @@ impl EventProcessor {
 
         // Always update the modifiers when we're not replaying.
         if !replay {
-            self.udpate_mods_from_core_event(window_id, xev.state as u16, &mut callback);
+            self.update_mods_from_core_event(window_id, xev.state as u16, &mut callback);
         }
 
         if keycode != 0 && !self.is_composing {
@@ -1778,7 +1778,7 @@ impl EventProcessor {
         self.send_modifiers(window_id, mods.into(), true, &mut callback)
     }
 
-    pub fn udpate_mods_from_core_event<T: 'static, F>(
+    pub fn update_mods_from_core_event<T: 'static, F>(
         &mut self,
         window_id: crate::window::WindowId,
         state: u16,

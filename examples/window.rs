@@ -333,7 +333,7 @@ impl Application {
                     println!("Preedit: {}, with caret at {:?}", text, caret_pos);
                 }
                 Ime::Commit(text) => {
-                    println!("Commited: {}", text);
+                    println!("Committed: {}", text);
                 }
                 Ime::Disabled => println!("IME disabled for Window={window_id:?}"),
             },
