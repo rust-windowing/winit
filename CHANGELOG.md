@@ -9,7 +9,9 @@ PR's changelog entry would go into the wrong section).
 And please only add new entries to the top of this list, right below the `#
 Unreleased` header.
 
-# Unreleased
+# 0.29.13
+
+- On Web, fix possible crash with `ControlFlow::Wait` and `ControlFlow::WaitUntil`.
 
 # 0.29.12
 
