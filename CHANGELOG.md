@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, fix a bug where some mouse events would be unexpectedly filtered out.
+
 # 0.29.13
 
 - On Web, fix possible crash with `ControlFlow::Wait` and `ControlFlow::WaitUntil`.
