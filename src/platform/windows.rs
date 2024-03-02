@@ -157,11 +157,11 @@ pub trait EventLoopBuilderExtWindows {
     /// #[cfg(target_os = "windows")]
     /// builder.with_msg_hook(|msg|{
     ///     let msg = msg as *const MSG;
-    /// #   let accels: Vec<ACCEL> = Vec::new();
+    /// #   let accelerators: Vec<ACCEL> = Vec::new();
     ///     let translated = unsafe {
     ///         TranslateAcceleratorW(
     ///             (*msg).hwnd,
-    ///             CreateAcceleratorTableW(accels.as_ptr() as _, 1),
+    ///             CreateAcceleratorTableW(accelerators.as_ptr() as _, 1),
     ///             msg,
     ///         ) == 1
     ///     };

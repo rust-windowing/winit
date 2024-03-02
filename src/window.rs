@@ -70,8 +70,8 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("Window { .. }")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.pad("Window { .. }")
     }
 }
 
@@ -1026,7 +1026,7 @@ impl Window {
 
     /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling [`WindowEvent::Resized`], as that
+    /// Note that making the window un-resizable doesn't exempt you from handling [`WindowEvent::Resized`], as that
     /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
     /// window could still be resized by calling [`Window::request_inner_size`].
     ///
@@ -1235,7 +1235,7 @@ impl Window {
     /// Sets the window icon.
     ///
     /// On Windows and X11, this is typically the small icon in the top-left
-    /// corner of the titlebar.
+    /// corner of the title bar.
     ///
     /// ## Platform-specific
     ///
@@ -1375,7 +1375,7 @@ impl Window {
     /// is already focused. How requesting for user attention manifests is platform dependent,
     /// see [`UserAttentionType`] for details.
     ///
-    /// Providing `None` will unset the request for user attention. Unsetting the request for
+    /// Providing `None` will unset the request for user attention. Un-setting the request for
     /// user attention might not be done automatically by the WM when the window receives input.
     ///
     /// ## Platform-specific

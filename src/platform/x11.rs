@@ -16,14 +16,14 @@ use crate::dpi::Size;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowType {
     /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
-    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
+    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxy-ing
     /// root window clicks.
     Desktop,
     /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
     Dock,
     /// Toolbar windows. "Torn off" from the main application.
     Toolbar,
-    /// Pinnable menu windows. "Torn off" from the main application.
+    /// Pin-able menu windows. "Torn off" from the main application.
     Menu,
     /// A small persistent utility window, such as a palette or toolbox.
     Utility,
