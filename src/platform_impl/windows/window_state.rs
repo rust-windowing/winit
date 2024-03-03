@@ -510,7 +510,22 @@ impl CursorFlags {
 
         if util::is_focused(window) {
             let cursor_clip = match self.contains(CursorFlags::GRABBED) {
-                true => Some(client_rect),
+                true => {
+                    if self.contains(CursorFlags::HIDDEN) {
+                        // Confine the cursor to the center of the window if the cursor is hidden. This avoids
+                        // problems with the cursor activating the taskbar if the window borders or overlaps that.
+                        let cx = (client_rect.left + client_rect.right) / 2;
+                        let cy = (client_rect.top + client_rect.bottom) / 2;
+                        Some(RECT {
+                            left: cx,
+                            right: cx + 1,
+                            top: cy,
+                            bottom: cy + 1,
+                        })
+                    } else {
+                        Some(client_rect)
+                    }
+                }
                 false => None,
             };
 
