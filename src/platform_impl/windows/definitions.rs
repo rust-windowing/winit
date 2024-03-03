@@ -17,7 +17,7 @@ use windows_sys::{
 pub struct IUnknownVtbl {
     pub QueryInterface: unsafe extern "system" fn(
         This: *mut IUnknown,
-        riid: *const GUID,
+        r_iid: *const GUID,
         ppvObject: *mut *mut c_void,
     ) -> HRESULT,
     pub AddRef: unsafe extern "system" fn(This: *mut IUnknown) -> u32,
@@ -29,43 +29,45 @@ pub struct IDataObjectVtbl {
     pub parent: IUnknownVtbl,
     pub GetData: unsafe extern "system" fn(
         This: *mut IDataObject,
-        pformatetcIn: *const FORMATETC,
-        pmedium: *mut STGMEDIUM,
+        p_format_etc_In: *const FORMATETC,
+        p_medium: *mut STGMEDIUM,
     ) -> HRESULT,
     pub GetDataHere: unsafe extern "system" fn(
         This: *mut IDataObject,
-        pformatetc: *const FORMATETC,
-        pmedium: *mut STGMEDIUM,
+        p_format_etc: *const FORMATETC,
+        p_medium: *mut STGMEDIUM,
     ) -> HRESULT,
-    QueryGetData:
-        unsafe extern "system" fn(This: *mut IDataObject, pformatetc: *const FORMATETC) -> HRESULT,
+    QueryGetData: unsafe extern "system" fn(
+        This: *mut IDataObject,
+        p_format_etc: *const FORMATETC,
+    ) -> HRESULT,
     pub GetCanonicalFormatEtc: unsafe extern "system" fn(
         This: *mut IDataObject,
-        pformatetcIn: *const FORMATETC,
-        pformatetcOut: *mut FORMATETC,
+        p_format_etc_In: *const FORMATETC,
+        p_format_etc_Out: *mut FORMATETC,
     ) -> HRESULT,
     pub SetData: unsafe extern "system" fn(
         This: *mut IDataObject,
-        pformatetc: *const FORMATETC,
-        pformatetcOut: *const FORMATETC,
+        p_format_etc: *const FORMATETC,
+        p_format_etcOut: *const FORMATETC,
         fRelease: BOOL,
     ) -> HRESULT,
     pub EnumFormatEtc: unsafe extern "system" fn(
         This: *mut IDataObject,
         dwDirection: u32,
-        ppenumFormatEtc: *mut *mut IEnumFORMATETC,
+        pp_enumFormatEtc: *mut *mut IEnumFORMATETC,
     ) -> HRESULT,
     pub DAdvise: unsafe extern "system" fn(
         This: *mut IDataObject,
-        pformatetc: *const FORMATETC,
-        advf: u32,
+        p_format_etc: *const FORMATETC,
+        a_dvf: u32,
         pAdvSInk: *const IAdviseSink,
         pdwConnection: *mut u32,
     ) -> HRESULT,
     pub DUnadvise: unsafe extern "system" fn(This: *mut IDataObject, dwConnection: u32) -> HRESULT,
     pub EnumDAdvise: unsafe extern "system" fn(
         This: *mut IDataObject,
-        ppenumAdvise: *const *const IEnumSTATDATA,
+        pp_enumAdvise: *const *const IEnumSTATDATA,
     ) -> HRESULT,
 }
 

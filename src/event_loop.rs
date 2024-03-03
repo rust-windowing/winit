@@ -80,7 +80,7 @@ impl<T> EventLoopBuilder<T> {
     /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
     /// and only once per application.***
     ///
-    /// Calling this function will result in display backend initialisation.
+    /// Calling this function will result in display backend initialization.
     ///
     /// ## Panics
     ///

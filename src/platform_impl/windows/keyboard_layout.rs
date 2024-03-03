@@ -53,7 +53,7 @@ use windows_sys::Win32::{
 
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NamedKey, NativeKey, PhysicalKey},
-    platform_impl::{loword, primarylangid, scancode_to_physicalkey},
+    platform_impl::{loword, primary_lang_id, scancode_to_physical_key},
 };
 
 pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
@@ -121,12 +121,12 @@ impl WindowsModifiers {
         let rshift = key_state[VK_RSHIFT as usize] & 0x80 != 0;
 
         let control = key_state[VK_CONTROL as usize] & 0x80 != 0;
-        let lcontrol = key_state[VK_LCONTROL as usize] & 0x80 != 0;
-        let rcontrol = key_state[VK_RCONTROL as usize] & 0x80 != 0;
+        let l_control = key_state[VK_LCONTROL as usize] & 0x80 != 0;
+        let r_control = key_state[VK_RCONTROL as usize] & 0x80 != 0;
 
         let alt = key_state[VK_MENU as usize] & 0x80 != 0;
-        let lalt = key_state[VK_LMENU as usize] & 0x80 != 0;
-        let ralt = key_state[VK_RMENU as usize] & 0x80 != 0;
+        let l_alt = key_state[VK_LMENU as usize] & 0x80 != 0;
+        let r_alt = key_state[VK_RMENU as usize] & 0x80 != 0;
 
         let caps = key_state[VK_CAPITAL as usize] & 0x01 != 0;
 
@@ -134,10 +134,10 @@ impl WindowsModifiers {
         if shift || lshift || rshift {
             result.insert(WindowsModifiers::SHIFT);
         }
-        if control || lcontrol || rcontrol {
+        if control || l_control || r_control {
             result.insert(WindowsModifiers::CONTROL);
         }
-        if alt || lalt || ralt {
+        if alt || l_alt || r_alt {
             result.insert(WindowsModifiers::ALT);
         }
         if caps {
@@ -335,7 +335,7 @@ impl LayoutCache {
             if scancode == 0 {
                 continue;
             }
-            let keycode = match scancode_to_physicalkey(scancode) {
+            let keycode = match scancode_to_physical_key(scancode) {
                 PhysicalKey::Code(code) => code,
                 // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                 _ => continue,
@@ -387,7 +387,7 @@ impl LayoutCache {
                 }
 
                 let native_code = NativeKey::Windows(vk as VIRTUAL_KEY);
-                let key_code = match scancode_to_physicalkey(scancode) {
+                let key_code = match scancode_to_physical_key(scancode) {
                     PhysicalKey::Code(code) => code,
                     // TODO: validate that we can skip on unidentified keys (probably never occurs?)
                     _ => continue,
@@ -542,7 +542,7 @@ fn is_numpad_specific(vk: VIRTUAL_KEY) -> bool {
 }
 
 fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
-    let primary_lang_id = primarylangid(loword(hkl as u32));
+    let primary_lang_id = primary_lang_id(loword(hkl as u32));
     let is_korean = primary_lang_id as u32 == LANG_KOREAN;
     let is_japanese = primary_lang_id as u32 == LANG_JAPANESE;
 
@@ -763,7 +763,7 @@ fn vkey_to_non_char_key(
     // List of the Web key names and their corresponding platform-native key names:
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
 
-    let primary_lang_id = primarylangid(loword(hkl as u32));
+    let primary_lang_id = primary_lang_id(loword(hkl as u32));
     let is_korean = primary_lang_id as u32 == LANG_KOREAN;
     let is_japanese = primary_lang_id as u32 == LANG_JAPANESE;
 

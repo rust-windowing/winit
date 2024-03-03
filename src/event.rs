@@ -561,7 +561,7 @@ pub enum WindowEvent {
     /// The window has been occluded (completely hidden from view).
     ///
     /// This is different to window visibility as it depends on whether the window is closed,
-    /// minimised, set invisible, or fully occluded by another window.
+    /// minimized, set invisible, or fully occluded by another window.
     ///
     /// ## Platform-specific
     ///
@@ -784,7 +784,7 @@ pub struct KeyEvent {
     ///
     /// # Example
     ///
-    /// In games, you often want to ignore repated key events - this can be
+    /// In games, you often want to ignore repeated key events - this can be
     /// done by ignoring events where this property is set.
     ///
     /// ```

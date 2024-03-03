@@ -113,7 +113,8 @@ pub(crate) fn create_key_event(
     let state = if is_press { Pressed } else { Released };
 
     let scancode = unsafe { ns_event.keyCode() };
-    let mut physical_key = key_override.unwrap_or_else(|| scancode_to_physicalkey(scancode as u32));
+    let mut physical_key =
+        key_override.unwrap_or_else(|| scancode_to_physical_key(scancode as u32));
 
     // NOTE: The logical key should heed both SHIFT and ALT if possible.
     // For instance:
@@ -150,7 +151,7 @@ pub(crate) fn create_key_event(
 
         let logical_key = match text_with_all_modifiers.as_ref() {
             // Only checking for ctrl and cmd here, not checking for alt because we DO want to
-            // include its effect in the key. For example if -on the Germay layout- one
+            // include its effect in the key. For example if -on the Germany layout- one
             // presses alt+8, the logical key should be "{"
             // Also not checking if this is a release event because then this issue would
             // still affect the key release.
@@ -415,7 +416,7 @@ pub(super) fn dummy_event() -> Option<Id<NSEvent>> {
     }
 }
 
-pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
+pub(crate) fn physical_key_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
     let code = match physical_key {
         PhysicalKey::Code(code) => code,
         PhysicalKey::Unidentified(_) => return None,
@@ -537,7 +538,7 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
     }
 }
 
-pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+pub(crate) fn scancode_to_physical_key(scancode: u32) -> PhysicalKey {
     PhysicalKey::Code(match scancode {
         0x00 => KeyCode::KeyA,
         0x01 => KeyCode::KeyS,

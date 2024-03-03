@@ -7,7 +7,7 @@
 //!
 //! ## Client-side decorations
 //!
-//! Winit provides client-side decorations by default, but the behavior can
+//! Winit provides client-side decorations by default, but the behaviour can
 //! be controlled with the following feature flags:
 //!
 //! * `wayland-csd-adwaita` (default).

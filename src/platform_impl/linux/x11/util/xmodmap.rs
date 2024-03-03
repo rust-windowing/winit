@@ -16,7 +16,7 @@ const NUM_MODS: usize = 8;
 #[derive(Debug, Default)]
 pub struct ModifierKeymap {
     // Maps keycodes to modifiers
-    modifers: HashSet<XKeyCode>,
+    modifiers: HashSet<XKeyCode>,
 }
 
 impl ModifierKeymap {
@@ -25,7 +25,7 @@ impl ModifierKeymap {
     }
 
     pub fn is_modifier(&self, keycode: XKeyCode) -> bool {
-        self.modifers.contains(&keycode)
+        self.modifiers.contains(&keycode)
     }
 
     pub fn reload_from_x_connection(&mut self, xconn: &super::XConnection) {
@@ -48,9 +48,9 @@ impl ModifierKeymap {
         let keys = unsafe {
             slice::from_raw_parts(keymap.modifiermap as *const _, keys_per_mod * NUM_MODS)
         };
-        self.modifers.clear();
+        self.modifiers.clear();
         for key in keys {
-            self.modifers.insert(*key);
+            self.modifiers.insert(*key);
         }
     }
 }

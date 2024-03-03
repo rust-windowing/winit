@@ -29,11 +29,11 @@ pub trait PhysicalKeyExtScancode {
 
 impl PhysicalKeyExtScancode for PhysicalKey {
     fn to_scancode(self) -> Option<u32> {
-        crate::platform_impl::physicalkey_to_scancode(self)
+        crate::platform_impl::physical_key_to_scancode(self)
     }
 
     fn from_scancode(scancode: u32) -> PhysicalKey {
-        crate::platform_impl::scancode_to_physicalkey(scancode)
+        crate::platform_impl::scancode_to_physical_key(scancode)
     }
 }
 

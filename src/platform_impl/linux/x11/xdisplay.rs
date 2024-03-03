@@ -159,7 +159,7 @@ impl XConnection {
 
         // Get PropertyNotify events from the XSETTINGS window.
         // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on this window
-        // in order to accomodate for a changed window here.
+        // in order to accommodate for a changed window here.
         let selector_window = xcb
             .get_selection_owner(xsettings_screen)
             .ok()?

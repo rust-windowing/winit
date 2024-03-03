@@ -31,8 +31,8 @@ pub(crate) enum CustomCursorSource {
     Image(CursorImage),
     Url {
         url: String,
-        hot_spot_x: u16,
-        hot_spot_y: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
     },
     Animation {
         duration: Duration,
@@ -88,8 +88,8 @@ impl CustomCursor {
             ),
             CustomCursorSource::Url {
                 url,
-                hot_spot_x: hotspot_x,
-                hot_spot_y: hotspot_y,
+                hotspot_x,
+                hotspot_y,
             } => Self::build_spawn(
                 event_loop,
                 from_url(UrlType::Plain(url), hotspot_x, hotspot_y),

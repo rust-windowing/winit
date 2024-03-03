@@ -1021,10 +1021,10 @@ pub(super) unsafe extern "system" fn public_window_callback(
 
     let userdata_ptr = match (userdata, msg) {
         (0, WM_NCCREATE) => {
-            let createstruct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
-            let initdata = unsafe { &mut *(createstruct.lpCreateParams as *mut InitData<'_>) };
+            let create_struct = unsafe { &mut *(lparam as *mut CREATESTRUCTW) };
+            let init_data = unsafe { &mut *(create_struct.lpCreateParams as *mut InitData<'_>) };
 
-            let result = match unsafe { initdata.on_nccreate(window) } {
+            let result = match unsafe { init_data.on_nccreate(window) } {
                 Some(userdata) => unsafe {
                     super::set_window_long(window, GWL_USERDATA, userdata as _);
                     DefWindowProcW(window, msg, wparam, lparam)
@@ -1038,11 +1038,11 @@ pub(super) unsafe extern "system" fn public_window_callback(
         // but we'll make window creation fail here just in case.
         (0, WM_CREATE) => return -1,
         (_, WM_CREATE) => unsafe {
-            let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
-            let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_>);
+            let create_struct = &mut *(lparam as *mut CREATESTRUCTW);
+            let init_data = create_struct.lpCreateParams;
+            let init_data = &mut *(init_data as *mut InitData<'_>);
 
-            initdata.on_create();
+            init_data.on_create();
             return DefWindowProcW(window, msg, wparam, lparam);
         },
         (0, _) => return unsafe { DefWindowProcW(window, msg, wparam, lparam) },
@@ -1147,7 +1147,7 @@ unsafe fn public_window_callback_inner(
                 // on all 4 borders would result in the caption getting drawn by the DWM.
                 //
                 // Another option would be to allow the DWM to paint inside the client area.
-                // Unfortunately this results in janky resize behavior, where the compositor is
+                // Unfortunately this results in inconsistent resize behavior, where the compositor is
                 // ahead of the window surface. Currently, there seems no option to achieve this
                 // with the Windows API.
                 params.rgrc[0].top += 1;
@@ -1312,10 +1312,10 @@ unsafe fn public_window_callback_inner(
         WM_WINDOWPOSCHANGED => {
             use crate::event::WindowEvent::Moved;
 
-            let windowpos = lparam as *const WINDOWPOS;
-            if unsafe { (*windowpos).flags & SWP_NOMOVE != SWP_NOMOVE } {
+            let window_pos = lparam as *const WINDOWPOS;
+            if unsafe { (*window_pos).flags & SWP_NOMOVE != SWP_NOMOVE } {
                 let physical_position =
-                    unsafe { PhysicalPosition::new((*windowpos).x, (*windowpos).y) };
+                    unsafe { PhysicalPosition::new((*window_pos).x, (*window_pos).y) };
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: Moved(physical_position),
@@ -1817,18 +1817,18 @@ unsafe fn public_window_callback_inner(
         }
 
         WM_TOUCH => {
-            let pcount = super::loword(wparam as u32) as usize;
-            let mut inputs = Vec::with_capacity(pcount);
-            let htouch = lparam;
+            let p_count = super::loword(wparam as u32) as usize;
+            let mut inputs = Vec::with_capacity(p_count);
+            let h_touch = lparam;
             if unsafe {
                 GetTouchInputInfo(
-                    htouch,
-                    pcount as u32,
+                    h_touch,
+                    p_count as u32,
                     inputs.as_mut_ptr(),
                     mem::size_of::<TOUCHINPUT>() as i32,
                 ) > 0
             } {
-                unsafe { inputs.set_len(pcount) };
+                unsafe { inputs.set_len(p_count) };
                 for input in &inputs {
                     let mut location = POINT {
                         x: input.x / 100,
@@ -1862,7 +1862,7 @@ unsafe fn public_window_callback_inner(
                     });
                 }
             }
-            unsafe { CloseTouchInputHandle(htouch) };
+            unsafe { CloseTouchInputHandle(h_touch) };
             result = ProcResult::Value(0);
         }
 
@@ -2557,7 +2557,7 @@ unsafe fn handle_raw_input(userdata: &ThreadMsgTargetData, data: RAWINPUT) {
 }
 
 enum PointerMoveKind {
-    /// Pointer enterd to the window.
+    /// Pointer entered to the window.
     Enter,
     /// Pointer leaved the window client area.
     Leave,

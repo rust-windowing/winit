@@ -211,7 +211,7 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(event::Event<T>, &RootAEL),
     {
-        trace!("Mainloop iteration");
+        trace!("Main loop iteration");
 
         let cause = self.cause;
         let mut pending_redraw = self.pending_redraw;

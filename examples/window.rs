@@ -244,9 +244,9 @@ impl Application {
             }
             WindowEvent::Focused(focused) => {
                 if focused {
-                    println!("Window={window_id:?} fosused");
+                    println!("Window={window_id:?} focused");
                 } else {
-                    println!("Window={window_id:?} unfosused");
+                    println!("Window={window_id:?} unfocused");
                 }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
@@ -333,7 +333,7 @@ impl Application {
                     println!("Preedit: {}, with caret at {:?}", text, caret_pos);
                 }
                 Ime::Commit(text) => {
-                    println!("Commited: {}", text);
+                    println!("Committed: {}", text);
                 }
                 Ime::Disabled => println!("IME disabled for Window={window_id:?}"),
             },

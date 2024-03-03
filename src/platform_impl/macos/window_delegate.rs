@@ -594,7 +594,7 @@ fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<Wini
         view.setWantsBestResolutionOpenGLSurface(!attrs.platform_specific.disallow_hidpi);
 
         // On Mojave, views automatically become layer-backed shortly after being added to
-        // a window. Changing the layer-backedness of a view breaks the association between
+        // a window. Changing the layer-backed-ness of a view breaks the association between
         // the view and its associated OpenGL context. To work around this, on Mojave we
         // explicitly make the view layer-backed up front so that AppKit doesn't do it
         // itself and break the association with its context.
@@ -1012,7 +1012,7 @@ impl WindowDelegate {
         self.set_style_mask(mask);
 
         // We edit the button directly instead of using `NSResizableWindowMask`,
-        // since that mask also affect the resizability of the window (which is
+        // since that mask also affect the resize ability of the window (which is
         // controllable by other means in `winit`).
         if let Some(button) = self.window().standardWindowButton(NSWindowZoomButton) {
             button.setEnabled(buttons.contains(WindowButtons::MAXIMIZE));

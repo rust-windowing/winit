@@ -321,8 +321,8 @@ impl Key {
 }
 
 impl PhysicalKey {
-    pub fn from_key_code_attribute_value(kcav: &str) -> Self {
-        PhysicalKey::Code(match kcav {
+    pub fn from_key_code_attribute_value(k_code: &str) -> Self {
+        PhysicalKey::Code(match k_code {
             "Backquote" => KeyCode::Backquote,
             "Backslash" => KeyCode::Backslash,
             "BracketLeft" => KeyCode::BracketLeft,

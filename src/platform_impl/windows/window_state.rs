@@ -416,7 +416,7 @@ impl WindowFlags {
                     0,
                 );
 
-                // This condition is necessary to avoid having an unrestorable window
+                // This condition is necessary to avoid having an un-restorable window
                 if !new.contains(WindowFlags::MINIMIZED) {
                     SetWindowLongW(window, GWL_STYLE, style as i32);
                     SetWindowLongW(window, GWL_EXSTYLE, style_ex as i32);
@@ -450,7 +450,7 @@ impl WindowFlags {
             let mut style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
             let style_ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
 
-            // Frameless style implemented by manually overriding the non-client area in `WM_NCCALCSIZE`.
+            // Frame-less style implemented by manually overriding the non-client area in `WM_NCCALCSIZE`.
             if !self.contains(WindowFlags::MARKER_DECORATIONS) {
                 style &= !(WS_CAPTION | WS_SIZEBOX);
             }
@@ -525,7 +525,7 @@ impl CursorFlags {
 
             // We do this check because calling `set_cursor_clip` incessantly will flood the event
             // loop with `WM_MOUSEMOVE` events, and `refresh_os_cursor` is called by `set_cursor_flags`
-            // which at times gets called once every iteration of the eventloop.
+            // which at times gets called once every iteration of the event loop.
             if active_cursor_clip != cursor_clip.map(rect_to_tuple) {
                 util::set_cursor_clip(cursor_clip)?;
             }

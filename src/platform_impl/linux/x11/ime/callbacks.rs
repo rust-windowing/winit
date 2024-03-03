@@ -166,7 +166,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
 pub unsafe extern "C" fn xim_instantiate_callback(
     _display: *mut ffi::Display,
     client_data: ffi::XPointer,
-    // This field is unsupplied.
+    // This field is un-supplied.
     _call_data: ffi::XPointer,
 ) {
     let inner: *mut ImeInner = client_data as _;
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn xim_instantiate_callback(
 pub unsafe extern "C" fn xim_destroy_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
-    // This field is unsupplied.
+    // This field is un-supplied.
     _call_data: ffi::XPointer,
 ) {
     let inner: *mut ImeInner = client_data as _;

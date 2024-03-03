@@ -2,7 +2,7 @@
 //!
 //! The [`ActivationToken`] is essential to ensure that your newly
 //! created window will obtain the focus, otherwise the user could
-//! be requered to click on the window.
+//! be required to click on the window.
 //!
 //! Such token is usually delivered via the environment variable and
 //! could be read from it with the [`EventLoopExtStartupNotify::read_token_from_env`].

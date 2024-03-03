@@ -24,13 +24,13 @@ use crate::platform_impl::common::xkb::{XkbContext, XKBH};
 ///
 /// X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses.
 pub fn raw_keycode_to_physicalkey(keycode: u32) -> PhysicalKey {
-    scancode_to_physicalkey(keycode.saturating_sub(8))
+    scancode_to_physical_key(keycode.saturating_sub(8))
 }
 
 /// Map the linux scancode to Keycode.
 ///
 /// Both X11 and Wayland use keys with `+ 8` offset to linux scancode.
-pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+pub fn scancode_to_physical_key(scancode: u32) -> PhysicalKey {
     // The keycode values are taken from linux/include/uapi/linux/input-event-codes.h, as
     // libxkbcommon's documentation seems to suggest that the keycode values we're interested in
     // are defined by the Linux kernel. If Winit programs end up being run on other Unix-likes,
@@ -287,7 +287,7 @@ pub fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     })
 }
 
-pub fn physicalkey_to_scancode(key: PhysicalKey) -> Option<u32> {
+pub fn physical_key_to_scancode(key: PhysicalKey) -> Option<u32> {
     let code = match key {
         PhysicalKey::Code(code) => code,
         PhysicalKey::Unidentified(code) => {

@@ -82,7 +82,7 @@ pub trait WindowExtWebSys {
     /// would prevent that.
     ///
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
-    /// context menu with Shift+Right-click.
+    /// context menu with Shift+Rightclick.
     fn set_prevent_default(&self, prevent_default: bool);
 }
 
@@ -274,7 +274,7 @@ pub trait CustomCursorExtWebSys {
     /// but browser support for image formats is inconsistent. Using [PNG] is recommended.
     ///
     /// [PNG]: https://en.wikipedia.org/wiki/PNG
-    fn from_url(url: String, hot_spot_x: u16, hot_spot_y: u16) -> CustomCursorSource;
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource;
 
     /// Crates a new animated cursor from multiple [`CustomCursor`]s.
     /// Supplied `cursors` can't be empty or other animations.
@@ -289,12 +289,12 @@ impl CustomCursorExtWebSys for CustomCursor {
         self.inner.animation
     }
 
-    fn from_url(url: String, hot_spot_x: u16, hot_spot_y: u16) -> CustomCursorSource {
+    fn from_url(url: String, hotspot_x: u16, hotspot_y: u16) -> CustomCursorSource {
         CustomCursorSource {
             inner: PlatformCustomCursorSource::Url {
                 url,
-                hot_spot_x,
-                hot_spot_y,
+                hotspot_x,
+                hotspot_y,
             },
         }
     }

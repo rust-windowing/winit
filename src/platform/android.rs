@@ -45,13 +45,13 @@
 //! | Base Class       | Feature Flag      |  Notes  |
 //! | :--------------: | :---------------: | :-----: |
 //! | `NativeActivity` | `android-native-activity` | Built-in to Android - it is possible to use without compiling any Java or Kotlin code. Java or Kotlin code may be needed to subclass `NativeActivity` to access some platform features. It does not derive from the [`AndroidAppCompat`] base class.|
-//! | [`GameActivity`] | `android-game-activity`   | Derives from [`AndroidAppCompat`], a defacto standard `Activity` base class that helps support a wider range of Android versions. Requires a build system that can compile Java or Kotlin and fetch Android dependencies from a [Maven repository][agdk_jetpack] (or link with an embedded [release][agdk_releases] of [`GameActivity`]) |
+//! | [`GameActivity`] | `android-game-activity`   | Derives from [`AndroidAppCompat`], a defacto standard `Activity` base class that helps support a wider range of Android versions. Requires a build system that can compile Java or Kotlin and fetch Android dependencies from a [Maven repository][android_jet] (or link with an embedded [release][android_releases] of [`GameActivity`]) |
 //!
 //! [`GameActivity`]: https://developer.android.com/games/agdk/game-activity
 //! [`GameTextInput`]: https://developer.android.com/games/agdk/add-support-for-text-input
 //! [`AndroidAppCompat`]: https://developer.android.com/reference/androidx/appcompat/app/AppCompatActivity
-//! [agdk_jetpack]: https://developer.android.com/jetpack/androidx/releases/games
-//! [agdk_releases]: https://developer.android.com/games/agdk/download#agdk-libraries
+//! [android_jet]: https://developer.android.com/jetpack/androidx/releases/games
+//! [android_releases]: https://developer.android.com/games/agdk/download#agdk-libraries
 //! [Gradle]: https://developer.android.com/studio/build
 //!
 //! For more details, refer to these `android-activity` [example applications](https://github.com/rust-mobile/android-activity/tree/main/examples).

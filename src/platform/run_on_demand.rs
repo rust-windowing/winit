@@ -94,7 +94,7 @@ impl ActiveEventLoop {
 ///
 /// let mut event_loop = EventLoop::new().unwrap();
 /// event_loop.run_on_demand(|_, _| {
-///     // Attempt to run the event loop re-entrantly; this must fail.
+///     // Attempt to run the event loop in a re-entrant manner; this must fail.
 ///     event_loop.run_on_demand(|_, _| {});
 /// });
 /// ```

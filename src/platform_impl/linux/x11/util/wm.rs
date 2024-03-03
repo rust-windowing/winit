@@ -54,7 +54,7 @@ impl XConnection {
 
         // Mutter/Muffin/Budgie doesn't have _NET_SUPPORTING_WM_CHECK in its _NET_SUPPORTED, despite
         // it working and being supported. This has been reported upstream, but due to the
-        // inavailability of time machines, we'll just try to get _NET_SUPPORTING_WM_CHECK
+        // unavailability of time machines, we'll just try to get _NET_SUPPORTING_WM_CHECK
         // regardless of whether or not the WM claims to support it.
         //
         // Blackbox 0.70 also incorrectly reports not supporting this, though that appears to be fixed

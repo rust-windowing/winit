@@ -391,7 +391,7 @@ impl UnownedWindow {
         }
 
         {
-            // Enable drag and drop (TODO: extend API to make this toggleable)
+            // Enable drag and drop (TODO: extend API to make this toggle-able)
             {
                 let dnd_aware_atom = atoms[XdndAware];
                 let version = &[5u32]; // Latest version; hasn't changed since 2002
@@ -1038,9 +1038,10 @@ impl UnownedWindow {
         let vert_atom = atoms[_NET_WM_STATE_MAXIMIZED_VERT];
         match state {
             Ok(atoms) => {
-                let horz_maximized = atoms.iter().any(|atom: &xproto::Atom| *atom == horz_atom);
+                let horizontal_maximized =
+                    atoms.iter().any(|atom: &xproto::Atom| *atom == horz_atom);
                 let vert_maximized = atoms.iter().any(|atom: &xproto::Atom| *atom == vert_atom);
-                horz_maximized && vert_maximized
+                horizontal_maximized && vert_maximized
             }
             _ => false,
         }
@@ -1048,10 +1049,10 @@ impl UnownedWindow {
 
     fn set_maximized_inner(&self, maximized: bool) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.xconn.atoms();
-        let horz_atom = atoms[_NET_WM_STATE_MAXIMIZED_HORZ];
+        let horizontal_atom = atoms[_NET_WM_STATE_MAXIMIZED_HORZ];
         let vert_atom = atoms[_NET_WM_STATE_MAXIMIZED_VERT];
 
-        self.set_netwm(maximized.into(), (horz_atom, vert_atom, 0, 0))
+        self.set_netwm(maximized.into(), (horizontal_atom, vert_atom, 0, 0))
     }
 
     #[inline]

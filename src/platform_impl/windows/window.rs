@@ -1406,7 +1406,7 @@ unsafe fn init(
     let menu = attributes.platform_specific.menu;
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
-    let mut initdata = InitData {
+    let mut init_data = InitData {
         event_loop,
         attributes,
         window_flags,
@@ -1427,7 +1427,7 @@ unsafe fn init(
             parent.unwrap_or(0),
             menu.unwrap_or(0),
             util::get_instance_handle(),
-            &mut initdata as *mut _ as *mut _,
+            &mut init_data as *mut _ as *mut _,
         )
     };
 
@@ -1442,7 +1442,7 @@ unsafe fn init(
 
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
-    let win = initdata.window.unwrap();
+    let win = init_data.window.unwrap();
 
     // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
     // This is because if the size is changed in WM_CREATE, the restored size will be stored in that size.

@@ -22,6 +22,7 @@ jobs:
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
+    needs: fmt
 
     strategy:
       fail-fast: false

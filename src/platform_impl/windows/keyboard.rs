@@ -42,7 +42,7 @@ use crate::{
     platform_impl::platform::{
         event_loop::ProcResult,
         keyboard_layout::{Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
-        loword, primarylangid, KeyEventExtra,
+        loword, primary_lang_id, KeyEventExtra,
     },
 };
 
@@ -106,13 +106,13 @@ impl KeyEventBuilder {
         let mut matcher = || -> MatchResult {
             match msg_kind {
                 WM_SETFOCUS => {
-                    // synthesize keydown events
+                    // synthesize key down events
                     let kbd_state = get_async_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Pressed, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
                 }
                 WM_KILLFOCUS => {
-                    // sythesize keyup events
+                    // synthesize keyup events
                     let kbd_state = get_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
@@ -230,7 +230,7 @@ impl KeyEventBuilder {
                         .unwrap_or(false);
                     if more_char_coming {
                         // No need to produce an event just yet, because there are still more characters that
-                        // need to appended to this keyobard event
+                        // need to appended to this keyboard event
                         MatchResult::TokenToRemove(pending_token)
                     } else {
                         let mut event_info = self.event_info.lock().unwrap();
@@ -328,7 +328,7 @@ impl KeyEventBuilder {
         }
     }
 
-    // Allowing nominimal_bool lint because the `is_key_pressed` macro triggers this warning
+    // Allowing nonminimal_bool lint because the `is_key_pressed` macro triggers this warning
     // and I don't know of another way to resolve it and also keeping the macro
     #[allow(clippy::nonminimal_bool)]
     fn synthesize_kbd_state(
@@ -454,7 +454,7 @@ impl KeyEventBuilder {
             return None;
         }
         let scancode = scancode as ExScancode;
-        let physical_key = scancode_to_physicalkey(scancode as u32);
+        let physical_key = scancode_to_physical_key(scancode as u32);
         let mods = if caps_lock_on {
             WindowsModifiers::CAPS_LOCK
         } else {
@@ -499,7 +499,7 @@ enum PartialText {
 
 enum PartialLogicalKey {
     /// Use the text provided by the WM_CHAR messages and report that as a `Character` variant. If
-    /// the text consists of multiple grapheme clusters (user-precieved characters) that means that
+    /// the text consists of multiple grapheme clusters (user-perceived characters) that means that
     /// dead key could not be combined with the second input, and in that case we should fall back
     /// to using what would have without a dead-key input.
     TextOr(Key),
@@ -544,7 +544,7 @@ impl PartialKeyEventInfo {
         } else {
             new_ex_scancode(lparam_struct.scancode, lparam_struct.extended)
         };
-        let physical_key = scancode_to_physicalkey(scancode as u32);
+        let physical_key = scancode_to_physical_key(scancode as u32);
         let location = get_location(scancode, layout.hkl as HKL);
 
         let kbd_state = get_kbd_state();
@@ -589,7 +589,7 @@ impl PartialKeyEventInfo {
                 // We convert dead keys into their character.
                 // The reason for this is that `key_without_modifiers` is designed for key-bindings,
                 // but the US International layout treats `'` (apostrophe) as a dead key and the
-                // reguar US layout treats it a character. In order for a single binding
+                // regular US layout treats it a character. In order for a single binding
                 // configuration to work with both layouts, we forward each dead key as a character.
                 Key::Dead(k) => {
                     if let Some(ch) = k {
@@ -741,15 +741,15 @@ fn get_async_kbd_state() -> [u8; 256] {
 /// every AltGr key-press (and key-release). We check if the current event is a Ctrl event and if
 /// the next event is a right Alt (AltGr) event. If this is the case, the current event must be the
 /// fake Ctrl event.
-fn is_current_fake(curr_info: &PartialKeyEventInfo, next_msg: MSG, layout: &Layout) -> bool {
-    let curr_is_ctrl = matches!(
-        curr_info.logical_key,
+fn is_current_fake(current_info: &PartialKeyEventInfo, next_msg: MSG, layout: &Layout) -> bool {
+    let current_is_ctrl = matches!(
+        current_info.logical_key,
         PartialLogicalKey::This(Key::Named(NamedKey::Control))
     );
     if layout.has_alt_graph {
         let next_code = ex_scancode_from_lparam(next_msg.lParam);
         let next_is_altgr = next_code == 0xE038; // 0xE038 is right alt
-        if curr_is_ctrl && next_is_altgr {
+        if current_is_ctrl && next_is_altgr {
             return true;
         }
     }
@@ -942,12 +942,12 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     }
 }
 
-pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
-    // See `scancode_to_physicalkey` for more info
+pub(crate) fn physical_key_to_scancode(physical_key: PhysicalKey) -> Option<u32> {
+    // See `scancode_to_physical_key` for more info
 
     let hkl = unsafe { GetKeyboardLayout(0) };
 
-    let primary_lang_id = primarylangid(loword(hkl as u32));
+    let primary_lang_id = primary_lang_id(loword(hkl as u32));
     let is_korean = primary_lang_id as u32 == LANG_KOREAN;
 
     let code = match physical_key {
@@ -1124,7 +1124,7 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
     }
 }
 
-pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
+pub(crate) fn scancode_to_physical_key(scancode: u32) -> PhysicalKey {
     // See: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
     // and: https://www.w3.org/TR/uievents-code/
     // and: The widget/NativeKeyToDOMCodeName.h file in the firefox source

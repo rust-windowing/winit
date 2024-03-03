@@ -44,7 +44,7 @@ impl AaRect {
 pub struct Geometry {
     pub root: xproto::Window,
     // If you want positions relative to the root window, use translate_coords.
-    // Note that the overwhelming majority of window managers are reparenting WMs, thus the window
+    // Note that the overwhelming majority of window managers are re-parenting WMs, thus the window
     // ID we get from window creation is for a nested window used as the window's client area. If
     // you call get_geometry with that window ID, then you'll get the position of that client area
     // window relative to the parent it's nested in (the frame), which isn't helpful if you want

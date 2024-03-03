@@ -12,7 +12,7 @@ pub(crate) use self::{
         PlatformSpecificEventLoopAttributes,
     },
     icon::{SelectedCursor, WinIcon},
-    keyboard::{physicalkey_to_scancode, scancode_to_physicalkey},
+    keyboard::{physical_key_to_scancode, scancode_to_physical_key},
     monitor::{MonitorHandle, VideoModeHandle},
     window::Window,
 };
@@ -148,7 +148,7 @@ const fn get_y_lparam(x: u32) -> i16 {
 }
 
 #[inline(always)]
-pub(crate) const fn primarylangid(lgid: u16) -> u16 {
+pub(crate) const fn primary_lang_id(lgid: u16) -> u16 {
     lgid & 0x3FF
 }
 
@@ -163,24 +163,26 @@ const fn hiword(x: u32) -> u16 {
 }
 
 #[inline(always)]
-unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
+unsafe fn get_window_long(hwnd: HWND, n_index: WINDOW_LONG_PTR_INDEX) -> isize {
     #[cfg(target_pointer_width = "64")]
-    return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, nindex) };
+    return unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, n_index)
+    };
     #[cfg(target_pointer_width = "32")]
     return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize
+        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, n_index) as isize
     };
 }
 
 #[inline(always)]
-unsafe fn set_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
+unsafe fn set_window_long(hwnd: HWND, n_index: WINDOW_LONG_PTR_INDEX, new_long: isize) -> isize {
     #[cfg(target_pointer_width = "64")]
     return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, nindex, dwnewlong)
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, n_index, new_long)
     };
     #[cfg(target_pointer_width = "32")]
     return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, nindex, dwnewlong as i32)
+        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, n_index, new_long as i32)
             as isize
     };
 }

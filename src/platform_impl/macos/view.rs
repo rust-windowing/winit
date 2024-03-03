@@ -23,7 +23,7 @@ use super::app_delegate::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
 use super::event::{
     code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey,
+    scancode_to_physical_key,
 };
 use super::window::WinitWindow;
 use super::{util, DEVICE_ID};
@@ -918,7 +918,7 @@ impl WinitView {
         'send_event: {
             if is_flags_changed_event && unsafe { ns_event.keyCode() } != 0 {
                 let scancode = unsafe { ns_event.keyCode() };
-                let physical_key = scancode_to_physicalkey(scancode as u32);
+                let physical_key = scancode_to_physical_key(scancode as u32);
 
                 // We'll correct the `is_press` later.
                 let mut event = create_key_event(ns_event, false, false, Some(physical_key));
