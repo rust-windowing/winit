@@ -258,7 +258,7 @@ web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
 
 [[example]]
 doc-scrape-examples = true
-name = "window"
+name = "full"
 
 [workspace]
 resolver = "2"
