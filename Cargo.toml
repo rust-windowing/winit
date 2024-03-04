@@ -264,6 +264,7 @@ name = "window"
 resolver = "2"
 members = [
     "dpi",
+    "it/gui-test",
     "run-wasm",
 ]
 
