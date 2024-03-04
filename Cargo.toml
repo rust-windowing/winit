@@ -264,7 +264,9 @@ name = "window"
 resolver = "2"
 members = [
     "dpi",
+    "it/common-tests",
     "it/gui-test",
+    "it/gui-test-runner",
     "run-wasm",
 ]
 
@@ -279,3 +281,4 @@ async-io = "2.3.1"
 gui-test = { path = "it/gui-test" }
 mint = "0.5.6"
 serde = { version = "1", features = ["serde_derive"] }
+winit = { path = "." }
