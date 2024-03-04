@@ -1,5 +1,5 @@
 //! Write events to an output stream.
-//! 
+//!
 //! The format is as follows:
 //! - First 8 bytes: big-endian length of payload.
 //! - Next {len} bytes: JSON payload to deserialize from.
@@ -16,9 +16,7 @@ pub struct WriteHandler<W> {
 impl<W: Write> WriteHandler<W> {
     /// Create a new write handler.
     pub fn new(writer: W) -> Self {
-        Self {
-            writer
-        }
+        Self { writer }
     }
 }
 

@@ -1,0 +1,12 @@
+[package]
+name = "common-tests"
+version = "0.1.0"
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+gui-test.workspace = true
+macro_rules_attribute = "0.2.0"
+winit.workspace = true

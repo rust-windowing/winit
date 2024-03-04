@@ -1,7 +1,7 @@
 //! A testing framework that can be run remotely.
 
-pub mod stream;
 pub mod remote;
+pub mod stream;
 pub mod user;
 
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub use inventory as __inventory;
 macro_rules! main {
     ($handler:expr) => {
         fn main() {
-            $crate::__entry($harness)
+            $crate::__entry($handler)
         }
     };
 }
@@ -62,7 +62,7 @@ pub struct __TestStart {
 impl __TestStart {
     /// Create a new test start.
     #[doc(hidden)]
-    pub fn __new(name: &'static str, func: fn(&mut Harness)) -> Self {
+    pub const fn __new(name: &'static str, func: fn(&mut Harness)) -> Self {
         Self { name, func }
     }
 }
@@ -288,6 +288,12 @@ enum State {
 pub trait TestHandler {
     /// Handle a test.
     fn handle_test(&mut self, event: TestEvent);
+}
+
+impl<T: TestHandler + ?Sized> TestHandler for Box<T> {
+    fn handle_test(&mut self, event: TestEvent) {
+        (**self).handle_test(event)
+    }
 }
 
 /// An event produced by the test harness.
