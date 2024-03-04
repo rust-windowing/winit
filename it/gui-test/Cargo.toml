@@ -1,0 +1,15 @@
+[package]
+name = "gui-test"
+version = "0.1.0"
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-executor = "1.8.0"
+async-io = "2.3.1"
+async-lock = "3.3.0"
+async-process = "2.1.0"
+inventory = "0.3.15"
+serde = { workspace = true, features = ["derive"] }
