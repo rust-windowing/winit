@@ -1,5 +1,9 @@
 //! A testing framework that can be run remotely.
 
+pub mod stream;
+pub mod remote;
+pub mod user;
+
 use serde::{Deserialize, Serialize};
 
 use std::env;
@@ -17,7 +21,7 @@ pub use inventory as __inventory;
 /// Replacement for the `main` function.
 #[macro_export]
 macro_rules! main {
-    ($harness:expr) => {
+    ($handler:expr) => {
         fn main() {
             $crate::__entry($harness)
         }
@@ -122,10 +126,7 @@ impl Harness {
         }
 
         // Send the "test started" event to the handler.
-        self.handler.handle_test(TestEvent {
-            runner: self.name.clone(),
-            ty: TestEventType::TestStarted { name: name.into() },
-        });
+        self.send_event(TestEventType::TestStarted { name: name.into() });
 
         // Return the handle.
         Testing {
@@ -156,10 +157,7 @@ impl Harness {
         }
 
         // Send the "group started" event to the handler.
-        self.handler.handle_test(TestEvent {
-            ty: TestEventType::GroupStarted { name: name.into() },
-            runner: self.name.clone(),
-        });
+        self.send_event(TestEventType::GroupStarted { name: name.into() });
 
         // Return the handle.
         Grouping { harness: self }
@@ -180,10 +178,7 @@ impl Harness {
             _ => {}
         }
 
-        self.handler.handle_test(TestEvent {
-            runner: self.name.clone(),
-            ty: TestEventType::TestEnded { result: reason },
-        });
+        self.send_event(TestEventType::TestEnded { result: reason });
 
         let count = match mem::replace(&mut self.state, State::Default) {
             State::InTest { past_groups } => past_groups,
@@ -198,10 +193,7 @@ impl Harness {
 
     /// End the current group.
     fn end_group(&mut self) {
-        self.handler.handle_test(TestEvent {
-            runner: self.name.clone(),
-            ty: TestEventType::GroupEnded,
-        });
+        self.send_event(TestEventType::GroupEnded);
 
         let count = match mem::replace(&mut self.state, State::Default) {
             State::InGroups(groups) => groups,
@@ -212,6 +204,26 @@ impl Harness {
             None => State::Default,
             Some(groups) => State::InGroups(groups),
         };
+    }
+
+    /// Send a test event of the provided type.
+    fn send_event(&mut self, ty: TestEventType) {
+        let event = TestEvent {
+            runner: self.name.clone(),
+            ty,
+        };
+
+        self.handler.handle_test(event);
+    }
+}
+
+impl Drop for Harness {
+    fn drop(&mut self) {
+        self.send_event(TestEventType::Complete {
+            total: self.test_count,
+            fail: self.test_fails,
+            pass: self.test_passed,
+        });
     }
 }
 
@@ -279,14 +291,13 @@ pub trait TestHandler {
 }
 
 /// An event produced by the test harness.
-#[non_exhaustive]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestEvent {
     /// The name of the runner associated with the event.
-    runner: String,
+    pub runner: String,
 
     /// The type of the event.
-    ty: TestEventType,
+    pub ty: TestEventType,
 }
 
 /// The type of the event.
@@ -294,7 +305,16 @@ pub struct TestEvent {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TestEventType {
     /// The tests are complete and the harness can be disconnected.
-    Complete,
+    Complete {
+        /// Total number of tests.
+        total: usize,
+
+        /// Total number of passing tests.
+        pass: usize,
+
+        /// Total number of failed tests.
+        fail: usize,
+    },
 
     /// A test has started.
     TestStarted { name: String },
