@@ -17,6 +17,24 @@ jobs:
     - name: Check Formatting
       run: cargo fmt -- --check
 
+  typos:
+    name: Check for typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos-cli
+      - name: run typos
+        run: typos
+      - name: Typos info
+        if: failure()
+        run: |
+          echo 'To fix typos, please run `typos -w`'
+          echo 'To check for a diff, run `typos`'
+          echo 'You can find typos here: https://crates.io/crates/typos'
+
   tests:
     name: Test ${{ matrix.toolchain }} ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
