@@ -45,12 +45,12 @@ impl ImeContext {
         let mut boundary_before_char = 0;
 
         for (attr, chr) in attrs.into_iter().zip(text.chars()) {
-            let char_is_targetted =
+            let char_is_targeted =
                 attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
-            if first.is_none() && char_is_targetted {
+            if first.is_none() && char_is_targeted {
                 first = Some(boundary_before_char);
-            } else if first.is_some() && last.is_none() && !char_is_targetted {
+            } else if first.is_some() && last.is_none() && !char_is_targeted {
                 last = Some(boundary_before_char);
             }
 
