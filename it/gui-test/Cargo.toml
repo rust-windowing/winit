@@ -8,8 +8,10 @@ edition.workspace = true
 
 [dependencies]
 async-executor = "1.8.0"
-async-io = "2.3.1"
+async-io.workspace = true
 async-lock = "3.3.0"
 async-process = "2.1.0"
 inventory = "0.3.15"
+owo-colors = "4.0.0"
 serde = { workspace = true, features = ["derive"] }
+serde_json = "1.0.114"
