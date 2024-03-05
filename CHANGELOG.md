@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11/Wayland, fix `text` and `text_with_all_modifiers` not being `None` during compose.
 - On Wayland, don't reapply cursor grab when unchanged.
 - Deprecate `EventLoop::run` in favor of `EventLoop::run_app`.
 - Deprecate `EventLoopExtRunOnDemand::run_on_demand` in favor of `EventLoop::run_app_on_demand`.
