@@ -5,11 +5,11 @@ mod app_delegate;
 mod app_state;
 mod event_loop;
 mod monitor;
+mod text_field;
 mod uikit;
 mod view;
 mod view_controller;
 mod window;
-mod text_field;
 
 use std::fmt;
 

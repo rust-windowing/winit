@@ -1,10 +1,9 @@
-
+use super::UIView;
 use icrate::Foundation::{NSObject, NSString};
-use objc2::{extern_class, extern_methods, mutability, ClassType, extern_protocol, ProtocolType};
+use objc2::mutability::IsMainThreadOnly;
 use objc2::rc::Id;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::mutability::IsMainThreadOnly;
-use super::UIView;
+use objc2::{extern_class, extern_methods, extern_protocol, mutability, ClassType, ProtocolType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -56,7 +55,6 @@ extern_protocol!(
         #[optional]
         #[method(textViewDidChange:)]
         unsafe fn textViewDidChange(&self, sender: &UITextView);
-
     }
     unsafe impl ProtocolType for dyn UITextViewDelegate {}
 );

@@ -1,16 +1,11 @@
 #![allow(clippy::unnecessary_cast)]
 
-use icrate::Foundation::{CGRect, CGPoint, CGSize, MainThreadMarker, NSObject, NSObjectProtocol};
+use icrate::Foundation::{CGPoint, CGRect, CGSize, MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::ProtocolObject;
-use objc2::{
-    declare_class, msg_send_id, mutability, ClassType, DeclaredClass,
-};
+use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 
-use super::uikit::{
-    UITextView, UITextViewDelegate,
-    UIResponder,
-};
+use super::uikit::{UIResponder, UITextView, UITextViewDelegate};
 
 declare_class!(
     pub(crate) struct WinitTextField;
@@ -66,15 +61,10 @@ declare_class!(
 );
 
 impl WinitTextField {
-    pub(crate) fn new(
-        mtm: MainThreadMarker,
-    ) -> Id<Self> {
+    pub(crate) fn new(mtm: MainThreadMarker) -> Id<Self> {
         // TODO: This should be hidden someplace.
         let frame = CGRect {
-            origin: CGPoint {
-                x: 20.0,
-                y: 50.0,
-            },
+            origin: CGPoint { x: 20.0, y: 50.0 },
             size: CGSize {
                 width: 200.0,
                 height: 40.0,

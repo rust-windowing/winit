@@ -9,10 +9,10 @@ use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, 
 use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
+use super::text_field::WinitTextField;
 use super::uikit::{
     UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
-use super::text_field::WinitTextField;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
 
