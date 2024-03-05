@@ -373,10 +373,15 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
 
     fn composed_text(&mut self) -> Result<Option<SmolStr>, ()> {
         match self.compose {
-            ComposeStatus::Accepted(xkb_compose_status::XKB_COMPOSE_COMPOSED) => {
-                let state = self.context.compose_state1.as_mut().unwrap();
-                Ok(state.get_string(self.context.scratch_buffer))
-            }
+            ComposeStatus::Accepted(status) => match status {
+                xkb_compose_status::XKB_COMPOSE_COMPOSED => {
+                    let state = self.context.compose_state1.as_mut().unwrap();
+                    Ok(state.get_string(self.context.scratch_buffer))
+                }
+                xkb_compose_status::XKB_COMPOSE_COMPOSING
+                | xkb_compose_status::XKB_COMPOSE_CANCELLED => Ok(None),
+                xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
+            },
             _ => Err(()),
         }
     }
