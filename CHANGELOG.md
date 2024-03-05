@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On Wayland, don't reapply cursor grab when unchanged.
 - On X11, fix a bug where some mouse events would be unexpectedly filtered out.
 
 # 0.29.13
