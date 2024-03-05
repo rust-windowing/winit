@@ -3,6 +3,7 @@ use objc2::encode::{Encode, Encoding};
 use objc2::rc::Id;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
+
 use super::{UICoordinateSpace, UIGestureRecognizer, UIResponder, UIViewController};
 
 extern_class!(
@@ -45,6 +46,9 @@ extern_methods!(
 
         #[method(setRootViewController:)]
         pub fn setRootViewController(&self, rootViewController: Option<&UIViewController>);
+
+        #[method(addSubview:)]
+        pub fn addSubview(&self, view: &UIView);
 
         #[method(convertRect:toCoordinateSpace:)]
         pub fn convertRect_toCoordinateSpace(

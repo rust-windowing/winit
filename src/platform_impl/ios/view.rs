@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::RefCell;
 
-use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
+use icrate::Foundation::{CGFloat, CGRect, CGPoint, CGSize, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{

@@ -9,6 +9,7 @@ mod uikit;
 mod view;
 mod view_controller;
 mod window;
+mod text_field;
 
 use std::fmt;
 

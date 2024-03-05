@@ -12,8 +12,10 @@ use super::app_state::EventWrapper;
 use super::uikit::{
     UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
+use super::text_field::WinitTextField;
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
+
 use crate::{
     cursor::Cursor,
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
@@ -107,6 +109,7 @@ pub struct Inner {
     window: Id<WinitUIWindow>,
     view_controller: Id<WinitViewController>,
     view: Id<WinitView>,
+    text_field: Id<WinitTextField>,
     gl_or_metal_backed: bool,
 }
 
@@ -125,6 +128,13 @@ impl Inner {
 
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
+    }
+    pub fn set_keyboard_visible(&self, visible: bool) {
+        if visible {
+            self.text_field.focus();
+        } else {
+            self.text_field.unfocus();
+        }
     }
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -515,6 +525,9 @@ impl Window {
         };
 
         let view = WinitView::new(mtm, &window_attributes, frame);
+        let text_view = WinitTextField::new(mtm);
+
+        view.addSubview(text_view.as_super());
 
         let gl_or_metal_backed = unsafe {
             let layer_class = WinitView::layerClass();
@@ -564,6 +577,7 @@ impl Window {
             window,
             view_controller,
             view,
+            text_field: text_view,
             gl_or_metal_backed,
         };
         Ok(Window {

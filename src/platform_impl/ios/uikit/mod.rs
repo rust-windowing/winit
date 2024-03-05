@@ -20,6 +20,7 @@ mod trait_collection;
 mod view;
 mod view_controller;
 mod window;
+mod text_field;
 
 pub(crate) use self::application::UIApplication;
 pub(crate) use self::coordinate_space::UICoordinateSpace;
@@ -40,6 +41,7 @@ pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollectio
 pub(crate) use self::view::{UIEdgeInsets, UIView};
 pub(crate) use self::view_controller::{UIInterfaceOrientationMask, UIViewController};
 pub(crate) use self::window::UIWindow;
+pub(crate) use self::text_field::{UITextView, UITextViewDelegate};
 
 #[link(name = "UIKit", kind = "framework")]
 extern "C" {
