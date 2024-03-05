@@ -30,9 +30,8 @@ fn main() {
     // Just run the crate.
     if !Command::new("cargo")
         .args(["run", "-p", &test_crate])
-        .output()
+        .status()
         .unwrap()
-        .status
         .success()
     {
         panic!("test failed");
