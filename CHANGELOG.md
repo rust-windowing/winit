@@ -11,6 +11,7 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11/Wayland, fix `text` and `text_with_all_modifiers` not being `None` during compose.
 - On Wayland, don't reapply cursor grab when unchanged.
 - On X11, fix a bug where some mouse events would be unexpectedly filtered out.
 
