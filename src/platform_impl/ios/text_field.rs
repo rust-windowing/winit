@@ -4,7 +4,7 @@ use icrate::Foundation::{CGRect, CGPoint, CGSize, MainThreadMarker, NSObject, NS
 use objc2::rc::Id;
 use objc2::runtime::ProtocolObject;
 use objc2::{
-    declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass,
+    declare_class, msg_send_id, mutability, ClassType, DeclaredClass,
 };
 
 use super::uikit::{
@@ -45,19 +45,19 @@ declare_class!(
     unsafe impl UITextViewDelegate for WinitTextFieldDelegate {
 
         #[method(textViewDidBeginEditing:)]
-        unsafe fn textViewDidBeginEditing(&self, sender: &UITextView) {
+        unsafe fn text_view_did_begin_editing(&self, sender: &UITextView) {
             let text = sender.text();
             println!("DidBeginEditing: {text}");
         }
 
         #[method(textViewDidEndEditing:)]
-        unsafe fn textViewDidEndEditing(&self, sender: &UITextView) {
+        unsafe fn text_view_did_end_editing(&self, sender: &UITextView) {
             let text = sender.text();
             println!("DidEndEditing: {text}");
         }
 
         #[method(textViewDidChange:)]
-        unsafe fn textViewDidChange(&self, sender: &UITextView) {
+        unsafe fn text_view_did_change(&self, sender: &UITextView) {
             let text = sender.text();
             println!("ShouldEndEditing: {text}");
         }

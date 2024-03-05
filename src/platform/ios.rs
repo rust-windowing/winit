@@ -166,7 +166,6 @@ pub trait WindowExtIOS {
     ///
     /// The default is to not recognize gestures.
     fn recognize_rotation_gesture(&self, should_recognize: bool);
-    fn set_keyboard_visible(&self, visible: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -223,12 +222,6 @@ impl WindowExtIOS for Window {
     fn recognize_rotation_gesture(&self, should_recognize: bool) {
         self.window
             .maybe_queue_on_main(move |w| w.recognize_rotation_gesture(should_recognize));
-    }
-
-    #[inline]
-    fn set_keyboard_visible(&self, visible: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.set_keyboard_visible(visible))
     }
 }
 

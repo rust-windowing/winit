@@ -140,7 +140,7 @@ impl Application {
             window.recognize_doubletap_gesture(true);
             window.recognize_pinch_gesture(true);
             window.recognize_rotation_gesture(true);
-            window.set_keyboard_visible(true);
+            window.set_ime_allowed(true);
         }
 
         let window_state = WindowState::new(self, window)?;

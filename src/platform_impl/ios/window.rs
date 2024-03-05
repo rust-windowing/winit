@@ -129,13 +129,6 @@ impl Inner {
     pub fn set_visible(&self, visible: bool) {
         self.window.setHidden(!visible)
     }
-    pub fn set_keyboard_visible(&self, visible: bool) {
-        if visible {
-            self.text_field.focus();
-        } else {
-            self.text_field.unfocus();
-        }
-    }
 
     pub fn is_visible(&self) -> Option<bool> {
         warn!("`Window::is_visible` is ignored on iOS");
@@ -380,8 +373,12 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.text_field.focus();
+        } else {
+            self.text_field.unfocus();
+        }
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
