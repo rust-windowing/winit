@@ -758,9 +758,14 @@ impl WindowState {
 
     /// Set the cursor grabbing state on the top-level.
     pub fn set_cursor_grab(&mut self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        // Replace the user grabbing mode.
+        if self.cursor_grab_mode.user_grab_mode == mode {
+            return Ok(());
+        }
+
+        self.set_cursor_grab_inner(mode)?;
+        // Update user grab on success.
         self.cursor_grab_mode.user_grab_mode = mode;
-        self.set_cursor_grab_inner(mode)
+        Ok(())
     }
 
     /// Reload the hints for minimum and maximum sizes.
