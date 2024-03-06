@@ -3,7 +3,7 @@
 use icrate::Foundation::{CGPoint, CGRect, CGSize, MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::ProtocolObject;
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send_id, msg_send, mutability, ClassType, DeclaredClass, extern_methods};
 
 use super::uikit::{UIResponder, UITextView, UITextViewDelegate};
 
@@ -21,6 +21,16 @@ declare_class!(
 
     unsafe impl WinitTextField { }
 );
+extern_methods!(
+    unsafe impl WinitTextField {
+        // These are methods from UIResponder
+        #[method(becomeFirstResponder)]
+        pub fn focus(&self) -> bool;
+
+        #[method(resignFirstResponder)]
+        pub fn unfocus(&self) -> bool;
+    }
+);
 
 declare_class!(
     pub(crate) struct WinitTextFieldDelegate;
@@ -36,29 +46,28 @@ declare_class!(
     }
 
     unsafe impl NSObjectProtocol for WinitTextFieldDelegate {}
-
     unsafe impl UITextViewDelegate for WinitTextFieldDelegate {
-
         #[method(textViewDidBeginEditing:)]
-        unsafe fn text_view_did_begin_editing(&self, sender: &UITextView) {
-            let text = sender.text();
+        unsafe fn textViewDidBeginEditing(&self, sender: &UITextView) {
+            let text = "dummy text"; // sender.text()
             println!("DidBeginEditing: {text}");
         }
 
         #[method(textViewDidEndEditing:)]
-        unsafe fn text_view_did_end_editing(&self, sender: &UITextView) {
-            let text = sender.text();
+        unsafe fn textViewDidEndEditing(&self, sender: &UITextView) {
+            let text = "dummy text"; 
             println!("DidEndEditing: {text}");
         }
 
         #[method(textViewDidChange:)]
-        unsafe fn text_view_did_change(&self, sender: &UITextView) {
-            let text = sender.text();
-            println!("ShouldEndEditing: {text}");
+        unsafe fn textViewDidChange(&self, sender: &UITextView) {
+            let text = "dummy text"; // sender.text()
+            println!("textViewDidChange: {text}");
         }
-
     }
+
 );
+
 
 impl WinitTextField {
     pub(crate) fn new(mtm: MainThreadMarker) -> Id<Self> {
@@ -76,6 +85,10 @@ impl WinitTextField {
         let delegate: Id<WinitTextFieldDelegate> = unsafe { msg_send_id![delegate, init] };
 
         this.setDelegate(Some(ProtocolObject::from_ref(delegate.as_ref())));
+
+        unsafe{ println!("this.get_delegate(): {:?}", this.delegate()) };
+
+        //let _ : () = unsafe{ msg_send![&delegate, textViewDidBeginEditing: Id::as_ptr(&this) ] };
 
         this
     }

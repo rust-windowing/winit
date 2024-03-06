@@ -140,7 +140,6 @@ impl Application {
             window.recognize_doubletap_gesture(true);
             window.recognize_pinch_gesture(true);
             window.recognize_rotation_gesture(true);
-            window.set_ime_allowed(true);
         }
 
         let window_state = WindowState::new(self, window)?;
@@ -284,6 +283,10 @@ impl Application {
 
 impl ApplicationHandler<UserEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        for (_window_id, window) in &mut self.windows {
+            window.ime = !window.ime;
+            window.window.set_ime_allowed(window.ime);
+        }
         println!("User event: {event:?}");
     }
 

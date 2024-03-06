@@ -522,9 +522,9 @@ impl Window {
         };
 
         let view = WinitView::new(mtm, &window_attributes, frame);
-        let text_view = WinitTextField::new(mtm);
+        let text_field = WinitTextField::new(mtm);
 
-        view.addSubview(text_view.as_super());
+        view.addSubview(text_field.as_super());
 
         let gl_or_metal_backed = unsafe {
             let layer_class = WinitView::layerClass();
@@ -574,7 +574,7 @@ impl Window {
             window,
             view_controller,
             view,
-            text_field: text_view,
+            text_field,
             gl_or_metal_backed,
         };
         Ok(Window {

@@ -20,13 +20,6 @@ extern_methods!(
         #[method(frame)]
         pub fn text(&self) -> &NSString;
 
-        // These are methods from UIResponder
-        #[method(becomeFirstResponder)]
-        pub fn focus(&self) -> bool;
-
-        #[method(resignFirstResponder)]
-        pub fn unfocus(&self) -> bool;
-
         #[method_id(@__retain_semantics Other delegate)]
         pub unsafe fn delegate(&self) -> Option<Id<ProtocolObject<dyn UITextViewDelegate>>>;
 
