@@ -11,8 +11,6 @@ Unreleased` header.
 
 # Unreleased
 
-- On X11/Wayland, fix `text` and `text_with_all_modifiers` not being `None` during compose.
-- On Wayland, don't reapply cursor grab when unchanged.
 - Deprecate `EventLoop::run` in favor of `EventLoop::run_app`.
 - Deprecate `EventLoopExtRunOnDemand::run_on_demand` in favor of `EventLoop::run_app_on_demand`.
 - Deprecate `EventLoopExtPumpEvents::pump_events` in favor of `EventLoopExtPumpEvents::pump_app_events`.
@@ -53,6 +51,11 @@ Unreleased` header.
 - **Breaking:** Removed `EventLoopBuilder::with_user_event`, the functionality is now available in `EventLoop::with_user_event`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
+
+# 0.29.14
+
+- On X11/Wayland, fix `text` and `text_with_all_modifiers` not being `None` during compose.
+- On Wayland, don't reapply cursor grab when unchanged.
 - On X11, fix a bug where some mouse events would be unexpectedly filtered out.
 
 # 0.29.13
