@@ -1,11 +1,16 @@
 #![allow(clippy::unnecessary_cast)]
 
+use std::cell::RefCell;
+
 use icrate::Foundation::{CGPoint, CGRect, CGSize, MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::rc::Id;
 use objc2::runtime::ProtocolObject;
 use objc2::{declare_class, msg_send_id, msg_send, mutability, ClassType, DeclaredClass, extern_methods};
 
 use super::uikit::{UIResponder, UITextView, UITextViewDelegate};
+pub struct WinitTextFieldState {
+	delegate: RefCell<Id<WinitTextFieldDelegate>>,
+}
 
 declare_class!(
     pub(crate) struct WinitTextField;
@@ -17,7 +22,9 @@ declare_class!(
         const NAME: &'static str = "WinitUITextView";
     }
 
-    impl DeclaredClass for WinitTextField { }
+    impl DeclaredClass for WinitTextField { 
+        type Ivars = WinitTextFieldState;
+    }
 
     unsafe impl WinitTextField { }
 );
@@ -49,23 +56,22 @@ declare_class!(
     unsafe impl UITextViewDelegate for WinitTextFieldDelegate {
         #[method(textViewDidBeginEditing:)]
         unsafe fn textViewDidBeginEditing(&self, sender: &UITextView) {
-            let text = "dummy text"; // sender.text()
+            let text = sender.text();
             println!("DidBeginEditing: {text}");
         }
 
         #[method(textViewDidEndEditing:)]
         unsafe fn textViewDidEndEditing(&self, sender: &UITextView) {
-            let text = "dummy text"; 
+            let text = sender.text();
             println!("DidEndEditing: {text}");
         }
 
         #[method(textViewDidChange:)]
         unsafe fn textViewDidChange(&self, sender: &UITextView) {
-            let text = "dummy text"; // sender.text()
+            let text = sender.text();
             println!("textViewDidChange: {text}");
         }
     }
-
 );
 
 
@@ -79,16 +85,18 @@ impl WinitTextField {
                 height: 40.0,
             },
         };
-        let this: Id<WinitTextField> = unsafe { msg_send_id![Self::alloc(), init] };
+        let delegate: Id<WinitTextFieldDelegate> = unsafe { objc2::msg_send_id![mtm.alloc(), init]};
+        let this = Self::alloc().set_ivars( WinitTextFieldState{
+            delegate: RefCell::new(delegate),
+        });
+        let this: Id<WinitTextField> = unsafe { msg_send_id![super(this), init] };
+
+        {
+            let delegate = this.ivars().delegate.borrow();
+            this.setDelegate(Some(ProtocolObject::from_ref(&*delegate.clone())));
+        }
+
         this.setFrame(frame);
-        let delegate = mtm.alloc();
-        let delegate: Id<WinitTextFieldDelegate> = unsafe { msg_send_id![delegate, init] };
-
-        this.setDelegate(Some(ProtocolObject::from_ref(delegate.as_ref())));
-
-        unsafe{ println!("this.get_delegate(): {:?}", this.delegate()) };
-
-        //let _ : () = unsafe{ msg_send![&delegate, textViewDidBeginEditing: Id::as_ptr(&this) ] };
 
         this
     }
