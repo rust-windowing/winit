@@ -52,6 +52,7 @@ impl XConnection {
             .get_string("Xft.dpi", "")
             .and_then(|s| f64::from_str(s).ok())
     }
+
     pub fn get_output_info(
         &self,
         resources: &monitor::ScreenResources,
