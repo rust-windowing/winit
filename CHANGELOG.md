@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- On X11, fix crash due to xsettings query on systems with incomplete xsettings.
+
 # 0.29.14
 
 - On X11/Wayland, fix `text` and `text_with_all_modifiers` not being `None` during compose.
