@@ -887,6 +887,9 @@ pub enum X11Error {
 
     /// Unable to parse xsettings.
     XsettingsParse(xsettings::ParserError),
+
+    /// Failed to get property.
+    GetProperty(util::GetPropertyError),
 }
 
 impl fmt::Display for X11Error {
@@ -896,6 +899,7 @@ impl fmt::Display for X11Error {
             X11Error::Connect(e) => write!(f, "X11 connection error: {}", e),
             X11Error::Connection(e) => write!(f, "X11 connection error: {}", e),
             X11Error::XidsExhausted(e) => write!(f, "XID range exhausted: {}", e),
+            X11Error::GetProperty(e) => write!(f, "Failed to get X property {}", e),
             X11Error::X11(e) => write!(f, "X11 error: {:?}", e),
             X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {}", s),
             X11Error::InvalidActivationToken(s) => write!(
@@ -985,6 +989,12 @@ impl From<ReplyOrIdError> for X11Error {
 impl From<xsettings::ParserError> for X11Error {
     fn from(value: xsettings::ParserError) -> Self {
         Self::XsettingsParse(value)
+    }
+}
+
+impl From<util::GetPropertyError> for X11Error {
+    fn from(value: util::GetPropertyError) -> Self {
+        Self::GetProperty(value)
     }
 }
 

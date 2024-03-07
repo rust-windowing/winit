@@ -33,13 +33,11 @@ impl XConnection {
             .reply()?;
 
         // Read the _XSETTINGS_SETTINGS property.
-        let data: Vec<u8> = self
-            .get_property(
-                owner.owner,
-                atoms[_XSETTINGS_SETTINGS],
-                atoms[_XSETTINGS_SETTINGS],
-            )
-            .unwrap();
+        let data: Vec<u8> = self.get_property(
+            owner.owner,
+            atoms[_XSETTINGS_SETTINGS],
+            atoms[_XSETTINGS_SETTINGS],
+        )?;
 
         // Parse the property.
         let dpi_setting = read_settings(&data)?
