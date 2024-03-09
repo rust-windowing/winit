@@ -20,7 +20,6 @@ use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent};
 use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
-use winit::platform::windows::WindowAttributesExtWindows;
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
     Theme,
