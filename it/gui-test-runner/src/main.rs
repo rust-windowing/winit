@@ -1,5 +1,9 @@
 //! Runner for the `gui-test` system.
 
+mod command;
+mod docker;
+mod stream;
+
 use std::env;
 use std::process::{Command, Stdio};
 
@@ -22,6 +26,13 @@ fn main() {
 
     // Get the current target.
     let current_target = current_target();
+
+    // If we are building for Linux, run the Linux Docker container.
+    // TODO: Architecture differences.
+    if target.contains("linux") {
+        docker::linux::linux_test(&test_crate).unwrap();
+        return;
+    }
 
     // For now, we only support building for the current target.
     assert_eq!(target, current_target);

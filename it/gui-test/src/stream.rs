@@ -8,7 +8,8 @@ use crate::{TestEvent, TestHandler};
 use std::io::Write;
 
 /// A wrapper around a writer that sends data down a stream.
-pub struct WriteHandler<W> {
+#[derive(Debug)]
+pub struct WriteHandler<W: Write> {
     /// The inner writer.
     writer: W,
 }
@@ -28,5 +29,11 @@ impl<W: Write> TestHandler for WriteHandler<W> {
         // Write the payload to the stream.
         self.writer.write_all(&length).unwrap();
         self.writer.write_all(&payload).unwrap();
+    }
+}
+
+impl<W: Write> Drop for WriteHandler<W> {
+    fn drop(&mut self) {
+        self.writer.flush().ok();
     }
 }

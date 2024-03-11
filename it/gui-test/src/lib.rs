@@ -10,10 +10,11 @@ use std::env;
 use std::ffi::{OsStr, OsString};
 use std::mem;
 use std::num::NonZeroUsize;
+use std::panic;
 
 const GUI_TEST_CURRENT_TEST_NAME: &str = "GUI_TEST_CURRENT_TEST_NAME";
 const GUI_TEST_SUBPROCESS_LIMIT: &str = "GUI_TEST_SUBPROCESS_LIMIT";
-const DEFAULT_LIMIT: usize = 4;
+const DEFAULT_LIMIT: usize = 1;
 
 #[doc(hidden)]
 pub use inventory as __inventory;
@@ -23,7 +24,7 @@ pub use inventory as __inventory;
 macro_rules! main {
     ($handler:expr) => {
         fn main() {
-            $crate::__entry($handler)
+            $crate::__entry(|| $handler)
         }
     };
 }
@@ -136,8 +137,22 @@ impl Harness {
 
     /// Run a closure as a test.
     pub fn with_test<T>(&mut self, name: impl Into<String>, f: impl FnOnce() -> T) -> T {
-        let _test = self.test(name.into());
-        f()
+        let test = self.test(name.into());
+        match panic::catch_unwind(panic::AssertUnwindSafe(f)) {
+            Ok(x) => x,
+
+            Err(err) => {
+                if let Some(panic) = err.downcast_ref::<&'static str>() {
+                    test.fail(panic.to_string());
+                } else if let Some(panic) = err.downcast_ref::<String>() {
+                    test.fail(panic.clone());
+                } else {
+                    test.fail("unintelligible error".to_string());
+                }
+
+                panic::resume_unwind(err)
+            }
+        }
     }
 
     /// Begin a test group.
@@ -237,6 +252,14 @@ impl Testing<'_> {
     pub fn skip(mut self) {
         // Send the "skipped" event.
         self.harness.take().unwrap().end_test(TestResult::Skipped);
+    }
+
+    /// Fail this test.
+    fn fail(mut self, panic: String) {
+        self.harness
+            .take()
+            .unwrap()
+            .end_test(TestResult::Failed(panic));
     }
 }
 
@@ -351,7 +374,7 @@ pub enum TestResult {
 
 /// Entry point of the test.
 #[doc(hidden)]
-pub fn __entry<H: TestHandler + Send + 'static>(handler: H) {
+pub fn __entry<H: TestHandler + Send + 'static>(handler: impl FnOnce() -> H) {
     // Look for the test name environment variable.
     if let Some(test_name) = env::var(GUI_TEST_CURRENT_TEST_NAME)
         .ok()
@@ -364,10 +387,13 @@ pub fn __entry<H: TestHandler + Send + 'static>(handler: H) {
             .unwrap_or_else(|| panic!("unable to find test '{test_name}'"));
 
         // Create a harness.
-        let mut harness = Harness::new(test_to_run.name, handler);
+        let mut harness = Harness::new(test_to_run.name, handler());
 
         // Run the test.
-        (test_to_run.func)(&mut harness);
+        panic::catch_unwind(panic::AssertUnwindSafe(move || {
+            (test_to_run.func)(&mut harness)
+        }))
+        .ok();
     } else {
         // Run a subprocess for every test.
         let limit = env::var(GUI_TEST_SUBPROCESS_LIMIT)

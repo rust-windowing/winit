@@ -5,15 +5,17 @@ use macro_rules_attribute::apply;
 
 use winit::event_loop::EventLoop;
 
+#[allow(deprecated)]
 #[apply(test)]
 fn initialize(harness: &mut Harness) {
-    let _test = harness.test("startup/shutdown");
-
-    let evl = EventLoop::new().unwrap();
-    evl.run(|_event, elwt| {
-        elwt.exit();
-    })
-    .unwrap();
+    let mut group = harness.group("sanity");
+    group.harness().with_test("startup/shutdown", || {
+        let evl = EventLoop::new().expect("initialization");
+        evl.run(|_event, elwt| {
+            elwt.exit();
+        })
+        .expect("running");
+    });
 }
 
 gui_test::main! {
