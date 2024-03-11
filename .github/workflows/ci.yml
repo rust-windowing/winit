@@ -202,6 +202,41 @@ jobs:
           ~/.cargo/git/db/
         key: cargo-${{ matrix.toolchain }}-${{ matrix.platform.name }}-${{ hashFiles('Cargo.lock') }}
 
+  it:
+    name: Run integration tests on ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, nightly]
+        platform:
+          # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
+          - { name: 'X11',                target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: '--no-default-features --features=x11' }
+
+    env:
+      # Set more verbose terminal output
+      CARGO_TERM_VERBOSE: true
+      RUST_BACKTRACE: 1
+
+      # Faster compilation and error on warnings
+      RUSTFLAGS: '--codegen=debuginfo=0 --deny=warnings ${{ matrix.platform.rustflags }}'
+
+      OPTIONS: --target=${{ matrix.platform.target }} ${{ matrix.platform.options }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
+
+    - name: Log into GHCR
+      run: |
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+    - name: Common tests
+      run: cargo run -p gui-test-runner -- common-tests ${{ matrix.platform.target }}
+
   cargo-deny:
     name: Run cargo-deny on ${{ matrix.platform.name }}
     runs-on: ubuntu-latest

@@ -32,3 +32,6 @@
 # Orbital (Redox OS)
 /src/platform/orbital.rs            @jackpot51
 /src/platform_impl/orbital          @jackpot51
+
+# Integration tests
+/it                                 @notgull

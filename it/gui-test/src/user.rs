@@ -70,6 +70,7 @@ impl UserHandler {
 
             // If this is the end, dump other events.
             while ender {
+                ender = false;
                 assert!(self.current_start.take().is_some());
 
                 // Pick one set.
@@ -78,11 +79,12 @@ impl UserHandler {
                     self.current_start = Some(test_name);
 
                     // Dump events and look for a conclusion.
-                    ender = false;
                     self.dump_events(entries.into_iter().inspect(|ty| {
                         ender |= matches!(ty, TestEventType::Complete { .. });
                     }));
                 }
+
+                println!();
             }
         }
     }
@@ -160,5 +162,19 @@ impl TestHandler for UserHandler {
 impl Drop for UserHandler {
     fn drop(&mut self) {
         assert!(self.cache.is_empty());
+
+        // Write the final bit to the stdout.
+        let mut stdout = io::stdout().lock();
+
+        if !self.failures.is_empty() {
+            writeln!(stdout, "Test Failures:").ok();
+
+            for (test_name, panic) in &self.failures {
+                writeln!(stdout, "  {}", test_name).ok();
+                writeln!(stdout, "-------------").ok();
+                writeln!(stdout, "{}", panic).ok();
+                writeln!(stdout, "-------------").ok();
+            }
+        }
     }
 }
