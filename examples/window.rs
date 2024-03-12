@@ -299,6 +299,7 @@ impl ApplicationHandler<UserEvent> for Application {
 
         match event {
             WindowEvent::Resized(size) => {
+                println!("Window={window_id:?} resized to {size:?}");
                 window.resize(size);
             }
             WindowEvent::Focused(focused) => {
