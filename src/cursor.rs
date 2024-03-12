@@ -195,6 +195,7 @@ impl OnlyCursorImageSource {
 }
 
 /// Platforms export this directly as `PlatformCustomCursor` if they don't implement caching.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct OnlyCursorImage(pub(crate) Arc<CursorImage>);
 
