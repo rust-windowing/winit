@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.29.15
+
 - On X11, fix crash due to xsettings query on systems with incomplete xsettings.
 
 # 0.29.14
