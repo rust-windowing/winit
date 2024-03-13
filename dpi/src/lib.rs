@@ -314,6 +314,8 @@ impl<P: Pixel> From<PhysicalUnit<P>> for f64 {
 }
 
 /// A pixel unit that's either physical or logical.
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PixelUnit {
     Physical(PhysicalUnit<i32>),
     Logical(LogicalUnit<f64>),
@@ -1204,5 +1206,39 @@ mod tests {
 
         let _ = format!("{:?}", Size::Physical((1, 2).into()).clone());
         let _ = format!("{:?}", Position::Physical((1, 2).into()).clone());
+    }
+
+    #[test]
+    fn ensure_copy_trait() {
+        fn is_copy<T: Copy>() {}
+
+        is_copy::<LogicalUnit<i32>>();
+        is_copy::<PhysicalUnit<f64>>();
+        is_copy::<PixelUnit>();
+
+        is_copy::<LogicalSize<i32>>();
+        is_copy::<PhysicalSize<f64>>();
+        is_copy::<Size>();
+
+        is_copy::<LogicalPosition<i32>>();
+        is_copy::<PhysicalPosition<f64>>();
+        is_copy::<Position>();
+    }
+
+    #[test]
+    fn ensure_partial_eq_trait() {
+        fn is_partial_eq<T: PartialEq>() {}
+
+        is_partial_eq::<LogicalUnit<i32>>();
+        is_partial_eq::<PhysicalUnit<f64>>();
+        is_partial_eq::<PixelUnit>();
+
+        is_partial_eq::<LogicalSize<i32>>();
+        is_partial_eq::<PhysicalSize<f64>>();
+        is_partial_eq::<Size>();
+
+        is_partial_eq::<LogicalPosition<i32>>();
+        is_partial_eq::<PhysicalPosition<f64>>();
+        is_partial_eq::<Position>();
     }
 }
