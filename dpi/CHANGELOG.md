@@ -11,4 +11,6 @@ Unreleased` header.
 
 # Unreleased
 
+# 0.1.0
+
 - Add `LogicalUnit`, `PhysicalUnit` and `PixelUnit` types and related functions.
