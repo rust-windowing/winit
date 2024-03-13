@@ -11,6 +11,8 @@ Unreleased` header.
 
 # Unreleased
 
+- Derive `Debug`, `Copy`, `Clone`, `PartialEq`, `Serialize`, `Deserialize` traits for `PixelUnit`.
+
 # 0.1.0
 
 - Add `LogicalUnit`, `PhysicalUnit` and `PixelUnit` types and related functions.
