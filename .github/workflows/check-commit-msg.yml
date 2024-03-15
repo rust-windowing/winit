@@ -4,6 +4,7 @@ on:
   # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
   pull_request_target:
 
+
 jobs:
   length:
     name: Check that length of commit messages are <72 characters
