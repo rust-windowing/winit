@@ -125,8 +125,7 @@ impl WinitTextField {
             let window = self.window().unwrap();
             let mtm = MainThreadMarker::new().unwrap();
             let text = self.text();
-            //let text = text.as_str();
-            let text = "foo";
+            let text = text.to_string();
             app_state::handle_nonuser_event(
                 mtm,
                 EventWrapper::StaticEvent(Event::WindowEvent {
@@ -135,7 +134,7 @@ impl WinitTextField {
                         device_id: DEVICE_ID,
                         event: KeyEvent {
                             physical_key: PhysicalKey::Code(KeyCode::F35),
-                            logical_key: Key::Character(text.into()),
+                            logical_key: Key::Character(text.clone().into()),
                             text: Some(text.into()),
                             location: KeyLocation::Standard,
                             state: crate::event::ElementState::Pressed,
