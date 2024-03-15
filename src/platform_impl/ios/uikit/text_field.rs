@@ -23,7 +23,7 @@ extern_methods!(
         #[method(setText:)]
         pub fn setText(&self, text: &NSString);
 
-        #[method_id(@__retain_semantics Other delegate)]
+        #[method_id(delegate)]
         pub unsafe fn delegate(&self) -> Option<Id<ProtocolObject<dyn UITextViewDelegate>>>;
 
         #[method(setDelegate:)]
