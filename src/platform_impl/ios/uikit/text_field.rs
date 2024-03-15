@@ -10,7 +10,7 @@ extern_class!(
     pub(crate) struct UITextView;
 
     unsafe impl ClassType for UITextView {
-        #[inherits(NSObject)]
+        #[inherits(UIResponder, NSObject)]
         type Super = UIView;
         type Mutability = mutability::InteriorMutable;
     }
