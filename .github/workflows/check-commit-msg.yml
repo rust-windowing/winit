@@ -1,0 +1,15 @@
+name: Check commit messages
+
+on:
+  # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
+  pull_request_target:
+
+jobs:
+  length:
+    name: Check that length of commit messages are <72 characters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check commit length
+        run: |
+          git log $GITHUB_SHA..$GITHUB_REF
