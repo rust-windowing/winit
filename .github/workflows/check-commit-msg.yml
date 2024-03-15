@@ -3,6 +3,7 @@ name: Check Commit Messages
 on:
   pull_request:
 
+
 jobs:
   length:
     name: Check that length of commit messages are <72 characters
