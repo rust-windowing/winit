@@ -17,8 +17,8 @@ extern_class!(
 );
 extern_methods!(
     unsafe impl UITextView {
-        #[method(text)]
-        pub fn text(&self) -> &NSString;
+        #[method_id(text)]
+        pub fn text(&self) -> Id<NSString>;
 
         #[method(setText:)]
         pub fn setText(&self, text: &NSString);
