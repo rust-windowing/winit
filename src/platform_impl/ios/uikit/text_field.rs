@@ -1,4 +1,4 @@
-use super::UIView;
+use super::{UIView, UIResponder};
 use icrate::Foundation::{NSObject, NSString};
 use objc2::mutability::IsMainThreadOnly;
 use objc2::rc::Id;

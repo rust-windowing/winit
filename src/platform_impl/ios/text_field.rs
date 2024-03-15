@@ -8,7 +8,7 @@ use objc2::runtime::ProtocolObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass, extern_methods};
 use super::app_state::{self, EventWrapper};
 
-use super::uikit::{UIResponder, UITextView, UITextViewDelegate};
+use super::uikit::{UIResponder, UITextView, UITextViewDelegate, UIView};
 use super::window::WinitUIWindow;
 use crate::{
     keyboard::{
@@ -31,7 +31,7 @@ declare_class!(
     pub(crate) struct WinitTextField;
 
     unsafe impl ClassType for WinitTextField {
-        #[inherits(UIResponder, NSObject)]
+        #[inherits(UIView, UIResponder, NSObject)]
         type Super = UITextView;
         type Mutability = mutability::InteriorMutable;
         const NAME: &'static str = "WinitUITextView";
@@ -45,19 +45,11 @@ declare_class!(
 );
 extern_methods!(
     unsafe impl WinitTextField {
-        // These are methods from UIResponder
-        #[method(becomeFirstResponder)]
-        pub fn focus(&self) -> bool;
-
-        #[method(resignFirstResponder)]
-        pub fn unfocus(&self) -> bool;
-
         fn window(&self) -> Option<Id<WinitUIWindow>> {
             unsafe { msg_send_id![self, window] }
         }
     }
 );
-
 declare_class!(
     pub(crate) struct WinitTextFieldDelegate;
 

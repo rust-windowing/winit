@@ -375,9 +375,9 @@ impl Inner {
 
     pub fn set_ime_allowed(&self, allowed: bool) {
         if allowed {
-            self.text_field.focus();
+            self.text_field.become_first_responder();
         } else {
-            self.text_field.unfocus();
+            self.text_field.resign_first_responder();
         }
     }
 
