@@ -1,0 +1,22 @@
+name: Check Commit Messages
+
+on:
+  pull_request:
+
+jobs:
+  length:
+    name: Check that length of commit messages are <72 characters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch branch data from origin
+        run: git fetch origin
+      - run: |
+          COMMIT_MESSAGES=$(git log --format=%s origin/$GITHUB_BASE_REF..HEAD)
+          for MESSAGE in $COMMIT_MESSAGES; do
+            LENGTH=$(echo $MESSAGE | wc -c)
+            if [ $LENGTH -gt 72 ]; then
+              echo "Commit message \"$MESSAGE\" is too long ($LENGTH characters). Please keep commit messages under 72 characters."
+              exit 1
+            fi
+          done
