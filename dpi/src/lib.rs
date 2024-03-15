@@ -250,7 +250,7 @@ impl<P: Pixel> PhysicalUnit<P> {
     #[inline]
     pub fn to_logical<X: Pixel>(&self, scale_factor: f64) -> LogicalUnit<X> {
         assert!(validate_scale_factor(scale_factor));
-        LogicalUnit::new(self.0.into() * scale_factor).cast()
+        LogicalUnit::new(self.0.into() / scale_factor).cast()
     }
 
     #[inline]
