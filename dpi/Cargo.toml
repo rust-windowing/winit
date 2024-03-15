@@ -1,6 +1,6 @@
 [package]
 name = "dpi"
-version = "0.1.0"
+version = "0.1.1"
 description = "Types for handling UI scaling"
 keywords = ["DPI", "HiDPI", "scale-factor"]
 categories = ["gui"]
