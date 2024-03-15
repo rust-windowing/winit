@@ -14,6 +14,7 @@ jobs:
         run: git fetch origin
       - run: |
           COMMIT_MESSAGES=$(git log --format=%s origin/$GITHUB_BASE_REF..HEAD)
+          echo $COMMIT_MESSAGES
           for MESSAGE in $COMMIT_MESSAGES; do
             LENGTH=$(echo $MESSAGE | wc -c)
             if [ $LENGTH -gt 72 ]; then
