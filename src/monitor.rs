@@ -1,10 +1,4 @@
 //! Types useful for interacting with a user's monitors.
-//!
-//! If you want to get basic information about a monitor, you can use the
-//! [`MonitorHandle`] type. This is retrieved from one of the following
-//! methods, which return an iterator of [`MonitorHandle`]:
-//! - [`ActiveEventLoop::available_monitors`](crate::event_loop::ActiveEventLoop::available_monitors).
-//! - [`Window::available_monitors`](crate::window::Window::available_monitors).
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -14,9 +8,9 @@ use crate::{
 #[deprecated = "Renamed to `VideoModeHandle`"]
 pub type VideoMode = VideoModeHandle;
 
-/// Describes a fullscreen video mode of a monitor.
+/// A handle to a fullscreen video mode of a specific monitor.
 ///
-/// Can be acquired with [`MonitorHandle::video_modes`].
+/// This can be acquired with [`MonitorHandle::video_modes`].
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoModeHandle {
     pub(crate) video_mode: platform_impl::VideoModeHandle,
@@ -100,7 +94,15 @@ impl std::fmt::Display for VideoModeHandle {
 
 /// Handle to a monitor.
 ///
-/// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
+/// Allows you to retrieve basic information and metadata about a monitor.
+///
+/// Can be used in [`Window`] creation to place the window on a specific
+/// monitor.
+///
+/// This can be retrieved from one of the following methods, which return an
+/// iterator of [`MonitorHandle`]s:
+/// - [`ActiveEventLoop::available_monitors`](crate::event_loop::ActiveEventLoop::available_monitors).
+/// - [`Window::available_monitors`](crate::window::Window::available_monitors).
 ///
 /// [`Window`]: crate::window::Window
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

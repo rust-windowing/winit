@@ -30,9 +30,6 @@ When making a code contribution to winit, before opening your pull request, plea
 
   You needn't worry about the added entry causing conflicts, the maintainer that merges the PR will
   handle those for you when merging (see below).
-- if your PR affects the platform compatibility of one or more features or adds another feature, the
-  relevant sections in [`FEATURES.md`](https://github.com/rust-windowing/winit/blob/master/FEATURES.md#features)
-  should be updated.
 
 Once your PR is open, you can ask for a review by a maintainer of your platform. Winit's merging policy
 is that a PR must be approved by at least two maintainers of winit before being merged, including

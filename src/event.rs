@@ -193,17 +193,22 @@ pub enum WindowEvent {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    DroppedFile(PathBuf),
-
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
     HoveredFile(PathBuf),
+
+    /// A file has been dropped into the window.
+    ///
+    /// When the user drops multiple files at once, this event will be emitted for each file
+    /// separately.
+    ///
+    /// The support for this is known to be incomplete, see [#720] for more
+    /// information.
+    ///
+    /// [#720]: https://github.com/rust-windowing/winit/issues/720
+    DroppedFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
     ///
@@ -222,6 +227,7 @@ pub enum WindowEvent {
     /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
     ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
     ///   events which are not marked as `is_synthetic`.
+    /// - **iOS:** Unsupported.
     KeyboardInput {
         device_id: DeviceId,
         event: KeyEvent,
@@ -357,12 +363,16 @@ pub enum WindowEvent {
 
     /// Touchpad pressure event.
     ///
-    /// At the moment, only supported on Apple forcetouch-capable macbooks.
-    /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
-    /// is being pressed) and stage (integer representing the click level).
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: Only supported on Apple forcetouch-capable macbooks.
+    /// - **Android / iOS / Wayland / X11 / Windows / Orbital / Web:** Unsupported.
     TouchpadPressure {
         device_id: DeviceId,
+        /// Value between 0 and 1 representing how hard the touchpad is being
+        /// pressed.
         pressure: f32,
+        /// Represents the click level.
         stage: i64,
     },
 
@@ -828,7 +838,7 @@ pub enum TouchPhase {
     Cancelled,
 }
 
-/// Represents a touch event
+/// Represents a touch event.
 ///
 /// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
 /// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]

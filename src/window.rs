@@ -1053,7 +1053,7 @@ impl Window {
         self.window.maybe_wait_on_main(|w| w.enabled_buttons())
     }
 
-    /// Sets the window to minimized or back
+    /// Minimize the window, or put it back from the minimized state.
     ///
     /// ## Platform-specific
     ///
@@ -1107,7 +1107,7 @@ impl Window {
         self.window.maybe_wait_on_main(|w| w.is_maximized())
     }
 
-    /// Sets the window to fullscreen or back.
+    /// Set the window's fullscreen state.
     ///
     /// ## Platform-specific
     ///
@@ -1767,6 +1767,9 @@ impl From<ResizeDirection> for CursorIcon {
 /// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fullscreen {
+    /// This changes the video mode of the monitor for fullscreen windows and,
+    /// if applicable, captures the monitor for exclusive use by this
+    /// application.
     Exclusive(VideoModeHandle),
 
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
