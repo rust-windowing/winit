@@ -54,7 +54,7 @@ pub struct Common {
     pub window: web_sys::Window,
     pub document: Document,
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
-    /// Note: this is read-only because we use a pointer to this for [`WindowHandle`](rwh_06::WindowHandle).
+    /// Note: this is read-only because we use a pointer to this for [`WindowHandle`][rwh_06::WindowHandle].
     raw: Rc<HtmlCanvasElement>,
     style: Style,
     old_size: Rc<Cell<PhysicalSize<u32>>>,

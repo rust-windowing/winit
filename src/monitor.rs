@@ -3,8 +3,8 @@
 //! If you want to get basic information about a monitor, you can use the
 //! [`MonitorHandle`] type. This is retrieved from one of the following
 //! methods, which return an iterator of [`MonitorHandle`]:
-//! - [`ActiveEventLoop::available_monitors`](crate::event_loop::ActiveEventLoop::available_monitors).
-//! - [`Window::available_monitors`](crate::window::Window::available_monitors).
+//! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
+//! - [`Window::available_monitors`][crate::window::Window::available_monitors].
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,

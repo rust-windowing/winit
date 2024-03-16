@@ -252,7 +252,7 @@ impl ActiveEventLoopExtWebSys for ActiveEventLoop {
     }
 }
 
-/// Strategy used for [`ControlFlow::Poll`](crate::event_loop::ControlFlow::Poll).
+/// Strategy used for [`ControlFlow::Poll`][crate::event_loop::ControlFlow::Poll].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PollStrategy {
     /// Uses [`Window.requestIdleCallback()`] to queue the next event loop. If not available
