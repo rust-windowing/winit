@@ -9,8 +9,12 @@ PR's changelog entry would go into the wrong section).
 And please only add new entries to the top of this list, right below the `#
 Unreleased` header.
 
-# Unreleased
+## Unreleased
 
-# 0.1.0
+## 0.1.1
+
+- Derive `Debug`, `Copy`, `Clone`, `PartialEq`, `Serialize`, `Deserialize` traits for `PixelUnit`.
+
+## 0.1.0
 
 - Add `LogicalUnit`, `PhysicalUnit` and `PixelUnit` types and related functions.

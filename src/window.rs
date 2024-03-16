@@ -63,7 +63,7 @@ impl Drop for Window {
 
 /// Identifier of a window. Unique for each window.
 ///
-/// Can be obtained with [`window.id()`](`Window::id`).
+/// Can be obtained with [`window.id()`][`Window::id`].
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
@@ -1477,7 +1477,7 @@ impl Window {
             .maybe_wait_on_main(|w| w.set_cursor_position(position))
     }
 
-    /// Set grabbing [mode](CursorGrabMode) on the cursor preventing it from leaving the window.
+    /// Set grabbing [mode][CursorGrabMode] on the cursor preventing it from leaving the window.
     ///
     /// # Example
     ///

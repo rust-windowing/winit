@@ -124,7 +124,7 @@
 //! Note that many platforms will display garbage data in the window's client area if the
 //! application doesn't render anything to the window by the time the desktop compositor is ready to
 //! display the window to the user. If you notice this happening, you should create the window with
-//! [`visible` set to `false`](crate::window::WindowAttributes::with_visible) and explicitly make the
+//! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make the
 //! window visible only once you're ready to render into it.
 //!
 //! # UI scaling
@@ -202,6 +202,8 @@ pub use rwh_06 as raw_window_handle;
 pub use dpi;
 
 pub mod application;
+#[cfg(any(doc, doctest, test))]
+pub mod changelog;
 #[macro_use]
 pub mod error;
 mod cursor;

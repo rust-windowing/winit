@@ -1,0 +1,41 @@
+name: Wayland bug
+description: Create a Wayland-specific bug report
+labels:
+  - B - bug
+  - DS - wayland
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the problem you're having
+    validations:
+      required: true
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debugging output
+      description: Output of a binary run with `WAYLAND_DEBUG=1`
+      placeholder: |
+        [1234.5678]  -> wl_display@1.get_registry(new id wl_registry@2)
+        [1234.5678]  -> wl_display@1.sync(new id wl_callback@3)
+        ...
+      render: shell
+  - type: checkboxes
+    attributes:
+      label: Window isn't shown unless you draw
+      options:
+        - label: I understand that windows aren't shown on Wayland unless I draw and present to them.
+          required: true
+  - type: textarea
+    id: winit-version
+    attributes:
+      label: Winit version
+      description: What version of Winit are you using?
+      placeholder: 0.29.11
+    validations:
+      required: true

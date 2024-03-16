@@ -790,8 +790,8 @@ impl From<ModifiersState> for Modifiers {
 pub enum Ime {
     /// Notifies when the IME was enabled.
     ///
-    /// After getting this event you could receive [`Preedit`](Self::Preedit) and
-    /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
+    /// After getting this event you could receive [`Preedit`][Self::Preedit] and
+    /// [`Commit`][Self::Commit] events. You should also start performing IME related requests
     /// like [`Window::set_ime_cursor_area`].
     Enabled,
 
@@ -811,8 +811,8 @@ pub enum Ime {
 
     /// Notifies when the IME was disabled.
     ///
-    /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
-    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You should
+    /// After receiving this event you won't get any more [`Preedit`][Self::Preedit] or
+    /// [`Commit`][Self::Commit] events until the next [`Enabled`][Self::Enabled] event. You should
     /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear pending
     /// preedit text.
     Disabled,

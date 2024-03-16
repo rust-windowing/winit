@@ -12,7 +12,7 @@ pub const MAX_CURSOR_SIZE: u16 = 2048;
 
 const PIXEL_SIZE: usize = 4;
 
-/// See [`Window::set_cursor()`](crate::window::Window::set_cursor) for more details.
+/// See [`Window::set_cursor()`][crate::window::Window::set_cursor] for more details.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Cursor {
     Icon(CursorIcon),

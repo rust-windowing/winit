@@ -17,7 +17,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    
+
     steps:
       - uses: actions/checkout@v3
 
@@ -27,7 +27,7 @@ jobs:
 
       - name: Run Rustdoc
         env:
-          RUSTDOCFLAGS: --crate-version master --cfg=docsrs
+          RUSTDOCFLAGS: --crate-version master --cfg=docsrs --cfg=unreleased_changelogs
         run: |
           cargo doc --no-deps -Z rustdoc-map -Z rustdoc-scrape-examples --features=rwh_04,rwh_05,rwh_06,serde,mint,android-native-activity
 

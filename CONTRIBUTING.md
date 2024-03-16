@@ -26,7 +26,7 @@ When making a code contribution to winit, before opening your pull request, plea
 - you updated any relevant documentation in winit
 - you left comments in your code explaining any part that is not straightforward, so that the
   maintainers and future contributors don't have to try to guess what your code is supposed to do
-- your PR adds an entry to the changelog file if the introduced change is relevant to winit users.
+- your PR adds an entry to the current changelog if the introduced change is relevant to winit users.
 
   You needn't worry about the added entry causing conflicts, the maintainer that merges the PR will
   handle those for you when merging (see below).
@@ -38,8 +38,8 @@ Once your PR is open, you can ask for a review by a maintainer of your platform.
 is that a PR must be approved by at least two maintainers of winit before being merged, including
 at least a maintainer of the platform (a maintainer making a PR themselves counts as approving it).
 
-Once your PR is deemed ready, the merging maintainer will take care of resolving conflicts in
-`CHANGELOG.md` (but you must resolve other conflicts yourself). Doing this requires that you check the
+Once your PR is deemed ready, the merging maintainer will take care of resolving conflicts in the
+`changelog` module (but you must resolve other conflicts yourself). Doing this requires that you check the
 "give contributors write access to the branch" checkbox when creating the PR.
 
 ## Maintainers
@@ -51,19 +51,22 @@ The current maintainers for each platform are listed in the [CODEOWNERS](.github
 Given that winit is a widely used library, we should be able to make a patch
 releases at any time we want without blocking the development of new features.
 
-To achieve these goals, a new branch is created for every new release. Releases and later patch releases are committed and tagged in this branch.
+To achieve these goals, a new branch is created for every new release. Releases
+and later patch releases are committed and tagged in this branch.
 
 The exact steps for an exemplary `0.2.0` release might look like this:
   1. Initially, the version on the latest master is `0.1.0`
   2. A new `v0.2.x` branch is created for the release
-  3. In the branch, the version is bumped to `v0.2.0`
-  4. The new commit in the branch is tagged `v0.2.0`
-  5. The version is pushed to crates.io
-  6. A GitHub release is created for the `v0.2.0` tag
-  7. On master, the version is bumped to `0.2.0`, and the CHANGELOG is updated
+  3. Update released `cfg_attr` in `src/changelog/mod.rs` to `v0.2.md`
+  4. Move entries from `src/changelog/unreleased.md` into `src/changelog/v0.2.md`
+  5. In the branch, the version is bumped to `v0.2.0`
+  6. The new commit in the branch is tagged `v0.2.0`
+  7. The version is pushed to crates.io
+  8. A GitHub release is created for the `v0.2.0` tag
+  9. On master, the version is bumped to `0.2.0`, and the changelog is updated
 
 When doing a patch release, the process is similar:
   1. Initially, the version of the latest release is `0.2.0`
   2. Checkout the `v0.2.x` branch
   3. Cherry-pick the required non-breaking changes into the `v0.2.x`
-  4. Follow steps 3-7 of the regular release example
+  4. Follow steps 4-9 of the regular release example
