@@ -1789,8 +1789,8 @@ impl UnownedWindow {
                         | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
                 ),
                 [
-                    (window.x as u32 + xinput_fp1616_to_float(pointer.win_x) as u32),
-                    (window.y as u32 + xinput_fp1616_to_float(pointer.win_y) as u32),
+                    (window.x + xinput_fp1616_to_float(pointer.win_x) as i32) as u32,
+                    (window.y + xinput_fp1616_to_float(pointer.win_y) as i32) as u32,
                     action.try_into().unwrap(),
                     1, // Button 1
                     1,
