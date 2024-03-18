@@ -274,7 +274,6 @@ impl HidState {
 
             if cap.IsRange != 0 {
                 let range = unsafe { cap.Anonymous.Range };
-                println!("{} {} {} {} {} {}", range.UsageMin - 1, range.UsageMax - 1, cap.PhysicalMin, cap.PhysicalMax, cap.LogicalMin, cap.LogicalMax);
                 let mut data_index = range.DataIndexMin;
                 for usage in (range.UsageMin - 1)..range.UsageMax {
                     inputs[data_index as usize] = HidStateInput::Axis {
@@ -287,7 +286,6 @@ impl HidState {
                 }
             } else {
                 let not_range = unsafe { cap.Anonymous.NotRange };
-                println!("{} {} {} {} {}", not_range.Usage - 1, cap.PhysicalMin, cap.PhysicalMax, cap.LogicalMin, cap.LogicalMax);
                 inputs[not_range.DataIndex as usize] = HidStateInput::Axis {
                     axis: (not_range.Usage - 1) as _,
                     prev_value: 0,
