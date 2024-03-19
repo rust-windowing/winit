@@ -16,7 +16,7 @@ use softbuffer::{Context, Surface};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent, TouchPhase};
+use winit::event::{DeviceEvent, DeviceId, Ime, TouchPhase, WindowEvent};
 use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -423,20 +423,23 @@ impl ApplicationHandler<UserEvent> for Application {
                         window.last_panned_delta.x = delta.x;
                         window.last_panned_delta.y = delta.y;
                         println!("Start pan: (now: {:?})", window.panned);
-                    },
+                    }
                     TouchPhase::Moved => {
                         let dx = delta.x - window.last_panned_delta.x;
                         let dy = delta.y - window.last_panned_delta.y;
                         window.panned.x += delta.x;
                         window.panned.y += delta.y;
                         println!("Panned ({dx:.5}, {dy:.5})) (now: {:?})", window.panned);
-                    },
+                    }
                     TouchPhase::Ended => {
-                        println!("Pan ended total movement: {delta:?} (now: {:?})", window.panned);
-                    },
+                        println!(
+                            "Pan ended total movement: {delta:?} (now: {:?})",
+                            window.panned
+                        );
+                    }
                     TouchPhase::Cancelled => {
                         window.panned.x -= delta.x;
-                        window.panned.y -= delta.y; 
+                        window.panned.y -= delta.y;
                         println!("Pan cancelled total: {delta:?} (now: {:?})", window.panned);
                     }
                 }
