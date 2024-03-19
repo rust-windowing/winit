@@ -16,7 +16,7 @@ use softbuffer::{Context, Surface};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent, TouchPhase};
 use winit::event::{MouseButton, MouseScrollDelta};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
@@ -140,6 +140,7 @@ impl Application {
             window.recognize_doubletap_gesture(true);
             window.recognize_pinch_gesture(true);
             window.recognize_rotation_gesture(true);
+            window.recognize_pan_gesture(true);
         }
 
         let window_state = WindowState::new(self, window)?;
@@ -414,6 +415,32 @@ impl ApplicationHandler<UserEvent> for Application {
                     println!("Rotated clockwise {delta:.5} (now: {rotated:.5})");
                 }
             }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                // "delta" is the total change since "TouchPhase::Started"
+                // For ios this is the same for rotation and pinch
+                match phase {
+                    TouchPhase::Started => {
+                        window.last_panned_delta.x = delta.x;
+                        window.last_panned_delta.y = delta.y;
+                        println!("Start pan: (now: {:?})", window.panned);
+                    },
+                    TouchPhase::Moved => {
+                        let dx = delta.x - window.last_panned_delta.x;
+                        let dy = delta.y - window.last_panned_delta.y;
+                        window.panned.x += delta.x;
+                        window.panned.y += delta.y;
+                        println!("Panned ({dx:.5}, {dy:.5})) (now: {:?})", window.panned);
+                    },
+                    TouchPhase::Ended => {
+                        println!("Pan ended total movement: {delta:?} (now: {:?})", window.panned);
+                    },
+                    TouchPhase::Cancelled => {
+                        window.panned.x -= delta.x;
+                        window.panned.y -= delta.y; 
+                        println!("Pan cancelled total: {delta:?} (now: {:?})", window.panned);
+                    }
+                }
+            }
             WindowEvent::DoubleTapGesture { .. } => {
                 println!("Smart zoom");
             }
@@ -489,6 +516,10 @@ struct WindowState {
     zoom: f64,
     /// The amount of rotation of the window.
     rotated: f32,
+    /// The amount of pan of the window.
+    panned: PhysicalPosition<f32>,
+    /// The last panned delta we received.
+    last_panned_delta: PhysicalPosition<f32>,
 
     #[cfg(macos_platform)]
     option_as_alt: OptionAsAlt,
@@ -532,6 +563,8 @@ impl WindowState {
             modifiers: Default::default(),
             occluded: Default::default(),
             rotated: Default::default(),
+            panned: Default::default(),
+            last_panned_delta: Default::default(),
             zoom: Default::default(),
         };
 
