@@ -7,3 +7,5 @@ run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
 [build]
 rustflags = ["--cfg=unreleased_changelogs"]
 rustdocflags = ["--cfg=unreleased_changelogs"]
+target = "x86_64-pc-windows-gnu"
+

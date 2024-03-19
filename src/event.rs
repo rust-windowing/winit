@@ -1106,12 +1106,14 @@ mod tests {
                 with_window_event(PinchGesture {
                     device_id: did,
                     delta: 0.0,
+                    velocity: 0.0,
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(DoubleTapGesture { device_id: did });
                 with_window_event(RotationGesture {
                     device_id: did,
                     delta: 0.0,
+                    velocity: 0.0,
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(TouchpadPressure {
