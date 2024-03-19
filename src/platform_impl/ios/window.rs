@@ -644,6 +644,10 @@ impl Inner {
         self.view.recognize_pinch_gesture(should_recognize);
     }
 
+    pub fn recognize_pan_gesture(&self, should_recognize: bool) {
+        self.view.recognize_pan_gesture(should_recognize);
+    }
+
     pub fn recognize_doubletap_gesture(&self, should_recognize: bool) {
         self.view.recognize_doubletap_gesture(should_recognize);
     }

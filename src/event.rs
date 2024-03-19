@@ -317,6 +317,22 @@ pub enum WindowEvent {
         ///
         /// This value may be NaN.
         delta: f64,
+        velocity: f32,
+        phase: TouchPhase,
+    },
+
+    /// Two-finger pan gesture
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    PanGesture {
+        device_id: DeviceId,
+        ///
+        /// This value may be NaN.
+        delta: PhysicalPosition<f32>,
+        velocity: PhysicalPosition<f32>,
         phase: TouchPhase,
     },
 
@@ -352,6 +368,7 @@ pub enum WindowEvent {
     RotationGesture {
         device_id: DeviceId,
         delta: f32,
+        velocity: f32,
         phase: TouchPhase,
     },
 

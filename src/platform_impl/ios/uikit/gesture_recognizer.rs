@@ -1,7 +1,11 @@
-use icrate::Foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
+use super::UIView;
+use icrate::Foundation::{CGFloat, CGPoint, NSInteger, NSObject, NSUInteger};
 use objc2::{
     encode::{Encode, Encoding},
-    extern_class, extern_methods, mutability, ClassType,
+    extern_class, extern_methods, extern_protocol, mutability,
+    rc::Id,
+    runtime::{NSObjectProtocol, ProtocolObject},
+    ClassType, ProtocolType,
 };
 
 // https://developer.apple.com/documentation/uikit/uigesturerecognizer
@@ -19,6 +23,14 @@ extern_methods!(
     unsafe impl UIGestureRecognizer {
         #[method(state)]
         pub fn state(&self) -> UIGestureRecognizerState;
+
+        /// (delegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc]
+        /// @property(nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
+        #[method(setDelegate:)]
+        pub fn set_delegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
+
+        #[method_id(delegate)]
+        pub fn get_delegate(&self) -> Id<ProtocolObject<dyn UIGestureRecognizerDelegate>>;
     }
 );
 
@@ -117,5 +129,46 @@ extern_methods!(
 );
 
 unsafe impl Encode for UITapGestureRecognizer {
+    const ENCODING: Encoding = Encoding::Object;
+}
+
+// https://developer.apple.com/documentation/uikit/uipangesturerecognizer
+extern_class!(
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct UIPanGestureRecognizer;
+
+    unsafe impl ClassType for UIPanGestureRecognizer {
+        type Super = UIGestureRecognizer;
+        type Mutability = mutability::InteriorMutable;
+    }
+);
+
+extern_methods!(
+    unsafe impl UIPanGestureRecognizer {
+        #[method(translationInView:)]
+        pub fn translation_in_view(&self, view: &UIView) -> CGPoint;
+
+        #[method(setTranslation:inView:)]
+        pub fn set_translation_in_view(&self, translation: CGPoint, view: &UIView);
+
+        #[method(velocityInView:)]
+        pub fn velocity_in_view(&self, view: &UIView) -> CGPoint;
+    }
+);
+
+unsafe impl Encode for UIPanGestureRecognizer {
+    const ENCODING: Encoding = Encoding::Object;
+}
+
+extern_protocol!(
+    /// (@protocol UIGestureRecognizerDelegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
+    pub(crate) unsafe trait UIGestureRecognizerDelegate: NSObjectProtocol {}
+
+    unsafe impl ProtocolType for dyn UIGestureRecognizerDelegate {
+        const NAME: &'static str = "UIGestureRecognizerDelegate";
+    }
+);
+
+unsafe impl Encode for dyn UIGestureRecognizerDelegate {
     const ENCODING: Encoding = Encoding::Object;
 }

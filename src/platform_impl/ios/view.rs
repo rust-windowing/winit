@@ -3,16 +3,17 @@ use std::cell::RefCell;
 
 use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
 use objc2::rc::Id;
-use objc2::runtime::AnyClass;
+use objc2::runtime::{AnyClass, NSObjectProtocol, ProtocolObject};
 use objc2::{
     declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
-    UIEvent, UIForceTouchCapability, UIGestureRecognizerState, UIPinchGestureRecognizer,
-    UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITouch, UITouchPhase,
-    UITouchType, UITraitCollection, UIView,
+    UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate,
+    UIGestureRecognizerState, UIPanGestureRecognizer, UIPinchGestureRecognizer, UIResponder,
+    UIRotationGestureRecognizer, UITapGestureRecognizer, UITouch, UITouchPhase, UITouchType,
+    UITraitCollection, UIView,
 };
 use super::window::WinitUIWindow;
 use crate::{
@@ -26,6 +27,7 @@ pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
     doubletap_gesture_recognizer: RefCell<Option<Id<UITapGestureRecognizer>>>,
     rotation_gesture_recognizer: RefCell<Option<Id<UIRotationGestureRecognizer>>>,
+    pan_gesture_recognizer: RefCell<Option<Id<UIPanGestureRecognizer>>>,
 }
 
 declare_class!(
@@ -163,6 +165,11 @@ declare_class!(
             self.handle_touches(touches)
         }
 
+        #[method(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)]
+        fn should_recognize_simultaneously(&self, _gesture_recognizer: &UIGestureRecognizer, _other_gesture_recognizer: &UIGestureRecognizer) -> bool {
+            true
+        }
+
         #[method(pinchGesture:)]
         fn pinch_gesture(&self, recognizer: &UIPinchGestureRecognizer) {
             let window = self.window().unwrap();
@@ -181,7 +188,8 @@ declare_class!(
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
-                    delta: recognizer.velocity() as _,
+                    delta: recognizer.scale() as _,
+                    velocity: recognizer.velocity() as _,
                     phase,
                 },
             });
@@ -222,12 +230,45 @@ declare_class!(
             };
 
             // Flip the velocity to match macOS.
-            let delta = -recognizer.velocity() as _;
+            let delta = recognizer.rotation() as _;
+            let velocity = recognizer.velocity() as _;
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
                     delta,
+                    velocity,
+                    phase,
+                },
+            });
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(mtm, gesture_event);
+        }
+
+        #[method(panGesture:)]
+        fn pan_gesture(&self, recognizer: &UIPanGestureRecognizer) {
+            let window = self.window().unwrap();
+
+            let phase = match recognizer.state() {
+                UIGestureRecognizerState::Began => TouchPhase::Started,
+                UIGestureRecognizerState::Changed => TouchPhase::Moved,
+                UIGestureRecognizerState::Ended => TouchPhase::Ended,
+                UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
+                    TouchPhase::Cancelled
+                }
+                state => panic!("unexpected recognizer state: {:?}", state),
+            };
+
+            let translation = recognizer.translation_in_view(self);
+            let velocity = recognizer.velocity_in_view(self);
+
+            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::PanGesture {
+                    device_id: DEVICE_ID,
+                    delta: PhysicalPosition::new(translation.x as _, translation.y as _),
+                    velocity: PhysicalPosition::new(velocity.x as _, velocity.y as _),
                     phase,
                 },
             });
@@ -237,6 +278,9 @@ declare_class!(
         }
     }
 );
+
+unsafe impl NSObjectProtocol for WinitView {}
+unsafe impl UIGestureRecognizerDelegate for WinitView {}
 
 extern_methods!(
     #[allow(non_snake_case)]
@@ -265,6 +309,7 @@ impl WinitView {
             pinch_gesture_recognizer: RefCell::new(None),
             doubletap_gesture_recognizer: RefCell::new(None),
             rotation_gesture_recognizer: RefCell::new(None),
+            pan_gesture_recognizer: RefCell::new(None),
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
@@ -283,10 +328,26 @@ impl WinitView {
                 let pinch: Id<UIPinchGestureRecognizer> = unsafe {
                     msg_send_id![UIPinchGestureRecognizer::alloc(), initWithTarget: self, action: sel!(pinchGesture:)]
                 };
+                pinch.set_delegate(ProtocolObject::from_ref(self));
                 self.addGestureRecognizer(&pinch);
                 self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
             }
         } else if let Some(recognizer) = self.ivars().pinch_gesture_recognizer.take() {
+            self.removeGestureRecognizer(&recognizer);
+        }
+    }
+
+    pub(crate) fn recognize_pan_gesture(&self, should_recognize: bool) {
+        if should_recognize {
+            if self.ivars().pan_gesture_recognizer.borrow().is_none() {
+                let pan: Id<UIPanGestureRecognizer> = unsafe {
+                    msg_send_id![UIPanGestureRecognizer::alloc(), initWithTarget: self, action: sel!(panGesture:)]
+                };
+                pan.set_delegate(ProtocolObject::from_ref(self));
+                self.addGestureRecognizer(&pan);
+                self.ivars().pan_gesture_recognizer.replace(Some(pan));
+            }
+        } else if let Some(recognizer) = self.ivars().pan_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
         }
     }
@@ -297,6 +358,7 @@ impl WinitView {
                 let tap: Id<UITapGestureRecognizer> = unsafe {
                     msg_send_id![UITapGestureRecognizer::alloc(), initWithTarget: self, action: sel!(doubleTapGesture:)]
                 };
+                tap.set_delegate(ProtocolObject::from_ref(self));
                 tap.setNumberOfTapsRequired(2);
                 tap.setNumberOfTouchesRequired(1);
                 self.addGestureRecognizer(&tap);
@@ -313,6 +375,7 @@ impl WinitView {
                 let rotation: Id<UIRotationGestureRecognizer> = unsafe {
                     msg_send_id![UIRotationGestureRecognizer::alloc(), initWithTarget: self, action: sel!(rotationGesture:)]
                 };
+                rotation.set_delegate(ProtocolObject::from_ref(self));
                 self.addGestureRecognizer(&rotation);
                 self.ivars()
                     .rotation_gesture_recognizer
