@@ -8,4 +8,3 @@ rls/
 *.js
 #*#
 .DS_Store
-.cargo/config.toml

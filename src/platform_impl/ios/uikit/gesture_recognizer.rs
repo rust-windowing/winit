@@ -27,10 +27,10 @@ extern_methods!(
         /// (delegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc]
         /// @property(nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
         #[method(setDelegate:)]
-        pub fn set_delegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
+        pub fn setDelegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
 
         #[method_id(delegate)]
-        pub fn get_delegate(&self) -> Id<ProtocolObject<dyn UIGestureRecognizerDelegate>>;
+        pub fn delegate(&self) -> Id<ProtocolObject<dyn UIGestureRecognizerDelegate>>;
     }
 );
 
@@ -146,19 +146,15 @@ extern_class!(
 extern_methods!(
     unsafe impl UIPanGestureRecognizer {
         #[method(translationInView:)]
-        pub fn translation_in_view(&self, view: &UIView) -> CGPoint;
+        pub fn translationInView(&self, view: &UIView) -> CGPoint;
 
         #[method(setTranslation:inView:)]
-        pub fn set_translation_in_view(&self, translation: CGPoint, view: &UIView);
+        pub fn setTranslationInView(&self, translation: CGPoint, view: &UIView);
 
         #[method(velocityInView:)]
-        pub fn velocity_in_view(&self, view: &UIView) -> CGPoint;
+        pub fn velocityInView(&self, view: &UIView) -> CGPoint;
     }
 );
-
-unsafe impl Encode for UIPanGestureRecognizer {
-    const ENCODING: Encoding = Encoding::Object;
-}
 
 extern_protocol!(
     /// (@protocol UIGestureRecognizerDelegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
