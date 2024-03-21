@@ -26,7 +26,7 @@ pub(crate) struct ImeInner {
     // WARNING: this is initially zeroed!
     pub destroy_callback: ffi::XIMCallback,
     pub event_sender: ImeEventSender,
-    // Indicates whether or not the the input method was destroyed on the server end
+    // Indicates whether or not the input method was destroyed on the server end
     // (i.e. if ibus/fcitx/etc. was terminated/restarted)
     pub is_destroyed: bool,
     pub is_fallback: bool,

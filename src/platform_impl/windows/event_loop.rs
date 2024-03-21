@@ -386,7 +386,7 @@ impl<T: 'static> EventLoop<T> {
         /// Fetch the next MSG either via PeekMessage or GetMessage depending on whether the
         /// requested timeout is `ZERO` (and so we don't want to block)
         ///
-        /// Returns `None` if if no MSG was read, else a `Continue` or `Exit` status
+        /// Returns `None` if no MSG was read, else a `Continue` or `Exit` status
         fn wait_for_msg(msg: &mut MSG, timeout: Option<Duration>) -> Option<PumpStatus> {
             if timeout == Some(Duration::ZERO) {
                 unsafe {
