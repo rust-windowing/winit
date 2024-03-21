@@ -46,7 +46,7 @@ pub enum WindowType {
     /// This should be used on the windows that are popped up by combo boxes.
     /// This property is typically used on override-redirect windows.
     Combo,
-    /// This indicates the the window is being dragged.
+    /// This indicates the window is being dragged.
     /// This property is typically used on override-redirect windows.
     Dnd,
     /// This is a normal, top-level window.
