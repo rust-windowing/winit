@@ -117,9 +117,8 @@ impl error::Error for NotSupportedError {}
 impl error::Error for EventLoopError {}
 
 #[cfg(test)]
+#[allow(clippy::redundant_clone)]
 mod tests {
-    #![allow(clippy::redundant_clone)]
-
     use super::*;
 
     // Eat attributes for testing
