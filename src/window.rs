@@ -106,6 +106,7 @@ pub struct WindowAttributes {
     pub max_inner_size: Option<Size>,
     pub position: Option<Position>,
     pub resizable: bool,
+    pub ignore_size_suggestions: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
     pub maximized: bool,
@@ -137,6 +138,7 @@ impl Default for WindowAttributes {
             max_inner_size: None,
             position: None,
             resizable: true,
+            ignore_size_suggestions: false,
             enabled_buttons: WindowButtons::all(),
             title: "winit window".to_owned(),
             maximized: false,
@@ -261,6 +263,17 @@ impl WindowAttributes {
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
+        self
+    }
+
+    /// Sets whether the window ignore size suggestions from window manager or not.
+    ///
+    /// The default is `false`.
+    ///
+    /// See [`Window::set_ignore_size_suggestions`] for details.
+    #[inline]
+    pub fn without_size_suggestions(mut self, ignore: bool) -> Self {
+        self.window.ignore_size_suggestions = ignore;
         self
     }
 
@@ -1024,6 +1037,29 @@ impl Window {
     pub fn is_resizable(&self) -> bool {
         let _span = tracing::debug_span!("winit::Window::is_resizable",).entered();
         self.window.maybe_wait_on_main(|w| w.is_resizable())
+    }
+
+    /// Whether window ignores size suggestions from window manager or not
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Windows:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn ignore_size_suggestions(&self) -> bool {
+        self.window.maybe_wait_on_main(|w| w.ignore_size_suggestions())
+    }
+
+    /// Sets whether the window ignores size suggested by window manager or not.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Windows:** Not implemented
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn set_ignore_size_suggestions(&self, ignore: bool) {
+        self.window
+            .maybe_queue_on_main(move |w| w.set_ignore_size_suggestions(ignore))
     }
 
     /// Sets the enabled window buttons.

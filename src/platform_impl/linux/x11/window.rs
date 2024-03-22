@@ -55,6 +55,7 @@ pub struct SharedState {
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub is_resizable: bool,
+    pub ignore_size_suggestions: bool,
     pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
@@ -97,6 +98,7 @@ impl SharedState {
             visibility,
 
             is_resizable: window_attributes.resizable,
+            ignore_size_suggestions: window_attributes.ignore_size_suggestions,
             is_decorated: window_attributes.decorations,
             cursor_pos: None,
             size: None,
@@ -1523,6 +1525,15 @@ impl UnownedWindow {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.shared_state_lock().is_resizable
+    }
+
+    pub fn set_ignore_size_suggestions(&self, _ignore: bool) {
+        unimplemented!();
+    }
+
+    #[inline]
+    pub fn ignore_size_suggestions(&self) -> bool {
+        unimplemented!();
     }
 
     #[inline]

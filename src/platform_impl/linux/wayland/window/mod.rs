@@ -148,6 +148,10 @@ impl Window {
         // Non-resizable implies that the min and max sizes are set to the same value.
         window_state.set_resizable(attributes.resizable);
 
+        // Ignore size suggestions from window managers such as Sway. This allows programmatically
+        // resize window
+        window_state.set_ignore_size_suggestions(attributes.ignore_size_suggestions);
+
         // Set startup mode.
         match attributes.fullscreen.map(Into::into) {
             Some(Fullscreen::Exclusive(_)) => {
@@ -404,6 +408,16 @@ impl Window {
     #[inline]
     pub fn is_resizable(&self) -> bool {
         self.window_state.lock().unwrap().resizable()
+    }
+
+    #[inline]
+    pub fn set_ignore_size_suggestions(&self, ignore: bool) {
+        self.window_state.lock().unwrap().set_ignore_size_suggestions(ignore);
+    }
+
+    #[inline]
+    pub fn ignore_size_suggestions(&self) -> bool {
+        self.window_state.lock().unwrap().ignore_size_suggestions()
     }
 
     #[inline]

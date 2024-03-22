@@ -405,6 +405,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ignore_size_suggestions(&self, ignore: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_ignore_size_suggestions(ignore))
+    }
+
+    #[inline]
+    pub fn ignore_size_suggestions(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.ignore_size_suggestions())
+    }
+
+    #[inline]
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
         x11_or_wayland!(match self; Window(w) => w.set_enabled_buttons(buttons))
     }

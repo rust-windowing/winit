@@ -92,6 +92,9 @@ pub struct WindowState {
     /// Whether the frame is resizable.
     resizable: bool,
 
+    /// Ignore size suggestions from window manager
+    ignore_size_suggestions: bool,
+
     // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
     // is created, since add/removed stuff could be delivered a bit out of order.
     /// Seats that has keyboard focus on that window.
@@ -202,6 +205,7 @@ impl WindowState {
             pointers: Default::default(),
             queue_handle: queue_handle.clone(),
             resizable: true,
+            ignore_size_suggestions: false,
             scale_factor: 1.,
             shm: winit_state.shm.wl_shm().clone(),
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
@@ -322,7 +326,9 @@ impl WindowState {
             }
         } else {
             match configure.new_size {
-                (Some(width), Some(height)) => ((width.get(), height.get()).into(), false),
+                (Some(width), Some(height)) if self.must_resize(&configure) => {
+                    ((width.get(), height.get()).into(), false)
+                },
                 _ if stateless => (self.stateless_size, true),
                 _ => (self.size, true),
             }
@@ -529,6 +535,26 @@ impl WindowState {
         true
     }
 
+    /// Is size suggested by window manager ignored or not
+    #[inline]
+    pub fn ignore_size_suggestions(&self) -> bool {
+        self.ignore_size_suggestions
+    }
+
+    /// Ignore or react on size suggestions by window manager
+    ///
+    /// Returns `true` when the state was applied.
+    #[inline]
+    pub fn set_ignore_size_suggestions(&mut self, ignore: bool) -> bool {
+        if self.ignore_size_suggestions == ignore {
+            return false;
+        }
+
+        self.ignore_size_suggestions = ignore;
+
+        true
+    }
+
     /// Whether the window is focused by any seat.
     #[inline]
     pub fn has_focus(&self) -> bool {
@@ -646,6 +672,8 @@ impl WindowState {
             .unwrap_or(true)
         {
             self.resize(inner_size.to_logical(self.scale_factor()))
+        } else {
+            self.stateless_size = inner_size.to_logical(self.scale_factor());
         }
 
         logical_to_physical_rounded(self.inner_size(), self.scale_factor())
@@ -694,6 +722,25 @@ impl WindowState {
             // Set inner size without the borders.
             viewport.set_destination(self.size.width as _, self.size.height as _);
         }
+    }
+
+    fn must_resize(&self, configure: &WindowConfigure) -> bool {
+        if !self.ignore_size_suggestions {
+            return true;
+        }
+
+        let old_configure = self
+            .last_configure
+            .as_ref()
+            .unwrap_or(&configure);
+
+        // Ignore suggested size except when windows is
+        // - fullscreen,
+        // - maximezed,
+        // - tiled
+        return (configure.is_maximized() && !old_configure.is_maximized()) ||
+            (configure.is_fullscreen() && !old_configure.is_fullscreen()) ||
+            (configure.is_tiled() && !old_configure.is_tiled());
     }
 
     /// Get the scale factor of the window.
