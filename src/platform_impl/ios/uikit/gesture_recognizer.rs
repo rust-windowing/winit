@@ -8,8 +8,8 @@ use objc2::{
     ClassType, ProtocolType,
 };
 
-// https://developer.apple.com/documentation/uikit/uigesturerecognizer
 extern_class!(
+    /// (UIGestureRecognizer)[https://developer.apple.com/documentation/uikit/uigesturerecognizer]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIGestureRecognizer;
 
@@ -38,7 +38,7 @@ unsafe impl Encode for UIGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uigesturerecognizer/state
+// (UIGestureRecognizerState)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/state]
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIGestureRecognizerState(NSInteger);
@@ -57,7 +57,7 @@ impl UIGestureRecognizerState {
     pub const Failed: Self = Self(5);
 }
 
-// https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer
+// (UIPinchGestureRecognizer)[https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer]
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIPinchGestureRecognizer;
@@ -82,8 +82,8 @@ unsafe impl Encode for UIPinchGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer
 extern_class!(
+    /// (UIRotationGestureRecognizer)[https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIRotationGestureRecognizer;
 
@@ -107,8 +107,8 @@ unsafe impl Encode for UIRotationGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uitapgesturerecognizer
 extern_class!(
+    /// (UITapGestureRecognizer)[https://developer.apple.com/documentation/uikit/uitapgesturerecognizer]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UITapGestureRecognizer;
 
@@ -132,8 +132,8 @@ unsafe impl Encode for UITapGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uipangesturerecognizer
 extern_class!(
+    /// (UIPanGestureRecognizer)[https://developer.apple.com/documentation/uikit/uipangesturerecognizer]
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIPanGestureRecognizer;
 
