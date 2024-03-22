@@ -176,7 +176,3 @@ extern_protocol!(
         const NAME: &'static str = "UIGestureRecognizerDelegate";
     }
 );
-
-unsafe impl Encode for dyn UIGestureRecognizerDelegate {
-    const ENCODING: Encoding = Encoding::Object;
-}
