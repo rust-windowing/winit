@@ -153,6 +153,18 @@ extern_methods!(
 
         #[method(velocityInView:)]
         pub fn velocityInView(&self, view: &UIView) -> CGPoint;
+
+        #[method(setMinimumNumberOfTouches:)]
+        pub fn setMinimumNumberOfTouches(&self, minimum_number_of_touches: NSUInteger);
+
+        #[method(minimumNumberOfTouches)]
+        pub fn minimumNumberOfTouches(&self) -> NSUInteger;
+
+        #[method(setMaximumNumberOfTouches:)]
+        pub fn setMaximumNumberOfTouches(&self, maximum_number_of_touches: NSUInteger);
+
+        #[method(maximumNumberOfTouches)]
+        pub fn maximumNumberOfTouches(&self) -> NSUInteger;
     }
 );
 

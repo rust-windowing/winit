@@ -160,7 +160,12 @@ pub trait WindowExtIOS {
     /// Sets whether the [`Window`] should recognize pan gestures.
     ///
     /// The default is to not recognize gestures.
-    fn recognize_pan_gesture(&self, should_recognize: bool);
+    fn recognize_pan_gesture(
+        &self,
+        should_recognize: bool,
+        minimum_number_of_touches: u8,
+        maximum_number_of_touches: u8,
+    );
 
     /// Sets whether the [`Window`] should recognize double tap gestures.
     ///
@@ -218,9 +223,19 @@ impl WindowExtIOS for Window {
     }
 
     #[inline]
-    fn recognize_pan_gesture(&self, should_recognize: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.recognize_pan_gesture(should_recognize));
+    fn recognize_pan_gesture(
+        &self,
+        should_recognize: bool,
+        minimum_number_of_touches: u8,
+        maximum_number_of_touches: u8,
+    ) {
+        self.window.maybe_queue_on_main(move |w| {
+            w.recognize_pan_gesture(
+                should_recognize,
+                minimum_number_of_touches,
+                maximum_number_of_touches,
+            )
+        });
     }
 
     #[inline]

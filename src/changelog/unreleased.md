@@ -31,7 +31,7 @@
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
-- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture`, `PanGesture` and `RotationGesture` as well as `UIGestureRecognizerDelegate` for fine grained control of gesture recognizers.
 - on Windows: add `with_system_backdrop`, `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
 - **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.
@@ -41,7 +41,3 @@
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
 - On Windows, confine cursor to center of window when grabbed and hidden.
-- On iOS: Support UIGestureRecognizerDelegate for simultaneous gesture input
-- On iOS: Support UIPanGestureRecognizer
-- On iOS: Modifies UIRotationGestureRecognizer handing code to work identically to macOS rotation(sends change in delta instead of velocity)
-- On iOS: Modifies UIPinchGestureRecognizer handing code to work identically to macOS magnify(sends change in delta instead of velocity)

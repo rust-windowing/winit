@@ -323,7 +323,7 @@ pub enum WindowEvent {
         phase: TouchPhase,
     },
 
-    /// Two-finger pan gesture
+    /// N-finger pan gesture
     ///
     /// ## Platform-specific
     ///
