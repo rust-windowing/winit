@@ -711,7 +711,7 @@ async fn from_url(
 async fn from_animation(
     main_thread: MainThreadMarker,
     duration: Duration,
-    cursors: impl Iterator<Item = CustomCursor> + ExactSizeIterator,
+    cursors: impl ExactSizeIterator<Item = CustomCursor>,
 ) -> Result<Animation, CustomCursorError> {
     let keyframes = Array::new();
     let mut images = Vec::with_capacity(cursors.len());
