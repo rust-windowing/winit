@@ -201,7 +201,6 @@ declare_class!(
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
                     delta: delta as f64,
-                    velocity: Some(recognizer.velocity() as f32),
                     phase,
                 },
             });
@@ -257,13 +256,12 @@ declare_class!(
                 state => panic!("unexpected recognizer state: {:?}", state),
             };
 
-            // Make delta and velocity negative to match macos, convert to degrees
+            // Make delta negative to match macos, convert to degrees
             let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
                     delta: -delta.to_degrees() as _,
-                    velocity: Some(-recognizer.velocity().to_degrees() as _),
                     phase,
                 },
             });
@@ -277,7 +275,6 @@ declare_class!(
             let window = self.window().unwrap();
 
             let translation = recognizer.translationInView(self);
-            let velocity = recognizer.velocityInView(self);
 
             let (phase, delta) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
@@ -318,7 +315,6 @@ declare_class!(
                 event: WindowEvent::PanGesture {
                     device_id: DEVICE_ID,
                     delta: PhysicalPosition::new(delta.x as _, delta.y as _),
-                    velocity: PhysicalPosition::new(velocity.x as _, velocity.y as _),
                     phase,
                 },
             });

@@ -317,9 +317,6 @@ pub enum WindowEvent {
         ///
         /// This value may be NaN.
         delta: f64,
-        /// Only available on **iOS**.
-        /// (Velocity)[<https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer/1622233-velocity?language=objc>]
-        velocity: Option<f32>,
         phase: TouchPhase,
     },
 
@@ -333,9 +330,6 @@ pub enum WindowEvent {
         device_id: DeviceId,
         /// Change in pixels of pan gesture from last update.
         delta: PhysicalPosition<f32>,
-        /// Velocity of pan (delta/time?). Only available on **iOS**
-        /// (VelocityInView)[<https://developer.apple.com/documentation/uikit/uipangesturerecognizer/1621209-velocityinview?language=objc>]
-        velocity: PhysicalPosition<f32>,
         phase: TouchPhase,
     },
 
@@ -372,10 +366,6 @@ pub enum WindowEvent {
         device_id: DeviceId,
         /// change in rotation in degrees
         delta: f32,
-        /// Rotation velocity in degrees. Only available on **iOS**.
-        /// Units differ from UIKit as velocity is converted from radians to degrees.
-        /// (Velocity)[<https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer/1624335-velocity?language=objc>]
-        velocity: Option<f32>,
         phase: TouchPhase,
     },
 
@@ -1114,20 +1104,17 @@ mod tests {
                 with_window_event(PinchGesture {
                     device_id: did,
                     delta: 0.0,
-                    velocity: None,
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(DoubleTapGesture { device_id: did });
                 with_window_event(RotationGesture {
                     device_id: did,
                     delta: 0.0,
-                    velocity: None,
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(PanGesture {
                     device_id: did,
                     delta: PhysicalPosition::<f32>::new(0.0, 0.0),
-                    velocity: PhysicalPosition::<f32>::new(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(TouchpadPressure {
