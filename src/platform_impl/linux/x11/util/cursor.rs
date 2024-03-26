@@ -8,7 +8,6 @@ use std::{
 use x11rb::connection::Connection;
 
 use crate::dpi::PhysicalPosition;
-use crate::error::ExternalError;
 use crate::{platform_impl::PlatformCustomCursorSource, window::CursorIcon};
 
 use super::super::ActiveEventLoop;
@@ -101,30 +100,10 @@ impl XConnection {
 
     pub fn cursor_position(
         &self,
-        window: ffi::Window,
-    ) -> Result<PhysicalPosition<f64>, ExternalError> {
-        let mut root_return = 0;
-        let mut child_return = 0;
-        let mut root_x_return = 0;
-        let mut root_y_return = 0;
-        let mut win_x_return = 0;
-        let mut win_y_return = 0;
-        let mut mask_return = 0;
-
-        unsafe {
-            (self.xlib.XQueryPointer)(
-                self.display,
-                window,
-                &mut root_return,
-                &mut child_return,
-                &mut root_x_return,
-                &mut root_y_return,
-                &mut win_x_return,
-                &mut win_y_return,
-                &mut mask_return,
-            );
-        }
-        Ok((root_x_return, root_y_return).into())
+        window: xproto::Window,
+    ) -> Result<PhysicalPosition<f64>, X11Error> {
+        let reply = self.xcb_connection().query_pointer(window)?.reply()?;
+        Ok((reply.root_x, reply.root_y).into())
     }
 }
 

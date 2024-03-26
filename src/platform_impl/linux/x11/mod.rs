@@ -760,7 +760,9 @@ impl ActiveEventLoop {
     }
 
     pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        self.xconn.cursor_position(self.root)
+        self.xconn
+            .cursor_position(self.root)
+            .map_err(|x_err| ExternalError::Os(os_error!(OsError::XError(Arc::new(x_err)))))
     }
 }
 
