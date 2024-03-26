@@ -226,6 +226,6 @@ pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Id<NSCursor> {
 }
 
 pub fn cursor_position() -> crate::dpi::PhysicalPosition<f64> {
-    let pt: NSPoint = NSEvent::mouseLocation();
+    let pt: NSPoint = unsafe { NSEvent::mouseLocation() };
     (pt.x, pt.y).into()
 }
