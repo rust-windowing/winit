@@ -17,7 +17,8 @@ use icrate::Foundation::{MainThreadMarker, NSString};
 use objc2::ClassType;
 
 use crate::{
-    error::EventLoopError,
+    dpi::PhysicalPosition,
+    error::{EventLoopError, ExternalError, NotSupportedError},
     event::Event,
     event_loop::{
         ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopClosed,
@@ -95,6 +96,10 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
 }
 
 #[derive(Clone)]
@@ -127,10 +132,6 @@ fn map_user_event<T: 'static>(
                 (handler)(Event::UserEvent(event), window_target);
             }
         }
-    }
-
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
 

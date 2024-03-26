@@ -17,7 +17,7 @@ use sctk::reexports::client::{Connection, QueueHandle};
 
 use crate::cursor::OnlyCursorImage;
 use crate::dpi::{LogicalSize, PhysicalPosition};
-use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
+use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;

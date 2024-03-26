@@ -19,7 +19,8 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, OsError};
+use crate::dpi::PhysicalPosition;
+use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 

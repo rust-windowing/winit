@@ -21,7 +21,7 @@ use tracing::{debug, trace, warn};
 use crate::{
     cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error,
+    error::{ExternalError, NotSupportedError},
     event::{self, Force, InnerSizeWriter, StartCause},
     event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents},
     platform::pump_events::PumpStatus,
@@ -732,6 +732,9 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
 }
 
 #[derive(Clone)]
@@ -750,12 +753,6 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::AndroidDisplayHandle::new().into())
-    }
-
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
     }
 }
 
