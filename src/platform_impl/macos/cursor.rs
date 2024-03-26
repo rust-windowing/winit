@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSEvent, NSImage};
 use icrate::Foundation::{
-    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSPoint,
-    NSSize, NSString,
+    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
+    NSString,
 };
 use objc2::rc::Id;
 use objc2::runtime::Sel;
