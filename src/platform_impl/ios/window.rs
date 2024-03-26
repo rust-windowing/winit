@@ -9,11 +9,13 @@ use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, 
 use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
+use super::text_field::WinitTextField;
 use super::uikit::{
     UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
 };
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
+
 use crate::{
     cursor::Cursor,
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
@@ -107,6 +109,7 @@ pub struct Inner {
     window: Id<WinitUIWindow>,
     view_controller: Id<WinitViewController>,
     view: Id<WinitView>,
+    text_field: Id<WinitTextField>,
     gl_or_metal_backed: bool,
 }
 
@@ -370,8 +373,12 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        if allowed {
+            self.text_field.become_first_responder();
+        } else {
+            self.text_field.resign_first_responder();
+        }
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
@@ -515,6 +522,9 @@ impl Window {
         };
 
         let view = WinitView::new(mtm, &window_attributes, frame);
+        let text_field = WinitTextField::new(mtm);
+
+        view.addSubview(text_field.as_super());
 
         let gl_or_metal_backed = unsafe {
             let layer_class = WinitView::layerClass();
@@ -564,6 +574,7 @@ impl Window {
             window,
             view_controller,
             view,
+            text_field,
             gl_or_metal_backed,
         };
         Ok(Window {
