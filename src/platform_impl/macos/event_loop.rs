@@ -151,7 +151,7 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        Ok(util::cursor_position())
+        Ok(super::cursor::cursor_position())
     }
 }
 

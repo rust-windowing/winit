@@ -724,6 +724,10 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
 }
 
 #[derive(Clone)]
@@ -742,9 +746,5 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::WebDisplayHandle::new().into())
-    }
-
-    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
