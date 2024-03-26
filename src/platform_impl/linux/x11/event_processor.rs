@@ -1081,11 +1081,14 @@ impl EventProcessor {
         F: FnMut(&RootAEL, Event<T>),
     {
         let wt = Self::window_target(&self.target);
-        let window_id = mkwid(event.event as xproto::Window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
 
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
+
+        let window_id = mkwid(event.event as xproto::Window);
+        // Use sourceid instead of deviceid, as deviceid is typically the device's class id.
+        // Note that this requires XInput 2.1.
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         // Deliver multi-touch events instead of emulated mouse events.
         if (event.flags & xinput2::XIPointerEmulated) != 0 {
@@ -1155,9 +1158,9 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(event.time as xproto::Timestamp);
 
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
         let new_cursor_pos = (event.event_x, event.event_y);
 
         let cursor_moved = self.with_window(window, |window| {
@@ -1198,6 +1201,9 @@ impl EventProcessor {
             }
 
             let x = unsafe { *value };
+            if x == 0.0 {
+                continue;
+            }
 
             let event = if let Some(&mut (_, ref mut info)) = physical_device
                 .scroll_axes
@@ -1223,7 +1229,7 @@ impl EventProcessor {
                 WindowEvent::AxisMotion {
                     device_id,
                     axis: i as u32,
-                    value: unsafe { *value },
+                    value: x,
                 }
             };
 
@@ -1248,7 +1254,7 @@ impl EventProcessor {
 
         let window = event.event as xproto::Window;
         let window_id = mkwid(window);
-        let device_id = mkdid(event.deviceid as xinput::DeviceId);
+        let device_id = mkdid(event.sourceid as xinput::DeviceId);
 
         if let Some(all_info) = DeviceInfo::get(&wt.xconn, super::ALL_DEVICES.into()) {
             let mut devices = self.devices.borrow_mut();
@@ -1304,7 +1310,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id: mkwid(window),
                 event: WindowEvent::CursorLeft {
-                    device_id: mkdid(event.deviceid as xinput::DeviceId),
+                    device_id: mkdid(event.sourceid as xinput::DeviceId),
                 },
             };
             callback(&self.target, event);
@@ -1364,7 +1370,7 @@ impl EventProcessor {
         let pointer_id = self
             .devices
             .borrow()
-            .get(&DeviceId(xev.deviceid as xinput::DeviceId))
+            .get(&DeviceId(xev.sourceid as xinput::DeviceId))
             .map(|device| device.attachment)
             .unwrap_or(2);
 
@@ -1470,7 +1476,7 @@ impl EventProcessor {
             let event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::Touch(Touch {
-                    device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                    device_id: mkdid(xev.sourceid as xinput::DeviceId),
                     phase,
                     location,
                     force: None, // TODO
@@ -1496,7 +1502,7 @@ impl EventProcessor {
 
         if xev.flags & xinput2::XIPointerEmulated == 0 {
             let event = Event::DeviceEvent {
-                device_id: mkdid(xev.deviceid as xinput::DeviceId),
+                device_id: mkdid(xev.sourceid as xinput::DeviceId),
                 event: DeviceEvent::Button {
                     state,
                     button: xev.detail as u32,
@@ -1515,7 +1521,7 @@ impl EventProcessor {
         // Set the timestamp.
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
-        let did = mkdid(xev.deviceid as xinput::DeviceId);
+        let device_id = mkdid(xev.sourceid as xinput::DeviceId);
 
         let mask =
             unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
@@ -1526,7 +1532,11 @@ impl EventProcessor {
             if !xinput2::XIMaskIsSet(mask, i) {
                 continue;
             }
+
             let x = unsafe { *value };
+            if x == 0.0 {
+                continue;
+            }
 
             // We assume that every XInput2 device with analog axes is a pointing device emitting
             // relative coordinates.
@@ -1539,7 +1549,7 @@ impl EventProcessor {
             }
 
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::Motion {
                     axis: i as u32,
                     value: x,
@@ -1552,7 +1562,7 @@ impl EventProcessor {
 
         if let Some(mouse_delta) = mouse_delta.consume() {
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::MouseMotion { delta: mouse_delta },
             };
             callback(&self.target, event);
@@ -1560,7 +1570,7 @@ impl EventProcessor {
 
         if let Some(scroll_delta) = scroll_delta.consume() {
             let event = Event::DeviceEvent {
-                device_id: did,
+                device_id,
                 event: DeviceEvent::MouseWheel {
                     delta: MouseScrollDelta::LineDelta(scroll_delta.0, scroll_delta.1),
                 },
@@ -1583,6 +1593,7 @@ impl EventProcessor {
         wt.xconn.set_timestamp(xev.time as xproto::Timestamp);
 
         let device_id = mkdid(xev.sourceid as xinput::DeviceId);
+
         let keycode = xev.detail as u32;
         if keycode < KEYCODE_OFFSET as u32 {
             return;
