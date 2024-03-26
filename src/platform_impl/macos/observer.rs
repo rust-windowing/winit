@@ -1,5 +1,4 @@
 use std::{
-    self,
     ffi::c_void,
     panic::{AssertUnwindSafe, UnwindSafe},
     ptr,
@@ -7,11 +6,6 @@ use std::{
     time::Instant,
 };
 
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop::{stop_app_on_panic, PanicInfo},
-    ffi,
-};
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
@@ -19,7 +13,14 @@ use core_foundation::runloop::{
     CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
     CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
+};
+use icrate::Foundation::MainThreadMarker;
+
+use super::ffi;
+use super::{
+    app_delegate::ApplicationDelegate,
+    event_loop::{stop_app_on_panic, PanicInfo},
 };
 
 unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
@@ -36,7 +37,8 @@ where
     // However we want to keep that weak reference around after the function.
     std::mem::forget(info_from_raw);
 
-    stop_app_on_panic(Weak::clone(&panic_info), move || {
+    let mtm = MainThreadMarker::new().unwrap();
+    stop_app_on_panic(mtm, Weak::clone(&panic_info), move || {
         let _ = &panic_info;
         f(panic_info.0)
     });
@@ -54,7 +56,7 @@ extern "C" fn control_flow_begin_handler(
             match activity {
                 kCFRunLoopAfterWaiting => {
                     //trace!("Triggered `CFRunLoopAfterWaiting`");
-                    AppState::wakeup(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
                     //trace!("Completed `CFRunLoopAfterWaiting`");
                 }
                 _ => unreachable!(),
@@ -64,7 +66,7 @@ extern "C" fn control_flow_begin_handler(
 }
 
 // end is queued with the lowest priority to ensure it is processed after other observers
-// without that, LoopDestroyed would  get sent after MainEventsCleared
+// without that, LoopExiting would  get sent after AboutToWait
 extern "C" fn control_flow_end_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
@@ -76,7 +78,7 @@ extern "C" fn control_flow_end_handler(
             match activity {
                 kCFRunLoopBeforeWaiting => {
                     //trace!("Triggered `CFRunLoopBeforeWaiting`");
-                    AppState::cleared(panic_info);
+                    ApplicationDelegate::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
                     //trace!("Completed `CFRunLoopBeforeWaiting`");
                 }
                 kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
@@ -86,11 +88,15 @@ extern "C" fn control_flow_end_handler(
     }
 }
 
-struct RunLoop(CFRunLoopRef);
+pub struct RunLoop(CFRunLoopRef);
 
 impl RunLoop {
-    unsafe fn get() -> Self {
+    pub unsafe fn get() -> Self {
         RunLoop(unsafe { CFRunLoopGetMain() })
+    }
+
+    pub fn wakeup(&self) {
+        unsafe { CFRunLoopWakeUp(self.0) }
     }
 
     unsafe fn add_observer(
@@ -139,8 +145,19 @@ pub fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
     }
 }
 
+#[derive(Debug)]
 pub struct EventLoopWaker {
     timer: CFRunLoopTimerRef,
+
+    /// An arbitrary instant in the past, that will trigger an immediate wake
+    /// We save this as the `next_fire_date` for consistency so we can
+    /// easily check if the next_fire_date needs updating.
+    start_instant: Instant,
+
+    /// This is what the `NextFireDate` has been set to.
+    /// `None` corresponds to `waker.stop()` and `start_instant` is used
+    /// for `waker.start()`
+    next_fire_date: Option<Instant>,
 }
 
 impl Drop for EventLoopWaker {
@@ -169,31 +186,50 @@ impl Default for EventLoopWaker {
                 ptr::null_mut(),
             );
             CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
-            EventLoopWaker { timer }
+            EventLoopWaker {
+                timer,
+                start_instant: Instant::now(),
+                next_fire_date: None,
+            }
         }
     }
 }
 
 impl EventLoopWaker {
     pub fn stop(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MAX) }
+        if self.next_fire_date.is_some() {
+            self.next_fire_date = None;
+            unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MAX) }
+        }
     }
 
     pub fn start(&mut self) {
-        unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MIN) }
+        if self.next_fire_date != Some(self.start_instant) {
+            self.next_fire_date = Some(self.start_instant);
+            unsafe { CFRunLoopTimerSetNextFireDate(self.timer, std::f64::MIN) }
+        }
     }
 
-    pub fn start_at(&mut self, instant: Instant) {
+    pub fn start_at(&mut self, instant: Option<Instant>) {
         let now = Instant::now();
-        if now >= instant {
-            self.start();
-        } else {
-            unsafe {
-                let current = CFAbsoluteTimeGetCurrent();
-                let duration = instant - now;
-                let fsecs =
-                    duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
-                CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
+        match instant {
+            Some(instant) if now >= instant => {
+                self.start();
+            }
+            Some(instant) => {
+                if self.next_fire_date != Some(instant) {
+                    self.next_fire_date = Some(instant);
+                    unsafe {
+                        let current = CFAbsoluteTimeGetCurrent();
+                        let duration = instant - now;
+                        let fsecs = duration.subsec_nanos() as f64 / 1_000_000_000.0
+                            + duration.as_secs() as f64;
+                        CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
+                    }
+                }
+            }
+            None => {
+                self.stop();
             }
         }
     }

@@ -1,14 +1,14 @@
 use std::{
     any::Any,
-    cell::{Cell, RefCell},
+    cell::Cell,
     collections::VecDeque,
     marker::PhantomData,
-    mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
-    process, ptr,
+    ptr,
     rc::{Rc, Weak},
     sync::mpsc,
+    time::{Duration, Instant},
 };
 
 use core_foundation::base::{CFIndex, CFRelease};
@@ -16,28 +16,33 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::foundation::is_main_thread;
-use objc2::rc::{autoreleasepool, Id, Shared};
-use objc2::{msg_send_id, ClassType};
-use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
-
-use super::{
-    appkit::{NSApp, NSApplicationActivationPolicy, NSEvent},
-    util,
+use icrate::AppKit::{
+    NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
+    NSApplicationActivationPolicyRegular, NSWindow,
 };
+use icrate::Foundation::{MainThreadMarker, NSObjectProtocol};
+use objc2::{msg_send_id, ClassType};
+use objc2::{
+    rc::{autoreleasepool, Id},
+    runtime::ProtocolObject,
+};
+
+use super::event::dummy_event;
+use super::{
+    app::WinitApplication,
+    app_delegate::{ApplicationDelegate, HandlePendingUserEvents},
+    monitor::{self, MonitorHandle},
+    observer::setup_control_flow_observers,
+};
+use crate::dpi::PhysicalPosition;
+use crate::error::ExternalError;
+use crate::platform_impl::platform::cursor::CustomCursor;
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 use crate::{
-    dpi::PhysicalPosition,
-    error::ExternalError,
+    error::EventLoopError,
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    platform::macos::ActivationPolicy,
-    platform_impl::platform::{
-        app::WinitApplication,
-        app_delegate::ApplicationDelegate,
-        app_state::{AppState, Callback},
-        monitor::{self, MonitorHandle},
-        observer::setup_control_flow_observers,
-    },
+    event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed},
+    platform::{macos::ActivationPolicy, pump_events::PumpStatus},
 };
 
 #[derive(Default)]
@@ -68,19 +73,28 @@ impl PanicInfo {
     }
 }
 
-pub struct EventLoopWindowTarget<T: 'static> {
-    pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
-    pub receiver: mpsc::Receiver<T>,
+#[derive(Debug)]
+pub struct ActiveEventLoop {
+    delegate: Id<ApplicationDelegate>,
+    pub(super) mtm: MainThreadMarker,
 }
 
-impl<T> Default for EventLoopWindowTarget<T> {
-    fn default() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        EventLoopWindowTarget { sender, receiver }
+impl ActiveEventLoop {
+    pub(super) fn new_root(delegate: Id<ApplicationDelegate>) -> RootWindowTarget {
+        let mtm = MainThreadMarker::from(&*delegate);
+        let p = Self { delegate, mtm };
+        RootWindowTarget {
+            p,
+            _marker: PhantomData,
+        }
     }
-}
 
-impl<T: 'static> EventLoopWindowTarget<T> {
+    pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
+        RootCustomCursor {
+            inner: CustomCursor::new(source.inner),
+        }
+    }
+
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
@@ -93,8 +107,46 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::AppKit(rwh_05::AppKitDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::AppKit(
+            rwh_06::AppKitDisplayHandle::new(),
+        ))
+    }
+
+    pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
+        self.delegate.set_control_flow(control_flow)
+    }
+
+    pub(crate) fn control_flow(&self) -> ControlFlow {
+        self.delegate.control_flow()
+    }
+
+    pub(crate) fn exit(&self) {
+        self.delegate.exit()
+    }
+
+    pub(crate) fn clear_exit(&self) {
+        self.delegate.clear_exit()
+    }
+
+    pub(crate) fn exiting(&self) -> bool {
+        self.delegate.exiting()
+    }
+
+    pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
+        OwnedDisplayHandle
     }
 
     #[inline]
@@ -103,31 +155,56 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 }
 
-impl<T> EventLoopWindowTarget<T> {
+impl ActiveEventLoop {
     pub(crate) fn hide_application(&self) {
-        NSApp().hide(None)
+        NSApplication::sharedApplication(self.mtm).hide(None)
     }
 
     pub(crate) fn hide_other_applications(&self) {
-        NSApp().hideOtherApplications(None)
+        NSApplication::sharedApplication(self.mtm).hideOtherApplications(None)
+    }
+
+    pub(crate) fn set_allows_automatic_window_tabbing(&self, enabled: bool) {
+        NSWindow::setAllowsAutomaticWindowTabbing(enabled, self.mtm)
+    }
+
+    pub(crate) fn allows_automatic_window_tabbing(&self) -> bool {
+        NSWindow::allowsAutomaticWindowTabbing(self.mtm)
+    }
+}
+
+fn map_user_event<T: 'static>(
+    mut handler: impl FnMut(Event<T>, &RootWindowTarget),
+    receiver: Rc<mpsc::Receiver<T>>,
+) -> impl FnMut(Event<HandlePendingUserEvents>, &RootWindowTarget) {
+    move |event, window_target| match event.map_nonuser_event() {
+        Ok(event) => (handler)(event, window_target),
+        Err(_) => {
+            for event in receiver.try_iter() {
+                (handler)(Event::UserEvent(event), window_target);
+            }
+        }
     }
 }
 
 pub struct EventLoop<T: 'static> {
-    /// The delegate is only weakly referenced by NSApplication, so we keep
-    /// it around here as well.
-    _delegate: Id<ApplicationDelegate, Shared>,
-
-    window_target: Rc<RootWindowTarget<T>>,
-    panic_info: Rc<PanicInfo>,
-
-    /// We make sure that the callback closure is dropped during a panic
-    /// by making the event loop own it.
+    /// Store a reference to the application for convenience.
     ///
-    /// Every other reference should be a Weak reference which is only upgraded
-    /// into a strong reference in order to call the callback but then the
-    /// strong reference should be dropped as soon as possible.
-    _callback: Option<Rc<Callback<T>>>,
+    /// We intentionally don't store `WinitApplication` since we want to have
+    /// the possibility of swapping that out at some point.
+    app: Id<NSApplication>,
+    /// The application delegate that we've registered.
+    ///
+    /// The delegate is only weakly referenced by NSApplication, so we must
+    /// keep it around here as well.
+    delegate: Id<ApplicationDelegate>,
+
+    // Event sender and receiver, used for EventLoopProxy.
+    sender: mpsc::Sender<T>,
+    receiver: Rc<mpsc::Receiver<T>>,
+
+    window_target: RootWindowTarget,
+    panic_info: Rc<PanicInfo>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -148,107 +225,211 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
-        if !is_main_thread() {
-            panic!("On macOS, `EventLoop` must be created on the main thread!");
-        }
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<Self, EventLoopError> {
+        let mtm = MainThreadMarker::new()
+            .expect("on macOS, `EventLoop` must be created on the main thread!");
 
-        // This must be done before `NSApp()` (equivalent to sending
-        // `sharedApplication`) is called anywhere else, or we'll end up
-        // with the wrong `NSApplication` class and the wrong thread could
-        // be marked as main.
-        let app: Id<WinitApplication, Shared> =
+        let app: Id<NSApplication> =
             unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
 
-        use NSApplicationActivationPolicy::*;
+        if !app.is_kind_of::<WinitApplication>() {
+            panic!("`winit` requires control over the principal class. You must create the event loop before other parts of your application initialize NSApplication");
+        }
+
         let activation_policy = match attributes.activation_policy {
             ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         };
         let delegate = ApplicationDelegate::new(
+            mtm,
             activation_policy,
             attributes.default_menu,
             attributes.activate_ignoring_other_apps,
         );
 
         autoreleasepool(|_| {
-            app.setDelegate(&delegate);
+            app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         });
 
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
-        EventLoop {
-            _delegate: delegate,
-            window_target: Rc::new(RootWindowTarget {
-                p: Default::default(),
+
+        let (sender, receiver) = mpsc::channel();
+        Ok(EventLoop {
+            app,
+            delegate: delegate.clone(),
+            sender,
+            receiver: Rc::new(receiver),
+            window_target: RootWindowTarget {
+                p: ActiveEventLoop { delegate, mtm },
                 _marker: PhantomData,
-            }),
+            },
             panic_info,
-            _callback: None,
-        }
+        })
     }
 
-    pub fn window_target(&self) -> &RootWindowTarget<T> {
+    pub fn window_target(&self) -> &RootWindowTarget {
         &self.window_target
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run<F>(mut self, handler: F) -> Result<(), EventLoopError>
     where
-        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget),
     {
-        let exit_code = self.run_return(callback);
-        process::exit(exit_code);
+        self.run_on_demand(handler)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    // NB: we don't base this on `pump_events` because for `MacOs` we can't support
+    // `pump_events` elegantly (we just ask to run the loop for a "short" amount of
+    // time and so a layered implementation would end up using a lot of CPU due to
+    // redundant wake ups.
+    pub fn run_on_demand<F>(&mut self, handler: F) -> Result<(), EventLoopError>
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget),
     {
-        // This transmute is always safe, in case it was reached through `run`, since our
-        // lifetime will be already 'static. In other cases caller should ensure that all data
-        // they passed to callback will actually outlive it, some apps just can't move
-        // everything to event loop, so this is something that they should care about.
-        let callback = unsafe {
-            mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-            >(Rc::new(RefCell::new(callback)))
-        };
+        let handler = map_user_event(handler, self.receiver.clone());
 
-        self._callback = Some(Rc::clone(&callback));
+        self.delegate.set_event_handler(handler, || {
+            autoreleasepool(|_| {
+                // clear / normalize pump_events state
+                self.delegate.set_wait_timeout(None);
+                self.delegate.set_stop_before_wait(false);
+                self.delegate.set_stop_after_wait(false);
+                self.delegate.set_stop_on_redraw(false);
 
-        let exit_code = autoreleasepool(|_| {
-            let app = NSApp();
+                if self.delegate.is_launched() {
+                    debug_assert!(!self.delegate.is_running());
+                    self.delegate.set_is_running(true);
+                    self.delegate.dispatch_init_events();
+                }
 
-            // A bit of juggling with the callback references to make sure
-            // that `self.callback` is the only owner of the callback.
-            let weak_cb: Weak<_> = Rc::downgrade(&callback);
-            drop(callback);
+                // SAFETY: We do not run the application re-entrantly
+                unsafe { self.app.run() };
 
-            AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            unsafe { app.run() };
+                // While the app is running it's possible that we catch a panic
+                // to avoid unwinding across an objective-c ffi boundary, which
+                // will lead to us stopping the `NSApplication` and saving the
+                // `PanicInfo` so that we can resume the unwind at a controlled,
+                // safe point in time.
+                if let Some(panic) = self.panic_info.take() {
+                    resume_unwind(panic);
+                }
 
-            if let Some(panic) = self.panic_info.take() {
-                drop(self._callback.take());
-                resume_unwind(panic);
-            }
-            AppState::exit()
+                self.delegate.internal_exit()
+            })
         });
-        drop(self._callback.take());
 
-        exit_code
+        Ok(())
+    }
+
+    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, handler: F) -> PumpStatus
+    where
+        F: FnMut(Event<T>, &RootWindowTarget),
+    {
+        let handler = map_user_event(handler, self.receiver.clone());
+
+        self.delegate.set_event_handler(handler, || {
+            autoreleasepool(|_| {
+                // As a special case, if the application hasn't been launched yet then we at least run
+                // the loop until it has fully launched.
+                if !self.delegate.is_launched() {
+                    debug_assert!(!self.delegate.is_running());
+
+                    self.delegate.set_stop_on_launch();
+                    // SAFETY: We do not run the application re-entrantly
+                    unsafe { self.app.run() };
+
+                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application has launched
+                } else if !self.delegate.is_running() {
+                    // Even though the application may have been launched, it's possible we aren't running
+                    // if the `EventLoop` was run before and has since exited. This indicates that
+                    // we just starting to re-run the same `EventLoop` again.
+                    self.delegate.set_is_running(true);
+                    self.delegate.dispatch_init_events();
+                } else {
+                    // Only run for as long as the given `Duration` allows so we don't block the external loop.
+                    match timeout {
+                        Some(Duration::ZERO) => {
+                            self.delegate.set_wait_timeout(None);
+                            self.delegate.set_stop_before_wait(true);
+                        }
+                        Some(duration) => {
+                            self.delegate.set_stop_before_wait(false);
+                            let timeout = Instant::now() + duration;
+                            self.delegate.set_wait_timeout(Some(timeout));
+                            self.delegate.set_stop_after_wait(true);
+                        }
+                        None => {
+                            self.delegate.set_wait_timeout(None);
+                            self.delegate.set_stop_before_wait(false);
+                            self.delegate.set_stop_after_wait(true);
+                        }
+                    }
+                    self.delegate.set_stop_on_redraw(true);
+                    // SAFETY: We do not run the application re-entrantly
+                    unsafe { self.app.run() };
+                }
+
+                // While the app is running it's possible that we catch a panic
+                // to avoid unwinding across an objective-c ffi boundary, which
+                // will lead to us stopping the application and saving the
+                // `PanicInfo` so that we can resume the unwind at a controlled,
+                // safe point in time.
+                if let Some(panic) = self.panic_info.take() {
+                    resume_unwind(panic);
+                }
+
+                if self.delegate.exiting() {
+                    self.delegate.internal_exit();
+                    PumpStatus::Exit(0)
+                } else {
+                    PumpStatus::Continue
+                }
+            })
+        })
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.window_target.p.sender.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct OwnedDisplayHandle;
+
+impl OwnedDisplayHandle {
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::AppKitDisplayHandle::empty().into()
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::AppKitDisplayHandle::new().into())
+    }
+}
+
+pub(super) fn stop_app_immediately(app: &NSApplication) {
+    autoreleasepool(|_| {
+        app.stop(None);
+        // To stop event loop immediately, we need to post some event here.
+        // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
+        app.postEvent_atStart(&dummy_event().unwrap(), true);
+    });
 }
 
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
 #[inline]
 pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
+    mtm: MainThreadMarker,
     panic_info: Weak<PanicInfo>,
     f: F,
 ) -> Option<R> {
@@ -263,11 +444,8 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 let panic_info = panic_info.upgrade().unwrap();
                 panic_info.set_panic(e);
             }
-            let app = NSApp();
-            app.stop(None);
-            // Posting a dummy event to get `stop` to take effect immediately.
-            // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-            app.postEvent_atStart(&NSEvent::dummy(), true);
+            let app = NSApplication::sharedApplication(mtm);
+            stop_app_immediately(&app);
             None
         }
     }
@@ -279,6 +457,7 @@ pub struct EventLoopProxy<T> {
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {

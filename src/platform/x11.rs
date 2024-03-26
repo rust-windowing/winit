@@ -1,18 +1,58 @@
-use std::os::raw;
-use std::ptr;
+//! # X11
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ActiveEventLoop, EventLoopBuilder},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 use crate::dpi::Size;
-use crate::platform_impl::{
-    x11::ffi::XVisualInfo, ApplicationName, Backend, Window as LinuxWindow, XLIB_ERROR_HOOKS,
-};
 
-pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+/// X window type. Maps directly to
+/// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowType {
+    /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
+    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
+    /// root window clicks.
+    Desktop,
+    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+    Dock,
+    /// Toolbar windows. "Torn off" from the main application.
+    Toolbar,
+    /// Pinnable menu windows. "Torn off" from the main application.
+    Menu,
+    /// A small persistent utility window, such as a palette or toolbox.
+    Utility,
+    /// The window is a splash screen displayed as an application is starting up.
+    Splash,
+    /// This is a dialog window.
+    Dialog,
+    /// A dropdown menu that usually appears when the user clicks on an item in a menu bar.
+    /// This property is typically used on override-redirect windows.
+    DropdownMenu,
+    /// A popup menu that usually appears when the user right clicks on an object.
+    /// This property is typically used on override-redirect windows.
+    PopupMenu,
+    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
+    /// This property is typically used on override-redirect windows.
+    Tooltip,
+    /// The window is a notification.
+    /// This property is typically used on override-redirect windows.
+    Notification,
+    /// This should be used on the windows that are popped up by combo boxes.
+    /// This property is typically used on override-redirect windows.
+    Combo,
+    /// This indicates the window is being dragged.
+    /// This property is typically used on override-redirect windows.
+    Dnd,
+    /// This is a normal, top-level window.
+    #[default]
+    Normal,
+}
 
 /// The first argument in the provided hook will be the pointer to `XDisplay`
 /// and the second one the pointer to [`XErrorEvent`]. The returned `bool` is an
@@ -22,9 +62,15 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 pub type XlibErrorHook =
     Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
 
+/// A unique identifier for an X11 visual.
+pub type XVisualID = u32;
+
+/// A unique identifier for an X11 window.
+pub type XWindow = u32;
+
 /// Hook to winit's xlib error handling callback.
 ///
-/// This method is provided as a safe way to handle the errors comming from X11
+/// This method is provided as a safe way to handle the errors coming from X11
 /// when using xlib in external crates, like glutin for GLX access. Trying to
 /// handle errors by speculating with `XSetErrorHandler` is [`unsafe`].
 ///
@@ -37,17 +83,20 @@ pub type XlibErrorHook =
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
     unsafe {
-        XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
+        crate::platform_impl::XLIB_ERROR_HOOKS
+            .lock()
+            .unwrap()
+            .push(hook);
     }
 }
 
-/// Additional methods on [`EventLoopWindowTarget`] that are specific to X11.
-pub trait EventLoopWindowTargetExtX11 {
-    /// True if the [`EventLoopWindowTarget`] uses X11.
+/// Additional methods on [`ActiveEventLoop`] that are specific to X11.
+pub trait ActiveEventLoopExtX11 {
+    /// True if the [`ActiveEventLoop`] uses X11.
     fn is_x11(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
+impl ActiveEventLoopExtX11 for ActiveEventLoop {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.p.is_wayland()
@@ -69,7 +118,7 @@ pub trait EventLoopBuilderExtX11 {
 impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
     #[inline]
     fn with_x11(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(Backend::X);
+        self.platform_specific.forced_backend = Some(crate::platform_impl::Backend::X);
         self
     }
 
@@ -81,140 +130,106 @@ impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to X11.
-pub trait WindowExtX11 {
-    /// Returns the ID of the [`Window`] xlib object that is used by this window.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    fn xlib_window(&self) -> Option<raw::c_ulong>;
+pub trait WindowExtX11 {}
 
-    /// Returns a pointer to the `Display` object of xlib that is used by this window.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn xlib_display(&self) -> Option<*mut raw::c_void>;
+impl WindowExtX11 for Window {}
 
-    fn xlib_screen_id(&self) -> Option<raw::c_int>;
-
-    /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
-    ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
-    fn xcb_connection(&self) -> Option<*mut raw::c_void>;
-}
-
-impl WindowExtX11 for Window {
-    #[inline]
-    fn xlib_window(&self) -> Option<raw::c_ulong> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xlib_display(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xlib_screen_id(&self) -> Option<raw::c_int> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(wayland_platform)]
-            _ => None,
-        }
-    }
-}
-
-/// Additional methods on [`WindowBuilder`] that are specific to X11.
-pub trait WindowBuilderExtX11 {
-    fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+/// Additional methods on [`WindowAttributes`] that are specific to X11.
+pub trait WindowAttributesExtX11 {
+    /// Create this window with a specific X11 visual.
+    fn with_x11_visual(self, visual_id: XVisualID) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
     /// The `general` sets general class of `WM_CLASS(STRING)`, while `instance` set the
-    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "general", "instance"`.
+    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "instance", "general"`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 
-    /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
+    /// Build window with override-redirect flag; defaults to false.
     fn with_override_redirect(self, override_redirect: bool) -> Self;
 
-    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
-    fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
+    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`.
+    fn with_x11_window_type(self, x11_window_type: Vec<WindowType>) -> Self;
 
-    /// Build window with base size hint. Only implemented on X11.
+    /// Build window with base size hint.
     ///
     /// ```
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::WindowBuilder;
-    /// # use winit::platform::x11::WindowBuilderExtX11;
+    /// # use winit::window::Window;
+    /// # use winit::platform::x11::WindowAttributesExtX11;
     /// // Specify the size in logical dimensions like this:
-    /// WindowBuilder::new().with_base_size(LogicalSize::new(400.0, 200.0));
+    /// Window::default_attributes().with_base_size(LogicalSize::new(400.0, 200.0));
     ///
     /// // Or specify the size in physical dimensions like this:
-    /// WindowBuilder::new().with_base_size(PhysicalSize::new(400, 200));
+    /// Window::default_attributes().with_base_size(PhysicalSize::new(400, 200));
     /// ```
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
+
+    /// Embed this window into another parent window.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use winit::window::Window;
+    /// use winit::event_loop::ActiveEventLoop;
+    /// use winit::platform::x11::{XWindow, WindowAttributesExtX11};
+    /// # fn create_window(event_loop: &ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
+    /// let parent_window_id = std::env::args().nth(1).unwrap().parse::<XWindow>()?;
+    /// let window_attributes = Window::default_attributes().with_embed_parent_window(parent_window_id);
+    /// let window = event_loop.create_window(window_attributes)?;
+    /// # Ok(()) }
+    /// ```
+    fn with_embed_parent_window(self, parent_window_id: XWindow) -> Self;
 }
 
-impl WindowBuilderExtX11 for WindowBuilder {
+impl WindowAttributesExtX11 for WindowAttributes {
     #[inline]
-    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
-        {
-            self.platform_specific.visual_infos =
-                Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
-        }
+    fn with_x11_visual(mut self, visual_id: XVisualID) -> Self {
+        self.platform_specific.x11.visual_id = Some(visual_id);
         self
     }
 
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.platform_specific.screen_id = Some(screen_id);
+        self.platform_specific.x11.screen_id = Some(screen_id);
         self
     }
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+            general.into(),
+            instance.into(),
+        ));
         self
     }
 
     #[inline]
     fn with_override_redirect(mut self, override_redirect: bool) -> Self {
-        self.platform_specific.override_redirect = override_redirect;
+        self.platform_specific.x11.override_redirect = override_redirect;
         self
     }
 
     #[inline]
-    fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
-        self.platform_specific.x11_window_types = x11_window_types;
+    fn with_x11_window_type(mut self, x11_window_types: Vec<WindowType>) -> Self {
+        self.platform_specific.x11.x11_window_types = x11_window_types;
         self
     }
 
     #[inline]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
-        self.platform_specific.base_size = Some(base_size.into());
+        self.platform_specific.x11.base_size = Some(base_size.into());
+        self
+    }
+
+    #[inline]
+    fn with_embed_parent_window(mut self, parent_window_id: XWindow) -> Self {
+        self.platform_specific.x11.embed_window = Some(parent_window_id);
         self
     }
 }

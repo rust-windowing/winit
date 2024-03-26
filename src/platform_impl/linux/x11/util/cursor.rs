@@ -1,9 +1,21 @@
-use crate::{dpi::PhysicalPosition, error::ExternalError, window::CursorIcon};
+use std::{
+    ffi::CString,
+    hash::{Hash, Hasher},
+    iter, slice,
+    sync::Arc,
+};
 
+use x11rb::connection::Connection;
+
+use crate::dpi::PhysicalPosition;
+use crate::error::ExternalError;
+use crate::{platform_impl::PlatformCustomCursorSource, window::CursorIcon};
+
+use super::super::ActiveEventLoop;
 use super::*;
 
 impl XConnection {
-    pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
+    pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
         let cursor = *self
             .cursor_cache
             .lock()
@@ -11,7 +23,13 @@ impl XConnection {
             .entry(cursor)
             .or_insert_with(|| self.get_cursor(cursor));
 
-        self.update_cursor(window, cursor);
+        self.update_cursor(window, cursor)
+            .expect("Failed to set cursor");
+    }
+
+    pub(crate) fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
+        self.update_cursor(window, cursor.inner.cursor)
+            .expect("Failed to set cursor");
     }
 
     fn create_empty_cursor(&self) -> ffi::Cursor {
@@ -45,86 +63,102 @@ impl XConnection {
         }
     }
 
-    fn load_cursor(&self, name: &[u8]) -> ffi::Cursor {
-        unsafe {
-            (self.xcursor.XcursorLibraryLoadCursor)(self.display, name.as_ptr() as *const c_char)
-        }
-    }
-
-    fn load_first_existing_cursor(&self, names: &[&[u8]]) -> ffi::Cursor {
-        for name in names.iter() {
-            let xcursor = self.load_cursor(name);
-            if xcursor != 0 {
-                return xcursor;
-            }
-        }
-        0
-    }
-
     fn get_cursor(&self, cursor: Option<CursorIcon>) -> ffi::Cursor {
         let cursor = match cursor {
             Some(cursor) => cursor,
             None => return self.create_empty_cursor(),
         };
 
-        let load = |name: &[u8]| self.load_cursor(name);
+        let mut xcursor = 0;
+        for &name in iter::once(&cursor.name()).chain(cursor.alt_names().iter()) {
+            let name = CString::new(name).unwrap();
+            xcursor = unsafe {
+                (self.xcursor.XcursorLibraryLoadCursor)(
+                    self.display,
+                    name.as_ptr() as *const c_char,
+                )
+            };
 
-        let loadn = |names: &[&[u8]]| self.load_first_existing_cursor(names);
-
-        // Try multiple names in some cases where the name
-        // differs on the desktop environments or themes.
-        //
-        // Try the better looking (or more suiting) names first.
-        match cursor {
-            CursorIcon::Alias => load(b"link\0"),
-            CursorIcon::Arrow => load(b"arrow\0"),
-            CursorIcon::Cell => load(b"plus\0"),
-            CursorIcon::Copy => load(b"copy\0"),
-            CursorIcon::Crosshair => load(b"crosshair\0"),
-            CursorIcon::Default => load(b"left_ptr\0"),
-            CursorIcon::Hand => loadn(&[b"hand2\0", b"hand1\0"]),
-            CursorIcon::Help => load(b"question_arrow\0"),
-            CursorIcon::Move => load(b"move\0"),
-            CursorIcon::Grab => loadn(&[b"openhand\0", b"grab\0"]),
-            CursorIcon::Grabbing => loadn(&[b"closedhand\0", b"grabbing\0"]),
-            CursorIcon::Progress => load(b"left_ptr_watch\0"),
-            CursorIcon::AllScroll => load(b"all-scroll\0"),
-            CursorIcon::ContextMenu => load(b"context-menu\0"),
-
-            CursorIcon::NoDrop => loadn(&[b"no-drop\0", b"circle\0"]),
-            CursorIcon::NotAllowed => load(b"crossed_circle\0"),
-
-            // Resize cursors
-            CursorIcon::EResize => load(b"right_side\0"),
-            CursorIcon::NResize => load(b"top_side\0"),
-            CursorIcon::NeResize => load(b"top_right_corner\0"),
-            CursorIcon::NwResize => load(b"top_left_corner\0"),
-            CursorIcon::SResize => load(b"bottom_side\0"),
-            CursorIcon::SeResize => load(b"bottom_right_corner\0"),
-            CursorIcon::SwResize => load(b"bottom_left_corner\0"),
-            CursorIcon::WResize => load(b"left_side\0"),
-            CursorIcon::EwResize => load(b"h_double_arrow\0"),
-            CursorIcon::NsResize => load(b"v_double_arrow\0"),
-            CursorIcon::NwseResize => loadn(&[b"bd_double_arrow\0", b"size_fdiag\0"]),
-            CursorIcon::NeswResize => loadn(&[b"fd_double_arrow\0", b"size_bdiag\0"]),
-            CursorIcon::ColResize => loadn(&[b"split_h\0", b"h_double_arrow\0"]),
-            CursorIcon::RowResize => loadn(&[b"split_v\0", b"v_double_arrow\0"]),
-
-            CursorIcon::Text => loadn(&[b"text\0", b"xterm\0"]),
-            CursorIcon::VerticalText => load(b"vertical-text\0"),
-
-            CursorIcon::Wait => load(b"watch\0"),
-
-            CursorIcon::ZoomIn => load(b"zoom-in\0"),
-            CursorIcon::ZoomOut => load(b"zoom-out\0"),
+            if xcursor != 0 {
+                break;
+            }
         }
+
+        xcursor
     }
 
-    fn update_cursor(&self, window: ffi::Window, cursor: ffi::Cursor) {
-        unsafe {
-            (self.xlib.XDefineCursor)(self.display, window, cursor);
+    fn update_cursor(&self, window: xproto::Window, cursor: ffi::Cursor) -> Result<(), X11Error> {
+        self.xcb_connection()
+            .change_window_attributes(
+                window,
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor as xproto::Cursor),
+            )?
+            .ignore_error();
 
-            self.flush_requests().expect("Failed to set the cursor");
+        self.xcb_connection().flush()?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectedCursor {
+    Custom(CustomCursor),
+    Named(CursorIcon),
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomCursor {
+    inner: Arc<CustomCursorInner>,
+}
+
+impl Hash for CustomCursor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.inner).hash(state);
+    }
+}
+
+impl PartialEq for CustomCursor {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl Eq for CustomCursor {}
+
+impl CustomCursor {
+    pub(crate) fn new(
+        event_loop: &ActiveEventLoop,
+        cursor: PlatformCustomCursorSource,
+    ) -> CustomCursor {
+        unsafe {
+            let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(
+                cursor.0.width as i32,
+                cursor.0.height as i32,
+            );
+            if ximage.is_null() {
+                panic!("failed to allocate cursor image");
+            }
+            (*ximage).xhot = cursor.0.hotspot_x as u32;
+            (*ximage).yhot = cursor.0.hotspot_y as u32;
+            (*ximage).delay = 0;
+
+            let dst = slice::from_raw_parts_mut((*ximage).pixels, cursor.0.rgba.len() / 4);
+            for (dst, chunk) in dst.iter_mut().zip(cursor.0.rgba.chunks_exact(4)) {
+                *dst = (chunk[0] as u32) << 16
+                    | (chunk[1] as u32) << 8
+                    | (chunk[2] as u32)
+                    | (chunk[3] as u32) << 24;
+            }
+
+            let cursor =
+                (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
+            (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
+            Self {
+                inner: Arc::new(CustomCursorInner {
+                    xconn: event_loop.xconn.clone(),
+                    cursor,
+                }),
+            }
         }
     }
 
@@ -154,5 +188,25 @@ impl XConnection {
             );
         }
         Ok((root_x_return, root_y_return).into())
+    }
+}
+
+#[derive(Debug)]
+struct CustomCursorInner {
+    xconn: Arc<XConnection>,
+    cursor: ffi::Cursor,
+}
+
+impl Drop for CustomCursorInner {
+    fn drop(&mut self) {
+        unsafe {
+            (self.xconn.xlib.XFreeCursor)(self.xconn.display, self.cursor);
+        }
+    }
+}
+
+impl Default for SelectedCursor {
+    fn default() -> Self {
+        SelectedCursor::Named(Default::default())
     }
 }

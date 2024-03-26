@@ -11,6 +11,7 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
+use objc2::{ffi::NSInteger, runtime::AnyObject};
 
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
@@ -113,6 +114,14 @@ extern "C" {
     pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
+
+    // Wildly used private APIs; Apple uses them for their Terminal.app.
+    pub fn CGSMainConnectionID() -> *mut AnyObject;
+    pub fn CGSSetWindowBackgroundBlurRadius(
+        connection_id: *mut AnyObject,
+        window_id: NSInteger,
+        radius: i64,
+    ) -> i32;
 }
 
 mod core_video {
@@ -156,3 +165,90 @@ mod core_video {
 }
 
 pub use core_video::*;
+#[repr(transparent)]
+pub struct TISInputSource(std::ffi::c_void);
+pub type TISInputSourceRef = *mut TISInputSource;
+
+#[repr(transparent)]
+pub struct UCKeyboardLayout(std::ffi::c_void);
+
+pub type OptionBits = u32;
+pub type UniCharCount = std::os::raw::c_ulong;
+pub type UniChar = std::os::raw::c_ushort;
+pub type OSStatus = i32;
+
+#[allow(non_upper_case_globals)]
+pub const kUCKeyActionDisplay: u16 = 3;
+#[allow(non_upper_case_globals)]
+pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
+
+#[link(name = "Carbon", kind = "framework")]
+extern "C" {
+    pub static kTISPropertyUnicodeKeyLayoutData: CFStringRef;
+
+    #[allow(non_snake_case)]
+    pub fn TISGetInputSourceProperty(
+        inputSource: TISInputSourceRef,
+        propertyKey: CFStringRef,
+    ) -> *mut c_void;
+
+    pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;
+
+    pub fn LMGetKbdType() -> u8;
+
+    #[allow(non_snake_case)]
+    pub fn UCKeyTranslate(
+        keyLayoutPtr: *const UCKeyboardLayout,
+        virtualKeyCode: u16,
+        keyAction: u16,
+        modifierKeyState: u32,
+        keyboardType: u32,
+        keyTranslateOptions: OptionBits,
+        deadKeyState: *mut u32,
+        maxStringLength: UniCharCount,
+        actualStringLength: *mut UniCharCount,
+        unicodeString: *mut UniChar,
+    ) -> OSStatus;
+}
+
+// CGWindowLevel.h
+//
+// Note: There are two different things at play in this header:
+// `CGWindowLevel` and `CGWindowLevelKey`.
+//
+// It seems like there was a push towards using "key" values instead of the
+// raw window level values, and then you were supposed to use
+// `CGWindowLevelForKey` to get the actual level.
+//
+// But the values that `NSWindowLevel` has are compiled in, and as such has
+// to remain ABI compatible, so they're safe for us to hardcode as well.
+#[allow(dead_code, non_upper_case_globals)]
+mod window_level {
+    const kCGNumReservedWindowLevels: i32 = 16;
+    const kCGNumReservedBaseWindowLevels: i32 = 5;
+
+    pub const kCGBaseWindowLevel: i32 = i32::MIN;
+    pub const kCGMinimumWindowLevel: i32 = kCGBaseWindowLevel + kCGNumReservedBaseWindowLevels;
+    pub const kCGMaximumWindowLevel: i32 = i32::MAX - kCGNumReservedWindowLevels;
+
+    pub const kCGDesktopWindowLevel: i32 = kCGMinimumWindowLevel + 20;
+    pub const kCGDesktopIconWindowLevel: i32 = kCGDesktopWindowLevel + 20;
+    pub const kCGBackstopMenuLevel: i32 = -20;
+    pub const kCGNormalWindowLevel: i32 = 0;
+    pub const kCGFloatingWindowLevel: i32 = 3;
+    pub const kCGTornOffMenuWindowLevel: i32 = 3;
+    pub const kCGModalPanelWindowLevel: i32 = 8;
+    pub const kCGUtilityWindowLevel: i32 = 19;
+    pub const kCGDockWindowLevel: i32 = 20;
+    pub const kCGMainMenuWindowLevel: i32 = 24;
+    pub const kCGStatusWindowLevel: i32 = 25;
+    pub const kCGPopUpMenuWindowLevel: i32 = 101;
+    pub const kCGOverlayWindowLevel: i32 = 102;
+    pub const kCGHelpWindowLevel: i32 = 200;
+    pub const kCGDraggingWindowLevel: i32 = 500;
+    pub const kCGScreenSaverWindowLevel: i32 = 1000;
+    pub const kCGAssistiveTechHighWindowLevel: i32 = 1500;
+    pub const kCGCursorWindowLevel: i32 = kCGMaximumWindowLevel - 1;
+}
+
+pub use window_level::*;

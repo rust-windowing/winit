@@ -1,3 +1,7 @@
+//! # Windows
+//!
+//! The supported OS version is Windows 7 or higher, though Windows 10 is
+//! tested regularly.
 use std::{ffi::c_void, path::Path};
 
 use crate::{
@@ -5,8 +9,7 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    platform_impl::WinIcon,
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    window::{BadIcon, Icon, Window, WindowAttributes},
 };
 
 /// Window Handle type used by Win32 API
@@ -15,8 +18,92 @@ pub type HWND = isize;
 pub type HMENU = isize;
 /// Monitor Handle type used by Win32 API
 pub type HMONITOR = isize;
-/// Instance Handle type used by Win32 API
-pub type HINSTANCE = isize;
+
+/// Describes a system-drawn backdrop material of a window.
+///
+/// For a detailed explanation, see [`DWM_SYSTEMBACKDROP_TYPE docs`].
+///
+/// [`DWM_SYSTEMBACKDROP_TYPE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BackdropType {
+    /// Corresponds to `DWMSBT_AUTO`.
+    ///
+    /// Usually draws a default backdrop effect on the title bar.
+    #[default]
+    Auto = 0,
+
+    /// Corresponds to `DWMSBT_NONE`.
+    None = 1,
+
+    /// Corresponds to `DWMSBT_MAINWINDOW`.
+    ///
+    /// Draws the Mica backdrop material.
+    MainWindow = 2,
+
+    /// Corresponds to `DWMSBT_TRANSIENTWINDOW`.
+    ///
+    /// Draws the Background Acrylic backdrop material.
+    TransientWindow = 3,
+
+    /// Corresponds to `DWMSBT_TABBEDWINDOW`.
+    ///
+    /// Draws the Alt Mica backdrop material.
+    TabbedWindow = 4,
+}
+
+/// Describes a color used by Windows
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Color(u32);
+
+impl Color {
+    /// Use the system's default color
+    pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
+
+    //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
+    const NONE: Color = Color(0xFFFFFFFE);
+
+    /// Create a new color from the given RGB values
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::SYSTEM_DEFAULT
+    }
+}
+
+/// Describes how the corners of a window should look like.
+///
+/// For a detailed explanation, see [`DWM_WINDOW_CORNER_PREFERENCE docs`].
+///
+/// [`DWM_WINDOW_CORNER_PREFERENCE docs`]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_window_corner_preference
+#[repr(i32)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CornerPreference {
+    /// Corresponds to `DWMWCP_DEFAULT`.
+    ///
+    /// Let the system decide when to round window corners.
+    #[default]
+    Default = 0,
+
+    /// Corresponds to `DWMWCP_DONOTROUND`.
+    ///
+    /// Never round window corners.
+    DoNotRound = 1,
+
+    /// Corresponds to `DWMWCP_ROUND`.
+    ///
+    /// Round the corners, if appropriate.
+    Round = 2,
+
+    /// Corresponds to `DWMWCP_ROUNDSMALL`.
+    ///
+    /// Round the corners if appropriate, with a small radius.
+    RoundSmall = 3,
+}
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
@@ -111,18 +198,11 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
-    /// Returns the HINSTANCE of the window
-    fn hinstance(&self) -> HINSTANCE;
-    /// Returns the native handle that is used by this window.
-    ///
-    /// The pointer will become invalid when the native window was destroyed.
-    fn hwnd(&self) -> HWND;
-
     /// Enables or disables mouse and keyboard input to the specified window.
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
+    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must enable
     /// the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
@@ -143,19 +223,34 @@ pub trait WindowExtWindows {
     ///
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
     fn set_undecorated_shadow(&self, shadow: bool);
+
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn set_system_backdrop(&self, backdrop_type: BackdropType);
+
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_border_color(&self, color: Option<Color>);
+
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_title_background_color(&self, color: Option<Color>);
+
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_title_text_color(&self, color: Color);
+
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn set_corner_preference(&self, preference: CornerPreference);
 }
 
 impl WindowExtWindows for Window {
-    #[inline]
-    fn hinstance(&self) -> HINSTANCE {
-        self.window.hinstance()
-    }
-
-    #[inline]
-    fn hwnd(&self) -> HWND {
-        self.window.hwnd()
-    }
-
     #[inline]
     fn set_enable(&self, enabled: bool) {
         self.window.set_enable(enabled)
@@ -175,13 +270,42 @@ impl WindowExtWindows for Window {
     fn set_undecorated_shadow(&self, shadow: bool) {
         self.window.set_undecorated_shadow(shadow)
     }
+
+    #[inline]
+    fn set_system_backdrop(&self, backdrop_type: BackdropType) {
+        self.window.set_system_backdrop(backdrop_type)
+    }
+
+    #[inline]
+    fn set_border_color(&self, color: Option<Color>) {
+        self.window.set_border_color(color.unwrap_or(Color::NONE))
+    }
+
+    #[inline]
+    fn set_title_background_color(&self, color: Option<Color>) {
+        // The windows docs don't mention NONE as a valid options but it works in practice and is useful
+        // to circumvent the Windows option "Show accent color on title bars and window borders"
+        self.window
+            .set_title_background_color(color.unwrap_or(Color::NONE))
+    }
+
+    #[inline]
+    fn set_title_text_color(&self, color: Color) {
+        self.window.set_title_text_color(color)
+    }
+
+    #[inline]
+    fn set_corner_preference(&self, preference: CornerPreference) {
+        self.window.set_corner_preference(preference)
+    }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to Windows.
-pub trait WindowBuilderExtWindows {
+/// Additional methods on `WindowAttributes` that are specific to Windows.
+#[allow(rustdoc::broken_intra_doc_links)]
+pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
-    /// This only works when [`WindowBuilder::with_parent_window`] isn't called or set to `None`.
-    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
+    /// This only works when [`WindowAttributes::with_parent_window`] isn't called or set to `None`.
+    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable]
     /// on the owner window to create a modal dialog box.
     ///
     /// From MSDN:
@@ -190,7 +314,7 @@ pub trait WindowBuilderExtWindows {
     /// - An owned window is hidden when its owner is minimized.
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
-    fn with_owner_window(self, parent: HWND) -> WindowBuilder;
+    fn with_owner_window(self, parent: HWND) -> Self;
 
     /// Sets a menu on the window to be created.
     ///
@@ -201,14 +325,21 @@ pub trait WindowBuilderExtWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
     /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     ///
-    /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
-    fn with_menu(self, menu: HMENU) -> WindowBuilder;
+    #[cfg_attr(
+        platform_windows,
+        doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
+    )]
+    #[cfg_attr(
+        not(platform_windows),
+        doc = "[`CreateMenu`]: #only-available-on-windows"
+    )]
+    fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
-    fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
+    fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> Self;
 
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
-    fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
+    fn with_no_redirection_bitmap(self, flag: bool) -> Self;
 
     /// Enables or disables drag and drop support (enabled by default). Will interfere with other crates
     /// that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED` instead of
@@ -216,58 +347,131 @@ pub trait WindowBuilderExtWindows {
     /// COM API regardless of this option. Currently only fullscreen mode does that, but there may be more in the future.
     /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
     /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
-    fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
+    fn with_drag_and_drop(self, flag: bool) -> Self;
 
     /// Whether show or hide the window icon in the taskbar.
-    fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
+    fn with_skip_taskbar(self, skip: bool) -> Self;
+
+    /// Customize the window class name.
+    fn with_class_name<S: Into<String>>(self, class_name: S) -> Self;
 
     /// Shows or hides the background drop shadow for undecorated windows.
     ///
     /// The shadow is hidden by default.
     /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
-    fn with_undecorated_shadow(self, shadow: bool) -> WindowBuilder;
+    fn with_undecorated_shadow(self, shadow: bool) -> Self;
+
+    /// Sets system-drawn backdrop type.
+    ///
+    /// Requires Windows 11 build 22523+.
+    fn with_system_backdrop(self, backdrop_type: BackdropType) -> Self;
+
+    /// This sets or removes `WS_CLIPCHILDREN` style.
+    fn with_clip_children(self, flag: bool) -> Self;
+
+    /// Sets the color of the window border.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_border_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the background color of the title bar.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_background_color(self, color: Option<Color>) -> Self;
+
+    /// Sets the color of the window title.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_title_text_color(self, color: Color) -> Self;
+
+    /// Sets the preferred style of the window corners.
+    ///
+    /// Supported starting with Windows 11 Build 22000.
+    fn with_corner_preference(self, corners: CornerPreference) -> Self;
 }
 
-impl WindowBuilderExtWindows for WindowBuilder {
+impl WindowAttributesExtWindows for WindowAttributes {
     #[inline]
-    fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
+    fn with_owner_window(mut self, parent: HWND) -> Self {
         self.platform_specific.owner = Some(parent);
         self
     }
 
     #[inline]
-    fn with_menu(mut self, menu: HMENU) -> WindowBuilder {
+    fn with_menu(mut self, menu: HMENU) -> Self {
         self.platform_specific.menu = Some(menu);
         self
     }
 
     #[inline]
-    fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> WindowBuilder {
+    fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> Self {
         self.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 
     #[inline]
-    fn with_no_redirection_bitmap(mut self, flag: bool) -> WindowBuilder {
+    fn with_no_redirection_bitmap(mut self, flag: bool) -> Self {
         self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 
     #[inline]
-    fn with_drag_and_drop(mut self, flag: bool) -> WindowBuilder {
+    fn with_drag_and_drop(mut self, flag: bool) -> Self {
         self.platform_specific.drag_and_drop = flag;
         self
     }
 
     #[inline]
-    fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
+    fn with_skip_taskbar(mut self, skip: bool) -> Self {
         self.platform_specific.skip_taskbar = skip;
         self
     }
 
     #[inline]
-    fn with_undecorated_shadow(mut self, shadow: bool) -> WindowBuilder {
+    fn with_class_name<S: Into<String>>(mut self, class_name: S) -> Self {
+        self.platform_specific.class_name = class_name.into();
+        self
+    }
+
+    #[inline]
+    fn with_undecorated_shadow(mut self, shadow: bool) -> Self {
         self.platform_specific.decoration_shadow = shadow;
+        self
+    }
+
+    #[inline]
+    fn with_system_backdrop(mut self, backdrop_type: BackdropType) -> Self {
+        self.platform_specific.backdrop_type = backdrop_type;
+        self
+    }
+
+    #[inline]
+    fn with_clip_children(mut self, flag: bool) -> Self {
+        self.platform_specific.clip_children = flag;
+        self
+    }
+
+    #[inline]
+    fn with_border_color(mut self, color: Option<Color>) -> Self {
+        self.platform_specific.border_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_background_color(mut self, color: Option<Color>) -> Self {
+        self.platform_specific.title_background_color = Some(color.unwrap_or(Color::NONE));
+        self
+    }
+
+    #[inline]
+    fn with_title_text_color(mut self, color: Color) -> Self {
+        self.platform_specific.title_text_color = Some(color);
+        self
+    }
+
+    #[inline]
+    fn with_corner_preference(mut self, corners: CornerPreference) -> Self {
+        self.platform_specific.corner_preference = Some(corners);
         self
     }
 }
@@ -335,12 +539,12 @@ impl IconExtWindows for Icon {
         path: P,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_path(path, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }
 
     fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        let win_icon = crate::platform_impl::WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
     }
 }

@@ -1,10 +1,17 @@
 #![cfg(target_os = "redox")]
 
+use std::fmt::{self, Display, Formatter};
 use std::str;
+use std::sync::Arc;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use smol_str::SmolStr;
 
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    keyboard::Key,
+};
+
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle};
 mod event_loop;
 
 pub use self::window::Window;
@@ -126,7 +133,7 @@ impl DeviceId {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowAttributes;
 
 struct WindowProperties<'a> {
     flags: &'a str,
@@ -176,16 +183,23 @@ impl<'a> fmt::Display for WindowProperties<'a> {
     }
 }
 
-#[derive(Default, Clone, Debug)]
-pub struct OsError;
+#[derive(Clone, Debug)]
+pub struct OsError(Arc<syscall::Error>);
 
-use std::fmt::{self, Display, Formatter};
-impl Display for OsError {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(fmt, "Redox OS Error")
+impl OsError {
+    fn new(error: syscall::Error) -> Self {
+        Self(Arc::new(error))
     }
 }
 
+impl Display for OsError {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(fmt)
+    }
+}
+
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursor;
+pub(crate) use crate::cursor::NoCustomCursor as PlatformCustomCursorSource;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -213,11 +227,11 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoMode {
+        std::iter::once(VideoModeHandle {
             size,
             bit_depth: 32,
             refresh_rate_millihertz: 60000,
@@ -227,14 +241,14 @@ impl MonitorHandle {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct VideoMode {
+pub struct VideoModeHandle {
     size: (u32, u32),
     bit_depth: u16,
     refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
-impl VideoMode {
+impl VideoModeHandle {
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
@@ -250,4 +264,10 @@ impl VideoMode {
     pub fn monitor(&self) -> MonitorHandle {
         self.monitor.clone()
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub key_without_modifiers: Key,
+    pub text_with_all_modifiers: Option<SmolStr>,
 }

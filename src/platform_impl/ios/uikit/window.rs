@@ -1,6 +1,6 @@
-use objc2::foundation::NSObject;
-use objc2::rc::{Id, Shared};
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::rc::Id;
+use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
 
 use super::{UIResponder, UIScreen, UIView};
 
@@ -11,25 +11,26 @@ extern_class!(
     unsafe impl ClassType for UIWindow {
         #[inherits(UIResponder, NSObject)]
         type Super = UIView;
+        type Mutability = mutability::InteriorMutable;
     }
 );
 
 extern_methods!(
     unsafe impl UIWindow {
-        pub fn screen(&self) -> Id<UIScreen, Shared> {
+        pub fn screen(&self) -> Id<UIScreen> {
             unsafe { msg_send_id![self, screen] }
         }
 
-        #[sel(setScreen:)]
+        #[method(setScreen:)]
         pub fn setScreen(&self, screen: &UIScreen);
 
-        #[sel(setHidden:)]
+        #[method(setHidden:)]
         pub fn setHidden(&self, flag: bool);
 
-        #[sel(makeKeyAndVisible)]
+        #[method(makeKeyAndVisible)]
         pub fn makeKeyAndVisible(&self);
 
-        #[sel(isKeyWindow)]
+        #[method(isKeyWindow)]
         pub fn isKeyWindow(&self) -> bool;
     }
 );

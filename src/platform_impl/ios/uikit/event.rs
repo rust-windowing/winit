@@ -1,5 +1,5 @@
-use objc2::foundation::NSObject;
-use objc2::{extern_class, ClassType};
+use icrate::Foundation::NSObject;
+use objc2::{extern_class, mutability, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -7,5 +7,6 @@ extern_class!(
 
     unsafe impl ClassType for UIEvent {
         type Super = NSObject;
+        type Mutability = mutability::InteriorMutable;
     }
 );

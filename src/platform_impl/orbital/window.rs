@@ -3,11 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use raw_window_handle::{
-    OrbitalDisplayHandle, OrbitalWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-
 use crate::{
+    cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     platform_impl::Fullscreen,
@@ -16,8 +13,7 @@ use crate::{
 };
 
 use super::{
-    EventLoopWindowTarget, MonitorHandle, PlatformSpecificWindowBuilderAttributes, RedoxSocket,
-    TimeSocket, WindowId, WindowProperties,
+    ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
 // These values match the values uses in the `window_new` function in orbital:
@@ -25,7 +21,9 @@ use super::{
 const ORBITAL_FLAG_ASYNC: char = 'a';
 const ORBITAL_FLAG_BACK: char = 'b';
 const ORBITAL_FLAG_FRONT: char = 'f';
+const ORBITAL_FLAG_HIDDEN: char = 'h';
 const ORBITAL_FLAG_BORDERLESS: char = 'l';
+const ORBITAL_FLAG_MAXIMIZED: char = 'm';
 const ORBITAL_FLAG_RESIZABLE: char = 'r';
 const ORBITAL_FLAG_TRANSPARENT: char = 't';
 
@@ -37,10 +35,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        el: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        el: &ActiveEventLoop,
         attrs: window::WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         let scale = MonitorHandle.scale_factor();
 
@@ -62,11 +59,15 @@ impl Window {
         // Async by default.
         let mut flag_str = ORBITAL_FLAG_ASYNC.to_string();
 
+        if attrs.maximized {
+            flag_str.push(ORBITAL_FLAG_MAXIMIZED);
+        }
+
         if attrs.resizable {
             flag_str.push(ORBITAL_FLAG_RESIZABLE);
         }
 
-        //TODO: maximized, fullscreen, visible
+        //TODO: fullscreen
 
         if attrs.transparent {
             flag_str.push(ORBITAL_FLAG_TRANSPARENT);
@@ -74,6 +75,10 @@ impl Window {
 
         if !attrs.decorations {
             flag_str.push(ORBITAL_FLAG_BORDERLESS);
+        }
+
+        if !attrs.visible {
+            flag_str.push(ORBITAL_FLAG_HIDDEN);
         }
 
         match attrs.window_level {
@@ -126,6 +131,31 @@ impl Window {
         })
     }
 
+    pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
+        f(self)
+    }
+
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&Self) -> R + Send) -> R {
+        f(self)
+    }
+
+    fn get_flag(&self, flag: char) -> Result<bool, error::ExternalError> {
+        let mut buf: [u8; 4096] = [0; 4096];
+        let path = self
+            .window_socket
+            .fpath(&mut buf)
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        let properties = WindowProperties::new(path);
+        Ok(properties.flags.contains(flag))
+    }
+
+    fn set_flag(&self, flag: char, value: bool) -> Result<(), error::ExternalError> {
+        self.window_socket
+            .write(format!("F,{flag},{}", if value { 1 } else { 0 }).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId {
@@ -167,6 +197,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn pre_present_notify(&self) {}
+
+    #[inline]
+    pub fn reset_dead_keys(&self) {
+        // TODO?
+    }
+
+    #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
         let mut buf: [u8; 4096] = [0; 4096];
         let path = self
@@ -204,11 +242,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: Size) {
+    pub fn request_inner_size(&self, size: Size) -> Option<PhysicalSize<u32>> {
         let (w, h): (u32, u32) = size.to_physical::<u32>(self.scale_factor()).into();
         self.window_socket
             .write(format!("S,{w},{h}").as_bytes())
             .expect("failed to set size");
+        None
     }
 
     #[inline]
@@ -242,14 +281,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_transparent(&self, _transparent: bool) {}
+    pub fn set_transparent(&self, transparent: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_TRANSPARENT, transparent);
+    }
 
     #[inline]
-    pub fn set_visible(&self, _visibility: bool) {}
+    pub fn set_blur(&self, _blur: bool) {}
+
+    #[inline]
+    pub fn set_visible(&self, visible: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_HIDDEN, !visible);
+    }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        None
+        Some(!self.get_flag(ORBITAL_FLAG_HIDDEN).unwrap_or(false))
     }
 
     #[inline]
@@ -261,17 +307,13 @@ impl Window {
     pub fn set_resize_increments(&self, _increments: Option<Size>) {}
 
     #[inline]
-    pub fn set_resizable(&self, _resizeable: bool) {}
+    pub fn set_resizable(&self, resizeable: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_RESIZABLE, resizeable);
+    }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self
-            .window_socket
-            .fpath(&mut buf)
-            .expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        properties.flags.contains(ORBITAL_FLAG_RESIZABLE)
+        self.get_flag(ORBITAL_FLAG_RESIZABLE).unwrap_or(false)
     }
 
     #[inline]
@@ -283,11 +325,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, _maximized: bool) {}
+    pub fn set_maximized(&self, maximized: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_MAXIMIZED, maximized);
+    }
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        false
+        self.get_flag(ORBITAL_FLAG_MAXIMIZED).unwrap_or(false)
     }
 
     #[inline]
@@ -299,27 +343,36 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_decorations(&self, _decorations: bool) {}
-
-    #[inline]
-    pub fn is_decorated(&self) -> bool {
-        let mut buf: [u8; 4096] = [0; 4096];
-        let path = self
-            .window_socket
-            .fpath(&mut buf)
-            .expect("failed to read properties");
-        let properties = WindowProperties::new(path);
-        !properties.flags.contains(ORBITAL_FLAG_BORDERLESS)
+    pub fn set_decorations(&self, decorations: bool) {
+        let _ = self.set_flag(ORBITAL_FLAG_BORDERLESS, !decorations);
     }
 
     #[inline]
-    pub fn set_window_level(&self, _level: window::WindowLevel) {}
+    pub fn is_decorated(&self) -> bool {
+        !self.get_flag(ORBITAL_FLAG_BORDERLESS).unwrap_or(false)
+    }
+
+    #[inline]
+    pub fn set_window_level(&self, level: window::WindowLevel) {
+        match level {
+            window::WindowLevel::AlwaysOnBottom => {
+                let _ = self.set_flag(ORBITAL_FLAG_BACK, true);
+            }
+            window::WindowLevel::Normal => {
+                let _ = self.set_flag(ORBITAL_FLAG_BACK, false);
+                let _ = self.set_flag(ORBITAL_FLAG_FRONT, false);
+            }
+            window::WindowLevel::AlwaysOnTop => {
+                let _ = self.set_flag(ORBITAL_FLAG_FRONT, true);
+            }
+        }
+    }
 
     #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {}
+    pub fn set_ime_cursor_area(&self, _position: Position, _size: Size) {}
 
     #[inline]
     pub fn set_ime_allowed(&self, _allowed: bool) {}
@@ -334,7 +387,7 @@ impl Window {
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     #[inline]
-    pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
+    pub fn set_cursor(&self, _: Cursor) {}
 
     #[inline]
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
@@ -344,31 +397,62 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _: window::CursorGrabMode) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+    pub fn set_cursor_grab(
+        &self,
+        mode: window::CursorGrabMode,
+    ) -> Result<(), error::ExternalError> {
+        let (grab, relative) = match mode {
+            window::CursorGrabMode::None => (false, false),
+            window::CursorGrabMode::Confined => (true, false),
+            window::CursorGrabMode::Locked => (true, true),
+        };
+        self.window_socket
+            .write(format!("M,G,{}", if grab { 1 } else { 0 }).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        self.window_socket
+            .write(format!("M,R,{}", if relative { 1 } else { 0 }).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_visible(&self, _: bool) {}
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let _ = self
+            .window_socket
+            .write(format!("M,C,{}", if visible { 1 } else { 0 }).as_bytes());
+    }
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        self.window_socket
+            .write(b"D")
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
 
     #[inline]
     pub fn drag_resize_window(
         &self,
-        _direction: window::ResizeDirection,
+        direction: window::ResizeDirection,
     ) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        let arg = match direction {
+            window::ResizeDirection::East => "R",
+            window::ResizeDirection::North => "T",
+            window::ResizeDirection::NorthEast => "T,R",
+            window::ResizeDirection::NorthWest => "T,L",
+            window::ResizeDirection::South => "B",
+            window::ResizeDirection::SouthEast => "B,R",
+            window::ResizeDirection::SouthWest => "B,L",
+            window::ResizeDirection::West => "L",
+        };
+        self.window_socket
+            .write(format!("D,{}", arg).as_bytes())
+            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        Ok(())
     }
+
+    #[inline]
+    pub fn show_window_menu(&self, _position: Position) {}
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
@@ -377,16 +461,46 @@ impl Window {
         ))
     }
 
+    #[cfg(feature = "rwh_04")]
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = OrbitalWindowHandle::empty();
+    pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
+        let mut handle = rwh_04::OrbitalHandle::empty();
         handle.window = self.window_socket.fd as *mut _;
-        RawWindowHandle::Orbital(handle)
+        rwh_04::RawWindowHandle::Orbital(handle)
     }
 
+    #[cfg(feature = "rwh_05")]
     #[inline]
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Orbital(OrbitalDisplayHandle::empty())
+    pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
+        let mut handle = rwh_05::OrbitalWindowHandle::empty();
+        handle.window = self.window_socket.fd as *mut _;
+        rwh_05::RawWindowHandle::Orbital(handle)
+    }
+
+    #[cfg(feature = "rwh_05")]
+    #[inline]
+    pub fn raw_display_handle_rwh_05(&self) -> rwh_05::RawDisplayHandle {
+        rwh_05::RawDisplayHandle::Orbital(rwh_05::OrbitalDisplayHandle::empty())
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+        let handle = rwh_06::OrbitalWindowHandle::new({
+            let window = self.window_socket.fd as *mut _;
+            std::ptr::NonNull::new(window).expect("orbital fd should never be null")
+        });
+        Ok(rwh_06::RawWindowHandle::Orbital(handle))
+    }
+
+    #[cfg(feature = "rwh_06")]
+    #[inline]
+    pub fn raw_display_handle_rwh_06(
+        &self,
+    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+        Ok(rwh_06::RawDisplayHandle::Orbital(
+            rwh_06::OrbitalDisplayHandle::new(),
+        ))
     }
 
     #[inline]
@@ -409,6 +523,8 @@ impl Window {
 
     #[inline]
     pub fn set_theme(&self, _theme: Option<window::Theme>) {}
+
+    pub fn set_content_protected(&self, _protected: bool) {}
 }
 
 impl Drop for Window {

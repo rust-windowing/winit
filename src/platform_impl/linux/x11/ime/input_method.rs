@@ -7,11 +7,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use once_cell::sync::Lazy;
+use super::{super::atoms::*, ffi, util, XConnection, XError};
+use x11rb::protocol::xproto;
 
-use super::{ffi, util, XConnection, XError};
-
-static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
+static GLOBAL_LOCK: Mutex<()> = Mutex::new(());
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();
@@ -21,14 +20,16 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     // * The new locale modifiers if we succeeded in setting them.
     // * NULL if the locale modifiers string is malformed or if the
     //   current locale is not supported by Xlib.
-    (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
+    unsafe { (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr()) };
 
-    let im = (xconn.xlib.XOpenIM)(
-        xconn.display,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        ptr::null_mut(),
-    );
+    let im = unsafe {
+        (xconn.xlib.XOpenIM)(
+            xconn.display,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        )
+    };
 
     if im.is_null() {
         None
@@ -157,42 +158,58 @@ impl InputMethodResult {
 
 #[derive(Debug, Clone)]
 enum GetXimServersError {
-    XError(XError),
-    GetPropertyError(util::GetPropertyError),
-    InvalidUtf8(IntoStringError),
+    XError(#[allow(dead_code)] XError),
+    GetPropertyError(#[allow(dead_code)] util::GetPropertyError),
+    InvalidUtf8(#[allow(dead_code)] IntoStringError),
 }
 
-// The root window has a property named XIM_SERVERS, which contains a list of atoms represeting
+impl From<util::GetPropertyError> for GetXimServersError {
+    fn from(error: util::GetPropertyError) -> Self {
+        GetXimServersError::GetPropertyError(error)
+    }
+}
+
+// The root window has a property named XIM_SERVERS, which contains a list of atoms representing
 // the availabile XIM servers. For instance, if you're using ibus, it would contain an atom named
 // "@server=ibus". It's possible for this property to contain multiple atoms, though presumably
 // rare. Note that we replace "@server=" with "@im=" in order to match the format of locale
 // modifiers, since we don't want a user who's looking at logs to ask "am I supposed to set
 // XMODIFIERS to `@server=ibus`?!?"
 unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXimServersError> {
-    let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
+    let atoms = xconn.atoms();
+    let servers_atom = atoms[XIM_SERVERS];
 
-    let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
+    let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
     let mut atoms: Vec<ffi::Atom> = xconn
-        .get_property(root, servers_atom, ffi::XA_ATOM)
-        .map_err(GetXimServersError::GetPropertyError)?;
+        .get_property::<xproto::Atom>(
+            root as xproto::Window,
+            servers_atom,
+            xproto::Atom::from(xproto::AtomEnum::ATOM),
+        )
+        .map_err(GetXimServersError::GetPropertyError)?
+        .into_iter()
+        .map(ffi::Atom::from)
+        .collect::<Vec<_>>();
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
-    (xconn.xlib.XGetAtomNames)(
-        xconn.display,
-        atoms.as_mut_ptr(),
-        atoms.len() as _,
-        names.as_mut_ptr() as _,
-    );
-    names.set_len(atoms.len());
+    unsafe {
+        (xconn.xlib.XGetAtomNames)(
+            xconn.display,
+            atoms.as_mut_ptr(),
+            atoms.len() as _,
+            names.as_mut_ptr() as _,
+        )
+    };
+    unsafe { names.set_len(atoms.len()) };
 
     let mut formatted_names = Vec::with_capacity(names.len());
     for name in names {
-        let string = CStr::from_ptr(name)
+        let string = unsafe { CStr::from_ptr(name) }
             .to_owned()
             .into_string()
             .map_err(GetXimServersError::InvalidUtf8)?;
-        (xconn.xlib.XFree)(name as _);
+        unsafe { (xconn.xlib.XFree)(name as _) };
         formatted_names.push(string.replace("@server=", "@im="));
     }
     xconn.check_errors().map_err(GetXimServersError::XError)?;

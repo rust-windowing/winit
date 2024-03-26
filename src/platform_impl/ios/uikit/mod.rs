@@ -1,18 +1,20 @@
-#![deny(unsafe_op_in_unsafe_fn)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
 use std::os::raw::{c_char, c_int};
 
-use objc2::foundation::NSString;
+use icrate::Foundation::NSString;
 
 mod application;
 mod coordinate_space;
 mod device;
 mod event;
+mod geometry;
+mod gesture_recognizer;
 mod responder;
 mod screen;
 mod screen_mode;
+mod status_bar_style;
 mod touch;
 mod trait_collection;
 mod view;
@@ -21,11 +23,17 @@ mod window;
 
 pub(crate) use self::application::UIApplication;
 pub(crate) use self::coordinate_space::UICoordinateSpace;
-pub(crate) use self::device::UIDevice;
+pub(crate) use self::device::{UIDevice, UIUserInterfaceIdiom};
 pub(crate) use self::event::UIEvent;
+pub(crate) use self::geometry::UIRectEdge;
+pub(crate) use self::gesture_recognizer::{
+    UIGestureRecognizer, UIGestureRecognizerState, UIPinchGestureRecognizer,
+    UIRotationGestureRecognizer, UITapGestureRecognizer,
+};
 pub(crate) use self::responder::UIResponder;
 pub(crate) use self::screen::{UIScreen, UIScreenOverscanCompensation};
 pub(crate) use self::screen_mode::UIScreenMode;
+pub(crate) use self::status_bar_style::UIStatusBarStyle;
 pub(crate) use self::touch::{UITouch, UITouchPhase, UITouchType};
 pub(crate) use self::trait_collection::{UIForceTouchCapability, UITraitCollection};
 #[allow(unused_imports)]

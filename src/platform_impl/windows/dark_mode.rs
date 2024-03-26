@@ -2,7 +2,7 @@
 /// which is inspired by the solution in https://github.com/ysc3839/win32-darkmode
 use std::{ffi::c_void, ptr};
 
-use once_cell::sync::Lazy;
+use crate::utils::Lazy;
 use windows_sys::{
     core::PCSTR,
     Win32::{

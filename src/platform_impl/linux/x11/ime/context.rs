@@ -86,7 +86,7 @@ extern "C" fn preedit_draw_callback(
     let chg_range =
         call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
     if chg_range.start > client_data.text.len() || chg_range.end > client_data.text.len() {
-        warn!(
+        tracing::warn!(
             "invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}",
             client_data.text.len(),
             call_data.chg_first,
@@ -195,7 +195,7 @@ pub struct ImeContext {
     pub(crate) ic: ffi::XIC,
     pub(crate) ic_spot: ffi::XPoint,
     pub(crate) style: Style,
-    // Since the data is passed shared between X11 XIM callbacks, but couldn't be direclty free from
+    // Since the data is passed shared between X11 XIM callbacks, but couldn't be directly free from
     // there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
 }
@@ -217,15 +217,19 @@ impl ImeContext {
         }));
 
         let ic = match style as _ {
-            Style::Preedit(style) => ImeContext::create_preedit_ic(
-                xconn,
-                im,
-                style,
-                window,
-                client_data as ffi::XPointer,
-            ),
-            Style::Nothing(style) => ImeContext::create_nothing_ic(xconn, im, style, window),
-            Style::None(style) => ImeContext::create_none_ic(xconn, im, style, window),
+            Style::Preedit(style) => unsafe {
+                ImeContext::create_preedit_ic(
+                    xconn,
+                    im,
+                    style,
+                    window,
+                    client_data as ffi::XPointer,
+                )
+            },
+            Style::Nothing(style) => unsafe {
+                ImeContext::create_nothing_ic(xconn, im, style, window)
+            },
+            Style::None(style) => unsafe { ImeContext::create_none_ic(xconn, im, style, window) },
         }
         .ok_or(ImeContextCreationError::Null)?;
 
@@ -237,7 +241,7 @@ impl ImeContext {
             ic,
             ic_spot: ffi::XPoint { x: 0, y: 0 },
             style,
-            _client_data: Box::from_raw(client_data),
+            _client_data: unsafe { Box::from_raw(client_data) },
         };
 
         // Set the spot location, if it's present.
@@ -254,16 +258,18 @@ impl ImeContext {
         style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ptr::null_mut::<()>(),
+            )
+        };
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     unsafe fn create_preedit_ic(
@@ -274,8 +280,7 @@ impl ImeContext {
         client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
         let preedit_callbacks = PreeditCallbacks::new(client_data);
-        let preedit_attr = util::XSmartPointer::new(
-            xconn,
+        let preedit_attr = util::memory::XSmartPointer::new(xconn, unsafe {
             (xconn.xlib.XVaCreateNestedList)(
                 0,
                 ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
@@ -287,22 +292,24 @@ impl ImeContext {
                 ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
                 &(preedit_callbacks.draw_callback) as *const _,
                 ptr::null_mut::<()>(),
-            ),
-        )
+            )
+        })
         .expect("XVaCreateNestedList returned NULL");
 
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-            preedit_attr.ptr,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ffi::XNPreeditAttributes_0.as_ptr() as *const _,
+                preedit_attr.ptr,
+                ptr::null_mut::<()>(),
+            )
+        };
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     unsafe fn create_nothing_ic(
@@ -311,16 +318,18 @@ impl ImeContext {
         style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            style,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ptr::null_mut::<()>(),
-        );
+        let ic = unsafe {
+            (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                style,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ptr::null_mut::<()>(),
+            )
+        };
 
-        (!ic.is_null()).then(|| ic)
+        (!ic.is_null()).then_some(ic)
     }
 
     pub(crate) fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
@@ -354,7 +363,7 @@ impl ImeContext {
         self.ic_spot = ffi::XPoint { x, y };
 
         unsafe {
-            let preedit_attr = util::XSmartPointer::new(
+            let preedit_attr = util::memory::XSmartPointer::new(
                 xconn,
                 (xconn.xlib.XVaCreateNestedList)(
                     0,

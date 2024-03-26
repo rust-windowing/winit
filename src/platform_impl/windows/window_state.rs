@@ -1,10 +1,11 @@
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Size},
-    event::ModifiersState,
     icon::Icon,
-    platform_impl::platform::{event_loop, util, Fullscreen},
-    window::{CursorIcon, Theme, WindowAttributes},
+    keyboard::ModifiersState,
+    platform_impl::platform::{event_loop, util, Fullscreen, SelectedCursor},
+    window::{Theme, WindowAttributes},
 };
+use bitflags::bitflags;
 use std::io;
 use std::sync::MutexGuard;
 use windows_sys::Win32::{
@@ -42,7 +43,7 @@ pub(crate) struct WindowState {
     pub fullscreen: Option<Fullscreen>,
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
-    pub high_surrogate: Option<u16>,
+
     pub window_flags: WindowFlags,
 
     pub ime_state: ImeState,
@@ -51,6 +52,9 @@ pub(crate) struct WindowState {
     // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
     pub is_active: bool,
     pub is_focused: bool,
+
+    // Flag whether redraw was requested.
+    pub redraw_requested: bool,
 
     pub dragging: bool,
 
@@ -64,13 +68,14 @@ pub struct SavedWindow {
 
 #[derive(Clone)]
 pub struct MouseProperties {
-    pub cursor: CursorIcon,
+    pub(crate) selected_cursor: SelectedCursor,
     pub capture_count: u32,
     cursor_flags: CursorFlags,
     pub last_position: Option<PhysicalPosition<f64>>,
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CursorFlags: u8 {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
@@ -78,6 +83,7 @@ bitflags! {
     }
 }
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct WindowFlags: u32 {
         const RESIZABLE         = 1 << 0;
         const MINIMIZABLE       = 1 << 1;
@@ -118,7 +124,9 @@ bitflags! {
 
         const MARKER_ACTIVATE = 1 << 21;
 
-        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const CLIP_CHILDREN = 1 << 22;
+
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits();
     }
 }
 
@@ -138,7 +146,7 @@ impl WindowState {
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
-                cursor: CursorIcon::default(),
+                selected_cursor: SelectedCursor::default(),
                 capture_count: 0,
                 cursor_flags: CursorFlags::empty(),
                 last_position: None,
@@ -157,7 +165,6 @@ impl WindowState {
             fullscreen: None,
             current_theme,
             preferred_theme,
-            high_surrogate: None,
             window_flags: WindowFlags::empty(),
 
             ime_state: ImeState::Disabled,
@@ -165,6 +172,7 @@ impl WindowState {
 
             is_active: false,
             is_focused: false,
+            redraw_requested: false,
 
             dragging: false,
 
@@ -247,7 +255,7 @@ impl WindowFlags {
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
         // Required styles to properly support common window functionality like aero snap.
-        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
+        let mut style = WS_CAPTION | WS_BORDER | WS_CLIPSIBLINGS | WS_SYSMENU;
         let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
 
         if self.contains(WindowFlags::RESIZABLE) {
@@ -273,6 +281,12 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+
+            // Remove decorations window styles for child
+            if !self.contains(WindowFlags::MARKER_DECORATIONS) {
+                style &= !(WS_CAPTION | WS_BORDER);
+                style_ex &= !WS_EX_WINDOWEDGE;
+            }
         }
         if self.contains(WindowFlags::POPUP) {
             style |= WS_POPUP;
@@ -285,6 +299,9 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
             style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
+        }
+        if self.contains(WindowFlags::CLIP_CHILDREN) {
+            style |= WS_CLIPCHILDREN;
         }
 
         if self.intersects(
@@ -371,10 +388,11 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {
             let flags = MF_BYCOMMAND
-                | new
-                    .contains(WindowFlags::CLOSABLE)
-                    .then(|| MF_ENABLED)
-                    .unwrap_or(MF_DISABLED);
+                | if new.contains(WindowFlags::CLOSABLE) {
+                    MF_ENABLED
+                } else {
+                    MF_DISABLED
+                };
 
             unsafe {
                 EnableMenuItem(GetSystemMenu(window, 0), SC_CLOSE, flags);
@@ -492,7 +510,22 @@ impl CursorFlags {
 
         if util::is_focused(window) {
             let cursor_clip = match self.contains(CursorFlags::GRABBED) {
-                true => Some(client_rect),
+                true => {
+                    if self.contains(CursorFlags::HIDDEN) {
+                        // Confine the cursor to the center of the window if the cursor is hidden. This avoids
+                        // problems with the cursor activating the taskbar if the window borders or overlaps that.
+                        let cx = (client_rect.left + client_rect.right) / 2;
+                        let cy = (client_rect.top + client_rect.bottom) / 2;
+                        Some(RECT {
+                            left: cx,
+                            right: cx + 1,
+                            top: cy,
+                            bottom: cy + 1,
+                        })
+                    } else {
+                        Some(client_rect)
+                    }
+                }
                 false => None,
             };
 
