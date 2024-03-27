@@ -193,6 +193,7 @@ impl Application {
                     eprintln!("Error creating new window: {err}");
                 }
             }
+            Action::RequestResize => window.request_resize(),
         }
     }
 
@@ -634,6 +635,24 @@ impl WindowState {
         self.window.set_option_as_alt(self.option_as_alt);
     }
 
+    /// Resize by swapping the size of the window axes
+    fn request_resize(&mut self) {
+        let inner_size = self.window.inner_size();
+        let mut request_inner_size = self.window.inner_size();
+        std::mem::swap(
+            &mut request_inner_size.width,
+            &mut request_inner_size.height,
+        );
+        println!("Requesting resize to {:?}", inner_size);
+        if let Some(new_inner_size) = self.window.request_inner_size(request_inner_size) {
+            if new_inner_size != inner_size {
+                self.resize(new_inner_size);
+            } else {
+                eprintln!("Failed to set window size");
+            }
+        }
+    }
+
     /// Pick the next cursor.
     fn next_cursor(&mut self) {
         self.named_idx = (self.named_idx + 1) % CURSORS.len();
@@ -818,6 +837,7 @@ enum Action {
     CycleOptionAsAlt,
     #[cfg(macos_platform)]
     CreateNewTab,
+    RequestResize,
 }
 
 impl Action {
@@ -844,6 +864,7 @@ impl Action {
             Action::CycleOptionAsAlt => "Cycle option as alt mode",
             #[cfg(macos_platform)]
             Action::CreateNewTab => "Create new tab",
+            Action::RequestResize => "Request a resize",
         }
     }
 }
@@ -950,6 +971,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),
     Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
+    Binding::new("R", ModifiersState::ALT, Action::RequestResize),
     // M.
     Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),
     Binding::new("M", ModifiersState::ALT, Action::Minimize),
