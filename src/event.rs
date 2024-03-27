@@ -320,6 +320,19 @@ pub enum WindowEvent {
         phase: TouchPhase,
     },
 
+    /// N-finger pan gesture
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **iOS**.
+    /// - On iOS, not recognized by default. It must be enabled when needed.
+    PanGesture {
+        device_id: DeviceId,
+        /// Change in pixels of pan gesture from last update.
+        delta: PhysicalPosition<f32>,
+        phase: TouchPhase,
+    },
+
     /// Double tap gesture.
     ///
     /// On a Mac, smart magnification is triggered by a double tap with two fingers
@@ -351,6 +364,7 @@ pub enum WindowEvent {
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: DeviceId,
+        /// change in rotation in degrees
         delta: f32,
         phase: TouchPhase,
     },
@@ -1029,6 +1043,7 @@ impl PartialEq for InnerSizeWriter {
 
 #[cfg(test)]
 mod tests {
+    use crate::dpi::PhysicalPosition;
     use crate::event;
     use std::collections::{BTreeSet, HashSet};
 
@@ -1095,6 +1110,11 @@ mod tests {
                 with_window_event(RotationGesture {
                     device_id: did,
                     delta: 0.0,
+                    phase: event::TouchPhase::Started,
+                });
+                with_window_event(PanGesture {
+                    device_id: did,
+                    delta: PhysicalPosition::<f32>::new(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
                 with_window_event(TouchpadPressure {
