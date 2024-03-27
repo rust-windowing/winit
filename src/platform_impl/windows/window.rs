@@ -724,7 +724,7 @@ impl Window {
             _ => {}
         }
 
-        window_state_lock.fullscreen = fullscreen.clone();
+        window_state_lock.fullscreen.clone_from(&fullscreen);
         drop(window_state_lock);
 
         self.thread_executor.execute_in_thread(move || {

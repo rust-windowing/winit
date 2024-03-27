@@ -753,7 +753,7 @@ impl UnownedWindow {
         if old_fullscreen == fullscreen {
             return Ok(None);
         }
-        shared_state_lock.fullscreen = fullscreen.clone();
+        shared_state_lock.fullscreen.clone_from(&fullscreen);
 
         match (&old_fullscreen, &fullscreen) {
             // Store the desktop video mode before entering exclusive
