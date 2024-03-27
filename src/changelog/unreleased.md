@@ -41,3 +41,4 @@
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
 - On Windows, confine cursor to center of window when grabbed and hidden.
+- Add `ActiveEventLoop::cursor_position`.

@@ -938,6 +938,10 @@ impl ActiveEventLoop {
     fn exit_code(&self) -> Option<i32> {
         x11_or_wayland!(match self; Self(evlp) => evlp.exit_code())
     }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        x11_or_wayland!(match self; Self(evlp) => evlp.cursor_position())
+    }
 }
 
 #[derive(Clone)]

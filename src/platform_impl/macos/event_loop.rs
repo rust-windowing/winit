@@ -34,6 +34,8 @@ use super::{
     monitor::{self, MonitorHandle},
     observer::setup_control_flow_observers,
 };
+use crate::dpi::PhysicalPosition;
+use crate::error::ExternalError;
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 use crate::{
@@ -145,6 +147,11 @@ impl ActiveEventLoop {
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
+    }
+
+    #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Ok(super::cursor::cursor_position())
     }
 }
 

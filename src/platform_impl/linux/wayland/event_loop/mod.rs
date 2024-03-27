@@ -16,8 +16,8 @@ use sctk::reexports::client::globals;
 use sctk::reexports::client::{Connection, QueueHandle};
 
 use crate::cursor::OnlyCursorImage;
-use crate::dpi::LogicalSize;
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::dpi::{LogicalSize, PhysicalPosition};
+use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
@@ -718,5 +718,9 @@ impl ActiveEventLoop {
             std::ptr::NonNull::new(ptr as *mut _).expect("wl_display should never be null")
         })
         .into())
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }

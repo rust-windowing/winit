@@ -14,6 +14,8 @@ use super::{
     runner,
     window::WindowId,
 };
+use crate::dpi::PhysicalPosition;
+use crate::error::{ExternalError, NotSupportedError};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
@@ -721,6 +723,10 @@ impl ActiveEventLoop {
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
 

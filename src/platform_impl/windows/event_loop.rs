@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::utils::Lazy;
+use crate::{error::ExternalError, utils::Lazy};
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -594,6 +594,10 @@ impl ActiveEventLoop {
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        util::cursor_position()
     }
 
     fn exit_code(&self) -> Option<i32> {

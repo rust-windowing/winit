@@ -28,7 +28,8 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
-use crate::error::{EventLoopError, OsError as RootOsError};
+use crate::dpi::PhysicalPosition;
+use crate::error::{EventLoopError, ExternalError, OsError as RootOsError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
 use crate::platform::pump_events::PumpStatus;
@@ -756,6 +757,12 @@ impl ActiveEventLoop {
 
     pub(crate) fn exit_code(&self) -> Option<i32> {
         self.exit.get()
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        self.xconn
+            .cursor_position(self.root)
+            .map_err(|x_err| ExternalError::Os(os_error!(OsError::XError(Arc::new(x_err)))))
     }
 }
 

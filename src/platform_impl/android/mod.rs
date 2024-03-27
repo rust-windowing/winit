@@ -732,6 +732,11 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
 }
 
 #[derive(Clone)]

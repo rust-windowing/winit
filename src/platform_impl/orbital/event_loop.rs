@@ -15,7 +15,8 @@ use orbclient::{
 use smol_str::SmolStr;
 
 use crate::{
-    error::EventLoopError,
+    dpi::PhysicalPosition,
+    error::{EventLoopError, ExternalError, NotSupportedError},
     event::{self, Ime, Modifiers, StartCause},
     event_loop::{self, ControlFlow, DeviceEvents},
     keyboard::{
@@ -859,6 +860,10 @@ impl ActiveEventLoop {
 
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
+    }
+
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 }
 

@@ -13,7 +13,7 @@ use crate::utils::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT},
+        Foundation::{BOOL, HANDLE, HMODULE, HWND, POINT, RECT},
         Graphics::Gdi::{ClientToScreen, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
@@ -26,17 +26,18 @@ use windows_sys::{
                 Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO},
             },
             WindowsAndMessaging::{
-                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
-                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
-                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
-                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
+                ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics,
+                GetWindowPlacement, GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING,
+                IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL,
+                IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN,
+                SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
+                WINDOWPLACEMENT,
             },
         },
     },
 };
 
-use crate::window::CursorIcon;
+use crate::{dpi::PhysicalPosition, error::ExternalError, window::CursorIcon};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -165,6 +166,13 @@ pub fn get_instance_handle() -> HMODULE {
     }
 
     unsafe { &__ImageBase as *const _ as _ }
+}
+
+pub fn cursor_position() -> Result<PhysicalPosition<f64>, ExternalError> {
+    let mut pt = POINT { x: 0, y: 0 };
+    win_to_err(unsafe { GetCursorPos(&mut pt) })
+        .map(|_| (pt.x, pt.y).into())
+        .map_err(|e| ExternalError::Os(os_error!(e)))
 }
 
 pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {

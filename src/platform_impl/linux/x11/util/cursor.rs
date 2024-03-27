@@ -7,6 +7,7 @@ use std::{
 
 use x11rb::connection::Connection;
 
+use crate::dpi::PhysicalPosition;
 use crate::{platform_impl::PlatformCustomCursorSource, window::CursorIcon};
 
 use super::super::ActiveEventLoop;
@@ -95,6 +96,14 @@ impl XConnection {
 
         self.xcb_connection().flush()?;
         Ok(())
+    }
+
+    pub fn cursor_position(
+        &self,
+        window: xproto::Window,
+    ) -> Result<PhysicalPosition<f64>, X11Error> {
+        let reply = self.xcb_connection().query_pointer(window)?.reply()?;
+        Ok((reply.root_x, reply.root_y).into())
     }
 }
 

@@ -19,7 +19,8 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
-use crate::error::{EventLoopError, OsError};
+use crate::dpi::PhysicalPosition;
+use crate::error::{EventLoopError, ExternalError, OsError};
 use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -489,6 +490,16 @@ impl ActiveEventLoop {
         OwnedDisplayHandle {
             platform: self.p.owned_display_handle(),
         }
+    }
+
+    /// Returns the current cursor position in screen coordinates.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Wayland / Orbital / Web**: Unsupported.
+    #[inline]
+    pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
+        self.p.cursor_position()
     }
 }
 
