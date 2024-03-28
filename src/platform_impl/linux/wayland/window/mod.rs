@@ -153,6 +153,7 @@ impl Window {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             }
+            #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
@@ -499,6 +500,7 @@ impl Window {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
             }
+            #[cfg_attr(not(x11_platform), allow(clippy::bind_instead_of_map))]
             Some(Fullscreen::Borderless(monitor)) => {
                 let output = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),

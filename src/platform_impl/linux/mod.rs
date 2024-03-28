@@ -92,6 +92,7 @@ pub struct X11WindowAttributes {
     pub embed_window: Option<x11rb::protocol::xproto::Window>,
 }
 
+#[cfg_attr(not(x11_platform), allow(clippy::derivable_impls))]
 impl Default for PlatformSpecificWindowAttributes {
     fn default() -> Self {
         Self {
