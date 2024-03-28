@@ -1,12 +1,117 @@
 ## Unreleased
 
-- Deprecate `EventLoop::run` in favor of `EventLoop::run_app`.
-- Deprecate `EventLoopExtRunOnDemand::run_on_demand` in favor of `EventLoop::run_app_on_demand`.
-- Deprecate `EventLoopExtPumpEvents::pump_events` in favor of `EventLoopExtPumpEvents::pump_app_events`.
-- Add `ApplicationHandler<T>` trait which mimics `Event<T>`.
+- **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window`.
+
+    This means that you now have to create your windows inside the actively running event loop (usually the `NewEvents(StartCause::Init)` or `Resumed` events), and can no longer do it before the application has properly launched. This change is done to fix many long-standing issues on iOS and macOS.
+
+    See the code snippet below for an example of how to migrate.
+
+    We recognize that this is still a bit cumbersome, so to ease migration, we provide the deprecated `EventLoop::create_window`. In the future, managing the state for windows, and creating/destroying them at the right times will likely become easier to do, see [#2903](https://github.com/rust-windowing/winit/issues/2903) for some of the progress on that.
+    ```rust
+    // Before
+    let window = Window::new(&event_loop);
+    event_loop.run(|event, event_loop| {
+        match event {
+            // ... Handle events
+        }
+    });
+
+    // After
+    //
+    // The window _could_ be created outside the event loop like so, but this
+    // is discouraged.
+    // ```
+    // let window = event_loop.create_window(Window::attributes());
+    // ```
+    //
+    // Instead, we will use an `Option` to allow the window to not be available
+    // until the application is properly running.
+    let mut window = None;
+    event_loop.run(|event, event_loop| {
+        match event {
+            Event::Resumed => {
+                window = Some(event_loop.create_window(Window::attributes()));
+            }
+            Event::Suspended => {
+                window = None;
+            }
+            Event::WindowEvent { window_id, event } => {
+                // `unwrap` is fine, the window will always be available when
+                // recieving a window event.
+                let window = window.as_ref().unwrap();
+                // ... Handle window events
+            }
+            // ... Handle other events
+        }
+    });
+    ```
+- Deprecate `EventLoop::run` (and similar APIs for running the event loop) in favour of `EventLoop::run_app` (and family), and add `ApplicationHandler<T>` trait which mimics `Event<T>`.
+
+    Winit is moving towards a trait-based API for several reasons, see [#3432](https://github.com/rust-windowing/winit/issues/3432) for details. This will have quite a large impact on how you structure your code, and while the design is not yet optimal, and will need additional work, we feel confident that this is the right way forwards, so in this release, we've tried to provide an easier update path. Please submit your feedback when migrating in [this issue](https://github.com/rust-windowing/winit/issues/TODO).
+
+    See the code snippet below for an example of how to migrate. Note that the code does unfortunately get more verbose, but we believe that in most real-world applications this shouldn't be that big of an issue.
+
+    ```rust
+    // Before
+    let mut window = None;
+    let mut click_counter = 0;
+    event_loop.run(|event, event_loop| {
+        match event {
+            Event::Resumed => {
+                window = Some(event_loop.create_window(Window::attributes()));
+            }
+            Event::Suspended => {
+                window = None;
+            }
+            Event::WindowEvent { window_id, event } => match event {
+                WindowEvent::MouseInput { button: MouseButton::Left, state: ElementState::Pressed, .. } => {
+                    click_counter += 1;
+                },
+                // ... Handle other window events
+            },
+            // ... Handle other top-level events
+        }
+    });
+
+    // After
+    struct App {
+        window: Option<Window>,
+        click_counter: i32,
+    }
+
+    impl ApplicationHandler for App {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.window = Some(event_loop.create_window(Window::attributes()));
+        }
+
+        fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+            self.window = None;
+        }
+
+        fn window_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            window_id: WindowId,
+            event: WindowEvent,
+        ) {
+            match event {
+                WindowEvent::MouseInput { button: MouseButton::Left, state: ElementState::Pressed, .. } => {
+                    self.click_counter += 1;
+                },
+                // ... Handle other window events
+            }
+        }
+
+        // ... Handle other top-level events
+    }
+
+    event_loop.run_app(App {
+        window: None,
+        click_counter: 0,
+    });
+    ```
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Implement `Sync` for `EventLoopProxy<T: Send>`.
-- **Breaking:** Move `Window::new` to `ActiveEventLoop::create_window` and `EventLoop::create_window` (with the latter being deprecated).
 - **Breaking:** Rename `EventLoopWindowTarget` to `ActiveEventLoop`.
 - **Breaking:** Remove `Deref` implementation for `EventLoop` that gave `EventLoopWindowTarget`.
 - **Breaking**: Remove `WindowBuilder` in favor of `WindowAttributes`.
