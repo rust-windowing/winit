@@ -251,6 +251,7 @@ impl Endianness {
 }
 
 /// Parser errors.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ParserError {
     /// Ran out of bytes.
@@ -274,9 +275,8 @@ impl ParserError {
 }
 
 #[cfg(test)]
+/// Tests for the XSETTINGS parser.
 mod tests {
-    //! Tests for the XSETTINGS parser.
-
     use super::*;
 
     const XSETTINGS: &str = include_str!("tests/xsettings.dat");

@@ -40,26 +40,6 @@ impl AaRect {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Geometry {
-    pub root: xproto::Window,
-    // If you want positions relative to the root window, use translate_coords.
-    // Note that the overwhelming majority of window managers are reparenting WMs, thus the window
-    // ID we get from window creation is for a nested window used as the window's client area. If
-    // you call get_geometry with that window ID, then you'll get the position of that client area
-    // window relative to the parent it's nested in (the frame), which isn't helpful if you want
-    // to know the frame position.
-    pub x_rel_parent: c_int,
-    pub y_rel_parent: c_int,
-    // In that same case, this will give you client area size.
-    pub width: c_uint,
-    pub height: c_uint,
-    // xmonad and dwm were the only WMs tested that use the border return at all.
-    // The majority of WMs seem to simply fill it with 0 unconditionally.
-    pub border: c_uint,
-    pub depth: c_uint,
-}
-
 #[derive(Debug, Clone)]
 pub struct FrameExtents {
     pub left: u32,

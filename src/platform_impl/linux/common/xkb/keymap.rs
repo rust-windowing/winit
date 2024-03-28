@@ -1026,6 +1026,7 @@ impl Deref for XkbKeymap {
 }
 
 /// Modifier index in the keymap.
+#[cfg_attr(not(x11_platform), allow(dead_code))]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ModsIndices {
     pub shift: Option<xkb_mod_index_t>,
