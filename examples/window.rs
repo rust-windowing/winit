@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Debug;
+use std::mem;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
 use std::path::Path;
@@ -193,6 +194,7 @@ impl Application {
                     eprintln!("Error creating new window: {err}");
                 }
             }
+            Action::RequestResize => window.swap_dimensions(),
         }
     }
 
@@ -634,6 +636,25 @@ impl WindowState {
         self.window.set_option_as_alt(self.option_as_alt);
     }
 
+    /// Swap the window dimensions with `request_inner_size`.
+    fn swap_dimensions(&mut self) {
+        let old_inner_size = self.window.inner_size();
+        let mut inner_size = old_inner_size;
+
+        mem::swap(&mut inner_size.width, &mut inner_size.height);
+        println!("Requesting resize from {old_inner_size:?} to {inner_size:?}");
+
+        if let Some(new_inner_size) = self.window.request_inner_size(inner_size) {
+            if old_inner_size == new_inner_size {
+                println!("Inner size change got ignored");
+            } else {
+                self.resize(new_inner_size);
+            }
+        } else {
+            println!("Request inner size is asynchronous");
+        }
+    }
+
     /// Pick the next cursor.
     fn next_cursor(&mut self) {
         self.named_idx = (self.named_idx + 1) % CURSORS.len();
@@ -650,14 +671,15 @@ impl WindowState {
     }
 
     /// Resize the window to the new size.
-    fn resize(&mut self, _size: PhysicalSize<u32>) {
+    fn resize(&mut self, size: PhysicalSize<u32>) {
+        println!("Resized to {size:?}");
         #[cfg(not(any(android_platform, ios_platform)))]
         {
-            let (width, height) =
-                match (NonZeroU32::new(_size.width), NonZeroU32::new(_size.height)) {
-                    (Some(width), Some(height)) => (width, height),
-                    _ => return,
-                };
+            let (width, height) = match (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+            {
+                (Some(width), Some(height)) => (width, height),
+                _ => return,
+            };
             self.surface
                 .resize(width, height)
                 .expect("failed to resize inner buffer");
@@ -818,6 +840,7 @@ enum Action {
     CycleOptionAsAlt,
     #[cfg(macos_platform)]
     CreateNewTab,
+    RequestResize,
 }
 
 impl Action {
@@ -844,6 +867,7 @@ impl Action {
             Action::CycleOptionAsAlt => "Cycle option as alt mode",
             #[cfg(macos_platform)]
             Action::CreateNewTab => "Create new tab",
+            Action::RequestResize => "Request a resize",
         }
     }
 }
@@ -950,6 +974,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
     Binding::new("L", ModifiersState::CONTROL, Action::CycleCursorGrab),
     Binding::new("P", ModifiersState::CONTROL, Action::ToggleResizeIncrements),
     Binding::new("R", ModifiersState::CONTROL, Action::ToggleResizable),
+    Binding::new("R", ModifiersState::ALT, Action::RequestResize),
     // M.
     Binding::new("M", ModifiersState::CONTROL, Action::ToggleMaximize),
     Binding::new("M", ModifiersState::ALT, Action::Minimize),
