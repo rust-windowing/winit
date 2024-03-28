@@ -26,7 +26,7 @@
 - **Breaking:** Bump MSRV from `1.65` to `1.70`.
 - On Web, add the ability to toggle calling `Event.preventDefault()` on `Window`.
 - **Breaking:** Remove `WindowAttributes::fullscreen()` and expose as field directly.
-- **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
+- Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data. The old name is kept, but is now deprecated.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
