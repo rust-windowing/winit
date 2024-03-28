@@ -552,6 +552,17 @@ declare_class!(
             });
         }
 
+        // In the past (?), `mouseMoved:` events were not generated when the
+        // user hovered over a window from a separate window, and as such the
+        // application might not know the location of the mouse in the event.
+        //
+        // To fix this, we emit `mouse_motion` inside of mouse click, mouse
+        // scroll, magnify and other gesture event handlers, to ensure that
+        // the application's state of where the mouse click was located is up
+        // to date.
+        //
+        // See https://github.com/rust-windowing/winit/pull/1490 for history.
+
         #[method(mouseDown:)]
         fn mouse_down(&self, event: &NSEvent) {
             trace_scope!("mouseDown:");
@@ -686,6 +697,8 @@ declare_class!(
         fn magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("magnifyWithEvent:");
 
+            self.mouse_motion(event);
+
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
                 NSEventPhaseBegan => TouchPhase::Started,
@@ -703,8 +716,10 @@ declare_class!(
         }
 
         #[method(smartMagnifyWithEvent:)]
-        fn smart_magnify_with_event(&self, _event: &NSEvent) {
+        fn smart_magnify_with_event(&self, event: &NSEvent) {
             trace_scope!("smartMagnifyWithEvent:");
+
+            self.mouse_motion(event);
 
             self.queue_event(WindowEvent::DoubleTapGesture {
                 device_id: DEVICE_ID,
@@ -714,6 +729,8 @@ declare_class!(
         #[method(rotateWithEvent:)]
         fn rotate_with_event(&self, event: &NSEvent) {
             trace_scope!("rotateWithEvent:");
+
+            self.mouse_motion(event);
 
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
@@ -734,8 +751,6 @@ declare_class!(
         #[method(pressureChangeWithEvent:)]
         fn pressure_change_with_event(&self, event: &NSEvent) {
             trace_scope!("pressureChangeWithEvent:");
-
-            self.mouse_motion(event);
 
             self.queue_event(WindowEvent::TouchpadPressure {
                 device_id: DEVICE_ID,
