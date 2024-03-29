@@ -2,7 +2,7 @@ use std::ffi::c_uchar;
 use std::slice;
 use std::sync::OnceLock;
 
-use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSEvent, NSImage};
+use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
 use icrate::Foundation::{
     ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
     NSString,
@@ -223,9 +223,4 @@ pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Id<NSCursor> {
         CursorIcon::Cell => webkit_cell(),
         _ => default_cursor(),
     }
-}
-
-pub fn cursor_position() -> crate::dpi::PhysicalPosition<f64> {
-    let pt: NSPoint = unsafe { NSEvent::mouseLocation() };
-    (pt.x, pt.y).into()
 }

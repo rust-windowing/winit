@@ -18,9 +18,9 @@ use core_foundation::runloop::{
 };
 use icrate::AppKit::{
     NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
-    NSApplicationActivationPolicyRegular, NSWindow,
+    NSApplicationActivationPolicyRegular, NSEvent, NSWindow,
 };
-use icrate::Foundation::{MainThreadMarker, NSObjectProtocol};
+use icrate::Foundation::{CGRect, CGSize, MainThreadMarker, NSObjectProtocol};
 use objc2::{msg_send_id, ClassType};
 use objc2::{
     rc::{autoreleasepool, Id},
@@ -34,7 +34,7 @@ use super::{
     monitor::{self, MonitorHandle},
     observer::setup_control_flow_observers,
 };
-use crate::dpi::PhysicalPosition;
+use crate::dpi::{LogicalPosition, PhysicalPosition};
 use crate::error::ExternalError;
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
@@ -151,7 +151,12 @@ impl ActiveEventLoop {
 
     #[inline]
     pub fn cursor_position(&self) -> Result<PhysicalPosition<f64>, ExternalError> {
-        Ok(super::cursor::cursor_position())
+        let point = unsafe { NSEvent::mouseLocation() };
+        // The cursor is sizeless
+        let rect = CGRect::new(point, CGSize::new(0.0, 0.0));
+        let point = monitor::flip_window_screen_coordinates(rect);
+        let point = LogicalPosition::new(point.x, point.y);
+        Ok(point.to_physical(monitor::primary_monitor().scale_factor()))
     }
 }
 
