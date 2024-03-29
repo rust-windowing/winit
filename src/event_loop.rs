@@ -492,7 +492,9 @@ impl ActiveEventLoop {
         }
     }
 
-    /// Returns the current cursor position in screen coordinates.
+    /// Returns the current cursor position relative to the top-left hand corner of the desktop.
+    ///
+    /// See [`Window::outer_position`] for more information about the coordinates.
     ///
     /// ## Platform-specific
     ///
