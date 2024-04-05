@@ -97,7 +97,7 @@ pub trait WindowExtWebSys {
     ///         event_type,
     ///         prevent_default_listener.as_ref().unchecked_ref(),
     ///     );
-    ///     prevent_default_listener.forget();
+    ///     prevent_default_listener.into_js_value();
     /// }
     ///
     /// for event_type in pointer_events_to_focus_and_prevent_default.into_iter() {
