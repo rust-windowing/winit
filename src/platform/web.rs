@@ -69,8 +69,8 @@ pub trait WindowExtWebSys {
     /// `touchstart`, `wheel`, `contextmenu`, `pointerdown`, `pointermove`, `keyup`, and `keydown`.
     ///
     /// For fine-grained control over which events call `event.preventDefault()`, call
-    /// `Window::set_prevent_default(false)` and add an event listener on the canvas for each of
-    /// the above event types that selectively calls `event.preventDefault()`.
+    /// `Window::set_prevent_default(false)` and add event listeners on the canvas that
+    /// selectively call `event.preventDefault()`.
     ///
     /// Some events are impossible to prevent. E.g. Firefox allows to access the native browser
     /// context menu with Shift+Rightclick.
