@@ -249,3 +249,4 @@ changelog entry.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - On Windows, fix cursor not confined to center of window when grabbed and hidden.
 - On macOS, fix sequence of mouse events being out of order when dragging on the trackpad.
+- Debug formatting of `WindowId` is more concise.
