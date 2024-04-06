@@ -31,7 +31,8 @@
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
 - **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
-- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture`, `PanGesture` and `RotationGesture` as well as `UIGestureRecognizerDelegate` for fine grained control of gesture recognizers.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture`, `PanGesture` and `RotationGesture`.
+- on iOS, use `UIGestureRecognizerDelegate` for fine grained control of gesture recognizers.
 - on Windows: add `with_system_backdrop`, `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
 - On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
 - **Breaking:** Removed `EventLoopError::AlreadyRunning`, which can't happen as it is already prevented by the type system.

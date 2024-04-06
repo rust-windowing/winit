@@ -180,13 +180,11 @@ declare_class!(
                     (TouchPhase::Started, 0.0)
                 }
                 UIGestureRecognizerState::Changed => {
-                    let last_scale: f64 = self.ivars().pinch_last_delta.get();
-                    self.ivars().pinch_last_delta.set(recognizer.scale());
+                    let last_scale: f64 = self.ivars().pinch_last_delta.replace(recognizer.scale());
                     (TouchPhase::Moved, recognizer.scale() - last_scale)
                 }
                 UIGestureRecognizerState::Ended => {
-                    let last_scale: f64 = self.ivars().pinch_last_delta.get();
-                    self.ivars().pinch_last_delta.set(0.0);
+                    let last_scale: f64 = self.ivars().pinch_last_delta.replace(0.0);
                     (TouchPhase::Moved, recognizer.scale() - last_scale)
                 }
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
@@ -237,14 +235,12 @@ declare_class!(
                     (TouchPhase::Started, 0.0)
                 }
                 UIGestureRecognizerState::Changed => {
-                    let last_rotation = self.ivars().rotation_last_delta.get();
-                    self.ivars().rotation_last_delta.set(recognizer.rotation());
+                    let last_rotation = self.ivars().rotation_last_delta.replace(recognizer.rotation());
 
                     (TouchPhase::Moved, recognizer.rotation() - last_rotation)
                 }
                 UIGestureRecognizerState::Ended => {
-                    let last_rotation = self.ivars().rotation_last_delta.get();
-                    self.ivars().rotation_last_delta.set(0.0);
+                    let last_rotation = self.ivars().rotation_last_delta.replace(0.0);
 
                     (TouchPhase::Ended, recognizer.rotation() - last_rotation)
                 }
@@ -276,35 +272,32 @@ declare_class!(
 
             let translation = recognizer.translationInView(self);
 
-            let (phase, delta) = match recognizer.state() {
+            let (phase, dx, dy) = match recognizer.state() {
                 UIGestureRecognizerState::Began => {
                     self.ivars().pan_last_delta.set(translation);
 
-                    (TouchPhase::Started, CGPoint::new(0.0, 0.0))
+                    (TouchPhase::Started, 0.0, 0.0)
                 }
                 UIGestureRecognizerState::Changed => {
-                    let last_pan: CGPoint = self.ivars().pan_last_delta.get();
-                    self.ivars().pan_last_delta.set(translation);
+                    let last_pan: CGPoint = self.ivars().pan_last_delta.replace(translation);
 
                     let dx = translation.x - last_pan.x;
                     let dy = translation.y - last_pan.y;
 
-                    (TouchPhase::Moved, CGPoint::new(dx, dy))
+                    (TouchPhase::Moved, dx, dy)
                 }
                 UIGestureRecognizerState::Ended => {
-                    let last_pan: CGPoint = self.ivars().pan_last_delta.get();
-                    self.ivars().pan_last_delta.set(CGPoint{x:0.0, y:0.0});
+                    let last_pan: CGPoint = self.ivars().pan_last_delta.replace(CGPoint{x:0.0, y:0.0});
 
                     let dx = translation.x - last_pan.x;
                     let dy = translation.y - last_pan.y;
 
-                    (TouchPhase::Ended, CGPoint::new(dx, dy))
+                    (TouchPhase::Ended, dx, dy)
                 }
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
-                    let last_pan: CGPoint = self.ivars().pan_last_delta.get();
-                    self.ivars().pan_last_delta.set(CGPoint{x:0.0, y:0.0});
+                    let last_pan: CGPoint = self.ivars().pan_last_delta.replace(CGPoint{x:0.0, y:0.0});
 
-                    (TouchPhase::Cancelled, CGPoint::new(-last_pan.x, -last_pan.y))
+                    (TouchPhase::Cancelled, -last_pan.x, -last_pan.y)
                 }
                 state => panic!("unexpected recognizer state: {:?}", state),
             };
@@ -314,7 +307,7 @@ declare_class!(
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PanGesture {
                     device_id: DEVICE_ID,
-                    delta: PhysicalPosition::new(delta.x as _, delta.y as _),
+                    delta: PhysicalPosition::new(dx as _, dy as _),
                     phase,
                 },
             });

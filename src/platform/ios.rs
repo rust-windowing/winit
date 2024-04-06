@@ -160,6 +160,11 @@ pub trait WindowExtIOS {
     /// Sets whether the [`Window`] should recognize pan gestures.
     ///
     /// The default is to not recognize gestures.
+    /// Installs [`UIPanGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer) onto view
+    ///
+    /// Set the minimum number of touches required: [`minimumNumberOfTouches`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer/1621208-minimumnumberoftouches)
+    ///
+    /// Set the maximum number of touches recognized: [`maximumNumberOfTouches`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer/1621208-maximumnumberoftouches)
     fn recognize_pan_gesture(
         &self,
         should_recognize: bool,

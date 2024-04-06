@@ -9,7 +9,7 @@ use objc2::{
 };
 
 extern_class!(
-    /// (UIGestureRecognizer)[https://developer.apple.com/documentation/uikit/uigesturerecognizer]
+    /// [`UIGestureRecognizer`](https://developer.apple.com/documentation/uikit/uigesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIGestureRecognizer;
 
@@ -24,7 +24,7 @@ extern_methods!(
         #[method(state)]
         pub fn state(&self) -> UIGestureRecognizerState;
 
-        /// (delegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc]
+        /// [`delegate`](https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc)
         /// @property(nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
         #[method(setDelegate:)]
         pub fn setDelegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
@@ -38,7 +38,7 @@ unsafe impl Encode for UIGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// (UIGestureRecognizerState)[https://developer.apple.com/documentation/uikit/uigesturerecognizer/state]
+// [`UIGestureRecognizerState`](https://developer.apple.com/documentation/uikit/uigesturerecognizer/state)
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIGestureRecognizerState(NSInteger);
@@ -57,7 +57,7 @@ impl UIGestureRecognizerState {
     pub const Failed: Self = Self(5);
 }
 
-// (UIPinchGestureRecognizer)[https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer]
+// [`UIPinchGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer)
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIPinchGestureRecognizer;
@@ -83,7 +83,7 @@ unsafe impl Encode for UIPinchGestureRecognizer {
 }
 
 extern_class!(
-    /// (UIRotationGestureRecognizer)[https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer]
+    /// [`UIRotationGestureRecognizer`](https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIRotationGestureRecognizer;
 
@@ -108,7 +108,7 @@ unsafe impl Encode for UIRotationGestureRecognizer {
 }
 
 extern_class!(
-    /// (UITapGestureRecognizer)[https://developer.apple.com/documentation/uikit/uitapgesturerecognizer]
+    /// [`UITapGestureRecognizer`](https://developer.apple.com/documentation/uikit/uitapgesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UITapGestureRecognizer;
 
@@ -133,7 +133,7 @@ unsafe impl Encode for UITapGestureRecognizer {
 }
 
 extern_class!(
-    /// (UIPanGestureRecognizer)[https://developer.apple.com/documentation/uikit/uipangesturerecognizer]
+    /// [`UIPanGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIPanGestureRecognizer;
 
