@@ -189,6 +189,7 @@ declare_class!(
                 }
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
                     self.ivars().rotation_last_delta.set(0.0);
+                    // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.scale())
                 }
                 state => panic!("unexpected recognizer state: {:?}", state),
@@ -247,6 +248,7 @@ declare_class!(
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
                     self.ivars().rotation_last_delta.set(0.0);
 
+                    // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -recognizer.rotation())
                 }
                 state => panic!("unexpected recognizer state: {:?}", state),
@@ -297,6 +299,7 @@ declare_class!(
                 UIGestureRecognizerState::Cancelled | UIGestureRecognizerState::Failed => {
                     let last_pan: CGPoint = self.ivars().pan_last_delta.replace(CGPoint{x:0.0, y:0.0});
 
+                    // Pass -delta so that action is reversed
                     (TouchPhase::Cancelled, -last_pan.x, -last_pan.y)
                 }
                 state => panic!("unexpected recognizer state: {:?}", state),
