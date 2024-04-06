@@ -669,7 +669,7 @@ impl Shared {
                 ControlFlow::Poll => {
                     let cloned = self.clone();
                     State::Poll {
-                        request: backend::Schedule::new(
+                        _request: backend::Schedule::new(
                             self.poll_strategy(),
                             self.window(),
                             move || cloned.poll(),
@@ -693,7 +693,7 @@ impl Shared {
                     State::WaitUntil {
                         start,
                         end,
-                        timeout: backend::Schedule::new_with_duration(
+                        _timeout: backend::Schedule::new_with_duration(
                             self.window(),
                             move || cloned.resume_time_reached(start, end),
                             delay,
