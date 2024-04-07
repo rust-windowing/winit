@@ -52,17 +52,19 @@ use windows_sys::Win32::{
             HTCAPTION, HTCLIENT, MINMAXINFO, MNC_CLOSE, MSG, NCCALCSIZE_PARAMS, PM_REMOVE, PT_PEN,
             PT_TOUCH, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
-            WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE,
-            WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-            WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE,
-            WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
-            WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE,
-            WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
-            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
-            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-            WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP,
-            WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
-            WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+            WMSZ_BOTTOM, WMSZ_BOTTOMLEFT, WMSZ_BOTTOMRIGHT, WMSZ_LEFT, WMSZ_RIGHT, WMSZ_TOP,
+            WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE, WM_DESTROY,
+            WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
+            WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
+            WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
+            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
+            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
+            WM_SIZING, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
+            WS_VISIBLE,
         },
     },
 };
@@ -1350,6 +1352,98 @@ unsafe fn public_window_callback_inner(
             }
             userdata.send_event(event);
             result = ProcResult::Value(0);
+        }
+
+        WM_SIZING => {
+            /// Calculate the amount to add to round `value` to the nearest multiple of `increment`.
+            fn snap_to_nearest_increment_delta(value: i32, increment: i32) -> i32 {
+                let half_one = increment / 2;
+                let half_two = increment - half_one;
+                half_one - (value - half_two) % increment
+            }
+
+            let scale_factor = userdata.window_state_lock().scale_factor;
+            let Some(inc) = userdata
+                .window_state_lock()
+                .resize_increments
+                .map(|inc| inc.to_physical(scale_factor))
+                .filter(|inc| inc.width > 0 && inc.height > 0)
+            else {
+                result = ProcResult::Value(0);
+                return;
+            };
+
+            let side = wparam as u32;
+            // The desired new size of the window, decorations included.
+            let rect = unsafe { &mut *(lparam as *mut RECT) };
+
+            // We need to calculate the dimensions of the window decorations to get the true
+            // size of the window's contents
+            let adj_rect = userdata
+                .window_state_lock()
+                .window_flags
+                .adjust_rect(window, *rect)
+                .unwrap_or(*rect);
+            let deco_width = rect.left - adj_rect.left + adj_rect.right - rect.right;
+            let deco_height = rect.top - adj_rect.top + adj_rect.bottom - rect.bottom;
+
+            let width = rect.right - rect.left - deco_width;
+            let height = rect.bottom - rect.top - deco_height;
+
+            let mut width_delta = snap_to_nearest_increment_delta(width, inc.width);
+            let mut height_delta = snap_to_nearest_increment_delta(height, inc.height);
+
+            // Windows won't bound check the value of `rect` after we're done here, so we
+            // have to check manually. If the width/height we snap to would go out of bounds, just
+            // set it equal to the min/max bound.
+            let min_size = userdata
+                .window_state_lock()
+                .min_size
+                .map(|size| size.to_physical(scale_factor));
+            let max_size = userdata
+                .window_state_lock()
+                .max_size
+                .map(|size| size.to_physical(scale_factor));
+            let final_width = width + width_delta;
+            let final_height = height + height_delta;
+            if let Some(min_size) = min_size {
+                if final_width < min_size.width {
+                    width_delta += min_size.width - final_width;
+                }
+                if final_height < min_size.height {
+                    height_delta += min_size.height - final_height;
+                }
+            }
+            if let Some(max_size) = max_size {
+                if final_width > max_size.width {
+                    width_delta -= final_width - max_size.width;
+                }
+                if final_height > max_size.height {
+                    height_delta -= final_height - max_size.height;
+                }
+            }
+
+            match side {
+                WMSZ_LEFT | WMSZ_BOTTOMLEFT | WMSZ_TOPLEFT => {
+                    rect.left -= width_delta;
+                }
+                WMSZ_RIGHT | WMSZ_BOTTOMRIGHT | WMSZ_TOPRIGHT => {
+                    rect.right += width_delta;
+                }
+                _ => {}
+            }
+
+            match side {
+                WMSZ_TOP | WMSZ_TOPLEFT | WMSZ_TOPRIGHT => {
+                    rect.top -= height_delta;
+                }
+                WMSZ_BOTTOM | WMSZ_BOTTOMLEFT | WMSZ_BOTTOMRIGHT => {
+                    rect.bottom += height_delta;
+                }
+                _ => {}
+            }
+
+            result = ProcResult::DefWindowProc(wparam);
         }
 
         WM_MENUCHAR => {

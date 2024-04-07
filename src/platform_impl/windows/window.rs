@@ -284,11 +284,16 @@ impl Window {
 
     #[inline]
     pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
-        None
+        let w = self.window_state_lock();
+        let scale_factor = w.scale_factor;
+        w.resize_increments
+            .map(|size| size.to_physical(scale_factor))
     }
 
     #[inline]
-    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        self.window_state_lock().resize_increments = increments;
+    }
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
