@@ -18,6 +18,26 @@ on how to add them:
 - On Windows, add `Window::some_rare_api`.
 ```
 
+When the change requires non-trivial amount of work for users to comply
+with it, the migration guide should be added below the entry, like:
+
+```md
+- Deprecate `Window` creation outside of `EventLoop::run`
+
+  This was done to simply migration in the future. Consider the
+  following code:
+
+  // Code snippet.
+
+  To migrate it we should do X, Y, and then Z, for example:
+
+  // Code snippet.
+
+```
+
+The migration guide could reference other migration examples in the current
+changelog entry.
+
 ## Unreleased
 
 ### Added
@@ -26,14 +46,14 @@ on how to add them:
   trivial cases.
 - Add `ApplicationHandler<T>` trait which mimics `Event<T>`.
 - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a
-  Add `CursorIcon` or `CustomCursor`.
+  `CursorIcon` or `CustomCursor`.
 - Add `Sync` implementation for `EventLoopProxy<T: Send>`.
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - Add `EventLoop::builder` to get `EventLoopBuilder` without export.
 - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
 - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
-- Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors
-  Add from other `CustomCursor`s.
+- Add `CustomCursorExtWebSys::from_animation` to allow creating animated
+  cursors from other `CustomCursor`s.
 - Add `{Active,}EventLoop::create_custom_cursor` to load custom cursor image sources.
 - Add `ActiveEventLoop::create_window` and `EventLoop::create_window`.
 - Add `CustomCursor` which could be set via `Window::set_cursor`, implemented on
@@ -71,11 +91,151 @@ on how to add them:
 - Deprecate `EventLoop::run`, use `EventLoop::run_app`.
 - Deprecate `EventLoopExtRunOnDemand::run_on_demand`, use `EventLoop::run_app_on_demand`.
 - Deprecate `EventLoopExtPumpEvents::pump_events`, use `EventLoopExtPumpEvents::pump_app_events`.
+
+  The new `app` APIs accept a newly added `ApplicationHandler<T>` instead of
+  `Fn`. The semantics are mostly the same, given that the capture list of the
+  closure is your new `State`. Consider the following code:
+
+  ```rust,no_run
+  use winit::event::Event;
+  use winit::event_loop::EventLoop;
+  use winit::window::Window;
+
+  struct MyUserEvent;
+
+  let event_loop = EventLoop::<MyUserEvent>::with_user_event().build().unwrap();
+  let window = event_loop.create_window(Window::default_attributes()).unwrap();
+  let mut counter = 0;
+
+  let _ = event_loop.run(move |event, event_loop| {
+      match event {
+          Event::AboutToWait => {
+              window.request_redraw();
+              counter += 1;
+          }
+          Event::WindowEvent { window_id, event } => {
+              // Handle window event.
+          }
+          Event::UserEvent(event) => {
+              // Handle user event.
+          }
+          Event::DeviceEvent { device_id, event } => {
+              // Handle device event.
+          }
+          _ => (),
+      }
+  });
+  ```
+
+  To migrate this code, you should move all the captured values into some
+  newtype `State` and implement `ApplicationHandler` for this type. Finally,
+  we move particular `match event` arms into methods on `ApplicationHandler`,
+  for example:
+
+  ```rust,no_run
+  use winit::application::ApplicationHandler;
+  use winit::event::{Event, WindowEvent, DeviceEvent, DeviceId};
+  use winit::event_loop::{EventLoop, ActiveEventLoop};
+  use winit::window::{Window, WindowId};
+
+  struct MyUserEvent;
+
+  struct State {
+      window: Window,
+      counter: i32,
+  }
+
+  impl ApplicationHandler<MyUserEvent> for State {
+      fn user_event(&mut self, event_loop: &ActiveEventLoop, user_event: MyUserEvent) {
+          // Handle user event.
+      }
+
+      fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+          // Your application got resumed.
+      }
+
+      fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+          // Handle window event.
+      }
+
+      fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+          // Handle window event.
+      }
+
+      fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+          self.window.request_redraw();
+          self.counter += 1;
+      }
+  }
+
+  let event_loop = EventLoop::<MyUserEvent>::with_user_event().build().unwrap();
+  #[allow(deprecated)]
+  let window = event_loop.create_window(Window::default_attributes()).unwrap();
+  let mut state = State { window, counter: 0 };
+
+  let _ = event_loop.run_app(&mut state);
+  ```
+
+  Please submit your feedback after migrating in [this issue](https://github.com/rust-windowing/winit/issues/3626).
+
 - Deprecate `Window::set_cursor_icon`, use `Window::set_cursor`.
 
 ### Removed
 
-- Remove `Window::new`, use `ActiveEventLoop::create_window` and `EventLoop::create_window`.
+- Remove `Window::new`, use `ActiveEventLoop::create_window` instead.
+
+  You now have to create your windows inside the actively running event loop
+  (usually the `new_events(cause: StartCause::Init)` or `resumed()` events),
+  and can no longer do it before the application has properly launched.
+  This change is done to fix many long-standing issues on iOS and macOS, and
+  will improve things on Wayland once fully implemented.
+
+  To ease migration, we provide the deprecated `EventLoop::create_window` that
+  will allow you to bypass this restriction in this release.
+
+  Using the migration example from above, you can change your code as follows:
+
+  ```rust,no_run
+  use winit::application::ApplicationHandler;
+  use winit::event::{Event, WindowEvent, DeviceEvent, DeviceId};
+  use winit::event_loop::{EventLoop, ActiveEventLoop};
+  use winit::window::{Window, WindowId};
+
+  #[derive(Default)]
+  struct State {
+      // Use an `Option` to allow the window to not be available until the
+      // application is properly running.
+      window: Option<Window>,
+      counter: i32,
+  }
+
+  impl ApplicationHandler for State {
+      // This is a common indicator that you can create a window.
+      fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+          self.window = Some(event_loop.create_window(Window::default_attributes()).unwrap());
+      }
+      fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+          // `unwrap` is fine, the window will always be available when
+          // receiving a window event.
+          let window = self.window.as_ref().unwrap();
+          // Handle window event.
+      }
+      fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+          // Handle window event.
+      }
+      fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+          if let Some(window) = self.window.as_ref() {
+              window.request_redraw();
+              self.counter += 1;
+          }
+      }
+  }
+
+  let event_loop = EventLoop::new().unwrap();
+  let mut state = State::default();
+  let _ = event_loop.run_app(&mut state);
+  ```
+
 - Remove `Deref` implementation for `EventLoop` that gave `EventLoopWindowTarget`.
 - Remove `WindowBuilder` in favor of `WindowAttributes`.
 - Remove Generic parameter `T` from `ActiveEventLoop`.
