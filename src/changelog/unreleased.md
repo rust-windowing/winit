@@ -77,6 +77,7 @@ changelog entry.
 - Rename `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold
   static data.
+- Make `Debug` formatting of `WindowId` more concise.
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Replace `log` with `tracing`, use `log` feature on `tracing` to restore old
   behavior.
@@ -252,4 +253,3 @@ changelog entry.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - On Windows, fix cursor not confined to center of window when grabbed and hidden.
 - On macOS, fix sequence of mouse events being out of order when dragging on the trackpad.
-- Debug formatting of `WindowId` is more concise.
