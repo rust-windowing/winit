@@ -159,7 +159,7 @@ changelog entry.
       }
 
       fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
-          // Handle window event.
+          // Handle device event.
       }
 
       fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
