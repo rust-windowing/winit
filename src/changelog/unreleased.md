@@ -67,6 +67,9 @@ changelog entry.
 ### Changed
 
 - Bump MSRV from `1.65` to `1.70`.
+- On Wayland, bump `sctk-adwaita` to `0.9.0`, which changed system library
+  crates. This change is a **cascading breaking change**, you must do breaking
+  change as well, even if you don't expose winit.
 - Rename `TouchpadMagnify` to `PinchGesture`.
 - Rename `SmartMagnify` to `DoubleTapGesture`.
 - Rename `TouchpadRotate` to `RotationGesture`.
@@ -74,6 +77,7 @@ changelog entry.
 - Rename `platform::x11::XWindowType` to `platform::x11::WindowType`.
 - Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold
   static data.
+- Make `Debug` formatting of `WindowId` more concise.
 - Move `dpi` types to its own crate, and re-export it from the root crate.
 - Replace `log` with `tracing`, use `log` feature on `tracing` to restore old
   behavior.

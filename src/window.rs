@@ -67,7 +67,7 @@ impl Drop for Window {
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub(crate) platform_impl::WindowId);
 
 impl WindowId {
@@ -83,6 +83,12 @@ impl WindowId {
     pub const unsafe fn dummy() -> Self {
         #[allow(unused_unsafe)]
         WindowId(unsafe { platform_impl::WindowId::dummy() })
+    }
+}
+
+impl fmt::Debug for WindowId {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(fmtr)
     }
 }
 
