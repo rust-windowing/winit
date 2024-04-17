@@ -1,11 +1,8 @@
-use icrate::AppKit::{
-    NSApplication, NSEventModifierFlagCommand, NSEventModifierFlagOption, NSEventModifierFlags,
-    NSMenu, NSMenuItem,
-};
-use icrate::Foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::sel;
+use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+use objc2_foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,
@@ -58,7 +55,10 @@ pub fn initialize(app: &NSApplication) {
         Some(sel!(hideOtherApplications:)),
         Some(KeyEquivalent {
             key: ns_string!("h"),
-            masks: Some(NSEventModifierFlagOption | NSEventModifierFlagCommand),
+            masks: Some(NSEventModifierFlags(
+                NSEventModifierFlags::NSEventModifierFlagOption.0
+                    | NSEventModifierFlags::NSEventModifierFlagCommand.0,
+            )),
         }),
     );
 

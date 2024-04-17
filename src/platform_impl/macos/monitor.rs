@@ -10,9 +10,9 @@ use core_foundation::{
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
-use icrate::AppKit::NSScreen;
-use icrate::Foundation::{ns_string, MainThreadMarker, NSNumber, NSPoint, NSRect};
 use objc2::{rc::Id, runtime::AnyObject};
+use objc2_app_kit::NSScreen;
+use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoint, NSRect};
 
 use super::ffi;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
@@ -203,7 +203,7 @@ impl MonitorHandle {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             match self.ns_screen(mtm) {
                 Some(screen) => screen.backingScaleFactor() as f64,
                 None => 1.0, // default to 1.0 when we can't find the screen

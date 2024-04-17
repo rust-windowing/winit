@@ -1,6 +1,6 @@
-use icrate::Foundation::{CGFloat, CGPoint, NSInteger, NSObject};
 use objc2::encode::{Encode, Encoding};
 use objc2::{extern_class, extern_methods, mutability, ClassType};
+use objc2_foundation::{CGFloat, CGPoint, NSInteger, NSObject};
 
 use super::UIView;
 

@@ -3,20 +3,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
 
-use icrate::AppKit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled,
-    NSEventPhaseChanged, NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
-};
-use icrate::Foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
-    NSString, NSUInteger,
-};
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
+};
+use objc2_app_kit::{
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
+    NSTrackingRectTag, NSView,
+};
+use objc2_foundation::{
+    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
+    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
+    NSString, NSUInteger,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -175,7 +174,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
@@ -188,7 +189,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
 
@@ -371,9 +374,13 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let rect = dbg!(NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get()));
+            let rect = dbg!(NSRect::new(
+                self.ivars().ime_position.get(),
+                self.ivars().ime_size.get()
+            ));
             // Return value is expected to be in screen coordinates, so we need a conversion here
-            unsafe { self.window().convertRectToScreen(self.convertRect_toView(rect, None)) }
+            self.window()
+                .convertRectToScreen(self.convertRect_toView(rect, None))
         }
 
         #[method(insertText:replacementRange:)]
@@ -415,7 +422,8 @@ declare_class!(
 
             self.ivars().forward_key_to_app.set(true);
 
-            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit {
+            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit
+            {
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
@@ -666,19 +674,11 @@ declare_class!(
             // report the touch phase.
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.momentumPhase() } {
-                NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                    TouchPhase::Started
-                }
-                NSEventPhaseEnded | NSEventPhaseCancelled => {
-                    TouchPhase::Ended
-                }
+                NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                 _ => match unsafe { event.phase() } {
-                    NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                        TouchPhase::Started
-                    }
-                    NSEventPhaseEnded | NSEventPhaseCancelled => {
-                        TouchPhase::Ended
-                    }
+                    NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                    NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 },
             };
@@ -701,10 +701,10 @@ declare_class!(
 
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 
@@ -734,10 +734,10 @@ declare_class!(
 
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 

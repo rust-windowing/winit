@@ -1,5 +1,5 @@
-use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
+use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{UIApplication, UIWindow};
