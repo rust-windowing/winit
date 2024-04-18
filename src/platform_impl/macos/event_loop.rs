@@ -16,16 +16,13 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use icrate::AppKit::{
-    NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
-    NSApplicationActivationPolicyRegular, NSWindow,
-};
-use icrate::Foundation::{MainThreadMarker, NSObjectProtocol};
 use objc2::{msg_send_id, ClassType};
 use objc2::{
     rc::{autoreleasepool, Id},
     runtime::ProtocolObject,
 };
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
+use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
 use super::event::dummy_event;
 use super::{
@@ -232,9 +229,9 @@ impl<T> EventLoop<T> {
         }
 
         let activation_policy = match attributes.activation_policy {
-            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
+            ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
+            ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
         };
         let delegate = ApplicationDelegate::new(
             mtm,
