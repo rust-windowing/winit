@@ -15,6 +15,7 @@ pub use platform::fill_window;
 mod platform {
     use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::mem;
     use std::mem::ManuallyDrop;
     use std::num::NonZeroU32;
 
@@ -34,24 +35,32 @@ mod platform {
     /// The graphics context used to draw to a window.
     struct GraphicsContext {
         /// The global softbuffer context.
-        context: Context,
+        context: RefCell<Context<&'static Window>>,
 
         /// The hash map of window IDs to surfaces.
-        surfaces: HashMap<WindowId, Surface>,
+        surfaces: HashMap<WindowId, Surface<&'static Window, &'static Window>>,
     }
 
     impl GraphicsContext {
         fn new(w: &Window) -> Self {
             Self {
-                context: unsafe { Context::new(w) }.expect("Failed to create a softbuffer context"),
+                context: RefCell::new(
+                    Context::new(unsafe { mem::transmute::<&'_ Window, &'static Window>(w) })
+                        .expect("Failed to create a softbuffer context"),
+                ),
                 surfaces: HashMap::new(),
             }
         }
 
-        fn create_surface(&mut self, window: &Window) -> &mut Surface {
+        fn create_surface(
+            &mut self,
+            window: &Window,
+        ) -> &mut Surface<&'static Window, &'static Window> {
             self.surfaces.entry(window.id()).or_insert_with(|| {
-                unsafe { Surface::new(&self.context, window) }
-                    .expect("Failed to create a softbuffer surface")
+                Surface::new(&self.context.borrow(), unsafe {
+                    mem::transmute::<&'_ Window, &'static Window>(window)
+                })
+                .expect("Failed to create a softbuffer surface")
             })
         }
 

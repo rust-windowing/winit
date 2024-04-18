@@ -88,13 +88,13 @@ smol_str = "0.2.0"
 tracing = { version = "0.1.40", default_features = false }
 
 [dev-dependencies]
-image = { version = "0.24.0", default-features = false, features = ["png"] }
+image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default_features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 winit = { path = ".", features = ["rwh_05"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
-softbuffer = { version = "0.3.0", default-features = false, features = [
+softbuffer = { version = "0.4.0", default-features = false, features = [
     "x11",
     "x11-dlopen",
     "wayland",
