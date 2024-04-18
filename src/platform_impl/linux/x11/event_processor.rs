@@ -1907,7 +1907,7 @@ impl EventProcessor {
             None => return,
         };
 
-        // Send the keys using the sythetic state to not alter the main state.
+        // Send the keys using the synthetic state to not alter the main state.
         let mut xkb_state = match XkbState::new_x11(xcb, keymap) {
             Some(xkb_state) => xkb_state,
             None => return,
