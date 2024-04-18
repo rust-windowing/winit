@@ -255,3 +255,4 @@ changelog entry.
 - On Windows, fix cursor not confined to center of window when grabbed and hidden.
 - On macOS, fix sequence of mouse events being out of order when dragging on the trackpad.
 - On Wayland, fix decoration glitch on close with some compositors.
+- On Android, fix a regression introduced in #2748 to allow volume key events to be received again.

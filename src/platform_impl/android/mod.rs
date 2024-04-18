@@ -438,10 +438,10 @@ impl<T: 'static> EventLoop<T> {
                     // Flag keys related to volume as unhandled. While winit does not have a way for applications
                     // to configure what keys to flag as handled, this appears to be a good default until winit
                     // can be configured.
-                    Keycode::VolumeUp | Keycode::VolumeDown | Keycode::VolumeMute => {
-                        if self.ignore_volume_keys {
-                            input_status = InputStatus::Unhandled
-                        }
+                    Keycode::VolumeUp | Keycode::VolumeDown | Keycode::VolumeMute
+                        if self.ignore_volume_keys =>
+                    {
+                        input_status = InputStatus::Unhandled
                     }
                     keycode => {
                         let state = match key.action() {
