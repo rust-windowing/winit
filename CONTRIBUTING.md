@@ -140,6 +140,6 @@ When doing a patch release, the process is similar:
   1. Initially, the version of the latest release is `0.2.0`
   2. Checkout the `v0.2.x` branch
   3. Cherry-pick the required non-breaking changes into the `v0.2.x`
-  4. Follow steps 3-7 of the regular release example
+  4. Follow steps 4-9 of the regular release example
 
 [CODEOWNERS]: .github/CODEOWNERS
