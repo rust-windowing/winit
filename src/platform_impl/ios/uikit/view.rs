@@ -46,6 +46,9 @@ extern_methods!(
         #[method(setRootViewController:)]
         pub fn setRootViewController(&self, rootViewController: Option<&UIViewController>);
 
+        #[method(addSubview:)]
+        pub fn addSubview(&self, view: &UIView);
+
         #[method(convertRect:toCoordinateSpace:)]
         pub fn convertRect_toCoordinateSpace(
             &self,
