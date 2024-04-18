@@ -4,6 +4,7 @@ use std::thread;
 #[cfg(not(web_platform))]
 use std::time;
 
+use ::tracing::{info, warn};
 #[cfg(web_platform)]
 use web_time as time;
 
@@ -15,6 +16,8 @@ use winit::window::{Window, WindowId};
 
 #[path = "util/fill.rs"]
 mod fill;
+#[path = "util/tracing.rs"]
+mod tracing;
 
 const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
 const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
@@ -28,13 +31,16 @@ enum Mode {
 }
 
 fn main() -> Result<(), impl std::error::Error> {
-    tracing_subscriber::fmt::init();
+    #[cfg(web_platform)]
+    console_error_panic_hook::set_once();
 
-    println!("Press '1' to switch to Wait mode.");
-    println!("Press '2' to switch to WaitUntil mode.");
-    println!("Press '3' to switch to Poll mode.");
-    println!("Press 'R' to toggle request_redraw() calls.");
-    println!("Press 'Esc' to close the window.");
+    tracing::init();
+
+    info!("Press '1' to switch to Wait mode.");
+    info!("Press '2' to switch to WaitUntil mode.");
+    info!("Press '3' to switch to Poll mode.");
+    info!("Press 'R' to toggle request_redraw() calls.");
+    info!("Press 'Esc' to close the window.");
 
     let event_loop = EventLoop::new().unwrap();
 
@@ -53,7 +59,7 @@ struct ControlFlowDemo {
 
 impl ApplicationHandler for ControlFlowDemo {
     fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
-        println!("new_events: {cause:?}");
+        info!("new_events: {cause:?}");
 
         self.wait_cancelled = match cause {
             StartCause::WaitCancelled { .. } => self.mode == Mode::WaitUntil,
@@ -74,7 +80,7 @@ impl ApplicationHandler for ControlFlowDemo {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        println!("{event:?}");
+        info!("{event:?}");
 
         match event {
             WindowEvent::CloseRequested => {
@@ -93,19 +99,19 @@ impl ApplicationHandler for ControlFlowDemo {
                 // See the `key_binding` example
                 Key::Character("1") => {
                     self.mode = Mode::Wait;
-                    println!("\nmode: {:?}\n", self.mode);
+                    warn!("mode: {:?}", self.mode);
                 }
                 Key::Character("2") => {
                     self.mode = Mode::WaitUntil;
-                    println!("\nmode: {:?}\n", self.mode);
+                    warn!("mode: {:?}", self.mode);
                 }
                 Key::Character("3") => {
                     self.mode = Mode::Poll;
-                    println!("\nmode: {:?}\n", self.mode);
+                    warn!("mode: {:?}", self.mode);
                 }
                 Key::Character("r") => {
                     self.request_redraw = !self.request_redraw;
-                    println!("\nrequest_redraw: {}\n", self.request_redraw);
+                    warn!("request_redraw: {}", self.request_redraw);
                 }
                 Key::Named(NamedKey::Escape) => {
                     self.close_requested = true;
