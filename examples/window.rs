@@ -7,11 +7,12 @@ use std::fmt::Debug;
 use std::mem;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
+use std::sync::Arc;
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
 #[cfg(not(any(android_platform, ios_platform)))]
-use rwh_05::HasRawDisplayHandle;
+use rwh_06::{DisplayHandle, HasDisplayHandle};
 #[cfg(not(any(android_platform, ios_platform)))]
 use softbuffer::{Context, Surface};
 
@@ -83,14 +84,21 @@ struct Application {
     ///
     /// With OpenGL it could be EGLDisplay.
     #[cfg(not(any(android_platform, ios_platform)))]
-    context: Option<Context>,
+    context: Option<Context<DisplayHandle<'static>>>,
 }
 
 impl Application {
     fn new<T>(event_loop: &EventLoop<T>) -> Self {
         // SAFETY: we drop the context right before the event loop is stopped, thus making it safe.
         #[cfg(not(any(android_platform, ios_platform)))]
-        let context = Some(unsafe { Context::from_raw(event_loop.raw_display_handle()).unwrap() });
+        let context = Some(
+            Context::new(unsafe {
+                std::mem::transmute::<DisplayHandle<'_>, DisplayHandle<'static>>(
+                    event_loop.display_handle().unwrap(),
+                )
+            })
+            .unwrap(),
+        );
 
         // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
         // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
@@ -494,9 +502,9 @@ struct WindowState {
     ///
     /// NOTE: This surface must be dropped before the `Window`.
     #[cfg(not(any(android_platform, ios_platform)))]
-    surface: Surface,
+    surface: Surface<DisplayHandle<'static>, Arc<Window>>,
     /// The actual winit Window.
-    window: Window,
+    window: Arc<Window>,
     /// The window theme we're drawing with.
     theme: Theme,
     /// Cursor position over the window.
@@ -523,10 +531,12 @@ struct WindowState {
 
 impl WindowState {
     fn new(app: &Application, window: Window) -> Result<Self, Box<dyn Error>> {
+        let window = Arc::new(window);
+
         // SAFETY: the surface is dropped before the `window` which provided it with handle, thus
         // it doesn't outlive it.
         #[cfg(not(any(android_platform, ios_platform)))]
-        let surface = unsafe { Surface::new(app.context.as_ref().unwrap(), &window)? };
+        let surface = Surface::new(app.context.as_ref().unwrap(), Arc::clone(&window))?;
 
         let theme = window.theme().unwrap_or(Theme::Dark);
         info!("Theme: {theme:?}");
