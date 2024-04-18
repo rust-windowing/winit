@@ -1,7 +1,7 @@
-use icrate::Foundation::{NSNotFound, NSRange, NSUInteger};
+use objc2_foundation::{NSNotFound, NSRange, NSUInteger};
 use tracing::trace;
 
-pub const EMPTY_RANGE: NSRange = NSRange {
+pub static EMPTY_RANGE: NSRange = NSRange {
     location: NSNotFound as NSUInteger,
     length: 0,
 };

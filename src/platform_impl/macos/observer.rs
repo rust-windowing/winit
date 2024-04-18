@@ -15,7 +15,7 @@ use core_foundation::runloop::{
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
     CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
 };
-use icrate::Foundation::MainThreadMarker;
+use objc2_foundation::MainThreadMarker;
 
 use super::ffi;
 use super::{

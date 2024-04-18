@@ -1,5 +1,5 @@
-use icrate::Foundation::NSObject;
 use objc2::{extern_class, mutability, ClassType};
+use objc2_foundation::NSObject;
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

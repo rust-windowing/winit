@@ -1,12 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::RefCell;
 
-use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
 use objc2::{
     declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
+use objc2_foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSSet};
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{

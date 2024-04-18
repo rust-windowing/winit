@@ -5,10 +5,10 @@ use std::{
     fmt, hash, ptr,
 };
 
-use icrate::Foundation::{MainThreadBound, MainThreadMarker, NSInteger};
 use objc2::mutability::IsRetainable;
 use objc2::rc::Id;
 use objc2::Message;
+use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger};
 
 use super::uikit::{UIScreen, UIScreenMode};
 use crate::{
@@ -23,7 +23,7 @@ struct MainThreadBoundDelegateImpls<T>(MainThreadBound<Id<T>>);
 
 impl<T: IsRetainable + Message> Clone for MainThreadBoundDelegateImpls<T> {
     fn clone(&self) -> Self {
-        Self(MainThreadMarker::run_on_main(|mtm| {
+        Self(run_on_main(|mtm| {
             MainThreadBound::new(Id::clone(self.0.get(mtm)), mtm)
         }))
     }
@@ -100,7 +100,7 @@ pub struct MonitorHandle {
 
 impl Clone for MonitorHandle {
     fn clone(&self) -> Self {
-        MainThreadMarker::run_on_main(|mtm| Self {
+        run_on_main(|mtm| Self {
             ui_screen: MainThreadBound::new(self.ui_screen.get(mtm).clone(), mtm),
         })
     }
@@ -155,7 +155,7 @@ impl MonitorHandle {
     }
 
     pub fn name(&self) -> Option<String> {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             let main = UIScreen::main(mtm);
             if *self.ui_screen(mtm) == main {
                 Some("Primary".to_string())
@@ -197,7 +197,7 @@ impl MonitorHandle {
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
             // Use Ord impl of RootVideoModeHandle
 
@@ -218,7 +218,7 @@ impl MonitorHandle {
     }
 
     pub fn preferred_video_mode(&self) -> VideoModeHandle {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             VideoModeHandle::new(
                 self.ui_screen(mtm).clone(),
                 self.ui_screen(mtm).preferredMode().unwrap(),

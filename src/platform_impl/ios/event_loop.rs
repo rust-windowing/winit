@@ -13,8 +13,8 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use icrate::Foundation::{MainThreadMarker, NSString};
 use objc2::ClassType;
+use objc2_foundation::{MainThreadMarker, NSString};
 
 use crate::{
     error::EventLoopError,

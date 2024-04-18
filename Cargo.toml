@@ -88,58 +88,71 @@ ndk-sys = "0.5.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = "0.5.0"
+objc2 = "0.5.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
 
-[target.'cfg(target_os = "macos")'.dependencies.icrate]
-version = "0.1.0"
+[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
+version = "0.2.0"
 features = [
     "dispatch",
-    "Foundation",
-    "Foundation_NSArray",
-    "Foundation_NSAttributedString",
-    "Foundation_NSMutableAttributedString",
-    "Foundation_NSData",
-    "Foundation_NSDictionary",
-    "Foundation_NSString",
-    "Foundation_NSProcessInfo",
-    "Foundation_NSThread",
-    "Foundation_NSNumber",
-    "AppKit",
-    "AppKit_NSAppearance",
-    "AppKit_NSApplication",
-    "AppKit_NSBitmapImageRep",
-    "AppKit_NSButton",
-    "AppKit_NSColor",
-    "AppKit_NSControl",
-    "AppKit_NSCursor",
-    "AppKit_NSEvent",
-    "AppKit_NSGraphicsContext",
-    "AppKit_NSImage",
-    "AppKit_NSImageRep",
-    "AppKit_NSMenu",
-    "AppKit_NSMenuItem",
-    "AppKit_NSPasteboard",
-    "AppKit_NSResponder",
-    "AppKit_NSScreen",
-    "AppKit_NSTextInputContext",
-    "AppKit_NSView",
-    "AppKit_NSWindow",
-    "AppKit_NSWindowTabGroup",
+    "NSArray",
+    "NSAttributedString",
+    "NSData",
+    "NSDictionary",
+    "NSEnumerator",
+    "NSObjCRuntime",
+    "NSString",
+    "NSPathUtilities",
+    "NSProcessInfo",
+    "NSThread",
+    "NSValue",
 ]
 
-[target.'cfg(target_os = "ios")'.dependencies.icrate]
-version = "0.1.0"
+[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
+version = "0.2.0"
+features = [
+    "NSAppearance",
+    "NSApplication",
+    "NSBitmapImageRep",
+    "NSButton",
+    "NSColor",
+    "NSControl",
+    "NSCursor",
+    "NSDragging",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSImage",
+    "NSImageRep",
+    "NSMenu",
+    "NSMenuItem",
+    "NSOpenGLView",
+    "NSPasteboard",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSScreen",
+    "NSTextInputClient",
+    "NSTextInputContext",
+    "NSView",
+    "NSWindow",
+    "NSWindowScripting",
+    "NSWindowTabGroup",
+]
+
+[target.'cfg(target_os = "ios")'.dependencies.objc2-foundation]
+version = "0.2.0"
 features = [
     "dispatch",
-    "Foundation",
-    "Foundation_NSArray",
-    "Foundation_NSString",
-    "Foundation_NSProcessInfo",
-    "Foundation_NSThread",
-    "Foundation_NSSet",
+    "NSArray",
+    "NSEnumerator",
+    "NSGeometry",
+    "NSObjCRuntime",
+    "NSString",
+    "NSProcessInfo",
+    "NSThread",
+    "NSSet",
 ]
 
 [target.'cfg(target_os = "windows")'.dependencies]
