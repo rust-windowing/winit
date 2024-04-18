@@ -374,10 +374,10 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let rect = dbg!(NSRect::new(
+            let rect = NSRect::new(
                 self.ivars().ime_position.get(),
                 self.ivars().ime_size.get()
-            ));
+            );
             // Return value is expected to be in screen coordinates, so we need a conversion here
             self.window()
                 .convertRectToScreen(self.convertRect_toView(rect, None))
