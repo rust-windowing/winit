@@ -726,7 +726,8 @@ impl<T: 'static> EventLoop<T> {
                 "Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you absolutely need to create an \
                  EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtUnix::any_thread` function."
+                 `EventLoopBuilderExtX11::any_thread` or `EventLoopBuilderExtWayland::any_thread` \
+                 functions."
             );
         }
 
