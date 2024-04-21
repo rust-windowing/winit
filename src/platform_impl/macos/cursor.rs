@@ -2,14 +2,14 @@ use std::ffi::c_uchar;
 use std::slice;
 use std::sync::OnceLock;
 
-use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
-use icrate::Foundation::{
-    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
-    NSString,
-};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::{msg_send_id, sel, ClassType};
+use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
+use objc2_foundation::{
+    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
+    NSString,
+};
 
 use crate::cursor::CursorImage;
 use crate::cursor::OnlyCursorImageSource;
@@ -19,7 +19,7 @@ use crate::window::CursorIcon;
 pub struct CustomCursor(pub(crate) Id<NSCursor>);
 
 // SAFETY: NSCursor is immutable and thread-safe
-// TODO(madsmtm): Put this logic in icrate itself
+// TODO(madsmtm): Put this logic in objc2-app-kit itself
 unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 

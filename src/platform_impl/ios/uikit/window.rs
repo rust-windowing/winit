@@ -1,6 +1,6 @@
-use icrate::Foundation::NSObject;
 use objc2::rc::Id;
 use objc2::{extern_class, extern_methods, msg_send_id, mutability, ClassType};
+use objc2_foundation::NSObject;
 
 use super::{UIResponder, UIScreen, UIView};
 

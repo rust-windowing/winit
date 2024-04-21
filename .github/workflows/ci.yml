@@ -10,7 +10,7 @@ jobs:
     name: Check formatting
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt
@@ -88,7 +88,7 @@ jobs:
       CMD: ${{ matrix.platform.cmd }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Restore cache of cargo folder
       # We use `restore` and later `save`, so that we can create the key after
@@ -220,7 +220,7 @@ jobs:
           - { name: 'Windows', target: x86_64-pc-windows-gnu }
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: EmbarkStudios/cargo-deny-action@v1
       with:
         command: check

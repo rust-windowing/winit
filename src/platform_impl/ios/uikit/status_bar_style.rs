@@ -1,5 +1,5 @@
-use icrate::Foundation::NSInteger;
 use objc2::encode::{Encode, Encoding};
+use objc2_foundation::NSInteger;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(dead_code)]

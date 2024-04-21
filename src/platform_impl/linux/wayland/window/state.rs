@@ -57,9 +57,6 @@ pub struct WindowState {
     /// The connection to Wayland server.
     pub connection: Connection,
 
-    /// The window frame, which is created from the configure request.
-    frame: Option<WinitFrame>,
-
     /// The `Shm` to set cursor.
     pub shm: WlShm,
 
@@ -155,6 +152,13 @@ pub struct WindowState {
 
     /// The underlying SCTK window.
     pub window: Window,
+
+    // NOTE: The spec says that destroying parent(`window` in our case), will unmap the
+    // subsurfaces. Thus to achieve atomic unmap of the client, drop the decorations
+    // frame after the `window` is dropped. To achieve that we rely on rust's struct
+    // field drop order guarantees.
+    /// The window frame, which is created from the configure request.
+    frame: Option<WinitFrame>,
 }
 
 impl WindowState {

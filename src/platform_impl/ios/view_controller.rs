@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
-use icrate::Foundation::{MainThreadMarker, NSObject};
 use objc2::rc::Id;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2_foundation::{MainThreadMarker, NSObject};
 
 use super::app_state::{self};
 use super::uikit::{

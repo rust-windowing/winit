@@ -5,11 +5,11 @@ use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
+use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
@@ -21,9 +21,18 @@ use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent}
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
+#[derive(Debug)]
+struct Policy(NSApplicationActivationPolicy);
+
+impl Default for Policy {
+    fn default() -> Self {
+        Self(NSApplicationActivationPolicy::Regular)
+    }
+}
+
 #[derive(Debug, Default)]
 pub(super) struct State {
-    activation_policy: NSApplicationActivationPolicy,
+    activation_policy: Policy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     event_handler: EventHandler,
@@ -74,7 +83,7 @@ declare_class!(
             // We need to delay setting the activation policy and activating the app
             // until `applicationDidFinishLaunching` has been called. Otherwise the
             // menu bar is initially unresponsive on macOS 10.15.
-            app.setActivationPolicy(self.ivars().activation_policy);
+            app.setActivationPolicy(self.ivars().activation_policy.0);
 
             window_activation_hack(&app);
             #[allow(deprecated)]
@@ -124,7 +133,7 @@ impl ApplicationDelegate {
         activate_ignoring_other_apps: bool,
     ) -> Id<Self> {
         let this = mtm.alloc().set_ivars(State {
-            activation_policy,
+            activation_policy: Policy(activation_policy),
             default_menu,
             activate_ignoring_other_apps,
             ..Default::default()

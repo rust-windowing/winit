@@ -16,12 +16,12 @@ use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
     CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
 };
-use icrate::Foundation::{
-    CGRect, CGSize, MainThreadMarker, NSInteger, NSOperatingSystemVersion, NSProcessInfo,
-};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, sel};
+use objc2_foundation::{
+    CGRect, CGSize, MainThreadMarker, NSInteger, NSOperatingSystemVersion, NSProcessInfo,
+};
 
 use super::uikit::UIView;
 use super::window::WinitUIWindow;
