@@ -63,6 +63,7 @@ changelog entry.
 - On macOS, add services menu.
 - On Windows, add `with_title_text_color`, and `with_corner_preference` on
   `WindowAttributesExtWindows`.
+- On Windows, implement resize increments.
 
 ### Changed
 
@@ -253,4 +254,4 @@ changelog entry.
 - On Web, fix setting cursor icon overriding cursor visibility.
 - On Windows, fix cursor not confined to center of window when grabbed and hidden.
 - On macOS, fix sequence of mouse events being out of order when dragging on the trackpad.
-- On Wayland, fix decoration glitch on close with some compositors
+- On Wayland, fix decoration glitch on close with some compositors.
