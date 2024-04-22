@@ -1030,7 +1030,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_SYSTEMBACKDROP_TYPE,
+                DWMWA_SYSTEMBACKDROP_TYPE as u32,
                 &(backdrop_type as i32) as *const _ as _,
                 mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as _,
             );
@@ -1089,7 +1089,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_BORDER_COLOR,
+                DWMWA_BORDER_COLOR as u32,
                 &color as *const _ as _,
                 mem::size_of::<Color>() as _,
             );
@@ -1101,7 +1101,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_CAPTION_COLOR,
+                DWMWA_CAPTION_COLOR as u32,
                 &color as *const _ as _,
                 mem::size_of::<Color>() as _,
             );
@@ -1113,7 +1113,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_TEXT_COLOR,
+                DWMWA_TEXT_COLOR as u32,
                 &color as *const _ as _,
                 mem::size_of::<Color>() as _,
             );
@@ -1125,7 +1125,7 @@ impl Window {
         unsafe {
             DwmSetWindowAttribute(
                 self.hwnd(),
-                DWMWA_WINDOW_CORNER_PREFERENCE,
+                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
                 &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
                 mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
             );
@@ -1494,7 +1494,7 @@ impl Drop for ComInitialized {
 thread_local! {
     static COM_INITIALIZED: ComInitialized = {
         unsafe {
-            CoInitializeEx(ptr::null(), COINIT_APARTMENTTHREADED);
+            CoInitializeEx(ptr::null(), COINIT_APARTMENTTHREADED as u32);
             ComInitialized(ptr::null_mut())
         }
     };

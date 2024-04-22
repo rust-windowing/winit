@@ -187,7 +187,7 @@ impl FileDropHandler {
         let get_data_fn = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).GetData };
         let get_data_result = unsafe { get_data_fn(data_obj as *mut _, &drop_format, &mut medium) };
         if get_data_result >= 0 {
-            let hdrop = unsafe { medium.Anonymous.hGlobal };
+            let hdrop = unsafe { medium.u.hGlobal as HDROP };
 
             // The second parameter (0xFFFFFFFF) instructs the function to return the item count
             let item_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0) };

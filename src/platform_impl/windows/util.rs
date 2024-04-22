@@ -99,7 +99,7 @@ pub fn is_maximized(window: HWND) -> bool {
         let mut placement: WINDOWPLACEMENT = mem::zeroed();
         placement.length = mem::size_of::<WINDOWPLACEMENT>() as u32;
         GetWindowPlacement(window, &mut placement);
-        placement.showCmd == SW_MAXIMIZE
+        placement.showCmd == SW_MAXIMIZE as u32
     }
 }
 
