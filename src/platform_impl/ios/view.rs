@@ -2,7 +2,9 @@
 use std::cell::Cell;
 use std::ptr::NonNull;
 
-use icrate::Foundation::{CGFloat, CGRect, MainThreadMarker, NSObject, NSObjectProtocol, NSSet};
+use icrate::Foundation::{
+    CGFloat, CGRect, MainThreadMarker, NSData, NSError, NSObject, NSObjectProtocol, NSSet,
+};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::rc::Id;
 use objc2::runtime::AnyClass;
@@ -15,9 +17,13 @@ use super::uikit::{
     UIViewController, UIWindow,
 };
 use super::window::WindowId;
+
 use crate::{
     dpi::PhysicalPosition,
-    event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
+    event::{
+        DeviceId as RootDeviceId, Event, Force, IosRemoteRegistration, Touch, TouchPhase,
+        WindowEvent,
+    },
     platform::ios::ValidOrientations,
     platform_impl::platform::{
         ffi::{UIRectEdge, UIUserInterfaceIdiom},
@@ -524,6 +530,47 @@ declare_class!(
         fn did_finish_launching(&self, _application: &UIApplication, _: *mut NSObject) -> bool {
             app_state::did_finish_launching(MainThreadMarker::new().unwrap());
             true
+        }
+
+        #[method(application:didRegisterForRemoteNotificationsWithDeviceToken:)]
+        fn did_register_for_remote_notifications_with_device_token(
+            &self,
+            _application: &UIApplication,
+            token_data: *mut NSData,
+        ) {
+            let slice: &[u8] = unsafe { token_data.as_ref() }.unwrap().bytes();
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::IosRemoteRegistration(
+                    IosRemoteRegistration::DeviceToken(slice.to_vec()),
+                )),
+            )
+        }
+
+        #[method(application:didFailToRegisterForRemoteNotificationsWithError:)]
+        fn did_fail_to_register_for_remote_notifications(
+            &self,
+            _application: &UIApplication,
+            error: *mut NSError,
+        ) {
+            let code = unsafe { error.as_ref() }.unwrap().code();
+            let localized_description: String = unsafe { error.as_ref() }
+                .unwrap()
+                .localizedDescription()
+                .to_string();
+
+            let mtm = MainThreadMarker::new().unwrap();
+            app_state::handle_nonuser_event(
+                mtm,
+                EventWrapper::StaticEvent(Event::IosRemoteRegistration(
+                    IosRemoteRegistration::Failed {
+                        code,
+                        localized_description,
+                    },
+                )),
+            )
         }
 
         #[method(applicationDidBecomeActive:)]

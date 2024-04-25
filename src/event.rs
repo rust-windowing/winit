@@ -52,6 +52,16 @@ use crate::{
     window::{ActivationToken, Theme, WindowId},
 };
 
+/// iOS specific event sent when UIApplication delegate receives the response upon registering for remote notifications
+#[derive(Debug, Clone, PartialEq)]
+pub enum IosRemoteRegistration {
+    Failed {
+        code: isize,
+        localized_description: String,
+    },
+    DeviceToken(Vec<u8>),
+}
+
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
@@ -251,6 +261,9 @@ pub enum Event<T: 'static> {
     ///
     /// - **macOS / Wayland / Windows / Orbital:** Unsupported.
     MemoryWarning,
+
+    /// TODO
+    IosRemoteRegistration(IosRemoteRegistration),
 }
 
 impl<T> Event<T> {
@@ -267,6 +280,7 @@ impl<T> Event<T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
+            IosRemoteRegistration(v) => Ok(IosRemoteRegistration(v)),
         }
     }
 }
