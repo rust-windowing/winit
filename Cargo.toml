@@ -113,6 +113,8 @@ features = [
     "dispatch",
     "Foundation",
     "Foundation_NSArray",
+    "Foundation_NSData",
+    "Foundation_NSError",
     "Foundation_NSString",
     "Foundation_NSProcessInfo",
     "Foundation_NSThread",
