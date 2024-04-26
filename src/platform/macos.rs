@@ -19,11 +19,9 @@ use std::os::raw::c_void;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    event_loop::{ActiveEventLoop, EventLoopBuilder},
-    monitor::MonitorHandle,
-    window::{Window, WindowAttributes},
-};
+use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowAttributes};
 
 /// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -106,8 +104,7 @@ impl WindowExtMacOS for Window {
 
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
-        self.window
-            .maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
+        self.window.maybe_wait_on_main(move |w| w.set_simple_fullscreen(fullscreen))
     }
 
     #[inline]
@@ -117,14 +114,12 @@ impl WindowExtMacOS for Window {
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
+        self.window.maybe_queue_on_main(move |w| w.set_has_shadow(has_shadow))
     }
 
     #[inline]
     fn set_tabbing_identifier(&self, identifier: &str) {
-        self.window
-            .maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
+        self.window.maybe_wait_on_main(|w| w.set_tabbing_identifier(identifier))
     }
 
     #[inline]
@@ -144,8 +139,7 @@ impl WindowExtMacOS for Window {
 
     #[inline]
     fn select_tab_at_index(&self, index: usize) {
-        self.window
-            .maybe_queue_on_main(move |w| w.select_tab_at_index(index))
+        self.window.maybe_queue_on_main(move |w| w.select_tab_at_index(index))
     }
 
     #[inline]
@@ -160,14 +154,12 @@ impl WindowExtMacOS for Window {
 
     #[inline]
     fn set_document_edited(&self, edited: bool) {
-        self.window
-            .maybe_queue_on_main(move |w| w.set_document_edited(edited))
+        self.window.maybe_queue_on_main(move |w| w.set_document_edited(edited))
     }
 
     #[inline]
     fn set_option_as_alt(&self, option_as_alt: OptionAsAlt) {
-        self.window
-            .maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
+        self.window.maybe_queue_on_main(move |w| w.set_option_as_alt(option_as_alt))
     }
 
     #[inline]
@@ -192,7 +184,8 @@ pub enum ActivationPolicy {
 
 /// Additional methods on [`WindowAttributes`] that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowAttributes::with_decorations`] method:
+/// **Note:** Properties dealing with the titlebar will be overwritten by the
+/// [`WindowAttributes::with_decorations`] method:
 /// - `with_titlebar_transparent`
 /// - `with_title_hidden`
 /// - `with_titlebar_hidden`
@@ -282,9 +275,7 @@ impl WindowAttributesExtMacOS for WindowAttributes {
 
     #[inline]
     fn with_tabbing_identifier(mut self, tabbing_identifier: &str) -> Self {
-        self.platform_specific
-            .tabbing_identifier
-            .replace(tabbing_identifier.to_string());
+        self.platform_specific.tabbing_identifier.replace(tabbing_identifier.to_string());
         self
     }
 
@@ -307,7 +298,7 @@ pub trait EventLoopBuilderExtMacOS {
     /// ```
     /// use winit::event_loop::EventLoopBuilder;
     /// #[cfg(target_os = "macos")]
-    /// use winit::platform::macos::{EventLoopBuilderExtMacOS, ActivationPolicy};
+    /// use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
     ///
     /// let mut builder = EventLoopBuilder::new();
     /// #[cfg(target_os = "macos")]
@@ -384,17 +375,17 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     fn ns_screen(&self) -> Option<*mut c_void> {
         // SAFETY: We only use the marker to get a pointer
         let mtm = unsafe { objc2_foundation::MainThreadMarker::new_unchecked() };
-        self.inner
-            .ns_screen(mtm)
-            .map(|s| objc2::rc::Id::as_ptr(&s) as _)
+        self.inner.ns_screen(mtm).map(|s| objc2::rc::Id::as_ptr(&s) as _)
     }
 }
 
 /// Additional methods on [`ActiveEventLoop`] that are specific to macOS.
 pub trait ActiveEventLoopExtMacOS {
-    /// Hide the entire application. In most applications this is typically triggered with Command-H.
+    /// Hide the entire application. In most applications this is typically triggered with
+    /// Command-H.
     fn hide_application(&self);
-    /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
+    /// Hide the other applications. In most applications this is typically triggered with
+    /// Command+Option-H.
     fn hide_other_applications(&self);
     /// Set whether the system can automatically organize windows into tabs.
     ///

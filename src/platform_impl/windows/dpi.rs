@@ -2,19 +2,15 @@
 
 use std::sync::Once;
 
-use windows_sys::Win32::{
-    Foundation::{HWND, S_OK},
-    Graphics::Gdi::{
-        GetDC, GetDeviceCaps, MonitorFromWindow, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST,
-    },
-    UI::{
-        HiDpi::{
-            DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
-            MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE,
-        },
-        WindowsAndMessaging::IsProcessDPIAware,
-    },
+use windows_sys::Win32::Foundation::{HWND, S_OK};
+use windows_sys::Win32::Graphics::Gdi::{
+    GetDC, GetDeviceCaps, MonitorFromWindow, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST,
 };
+use windows_sys::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+    MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::IsProcessDPIAware;
 
 use crate::platform_impl::platform::util::{
     ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,

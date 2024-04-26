@@ -1,39 +1,27 @@
-use std::{
-    ffi::{c_void, OsStr, OsString},
-    io,
-    iter::once,
-    mem,
-    ops::BitAnd,
-    os::windows::prelude::{OsStrExt, OsStringExt},
-    ptr,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::ffi::{c_void, OsStr, OsString};
+use std::iter::once;
+use std::ops::BitAnd;
+use std::os::windows::prelude::{OsStrExt, OsStringExt};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{io, mem, ptr};
 
 use crate::utils::Lazy;
-use windows_sys::{
-    core::{HRESULT, PCWSTR},
-    Win32::{
-        Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT},
-        Graphics::Gdi::{ClientToScreen, HMONITOR},
-        System::{
-            LibraryLoader::{GetProcAddress, LoadLibraryA},
-            SystemServices::IMAGE_DOS_HEADER,
-        },
-        UI::{
-            HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
-            Input::{
-                KeyboardAndMouse::GetActiveWindow,
-                Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO},
-            },
-            WindowsAndMessaging::{
-                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement,
-                GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
-                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
-                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
-            },
-        },
-    },
+use windows_sys::core::{HRESULT, PCWSTR};
+use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, RECT};
+use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
+use windows_sys::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
+};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowPlacement, GetWindowRect,
+    IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
+    IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
+    SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
+    WINDOWPLACEMENT,
 };
 
 use crate::window::CursorIcon;
@@ -77,7 +65,7 @@ impl WindowArea {
         match self {
             WindowArea::Outer => {
                 win_to_err(unsafe { GetWindowRect(hwnd, &mut rect) })?;
-            }
+            },
             WindowArea::Inner => unsafe {
                 let mut top_left = mem::zeroed();
 
@@ -123,10 +111,7 @@ pub fn get_cursor_clip() -> Result<RECT, io::Error> {
 /// Note that calling this will automatically dispatch a `WM_MOUSEMOVE` event.
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
-        let rect_ptr = rect
-            .as_ref()
-            .map(|r| r as *const RECT)
-            .unwrap_or(ptr::null());
+        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
         win_to_err(ClipCursor(rect_ptr))
     }
 }
@@ -176,7 +161,7 @@ pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
         CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
         CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
             IDC_SIZEALL
-        }
+        },
         CursorIcon::EResize
         | CursorIcon::WResize
         | CursorIcon::EwResize

@@ -85,14 +85,9 @@ impl ApplicationHandler for ControlFlowDemo {
         match event {
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
-            }
+            },
             WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        logical_key: key,
-                        state: ElementState::Pressed,
-                        ..
-                    },
+                event: KeyEvent { logical_key: key, state: ElementState::Pressed, .. },
                 ..
             } => match key.as_ref() {
                 // WARNING: Consider using `key_without_modifiers()` if available on your platform.
@@ -100,29 +95,29 @@ impl ApplicationHandler for ControlFlowDemo {
                 Key::Character("1") => {
                     self.mode = Mode::Wait;
                     warn!("mode: {:?}", self.mode);
-                }
+                },
                 Key::Character("2") => {
                     self.mode = Mode::WaitUntil;
                     warn!("mode: {:?}", self.mode);
-                }
+                },
                 Key::Character("3") => {
                     self.mode = Mode::Poll;
                     warn!("mode: {:?}", self.mode);
-                }
+                },
                 Key::Character("r") => {
                     self.request_redraw = !self.request_redraw;
                     warn!("request_redraw: {}", self.request_redraw);
-                }
+                },
                 Key::Named(NamedKey::Escape) => {
                     self.close_requested = true;
-                }
+                },
                 _ => (),
             },
             WindowEvent::RedrawRequested => {
                 let window = self.window.as_ref().unwrap();
                 window.pre_present_notify();
                 fill::fill_window(window);
-            }
+            },
             _ => (),
         }
     }
@@ -139,11 +134,11 @@ impl ApplicationHandler for ControlFlowDemo {
                     event_loop
                         .set_control_flow(ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME));
                 }
-            }
+            },
             Mode::Poll => {
                 thread::sleep(POLL_SLEEP_TIME);
                 event_loop.set_control_flow(ControlFlow::Poll);
-            }
+            },
         };
 
         if self.close_requested {

@@ -84,12 +84,11 @@ pub trait EventLoopExtPumpEvents {
     ///
     /// ## Platform-specific
     ///
-    /// - **Windows**: The implementation will use `PeekMessage` when checking for
-    ///   window messages to avoid blocking your external event loop.
+    /// - **Windows**: The implementation will use `PeekMessage` when checking for window messages
+    ///   to avoid blocking your external event loop.
     ///
-    /// - **MacOS**: The implementation works in terms of stopping the global application
-    ///   whenever the application `RunLoop` indicates that it is preparing to block
-    ///   and wait for new events.
+    /// - **MacOS**: The implementation works in terms of stopping the global application whenever
+    ///   the application `RunLoop` indicates that it is preparing to block and wait for new events.
     ///
     ///   This is very different to the polling APIs that are available on other
     ///   platforms (the lower level polling primitives on MacOS are private

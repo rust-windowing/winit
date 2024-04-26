@@ -1,8 +1,9 @@
-use std::{env, str, str::FromStr};
+use std::str::FromStr;
+use std::{env, str};
 
 use super::*;
-use crate::platform_impl::platform::x11::monitor;
-use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoModeHandle};
+use crate::dpi::validate_scale_factor;
+use crate::platform_impl::platform::x11::{monitor, VideoModeHandle};
 
 use tracing::warn;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
@@ -42,16 +43,14 @@ impl XConnection {
         if let Some(xsettings_screen) = self.xsettings_screen() {
             match self.xsettings_dpi(xsettings_screen) {
                 Ok(Some(dpi)) => return Some(dpi),
-                Ok(None) => {}
+                Ok(None) => {},
                 Err(err) => {
                     tracing::warn!("failed to fetch XSettings: {err}");
-                }
+                },
             }
         }
 
-        self.database()
-            .get_string("Xft.dpi", "")
-            .and_then(|s| f64::from_str(s).ok())
+        self.database().get_string("Xft.dpi", "").and_then(|s| f64::from_str(s).ok())
     }
 
     pub fn get_output_info(
@@ -69,7 +68,7 @@ impl XConnection {
             Err(err) => {
                 warn!("Failed to get output info: {:?}", err);
                 return None;
-            }
+            },
         };
 
         let bit_depth = self.default_root().root_depth;
@@ -100,14 +99,15 @@ impl XConnection {
             Err(err) => {
                 warn!("Failed to get output name: {:?}", err);
                 return None;
-            }
+            },
         };
         // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
         let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
         if deprecated_dpi_override.is_some() {
             warn!(
-	            "The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
-	        )
+                "The WINIT_HIDPI_FACTOR environment variable is deprecated; use \
+                 WINIT_X11_SCALE_FACTOR"
+            )
         }
         let dpi_env = env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
             || EnvVarDPI::NotSet,
@@ -120,7 +120,8 @@ impl XConnection {
                     EnvVarDPI::NotSet
                 } else {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{var}`"
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal \
+                         floats greater than 0, or `randr`. Got `{var}`"
                     );
                 }
             },
@@ -134,11 +135,12 @@ impl XConnection {
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{dpi_override}`",
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal \
+                         floats greater than 0, or `randr`. Got `{dpi_override}`",
                     );
                 }
                 dpi_override
-            }
+            },
             EnvVarDPI::NotSet => {
                 if let Some(dpi) = self.get_xft_dpi() {
                     dpi / 96.
@@ -148,7 +150,7 @@ impl XConnection {
                         (output_info.mm_width as _, output_info.mm_height as _),
                     )
                 }
-            }
+            },
         };
 
         Some((name, scale_factor, modes))
@@ -159,10 +161,8 @@ impl XConnection {
         crtc_id: randr::Crtc,
         mode_id: randr::Mode,
     ) -> Result<(), X11Error> {
-        let crtc = self
-            .xcb_connection()
-            .randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?
-            .reply()?;
+        let crtc =
+            self.xcb_connection().randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?.reply()?;
 
         self.xcb_connection()
             .randr_set_crtc_config(
@@ -181,10 +181,6 @@ impl XConnection {
     }
 
     pub fn get_crtc_mode(&self, crtc_id: randr::Crtc) -> Result<randr::Mode, X11Error> {
-        Ok(self
-            .xcb_connection()
-            .randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?
-            .reply()?
-            .mode)
+        Ok(self.xcb_connection().randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?.reply()?.mode)
     }
 }

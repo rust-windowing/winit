@@ -84,13 +84,10 @@ pub struct UIEdgeInsets {
 }
 
 unsafe impl Encode for UIEdgeInsets {
-    const ENCODING: Encoding = Encoding::Struct(
-        "UIEdgeInsets",
-        &[
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-            CGFloat::ENCODING,
-        ],
-    );
+    const ENCODING: Encoding = Encoding::Struct("UIEdgeInsets", &[
+        CGFloat::ENCODING,
+        CGFloat::ENCODING,
+        CGFloat::ENCODING,
+        CGFloat::ENCODING,
+    ]);
 }

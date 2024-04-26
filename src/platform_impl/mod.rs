@@ -25,7 +25,8 @@ mod platform;
 
 pub use self::platform::*;
 
-/// Helper for converting between platform-specific and generic [`VideoModeHandle`]/[`MonitorHandle`]
+/// Helper for converting between platform-specific and generic
+/// [`VideoModeHandle`]/[`MonitorHandle`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Fullscreen {
     Exclusive(VideoModeHandle),
@@ -47,10 +48,10 @@ impl From<Fullscreen> for RootFullscreen {
         match f {
             Fullscreen::Exclusive(video_mode) => {
                 Self::Exclusive(RootVideoModeHandle { video_mode })
-            }
+            },
             Fullscreen::Borderless(Some(inner)) => {
                 Self::Borderless(Some(RootMonitorHandle { inner }))
-            }
+            },
             Fullscreen::Borderless(None) => Self::Borderless(None),
         }
     }

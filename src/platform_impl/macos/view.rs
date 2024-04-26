@@ -26,15 +26,13 @@ use super::event::{
 };
 use super::window::WinitWindow;
 use super::{util, DEVICE_ID};
-use crate::{
-    dpi::{LogicalPosition, LogicalSize},
-    event::{
-        DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-        WindowEvent,
-    },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
-    platform::macos::OptionAsAlt,
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::event::{
+    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+    WindowEvent,
 };
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use crate::platform::macos::OptionAsAlt;
 
 #[derive(Debug)]
 struct CursorState {
@@ -44,10 +42,7 @@ struct CursorState {
 
 impl Default for CursorState {
     fn default() -> Self {
-        Self {
-            visible: true,
-            cursor: default_cursor(),
-        }
+        Self { visible: true, cursor: default_cursor() }
     }
 }
 
@@ -819,10 +814,7 @@ impl WinitView {
         // (which is incompatible with `frameDidChange:`)
         //
         // unsafe { msg_send_id![self, window] }
-        self.ivars()
-            ._ns_window
-            .load()
-            .expect("view to have a window")
+        self.ivars()._ns_window.load().expect("view to have a window")
     }
 
     fn queue_event(&self, event: WindowEvent) {
@@ -950,9 +942,7 @@ impl WinitView {
                 let location_mask = ModLocationMask::from_location(event.location);
 
                 let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
-                let phys_mod = phys_mod_state
-                    .entry(key)
-                    .or_insert(ModLocationMask::empty());
+                let phys_mod = phys_mod_state.entry(key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
@@ -1102,9 +1092,7 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
 
     if ignore_alt_characters {
         let ns_chars = unsafe {
-            event
-                .charactersIgnoringModifiers()
-                .expect("expected characters to be non-null")
+            event.charactersIgnoringModifiers().expect("expected characters to be non-null")
         };
 
         unsafe {

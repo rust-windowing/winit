@@ -1,16 +1,16 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{collections::VecDeque, fmt};
+use std::collections::VecDeque;
+use std::fmt;
 
-use core_foundation::{
-    array::{CFArrayGetCount, CFArrayGetValueAtIndex},
-    base::{CFRelease, TCFType},
-    string::CFString,
-};
+use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
+use core_foundation::base::{CFRelease, TCFType};
+use core_foundation::string::CFString;
 use core_graphics::display::{
     CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
 };
-use objc2::{rc::Id, runtime::AnyObject};
+use objc2::rc::Id;
+use objc2::runtime::AnyObject;
 use objc2_app_kit::NSScreen;
 use objc2_foundation::{ns_string, run_on_main, MainThreadMarker, NSNumber, NSPoint, NSRect};
 
@@ -233,9 +233,7 @@ impl MonitorHandle {
                 return None;
             }
 
-            (time.time_scale as i64)
-                .checked_div(time.time_value)
-                .map(|v| (v * 1000) as u32)
+            (time.time_scale as i64).checked_div(time.time_value).map(|v| (v * 1000) as u32)
         }
     }
 

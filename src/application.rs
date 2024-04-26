@@ -20,8 +20,8 @@ pub trait ApplicationHandler<T: 'static = ()> {
     ///
     /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
     /// formal suspend/resume lifecycle. For systems without a formal suspend/resume lifecycle
-    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
-    /// event.
+    /// the `Resumed` event is always emitted after the
+    /// [`NewEvents(StartCause::Init)`][StartCause::Init] event.
     ///
     /// # Portability
     ///
@@ -33,15 +33,16 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
     /// driven by multiple platform-specific events, and that there may be subtle differences across
     /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
+    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed`
+    /// events.
     ///
     /// Also see [`Suspended`] notes.
     ///
     /// ## Android
     ///
     /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
-    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
-    /// be a discrepancy.
+    /// expected to closely correlate with the [`onResume`] lifecycle event but there may
+    /// technically be a discrepancy.
     ///
     /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
     ///
@@ -109,7 +110,8 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// Emitted when the event loop is about to block and wait for new events.
     ///
     /// Most applications shouldn't need to hook into this event since there is no real relationship
-    /// between how often the event loop needs to wake up and the dispatching of any specific events.
+    /// between how often the event loop needs to wake up and the dispatching of any specific
+    /// events.
     ///
     /// High frequency event sources, such as input devices could potentially lead to lots of wake
     /// ups and also lots of corresponding `AboutToWait` events.
@@ -133,7 +135,8 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
     /// driven by multiple platform-specific events, and that there may be subtle differences across
     /// platforms with how these internal events are delivered, it's recommended that applications
-    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
+    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`]
+    /// events.
     ///
     /// Also see [`Resumed`] notes.
     ///
@@ -150,7 +153,8 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
     ///
     /// After being `Suspended` on Android applications must drop all render surfaces before
-    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
+    /// the event callback completes, which may be re-created when the application is next
+    /// [`Resumed`].
     ///
     /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
     /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
@@ -197,17 +201,17 @@ pub trait ApplicationHandler<T: 'static = ()> {
     ///
     /// ### Android
     ///
-    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The application
-    /// must [release memory] or risk being killed.
+    /// On Android, the `MemoryWarning` event is sent when [`onLowMemory`] was called. The
+    /// application must [release memory] or risk being killed.
     ///
     /// [`onLowMemory`]: https://developer.android.com/reference/android/app/Application.html#onLowMemory()
     /// [release memory]: https://developer.android.com/topic/performance/memory#release
     ///
     /// ### iOS
     ///
-    /// On iOS, the `MemoryWarning` event is emitted in response to an [`applicationDidReceiveMemoryWarning`]
-    /// callback. The application must free as much memory as possible or risk being terminated, see
-    /// [how to respond to memory warnings].
+    /// On iOS, the `MemoryWarning` event is emitted in response to an
+    /// [`applicationDidReceiveMemoryWarning`] callback. The application must free as much
+    /// memory as possible or risk being terminated, see [how to respond to memory warnings].
     ///
     /// [`applicationDidReceiveMemoryWarning`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623063-applicationdidreceivememorywarni
     /// [how to respond to memory warnings]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle/responding_to_memory_warnings

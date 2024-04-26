@@ -17,10 +17,9 @@ struct Value<V> {
     // SAFETY:
     // This value must not be accessed if not on the main thread.
     //
-    // - We wrap this in an `Arc` to allow it to be safely cloned without
-    //   accessing the value.
-    // - The `RefCell` lets us mutably access in the main thread but is safe to
-    //   drop in any thread because it has no `Drop` behavior.
+    // - We wrap this in an `Arc` to allow it to be safely cloned without accessing the value.
+    // - The `RefCell` lets us mutably access in the main thread but is safe to drop in any thread
+    //   because it has no `Drop` behavior.
     // - The `Option` lets us safely drop `T` only in the main thread.
     value: Arc<RefCell<Option<V>>>,
     // Prevent's `Send` or `Sync` to be automatically implemented.
@@ -53,10 +52,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
         });
 
         Some(Self {
-            value: Value {
-                value,
-                local: PhantomData,
-            },
+            value: Value { value, local: PhantomData },
             handler,
             sender_data,
             sender_handler,
@@ -84,10 +80,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
 impl<V, S: Clone + Send, E> Clone for Wrapper<V, S, E> {
     fn clone(&self) -> Self {
         Self {
-            value: Value {
-                value: self.value.value.clone(),
-                local: PhantomData,
-            },
+            value: Value { value: self.value.value.clone(), local: PhantomData },
             handler: self.handler,
             sender_data: self.sender_data.clone(),
             sender_handler: self.sender_handler,
