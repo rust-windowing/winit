@@ -904,8 +904,8 @@ impl WindowDelegate {
 
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         let dimensions = dimensions.unwrap_or(Size::Logical(LogicalSize {
-            width: std::f32::MAX as f64,
-            height: std::f32::MAX as f64,
+            width: f32::MAX as f64,
+            height: f32::MAX as f64,
         }));
         let scale_factor = self.scale_factor();
         let max_size = dimensions.to_logical::<CGFloat>(scale_factor);
