@@ -64,6 +64,7 @@ changelog entry.
 - On Windows, add `with_title_text_color`, and `with_corner_preference` on
   `WindowAttributesExtWindows`.
 - On Windows, implement resize increments.
+- On Windows, add `AnyThread` API to access window handle off the main thread.
 
 ### Changed
 
@@ -256,3 +257,4 @@ changelog entry.
 - On macOS, fix sequence of mouse events being out of order when dragging on the trackpad.
 - On Wayland, fix decoration glitch on close with some compositors.
 - On Android, fix a regression introduced in #2748 to allow volume key events to be received again.
+- On Windows, don't return a valid window handle outside of the GUI thread.
