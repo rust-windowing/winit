@@ -60,13 +60,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match event {
                 WindowEvent::CloseRequested => {
-                    println!("--------------------------------------------------------- Window {} CloseRequested", self.idx);
+                    println!(
+                        "--------------------------------------------------------- Window {} \
+                         CloseRequested",
+                        self.idx
+                    );
                     fill::cleanup_window(window);
                     self.window = None;
-                }
+                },
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(window);
-                }
+                },
                 _ => (),
             }
         }
@@ -76,10 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut event_loop = EventLoop::new().unwrap();
 
-    let mut app = App {
-        idx: 1,
-        ..Default::default()
-    };
+    let mut app = App { idx: 1, ..Default::default() };
     event_loop.run_app_on_demand(&mut app)?;
 
     println!("--------------------------------------------------------- Finished first loop");

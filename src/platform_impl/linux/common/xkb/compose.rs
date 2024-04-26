@@ -6,8 +6,7 @@ use std::ops::Deref;
 use std::os::unix::ffi::OsStringExt;
 use std::ptr::NonNull;
 
-use super::XkbContext;
-use super::XKBCH;
+use super::{XkbContext, XKBCH};
 use smol_str::SmolStr;
 use xkbcommon_dl::{
     xkb_compose_compile_flags, xkb_compose_feed_result, xkb_compose_state, xkb_compose_state_flags,
@@ -91,7 +90,7 @@ impl XkbComposeState {
             xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED => ComposeStatus::Ignored,
             xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED => {
                 ComposeStatus::Accepted(self.status())
-            }
+            },
         }
     }
 

@@ -1,0 +1,4 @@
+# $ git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore(rustfmt): use nightly
+7b0c7b6cb2c62767ca0c73c857b299883f55a883

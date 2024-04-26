@@ -9,19 +9,11 @@ use super::AtomicWaker;
 
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
-    let shared = Arc::new(Shared {
-        closed: AtomicBool::new(false),
-        waker: AtomicWaker::new(),
-    });
+    let shared = Arc::new(Shared { closed: AtomicBool::new(false), waker: AtomicWaker::new() });
 
-    let sender = Sender(Arc::new(SenderInner {
-        sender: Mutex::new(sender),
-        shared: Arc::clone(&shared),
-    }));
-    let receiver = Receiver {
-        receiver: Rc::new(receiver),
-        shared,
-    };
+    let sender =
+        Sender(Arc::new(SenderInner { sender: Mutex::new(sender), shared: Arc::clone(&shared) }));
+    let receiver = Receiver { receiver: Rc::new(receiver), shared };
 
     (sender, receiver)
 }
@@ -85,10 +77,10 @@ impl<T> Receiver<T> {
                         } else {
                             Poll::Pending
                         }
-                    }
+                    },
                     Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
                 }
-            }
+            },
             Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
         })
         .await
@@ -105,10 +97,7 @@ impl<T> Receiver<T> {
 
 impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
-        Self {
-            receiver: Rc::clone(&self.receiver),
-            shared: Arc::clone(&self.shared),
-        }
+        Self { receiver: Rc::clone(&self.receiver), shared: Arc::clone(&self.shared) }
     }
 }
 

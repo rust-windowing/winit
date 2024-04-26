@@ -13,9 +13,7 @@ pub struct EventLoopProxy<T: 'static> {
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-        }
+        EventLoopProxy { user_events_sender: self.user_events_sender.clone() }
     }
 }
 
@@ -25,8 +23,6 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_events_sender
-            .send(event)
-            .map_err(|SendError(error)| EventLoopClosed(error))
+        self.user_events_sender.send(event).map_err(|SendError(error)| EventLoopClosed(error))
     }
 }

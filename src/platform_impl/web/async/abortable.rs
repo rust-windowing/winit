@@ -19,10 +19,7 @@ pub struct Abortable<F: Future> {
 
 impl<F: Future> Abortable<F> {
     pub fn new(handle: AbortHandle, future: F) -> Self {
-        Self {
-            future,
-            shared: handle.0,
-        }
+        Self { future, shared: handle.0 }
     }
 }
 
@@ -59,10 +56,7 @@ pub struct AbortHandle(Arc<Shared>);
 
 impl AbortHandle {
     pub fn new() -> Self {
-        Self(Arc::new(Shared {
-            waker: AtomicWaker::new(),
-            aborted: AtomicBool::new(false),
-        }))
+        Self(Arc::new(Shared { waker: AtomicWaker::new(), aborted: AtomicBool::new(false) }))
     }
 
     pub fn abort(&self) {

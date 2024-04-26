@@ -1,21 +1,17 @@
 #![cfg(windows_platform)]
 
 use smol_str::SmolStr;
-use windows_sys::Win32::{
-    Foundation::{HANDLE, HWND},
-    UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX},
-};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::{
-    event_loop::{
-        ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
-        PlatformSpecificEventLoopAttributes,
-    },
-    icon::{SelectedCursor, WinIcon},
-    keyboard::{physicalkey_to_scancode, scancode_to_physicalkey},
-    monitor::{MonitorHandle, VideoModeHandle},
-    window::Window,
+pub(crate) use self::event_loop::{
+    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
+    PlatformSpecificEventLoopAttributes,
 };
+pub(crate) use self::icon::{SelectedCursor, WinIcon};
+pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
+pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::window::Window;
 
 pub(crate) use self::icon::WinCursor as PlatformCustomCursor;
 pub use self::icon::WinIcon as PlatformIcon;
@@ -149,17 +145,17 @@ const fn get_y_lparam(x: u32) -> i16 {
 
 #[inline(always)]
 pub(crate) const fn primarylangid(lgid: u16) -> u16 {
-    lgid & 0x3FF
+    lgid & 0x3ff
 }
 
 #[inline(always)]
 pub(crate) const fn loword(x: u32) -> u16 {
-    (x & 0xFFFF) as u16
+    (x & 0xffff) as u16
 }
 
 #[inline(always)]
 const fn hiword(x: u32) -> u16 {
-    ((x >> 16) & 0xFFFF) as u16
+    ((x >> 16) & 0xffff) as u16
 }
 
 #[inline(always)]

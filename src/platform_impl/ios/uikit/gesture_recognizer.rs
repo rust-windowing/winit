@@ -1,8 +1,6 @@
-use icrate::Foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
-use objc2::{
-    encode::{Encode, Encoding},
-    extern_class, extern_methods, mutability, ClassType,
-};
+use objc2::encode::{Encode, Encoding};
+use objc2::{extern_class, extern_methods, mutability, ClassType};
+use objc2_foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
 
 // https://developer.apple.com/documentation/uikit/uigesturerecognizer
 extern_class!(

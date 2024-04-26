@@ -5,11 +5,11 @@ use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use icrate::AppKit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use icrate::Foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
 use objc2::rc::Id;
 use objc2::runtime::AnyObject;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
+use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSSize};
 
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
@@ -21,9 +21,18 @@ use crate::event::{DeviceEvent, Event, InnerSizeWriter, StartCause, WindowEvent}
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
 use crate::window::WindowId as RootWindowId;
 
+#[derive(Debug)]
+struct Policy(NSApplicationActivationPolicy);
+
+impl Default for Policy {
+    fn default() -> Self {
+        Self(NSApplicationActivationPolicy::Regular)
+    }
+}
+
 #[derive(Debug, Default)]
 pub(super) struct State {
-    activation_policy: NSApplicationActivationPolicy,
+    activation_policy: Policy,
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     event_handler: EventHandler,
@@ -74,7 +83,7 @@ declare_class!(
             // We need to delay setting the activation policy and activating the app
             // until `applicationDidFinishLaunching` has been called. Otherwise the
             // menu bar is initially unresponsive on macOS 10.15.
-            app.setActivationPolicy(self.ivars().activation_policy);
+            app.setActivationPolicy(self.ivars().activation_policy.0);
 
             window_activation_hack(&app);
             #[allow(deprecated)]
@@ -124,7 +133,7 @@ impl ApplicationDelegate {
         activate_ignoring_other_apps: bool,
     ) -> Id<Self> {
         let this = mtm.alloc().set_ivars(State {
-            activation_policy,
+            activation_policy: Policy(activation_policy),
             default_menu,
             activate_ignoring_other_apps,
             ..Default::default()
@@ -231,10 +240,7 @@ impl ApplicationDelegate {
     }
 
     pub fn queue_device_event(&self, event: DeviceEvent) {
-        self.ivars()
-            .pending_events
-            .borrow_mut()
-            .push_back(QueuedEvent::DeviceEvent(event));
+        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::DeviceEvent(event));
     }
 
     pub fn queue_static_scale_factor_changed_event(
@@ -243,14 +249,11 @@ impl ApplicationDelegate {
         suggested_size: PhysicalSize<u32>,
         scale_factor: f64,
     ) {
-        self.ivars()
-            .pending_events
-            .borrow_mut()
-            .push_back(QueuedEvent::ScaleFactorChanged {
-                window,
-                suggested_size,
-                scale_factor,
-            });
+        self.ivars().pending_events.borrow_mut().push_back(QueuedEvent::ScaleFactorChanged {
+            window,
+            suggested_size,
+            scale_factor,
+        });
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
@@ -263,8 +266,9 @@ impl ApplicationDelegate {
                 event: WindowEvent::RedrawRequested,
             });
 
-            // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested events
-            // as a way to ensure that `pump_events` can't block an external loop indefinitely
+            // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
+            // events as a way to ensure that `pump_events` can't block an external loop
+            // indefinitely
             if self.ivars().stop_on_redraw.get() {
                 let app = NSApplication::sharedApplication(mtm);
                 stop_app_immediately(&app);
@@ -281,9 +285,7 @@ impl ApplicationDelegate {
     }
 
     fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
-        self.ivars()
-            .event_handler
-            .handle_event(event, &ActiveEventLoop::new_root(self.retain()))
+        self.ivars().event_handler.handle_event(event, &ActiveEventLoop::new_root(self.retain()))
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
@@ -314,23 +316,14 @@ impl ApplicationDelegate {
         let start = self.ivars().start_time.get().unwrap();
         let cause = match self.control_flow() {
             ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
+            ControlFlow::Wait => StartCause::WaitCancelled { start, requested_resume: None },
             ControlFlow::WaitUntil(requested_resume) => {
                 if Instant::now() >= requested_resume {
-                    StartCause::ResumeTimeReached {
-                        start,
-                        requested_resume,
-                    }
+                    StartCause::ResumeTimeReached { start, requested_resume }
                 } else {
-                    StartCause::WaitCancelled {
-                        start,
-                        requested_resume: Some(requested_resume),
-                    }
+                    StartCause::WaitCancelled { start, requested_resume: Some(requested_resume) }
                 }
-            }
+            },
         };
 
         self.handle_event(Event::NewEvents(cause));
@@ -360,18 +353,11 @@ impl ApplicationDelegate {
                         window_id: RootWindowId(window_id),
                         event,
                     });
-                }
+                },
                 QueuedEvent::DeviceEvent(event) => {
-                    self.handle_event(Event::DeviceEvent {
-                        device_id: DEVICE_ID,
-                        event,
-                    });
-                }
-                QueuedEvent::ScaleFactorChanged {
-                    window,
-                    suggested_size,
-                    scale_factor,
-                } => {
+                    self.handle_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
+                },
+                QueuedEvent::ScaleFactorChanged { window, suggested_size, scale_factor } => {
                     let new_inner_size = Arc::new(Mutex::new(suggested_size));
                     let scale_factor_changed_event = Event::WindowEvent {
                         window_id: RootWindowId(window.id()),
@@ -396,7 +382,7 @@ impl ApplicationDelegate {
                         event: WindowEvent::Resized(physical_size),
                     };
                     self.handle_event(resized_event);
-                }
+                },
             }
         }
 
@@ -426,10 +412,7 @@ impl ApplicationDelegate {
             ControlFlow::Poll => Some(Instant::now()),
             ControlFlow::WaitUntil(instant) => Some(instant),
         };
-        self.ivars()
-            .waker
-            .borrow_mut()
-            .start_at(min_timeout(wait_timeout, app_timeout));
+        self.ivars().waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
 }
 
@@ -451,9 +434,7 @@ pub(crate) struct HandlePendingUserEvents;
 /// equates to an infinite timeout, not a zero timeout (so can't just use
 /// `Option::min`)
 fn min_timeout(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
-    a.map_or(b, |a_timeout| {
-        b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout)))
-    })
+    a.map_or(b, |a_timeout| b.map_or(Some(a_timeout), |b_timeout| Some(a_timeout.min(b_timeout))))
 }
 
 /// A hack to make activation of multiple windows work when creating them before

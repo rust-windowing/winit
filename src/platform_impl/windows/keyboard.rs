@@ -1,50 +1,39 @@
-use std::{
-    char,
-    ffi::OsString,
-    mem::MaybeUninit,
-    os::windows::ffi::OsStringExt,
-    sync::{
-        atomic::{AtomicU32, Ordering::Relaxed},
-        Mutex, MutexGuard,
-    },
-};
+use std::char;
+use std::ffi::OsString;
+use std::mem::MaybeUninit;
+use std::os::windows::ffi::OsStringExt;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering::Relaxed;
+use std::sync::{Mutex, MutexGuard};
 
-use windows_sys::Win32::{
-    Foundation::{HWND, LPARAM, WPARAM},
-    System::SystemServices::LANG_KOREAN,
-    UI::{
-        Input::KeyboardAndMouse::{
-            GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyExW,
-            MAPVK_VK_TO_VSC_EX, MAPVK_VSC_TO_VK_EX, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CAPITAL,
-            VK_CLEAR, VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4,
-            VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
-            VK_MULTIPLY, VK_NEXT, VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3,
-            VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_PRIOR,
-            VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT,
-            VK_SUBTRACT, VK_UP,
-        },
-        TextServices::HKL,
-        WindowsAndMessaging::{
-            PeekMessageW, MSG, PM_NOREMOVE, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST,
-            WM_KEYLAST, WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR,
-            WM_SYSKEYDOWN, WM_SYSKEYUP,
-        },
-    },
+use windows_sys::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows_sys::Win32::System::SystemServices::LANG_KOREAN;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyExW,
+    MAPVK_VK_TO_VSC_EX, MAPVK_VSC_TO_VK_EX, VIRTUAL_KEY, VK_ABNT_C2, VK_ADD, VK_CAPITAL, VK_CLEAR,
+    VK_CONTROL, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_F4, VK_HOME, VK_INSERT,
+    VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
+    VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
+    VK_NUMPAD8, VK_NUMPAD9, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT,
+    VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SUBTRACT, VK_UP,
+};
+use windows_sys::Win32::UI::TextServices::HKL;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    PeekMessageW, MSG, PM_NOREMOVE, WM_CHAR, WM_DEADCHAR, WM_KEYDOWN, WM_KEYFIRST, WM_KEYLAST,
+    WM_KEYUP, WM_KILLFOCUS, WM_SETFOCUS, WM_SYSCHAR, WM_SYSDEADCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
 use smol_str::SmolStr;
 use tracing::{trace, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
-    event::{ElementState, KeyEvent},
-    keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey},
-    platform_impl::platform::{
-        event_loop::ProcResult,
-        keyboard_layout::{Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
-        loword, primarylangid, KeyEventExtra,
-    },
+use crate::event::{ElementState, KeyEvent};
+use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
+use crate::platform_impl::platform::event_loop::ProcResult;
+use crate::platform_impl::platform::keyboard_layout::{
+    Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE,
 };
+use crate::platform_impl::platform::{loword, primarylangid, KeyEventExtra};
 
 pub type ExScancode = u16;
 
@@ -60,16 +49,16 @@ pub struct MessageAsKeyEvent {
 /// window message. Therefore, this type keeps track of certain information from previous events so
 /// that a `KeyEvent` can be constructed when the last event related to a keypress is received.
 ///
-/// `PeekMessage` is sometimes used to determine whether the next window message still belongs to the
-/// current keypress. If it doesn't and the current state represents a key event waiting to be
+/// `PeekMessage` is sometimes used to determine whether the next window message still belongs to
+/// the current keypress. If it doesn't and the current state represents a key event waiting to be
 /// dispatched, then said event is considered complete and is dispatched.
 ///
 /// The sequence of window messages for a key press event is the following:
 /// - Exactly one WM_KEYDOWN / WM_SYSKEYDOWN
 /// - Zero or one WM_DEADCHAR / WM_SYSDEADCHAR
 /// - Zero or more WM_CHAR / WM_SYSCHAR. These messages each come with a UTF-16 code unit which when
-///   put together in the sequence they arrived in, forms the text which is the result of pressing the
-///   key.
+///   put together in the sequence they arrived in, forms the text which is the result of pressing
+///   the key.
 ///
 /// Key release messages are a bit different due to the fact that they don't contribute to
 /// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
@@ -79,10 +68,7 @@ pub struct KeyEventBuilder {
 }
 impl Default for KeyEventBuilder {
     fn default() -> Self {
-        KeyEventBuilder {
-            event_info: Mutex::new(None),
-            pending: Default::default(),
-        }
+        KeyEventBuilder { event_info: Mutex::new(None), pending: Default::default() }
     }
 }
 impl KeyEventBuilder {
@@ -110,13 +96,13 @@ impl KeyEventBuilder {
                     let kbd_state = get_async_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Pressed, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                }
+                },
                 WM_KILLFOCUS => {
                     // sythesize keyup events
                     let kbd_state = get_kbd_state();
                     let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
                     MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events))
-                }
+                },
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
                     if msg_kind == WM_SYSKEYDOWN && wparam as VIRTUAL_KEY == VK_F4 {
                         // Don't dispatch Alt+F4 to the application.
@@ -162,39 +148,36 @@ impl KeyEventBuilder {
                         let ev = event_info.finalize();
                         return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                             pending_token,
-                            MessageAsKeyEvent {
-                                event: ev,
-                                is_synthetic: false,
-                            },
+                            MessageAsKeyEvent { event: ev, is_synthetic: false },
                         ));
                     }
                     MatchResult::TokenToRemove(pending_token)
-                }
+                },
                 WM_DEADCHAR | WM_SYSDEADCHAR => {
                     let pending_token = self.pending.add_pending();
                     *result = ProcResult::Value(0);
-                    // At this point, we know that there isn't going to be any more events related to
-                    // this key press
+                    // At this point, we know that there isn't going to be any more events related
+                    // to this key press
                     let event_info = self.event_info.lock().unwrap().take().unwrap();
                     let ev = event_info.finalize();
                     MatchResult::MessagesToDispatch(self.pending.complete_pending(
                         pending_token,
-                        MessageAsKeyEvent {
-                            event: ev,
-                            is_synthetic: false,
-                        },
+                        MessageAsKeyEvent { event: ev, is_synthetic: false },
                     ))
-                }
+                },
                 WM_CHAR | WM_SYSCHAR => {
                     let mut event_info = self.event_info.lock().unwrap();
                     if event_info.is_none() {
-                        trace!("Received a CHAR message but no `event_info` was available. The message is probably IME, returning.");
+                        trace!(
+                            "Received a CHAR message but no `event_info` was available. The \
+                             message is probably IME, returning."
+                        );
                         return MatchResult::Nothing;
                     }
                     let pending_token = self.pending.add_pending();
                     *result = ProcResult::Value(0);
-                    let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
-                    let is_low_surrogate = (0xDC00..=0xDFFF).contains(&wparam);
+                    let is_high_surrogate = (0xd800..=0xdbff).contains(&wparam);
+                    let is_low_surrogate = (0xdc00..=0xdfff).contains(&wparam);
 
                     let is_utf16 = is_high_surrogate || is_low_surrogate;
 
@@ -210,7 +193,7 @@ impl KeyEventBuilder {
                             None => {
                                 warn!("The event_info was None when it was expected to be some");
                                 return MatchResult::TokenToRemove(pending_token);
-                            }
+                            },
                         };
                         let start_offset = utf16parts.len();
                         let new_size = utf16parts.len() + 2;
@@ -221,16 +204,17 @@ impl KeyEventBuilder {
                             utf16parts.resize(new_size, 0);
                         }
                     }
-                    // It's important that we unlock the mutex, and create the pending event token before
-                    // calling `next_msg`
+                    // It's important that we unlock the mutex, and create the pending event token
+                    // before calling `next_msg`
                     std::mem::drop(event_info);
                     let next_msg = next_kbd_msg(hwnd);
                     let more_char_coming = next_msg
                         .map(|m| matches!(m.message, WM_CHAR | WM_SYSCHAR))
                         .unwrap_or(false);
                     if more_char_coming {
-                        // No need to produce an event just yet, because there are still more characters that
-                        // need to appended to this keyobard event
+                        // No need to produce an event just yet, because there are still more
+                        // characters that need to appended to this keyobard
+                        // event
                         MatchResult::TokenToRemove(pending_token)
                     } else {
                         let mut event_info = self.event_info.lock().unwrap();
@@ -239,7 +223,7 @@ impl KeyEventBuilder {
                             None => {
                                 warn!("The event_info was None when it was expected to be some");
                                 return MatchResult::TokenToRemove(pending_token);
-                            }
+                            },
                         };
                         let mut layouts = LAYOUT_CACHE.lock().unwrap();
                         // It's okay to call `ToUnicode` here, because at this point the dead key
@@ -271,13 +255,10 @@ impl KeyEventBuilder {
                         let ev = event_info.finalize();
                         MatchResult::MessagesToDispatch(self.pending.complete_pending(
                             pending_token,
-                            MessageAsKeyEvent {
-                                event: ev,
-                                is_synthetic: false,
-                            },
+                            MessageAsKeyEvent { event: ev, is_synthetic: false },
                         ))
                     }
-                }
+                },
                 WM_KEYUP | WM_SYSKEYUP => {
                     let pending_token = self.pending.add_pending();
                     *result = ProcResult::Value(0);
@@ -289,9 +270,11 @@ impl KeyEventBuilder {
                         ElementState::Released,
                         &mut layouts,
                     );
-                    // We MUST release the layout lock before calling `next_kbd_msg`, otherwise it may deadlock
+                    // We MUST release the layout lock before calling `next_kbd_msg`, otherwise it
+                    // may deadlock
                     drop(layouts);
-                    // It's important that we create the pending token before reading the next message.
+                    // It's important that we create the pending token before reading the next
+                    // message.
                     let next_msg = next_kbd_msg(hwnd);
                     let mut valid_event_info = Some(event_info);
                     if let Some(next_msg) = next_msg {
@@ -309,14 +292,11 @@ impl KeyEventBuilder {
                         let event = event_info.finalize();
                         return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                             pending_token,
-                            MessageAsKeyEvent {
-                                event,
-                                is_synthetic: false,
-                            },
+                            MessageAsKeyEvent { event, is_synthetic: false },
                         ));
                     }
                     MatchResult::TokenToRemove(pending_token)
-                }
+                },
                 _ => MatchResult::Nothing,
             }
         };
@@ -352,12 +332,11 @@ impl KeyEventBuilder {
         let num_lock_on = kbd_state[VK_NUMLOCK as usize] & 1 != 0;
 
         // We are synthesizing the press event for caps-lock first for the following reasons:
-        // 1. If caps-lock is *not* held down but *is* active, then we have to
-        //    synthesize all printable keys, respecting the caps-lock state.
-        // 2. If caps-lock is held down, we could choose to sythesize its
-        //    keypress after every other key, in which case all other keys *must*
-        //    be sythesized as if the caps-lock state was be the opposite
-        //    of what it currently is.
+        // 1. If caps-lock is *not* held down but *is* active, then we have to synthesize all
+        //    printable keys, respecting the caps-lock state.
+        // 2. If caps-lock is held down, we could choose to sythesize its keypress after every other
+        //    key, in which case all other keys *must* be sythesized as if the caps-lock state was
+        //    be the opposite of what it currently is.
         // --
         // For the sake of simplicity we are choosing to always sythesize
         // caps-lock first, and always use the current caps-lock state
@@ -399,14 +378,8 @@ impl KeyEventBuilder {
             }
         };
         let do_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
-            const CLEAR_MODIFIER_VKS: [VIRTUAL_KEY; 6] = [
-                VK_LCONTROL,
-                VK_LSHIFT,
-                VK_LMENU,
-                VK_RCONTROL,
-                VK_RSHIFT,
-                VK_RMENU,
-            ];
+            const CLEAR_MODIFIER_VKS: [VIRTUAL_KEY; 6] =
+                [VK_LCONTROL, VK_LSHIFT, VK_LMENU, VK_RCONTROL, VK_RSHIFT, VK_RMENU];
             for vk in CLEAR_MODIFIER_VKS.iter() {
                 if is_key_pressed!(*vk) {
                     let event = Self::create_synthetic(
@@ -431,11 +404,11 @@ impl KeyEventBuilder {
             ElementState::Pressed => {
                 do_non_modifier(&mut key_events, &mut layouts);
                 do_modifier(&mut key_events, &mut layouts);
-            }
+            },
             ElementState::Released => {
                 do_modifier(&mut key_events, &mut layouts);
                 do_non_modifier(&mut key_events, &mut layouts);
-            }
+            },
         }
 
         key_events
@@ -455,11 +428,8 @@ impl KeyEventBuilder {
         }
         let scancode = scancode as ExScancode;
         let physical_key = scancode_to_physicalkey(scancode as u32);
-        let mods = if caps_lock_on {
-            WindowsModifiers::CAPS_LOCK
-        } else {
-            WindowsModifiers::empty()
-        };
+        let mods =
+            if caps_lock_on { WindowsModifiers::CAPS_LOCK } else { WindowsModifiers::empty() };
         let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
         let logical_key = layout.get_key(mods, num_lock_on, vk, &physical_key);
         let key_without_modifiers =
@@ -484,10 +454,7 @@ impl KeyEventBuilder {
         let mut event = event_info.finalize();
         event.logical_key = logical_key;
         event.platform_specific.text_with_all_modifiers = text;
-        Some(MessageAsKeyEvent {
-            event,
-            is_synthetic: true,
-        })
+        Some(MessageAsKeyEvent { event, is_synthetic: true })
     }
 }
 
@@ -600,7 +567,7 @@ impl PartialKeyEventInfo {
                     } else {
                         Key::Unidentified(NativeKey::Unidentified)
                     }
-                }
+                },
                 key => key,
             }
         };
@@ -637,10 +604,10 @@ impl PartialKeyEventInfo {
                         text = Some(SmolStr::new(string));
                     }
                 }
-            }
+            },
             PartialText::Text(s) => {
                 text = s.map(SmolStr::new);
-            }
+            },
         }
 
         let logical_key = match self.logical_key {
@@ -651,7 +618,7 @@ impl PartialKeyEventInfo {
                     } else {
                         Key::Character(s.clone())
                     }
-                }
+                },
                 None => Key::Unidentified(NativeKey::Windows(self.vkey)),
             },
             PartialLogicalKey::This(v) => v,
@@ -677,7 +644,8 @@ struct KeyLParam {
     pub scancode: u8,
     pub extended: bool,
 
-    /// This is `previous_state XOR transition_state`. See the lParam for WM_KEYDOWN and WM_KEYUP for further details.
+    /// This is `previous_state XOR transition_state`. See the lParam for WM_KEYDOWN and WM_KEYUP
+    /// for further details.
     pub is_repeat: bool,
 }
 
@@ -685,7 +653,7 @@ fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     let previous_state = (lparam >> 30) & 0x01;
     let transition_state = (lparam >> 31) & 0x01;
     KeyLParam {
-        scancode: ((lparam >> 16) & 0xFF) as u8,
+        scancode: ((lparam >> 16) & 0xff) as u8,
         extended: ((lparam >> 24) & 0x01) != 0,
         is_repeat: (previous_state ^ transition_state) != 0,
     }
@@ -693,7 +661,7 @@ fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
 
 #[inline]
 fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
-    (scancode as u16) | (if extended { 0xE000 } else { 0 })
+    (scancode as u16) | (if extended { 0xe000 } else { 0 })
 }
 
 #[inline]
@@ -742,13 +710,11 @@ fn get_async_kbd_state() -> [u8; 256] {
 /// the next event is a right Alt (AltGr) event. If this is the case, the current event must be the
 /// fake Ctrl event.
 fn is_current_fake(curr_info: &PartialKeyEventInfo, next_msg: MSG, layout: &Layout) -> bool {
-    let curr_is_ctrl = matches!(
-        curr_info.logical_key,
-        PartialLogicalKey::This(Key::Named(NamedKey::Control))
-    );
+    let curr_is_ctrl =
+        matches!(curr_info.logical_key, PartialLogicalKey::This(Key::Named(NamedKey::Control)));
     if layout.has_alt_graph {
         let next_code = ex_scancode_from_lparam(next_msg.lParam);
-        let next_is_altgr = next_code == 0xE038; // 0xE038 is right alt
+        let next_is_altgr = next_code == 0xe038; // 0xE038 is right alt
         if curr_is_ctrl && next_is_altgr {
             return true;
         }
@@ -792,10 +758,7 @@ impl<T> PendingEventQueue<T> {
     pub fn add_pending(&self) -> PendingMessageToken {
         let token = self.next_token();
         let mut pending = self.pending.lock().unwrap();
-        pending.push(IdentifiedPendingMessage {
-            token,
-            msg: PendingMessage::Incomplete,
-        });
+        pending.push(IdentifiedPendingMessage { token, msg: PendingMessage::Incomplete });
         token
     }
 
@@ -862,15 +825,20 @@ impl<T> PendingEventQueue<T> {
     }
 
     fn drain_pending(pending: &mut Vec<IdentifiedPendingMessage<T>>) -> Vec<T> {
-        pending.drain(..).map(|m| {
-            match m.msg {
+        pending
+            .drain(..)
+            .map(|m| match m.msg {
                 PendingMessage::Complete(msg) => msg,
                 PendingMessage::Incomplete => {
-                    panic!("Found an incomplete pending message when collecting messages. This indicates a bug in winit.")
-                }
-            }
-        }).collect()
+                    panic!(
+                        "Found an incomplete pending message when collecting messages. This \
+                         indicates a bug in winit."
+                    )
+                },
+            })
+            .collect()
     }
+
     fn next_token(&self) -> PendingMessageToken {
         // It's okay for the u32 to overflow here. Yes, that could mean
         // that two different messages have the same token,
@@ -884,10 +852,7 @@ impl<T> PendingEventQueue<T> {
 }
 impl<T> Default for PendingEventQueue<T> {
     fn default() -> Self {
-        PendingEventQueue {
-            pending: Mutex::new(Vec::new()),
-            next_id: AtomicU32::new(0),
-        }
+        PendingEventQueue { pending: Mutex::new(Vec::new()), next_id: AtomicU32::new(0) }
     }
 }
 
@@ -902,13 +867,8 @@ impl<T> Default for PendingEventQueue<T> {
 pub fn next_kbd_msg(hwnd: HWND) -> Option<MSG> {
     unsafe {
         let mut next_msg = MaybeUninit::uninit();
-        let peek_retval = PeekMessageW(
-            next_msg.as_mut_ptr(),
-            hwnd,
-            WM_KEYFIRST,
-            WM_KEYLAST,
-            PM_NOREMOVE,
-        );
+        let peek_retval =
+            PeekMessageW(next_msg.as_mut_ptr(), hwnd, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE);
         (peek_retval != 0).then(|| next_msg.assume_init())
     }
 }
@@ -916,7 +876,7 @@ pub fn next_kbd_msg(hwnd: HWND) -> Option<MSG> {
 fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     const ABNT_C2: VIRTUAL_KEY = VK_ABNT_C2 as VIRTUAL_KEY;
 
-    let extension = 0xE000;
+    let extension = 0xe000;
     let extended = (scancode & extension) == extension;
     let vkey = unsafe { MapVirtualKeyExW(scancode as u32, MAPVK_VSC_TO_VK_EX, hkl) as VIRTUAL_KEY };
 
@@ -934,7 +894,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
             } else {
                 KeyLocation::Numpad
             }
-        }
+        },
         VK_NUMPAD0 | VK_NUMPAD1 | VK_NUMPAD2 | VK_NUMPAD3 | VK_NUMPAD4 | VK_NUMPAD5
         | VK_NUMPAD6 | VK_NUMPAD7 | VK_NUMPAD8 | VK_NUMPAD9 | VK_DECIMAL | VK_DIVIDE
         | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | ABNT_C2 => KeyLocation::Numpad,
@@ -957,17 +917,17 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
                 NativeKeyCode::Windows(scancode) => Some(scancode as u32),
                 _ => None,
             };
-        }
+        },
     };
 
     match code {
         KeyCode::Backquote => Some(0x0029),
-        KeyCode::Backslash => Some(0x002B),
-        KeyCode::Backspace => Some(0x000E),
-        KeyCode::BracketLeft => Some(0x001A),
-        KeyCode::BracketRight => Some(0x001B),
+        KeyCode::Backslash => Some(0x002b),
+        KeyCode::Backspace => Some(0x000e),
+        KeyCode::BracketLeft => Some(0x001a),
+        KeyCode::BracketRight => Some(0x001b),
         KeyCode::Comma => Some(0x0033),
-        KeyCode::Digit0 => Some(0x000B),
+        KeyCode::Digit0 => Some(0x000b),
         KeyCode::Digit1 => Some(0x0002),
         KeyCode::Digit2 => Some(0x0003),
         KeyCode::Digit3 => Some(0x0004),
@@ -976,14 +936,14 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::Digit6 => Some(0x0007),
         KeyCode::Digit7 => Some(0x0008),
         KeyCode::Digit8 => Some(0x0009),
-        KeyCode::Digit9 => Some(0x000A),
-        KeyCode::Equal => Some(0x000D),
+        KeyCode::Digit9 => Some(0x000a),
+        KeyCode::Equal => Some(0x000d),
         KeyCode::IntlBackslash => Some(0x0056),
         KeyCode::IntlRo => Some(0x0073),
-        KeyCode::IntlYen => Some(0x007D),
-        KeyCode::KeyA => Some(0x001E),
+        KeyCode::IntlYen => Some(0x007d),
+        KeyCode::KeyA => Some(0x001e),
         KeyCode::KeyB => Some(0x0030),
-        KeyCode::KeyC => Some(0x002E),
+        KeyCode::KeyC => Some(0x002e),
         KeyCode::KeyD => Some(0x0020),
         KeyCode::KeyE => Some(0x0012),
         KeyCode::KeyF => Some(0x0021),
@@ -999,84 +959,84 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::KeyP => Some(0x0019),
         KeyCode::KeyQ => Some(0x0010),
         KeyCode::KeyR => Some(0x0013),
-        KeyCode::KeyS => Some(0x001F),
+        KeyCode::KeyS => Some(0x001f),
         KeyCode::KeyT => Some(0x0014),
         KeyCode::KeyU => Some(0x0016),
-        KeyCode::KeyV => Some(0x002F),
+        KeyCode::KeyV => Some(0x002f),
         KeyCode::KeyW => Some(0x0011),
-        KeyCode::KeyX => Some(0x002D),
+        KeyCode::KeyX => Some(0x002d),
         KeyCode::KeyY => Some(0x0015),
-        KeyCode::KeyZ => Some(0x002C),
-        KeyCode::Minus => Some(0x000C),
+        KeyCode::KeyZ => Some(0x002c),
+        KeyCode::Minus => Some(0x000c),
         KeyCode::Period => Some(0x0034),
         KeyCode::Quote => Some(0x0028),
         KeyCode::Semicolon => Some(0x0027),
         KeyCode::Slash => Some(0x0035),
         KeyCode::AltLeft => Some(0x0038),
-        KeyCode::AltRight => Some(0xE038),
-        KeyCode::CapsLock => Some(0x003A),
-        KeyCode::ContextMenu => Some(0xE05D),
-        KeyCode::ControlLeft => Some(0x001D),
-        KeyCode::ControlRight => Some(0xE01D),
-        KeyCode::Enter => Some(0x001C),
-        KeyCode::SuperLeft => Some(0xE05B),
-        KeyCode::SuperRight => Some(0xE05C),
-        KeyCode::ShiftLeft => Some(0x002A),
+        KeyCode::AltRight => Some(0xe038),
+        KeyCode::CapsLock => Some(0x003a),
+        KeyCode::ContextMenu => Some(0xe05d),
+        KeyCode::ControlLeft => Some(0x001d),
+        KeyCode::ControlRight => Some(0xe01d),
+        KeyCode::Enter => Some(0x001c),
+        KeyCode::SuperLeft => Some(0xe05b),
+        KeyCode::SuperRight => Some(0xe05c),
+        KeyCode::ShiftLeft => Some(0x002a),
         KeyCode::ShiftRight => Some(0x0036),
         KeyCode::Space => Some(0x0039),
-        KeyCode::Tab => Some(0x000F),
+        KeyCode::Tab => Some(0x000f),
         KeyCode::Convert => Some(0x0079),
         KeyCode::Lang1 => {
             if is_korean {
-                Some(0xE0F2)
+                Some(0xe0f2)
             } else {
                 Some(0x0072)
             }
-        }
+        },
         KeyCode::Lang2 => {
             if is_korean {
-                Some(0xE0F1)
+                Some(0xe0f1)
             } else {
                 Some(0x0071)
             }
-        }
+        },
         KeyCode::KanaMode => Some(0x0070),
-        KeyCode::NonConvert => Some(0x007B),
-        KeyCode::Delete => Some(0xE053),
-        KeyCode::End => Some(0xE04F),
-        KeyCode::Home => Some(0xE047),
-        KeyCode::Insert => Some(0xE052),
-        KeyCode::PageDown => Some(0xE051),
-        KeyCode::PageUp => Some(0xE049),
-        KeyCode::ArrowDown => Some(0xE050),
-        KeyCode::ArrowLeft => Some(0xE04B),
-        KeyCode::ArrowRight => Some(0xE04D),
-        KeyCode::ArrowUp => Some(0xE048),
-        KeyCode::NumLock => Some(0xE045),
+        KeyCode::NonConvert => Some(0x007b),
+        KeyCode::Delete => Some(0xe053),
+        KeyCode::End => Some(0xe04f),
+        KeyCode::Home => Some(0xe047),
+        KeyCode::Insert => Some(0xe052),
+        KeyCode::PageDown => Some(0xe051),
+        KeyCode::PageUp => Some(0xe049),
+        KeyCode::ArrowDown => Some(0xe050),
+        KeyCode::ArrowLeft => Some(0xe04b),
+        KeyCode::ArrowRight => Some(0xe04d),
+        KeyCode::ArrowUp => Some(0xe048),
+        KeyCode::NumLock => Some(0xe045),
         KeyCode::Numpad0 => Some(0x0052),
-        KeyCode::Numpad1 => Some(0x004F),
+        KeyCode::Numpad1 => Some(0x004f),
         KeyCode::Numpad2 => Some(0x0050),
         KeyCode::Numpad3 => Some(0x0051),
-        KeyCode::Numpad4 => Some(0x004B),
-        KeyCode::Numpad5 => Some(0x004C),
-        KeyCode::Numpad6 => Some(0x004D),
+        KeyCode::Numpad4 => Some(0x004b),
+        KeyCode::Numpad5 => Some(0x004c),
+        KeyCode::Numpad6 => Some(0x004d),
         KeyCode::Numpad7 => Some(0x0047),
         KeyCode::Numpad8 => Some(0x0048),
         KeyCode::Numpad9 => Some(0x0049),
-        KeyCode::NumpadAdd => Some(0x004E),
-        KeyCode::NumpadComma => Some(0x007E),
+        KeyCode::NumpadAdd => Some(0x004e),
+        KeyCode::NumpadComma => Some(0x007e),
         KeyCode::NumpadDecimal => Some(0x0053),
-        KeyCode::NumpadDivide => Some(0xE035),
-        KeyCode::NumpadEnter => Some(0xE01C),
+        KeyCode::NumpadDivide => Some(0xe035),
+        KeyCode::NumpadEnter => Some(0xe01c),
         KeyCode::NumpadEqual => Some(0x0059),
         KeyCode::NumpadMultiply => Some(0x0037),
-        KeyCode::NumpadSubtract => Some(0x004A),
+        KeyCode::NumpadSubtract => Some(0x004a),
         KeyCode::Escape => Some(0x0001),
-        KeyCode::F1 => Some(0x003B),
-        KeyCode::F2 => Some(0x003C),
-        KeyCode::F3 => Some(0x003D),
-        KeyCode::F4 => Some(0x003E),
-        KeyCode::F5 => Some(0x003F),
+        KeyCode::F1 => Some(0x003b),
+        KeyCode::F2 => Some(0x003c),
+        KeyCode::F3 => Some(0x003d),
+        KeyCode::F4 => Some(0x003e),
+        KeyCode::F5 => Some(0x003f),
         KeyCode::F6 => Some(0x0040),
         KeyCode::F7 => Some(0x0041),
         KeyCode::F8 => Some(0x0042),
@@ -1090,36 +1050,36 @@ pub(crate) fn physicalkey_to_scancode(physical_key: PhysicalKey) -> Option<u32> 
         KeyCode::F16 => Some(0x0067),
         KeyCode::F17 => Some(0x0068),
         KeyCode::F18 => Some(0x0069),
-        KeyCode::F19 => Some(0x006A),
-        KeyCode::F20 => Some(0x006B),
-        KeyCode::F21 => Some(0x006C),
-        KeyCode::F22 => Some(0x006D),
-        KeyCode::F23 => Some(0x006E),
+        KeyCode::F19 => Some(0x006a),
+        KeyCode::F20 => Some(0x006b),
+        KeyCode::F21 => Some(0x006c),
+        KeyCode::F22 => Some(0x006d),
+        KeyCode::F23 => Some(0x006e),
         KeyCode::F24 => Some(0x0076),
-        KeyCode::PrintScreen => Some(0xE037),
-        //KeyCode::PrintScreen => Some(0x0054), // Alt + PrintScreen
+        KeyCode::PrintScreen => Some(0xe037),
+        // KeyCode::PrintScreen => Some(0x0054), // Alt + PrintScreen
         KeyCode::ScrollLock => Some(0x0046),
         KeyCode::Pause => Some(0x0045),
-        //KeyCode::Pause => Some(0xE046), // Ctrl + Pause
-        KeyCode::BrowserBack => Some(0xE06A),
-        KeyCode::BrowserFavorites => Some(0xE066),
-        KeyCode::BrowserForward => Some(0xE069),
-        KeyCode::BrowserHome => Some(0xE032),
-        KeyCode::BrowserRefresh => Some(0xE067),
-        KeyCode::BrowserSearch => Some(0xE065),
-        KeyCode::BrowserStop => Some(0xE068),
-        KeyCode::LaunchApp1 => Some(0xE06B),
-        KeyCode::LaunchApp2 => Some(0xE021),
-        KeyCode::LaunchMail => Some(0xE06C),
-        KeyCode::MediaPlayPause => Some(0xE022),
-        KeyCode::MediaSelect => Some(0xE06D),
-        KeyCode::MediaStop => Some(0xE024),
-        KeyCode::MediaTrackNext => Some(0xE019),
-        KeyCode::MediaTrackPrevious => Some(0xE010),
-        KeyCode::Power => Some(0xE05E),
-        KeyCode::AudioVolumeDown => Some(0xE02E),
-        KeyCode::AudioVolumeMute => Some(0xE020),
-        KeyCode::AudioVolumeUp => Some(0xE030),
+        // KeyCode::Pause => Some(0xE046), // Ctrl + Pause
+        KeyCode::BrowserBack => Some(0xe06a),
+        KeyCode::BrowserFavorites => Some(0xe066),
+        KeyCode::BrowserForward => Some(0xe069),
+        KeyCode::BrowserHome => Some(0xe032),
+        KeyCode::BrowserRefresh => Some(0xe067),
+        KeyCode::BrowserSearch => Some(0xe065),
+        KeyCode::BrowserStop => Some(0xe068),
+        KeyCode::LaunchApp1 => Some(0xe06b),
+        KeyCode::LaunchApp2 => Some(0xe021),
+        KeyCode::LaunchMail => Some(0xe06c),
+        KeyCode::MediaPlayPause => Some(0xe022),
+        KeyCode::MediaSelect => Some(0xe06d),
+        KeyCode::MediaStop => Some(0xe024),
+        KeyCode::MediaTrackNext => Some(0xe019),
+        KeyCode::MediaTrackPrevious => Some(0xe010),
+        KeyCode::Power => Some(0xe05e),
+        KeyCode::AudioVolumeDown => Some(0xe02e),
+        KeyCode::AudioVolumeMute => Some(0xe020),
+        KeyCode::AudioVolumeUp => Some(0xe030),
         _ => None,
     }
 }
@@ -1131,12 +1091,12 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
 
     PhysicalKey::Code(match scancode {
         0x0029 => KeyCode::Backquote,
-        0x002B => KeyCode::Backslash,
-        0x000E => KeyCode::Backspace,
-        0x001A => KeyCode::BracketLeft,
-        0x001B => KeyCode::BracketRight,
+        0x002b => KeyCode::Backslash,
+        0x000e => KeyCode::Backspace,
+        0x001a => KeyCode::BracketLeft,
+        0x001b => KeyCode::BracketRight,
         0x0033 => KeyCode::Comma,
-        0x000B => KeyCode::Digit0,
+        0x000b => KeyCode::Digit0,
         0x0002 => KeyCode::Digit1,
         0x0003 => KeyCode::Digit2,
         0x0004 => KeyCode::Digit3,
@@ -1145,14 +1105,14 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x0007 => KeyCode::Digit6,
         0x0008 => KeyCode::Digit7,
         0x0009 => KeyCode::Digit8,
-        0x000A => KeyCode::Digit9,
-        0x000D => KeyCode::Equal,
+        0x000a => KeyCode::Digit9,
+        0x000d => KeyCode::Equal,
         0x0056 => KeyCode::IntlBackslash,
         0x0073 => KeyCode::IntlRo,
-        0x007D => KeyCode::IntlYen,
-        0x001E => KeyCode::KeyA,
+        0x007d => KeyCode::IntlYen,
+        0x001e => KeyCode::KeyA,
         0x0030 => KeyCode::KeyB,
-        0x002E => KeyCode::KeyC,
+        0x002e => KeyCode::KeyC,
         0x0020 => KeyCode::KeyD,
         0x0012 => KeyCode::KeyE,
         0x0021 => KeyCode::KeyF,
@@ -1168,74 +1128,74 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x0019 => KeyCode::KeyP,
         0x0010 => KeyCode::KeyQ,
         0x0013 => KeyCode::KeyR,
-        0x001F => KeyCode::KeyS,
+        0x001f => KeyCode::KeyS,
         0x0014 => KeyCode::KeyT,
         0x0016 => KeyCode::KeyU,
-        0x002F => KeyCode::KeyV,
+        0x002f => KeyCode::KeyV,
         0x0011 => KeyCode::KeyW,
-        0x002D => KeyCode::KeyX,
+        0x002d => KeyCode::KeyX,
         0x0015 => KeyCode::KeyY,
-        0x002C => KeyCode::KeyZ,
-        0x000C => KeyCode::Minus,
+        0x002c => KeyCode::KeyZ,
+        0x000c => KeyCode::Minus,
         0x0034 => KeyCode::Period,
         0x0028 => KeyCode::Quote,
         0x0027 => KeyCode::Semicolon,
         0x0035 => KeyCode::Slash,
         0x0038 => KeyCode::AltLeft,
-        0xE038 => KeyCode::AltRight,
-        0x003A => KeyCode::CapsLock,
-        0xE05D => KeyCode::ContextMenu,
-        0x001D => KeyCode::ControlLeft,
-        0xE01D => KeyCode::ControlRight,
-        0x001C => KeyCode::Enter,
-        0xE05B => KeyCode::SuperLeft,
-        0xE05C => KeyCode::SuperRight,
-        0x002A => KeyCode::ShiftLeft,
+        0xe038 => KeyCode::AltRight,
+        0x003a => KeyCode::CapsLock,
+        0xe05d => KeyCode::ContextMenu,
+        0x001d => KeyCode::ControlLeft,
+        0xe01d => KeyCode::ControlRight,
+        0x001c => KeyCode::Enter,
+        0xe05b => KeyCode::SuperLeft,
+        0xe05c => KeyCode::SuperRight,
+        0x002a => KeyCode::ShiftLeft,
         0x0036 => KeyCode::ShiftRight,
         0x0039 => KeyCode::Space,
-        0x000F => KeyCode::Tab,
+        0x000f => KeyCode::Tab,
         0x0079 => KeyCode::Convert,
         0x0072 => KeyCode::Lang1, // for non-Korean layout
-        0xE0F2 => KeyCode::Lang1, // for Korean layout
+        0xe0f2 => KeyCode::Lang1, // for Korean layout
         0x0071 => KeyCode::Lang2, // for non-Korean layout
-        0xE0F1 => KeyCode::Lang2, // for Korean layout
+        0xe0f1 => KeyCode::Lang2, // for Korean layout
         0x0070 => KeyCode::KanaMode,
-        0x007B => KeyCode::NonConvert,
-        0xE053 => KeyCode::Delete,
-        0xE04F => KeyCode::End,
-        0xE047 => KeyCode::Home,
-        0xE052 => KeyCode::Insert,
-        0xE051 => KeyCode::PageDown,
-        0xE049 => KeyCode::PageUp,
-        0xE050 => KeyCode::ArrowDown,
-        0xE04B => KeyCode::ArrowLeft,
-        0xE04D => KeyCode::ArrowRight,
-        0xE048 => KeyCode::ArrowUp,
-        0xE045 => KeyCode::NumLock,
+        0x007b => KeyCode::NonConvert,
+        0xe053 => KeyCode::Delete,
+        0xe04f => KeyCode::End,
+        0xe047 => KeyCode::Home,
+        0xe052 => KeyCode::Insert,
+        0xe051 => KeyCode::PageDown,
+        0xe049 => KeyCode::PageUp,
+        0xe050 => KeyCode::ArrowDown,
+        0xe04b => KeyCode::ArrowLeft,
+        0xe04d => KeyCode::ArrowRight,
+        0xe048 => KeyCode::ArrowUp,
+        0xe045 => KeyCode::NumLock,
         0x0052 => KeyCode::Numpad0,
-        0x004F => KeyCode::Numpad1,
+        0x004f => KeyCode::Numpad1,
         0x0050 => KeyCode::Numpad2,
         0x0051 => KeyCode::Numpad3,
-        0x004B => KeyCode::Numpad4,
-        0x004C => KeyCode::Numpad5,
-        0x004D => KeyCode::Numpad6,
+        0x004b => KeyCode::Numpad4,
+        0x004c => KeyCode::Numpad5,
+        0x004d => KeyCode::Numpad6,
         0x0047 => KeyCode::Numpad7,
         0x0048 => KeyCode::Numpad8,
         0x0049 => KeyCode::Numpad9,
-        0x004E => KeyCode::NumpadAdd,
-        0x007E => KeyCode::NumpadComma,
+        0x004e => KeyCode::NumpadAdd,
+        0x007e => KeyCode::NumpadComma,
         0x0053 => KeyCode::NumpadDecimal,
-        0xE035 => KeyCode::NumpadDivide,
-        0xE01C => KeyCode::NumpadEnter,
+        0xe035 => KeyCode::NumpadDivide,
+        0xe01c => KeyCode::NumpadEnter,
         0x0059 => KeyCode::NumpadEqual,
         0x0037 => KeyCode::NumpadMultiply,
-        0x004A => KeyCode::NumpadSubtract,
+        0x004a => KeyCode::NumpadSubtract,
         0x0001 => KeyCode::Escape,
-        0x003B => KeyCode::F1,
-        0x003C => KeyCode::F2,
-        0x003D => KeyCode::F3,
-        0x003E => KeyCode::F4,
-        0x003F => KeyCode::F5,
+        0x003b => KeyCode::F1,
+        0x003c => KeyCode::F2,
+        0x003d => KeyCode::F3,
+        0x003e => KeyCode::F4,
+        0x003f => KeyCode::F5,
         0x0040 => KeyCode::F6,
         0x0041 => KeyCode::F7,
         0x0042 => KeyCode::F8,
@@ -1249,36 +1209,36 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x0067 => KeyCode::F16,
         0x0068 => KeyCode::F17,
         0x0069 => KeyCode::F18,
-        0x006A => KeyCode::F19,
-        0x006B => KeyCode::F20,
-        0x006C => KeyCode::F21,
-        0x006D => KeyCode::F22,
-        0x006E => KeyCode::F23,
+        0x006a => KeyCode::F19,
+        0x006b => KeyCode::F20,
+        0x006c => KeyCode::F21,
+        0x006d => KeyCode::F22,
+        0x006e => KeyCode::F23,
         0x0076 => KeyCode::F24,
-        0xE037 => KeyCode::PrintScreen,
+        0xe037 => KeyCode::PrintScreen,
         0x0054 => KeyCode::PrintScreen, // Alt + PrintScreen
         0x0046 => KeyCode::ScrollLock,
         0x0045 => KeyCode::Pause,
-        0xE046 => KeyCode::Pause, // Ctrl + Pause
-        0xE06A => KeyCode::BrowserBack,
-        0xE066 => KeyCode::BrowserFavorites,
-        0xE069 => KeyCode::BrowserForward,
-        0xE032 => KeyCode::BrowserHome,
-        0xE067 => KeyCode::BrowserRefresh,
-        0xE065 => KeyCode::BrowserSearch,
-        0xE068 => KeyCode::BrowserStop,
-        0xE06B => KeyCode::LaunchApp1,
-        0xE021 => KeyCode::LaunchApp2,
-        0xE06C => KeyCode::LaunchMail,
-        0xE022 => KeyCode::MediaPlayPause,
-        0xE06D => KeyCode::MediaSelect,
-        0xE024 => KeyCode::MediaStop,
-        0xE019 => KeyCode::MediaTrackNext,
-        0xE010 => KeyCode::MediaTrackPrevious,
-        0xE05E => KeyCode::Power,
-        0xE02E => KeyCode::AudioVolumeDown,
-        0xE020 => KeyCode::AudioVolumeMute,
-        0xE030 => KeyCode::AudioVolumeUp,
+        0xe046 => KeyCode::Pause, // Ctrl + Pause
+        0xe06a => KeyCode::BrowserBack,
+        0xe066 => KeyCode::BrowserFavorites,
+        0xe069 => KeyCode::BrowserForward,
+        0xe032 => KeyCode::BrowserHome,
+        0xe067 => KeyCode::BrowserRefresh,
+        0xe065 => KeyCode::BrowserSearch,
+        0xe068 => KeyCode::BrowserStop,
+        0xe06b => KeyCode::LaunchApp1,
+        0xe021 => KeyCode::LaunchApp2,
+        0xe06c => KeyCode::LaunchMail,
+        0xe022 => KeyCode::MediaPlayPause,
+        0xe06d => KeyCode::MediaSelect,
+        0xe024 => KeyCode::MediaStop,
+        0xe019 => KeyCode::MediaTrackNext,
+        0xe010 => KeyCode::MediaTrackPrevious,
+        0xe05e => KeyCode::Power,
+        0xe02e => KeyCode::AudioVolumeDown,
+        0xe020 => KeyCode::AudioVolumeMute,
+        0xe030 => KeyCode::AudioVolumeUp,
         _ => return PhysicalKey::Unidentified(NativeKeyCode::Windows(scancode as u16)),
     })
 }

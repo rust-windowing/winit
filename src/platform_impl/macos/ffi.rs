@@ -4,14 +4,14 @@
 
 use std::ffi::c_void;
 
-use core_foundation::{
-    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
-};
-use core_graphics::{
-    base::CGError,
-    display::{CGDirectDisplayID, CGDisplayConfigRef},
-};
-use objc2::{ffi::NSInteger, runtime::AnyObject};
+use core_foundation::array::CFArrayRef;
+use core_foundation::dictionary::CFDictionaryRef;
+use core_foundation::string::CFStringRef;
+use core_foundation::uuid::CFUUIDRef;
+use core_graphics::base::CGError;
+use core_graphics::display::{CGDirectDisplayID, CGDisplayConfigRef};
+use objc2::ffi::NSInteger;
+use objc2::runtime::AnyObject;
 
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
