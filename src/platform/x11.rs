@@ -2,11 +2,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    event_loop::{ActiveEventLoop, EventLoopBuilder},
-    monitor::MonitorHandle,
-    window::{Window, WindowAttributes},
-};
+use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowAttributes};
 
 use crate::dpi::Size;
 
@@ -15,11 +13,12 @@ use crate::dpi::Size;
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowType {
-    /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
-    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
-    /// root window clicks.
+    /// A desktop feature. This can include a single window containing desktop icons with the same
+    /// dimensions as the screen, allowing the desktop environment to have full control of the
+    /// desktop, without the need for proxying root window clicks.
     Desktop,
-    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all
+    /// other windows.
     Dock,
     /// Toolbar windows. "Torn off" from the main application.
     Toolbar,
@@ -37,8 +36,8 @@ pub enum WindowType {
     /// A popup menu that usually appears when the user right clicks on an object.
     /// This property is typically used on override-redirect windows.
     PopupMenu,
-    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
-    /// This property is typically used on override-redirect windows.
+    /// A tooltip window. Usually used to show additional information when hovering over an object
+    /// with the cursor. This property is typically used on override-redirect windows.
     Tooltip,
     /// The window is a notification.
     /// This property is typically used on override-redirect windows.
@@ -83,10 +82,7 @@ pub type XWindow = u32;
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
     unsafe {
-        crate::platform_impl::XLIB_ERROR_HOOKS
-            .lock()
-            .unwrap()
-            .push(hook);
+        crate::platform_impl::XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
     }
 }
 
@@ -144,7 +140,8 @@ pub trait WindowAttributesExtX11 {
     /// Build window with the given `general` and `instance` names.
     ///
     /// The `general` sets general class of `WM_CLASS(STRING)`, while `instance` set the
-    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "instance", "general"`.
+    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "instance",
+    /// "general"`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
@@ -202,10 +199,8 @@ impl WindowAttributesExtX11 for WindowAttributes {
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
-            general.into(),
-            instance.into(),
-        ));
+        self.platform_specific.name =
+            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
     }
 

@@ -35,9 +35,9 @@
 //!
 //! ### Position and Size types
 //!
-//! The [`PhysicalPosition`] / [`PhysicalSize`] / [`PhysicalUnit`] types correspond with the actual pixels on the
-//! device, and the [`LogicalPosition`] / [`LogicalSize`] / [`LogicalUnit`] types correspond to the physical pixels
-//! divided by the scale factor.
+//! The [`PhysicalPosition`] / [`PhysicalSize`] / [`PhysicalUnit`] types correspond with the actual
+//! pixels on the device, and the [`LogicalPosition`] / [`LogicalSize`] / [`LogicalUnit`] types
+//! correspond to the physical pixels divided by the scale factor.
 //!
 //! The position and size types are generic over their exact pixel type, `P`, to allow the
 //! API to have integer precision where appropriate (e.g. most window manipulation functions) and
@@ -52,19 +52,14 @@
 //!
 //! This crate provides the following Cargo features:
 //!
-//! * `serde`: Enables serialization/deserialization of certain types with
-//!   [Serde](https://crates.io/crates/serde).
+//! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 
-#![cfg_attr(
-    docsrs,
-    feature(doc_auto_cfg, doc_cfg_hide),
-    doc(cfg_hide(doc, docsrs))
-)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![forbid(unsafe_code)]
 
 #[cfg(feature = "serde")]
@@ -120,9 +115,9 @@ impl Pixel for f64 {
 
 /// Checks that the scale factor is a normal positive `f64`.
 ///
-/// All functions that take a scale factor assert that this will return `true`. If you're sourcing scale factors from
-/// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
-/// otherwise, you risk panics.
+/// All functions that take a scale factor assert that this will return `true`. If you're sourcing
+/// scale factors from anywhere other than winit, it's recommended to validate them using this
+/// function before passing them to winit; otherwise, you risk panics.
 #[inline]
 pub fn validate_scale_factor(scale_factor: f64) -> bool {
     scale_factor.is_sign_positive() && scale_factor.is_normal()
@@ -134,12 +129,12 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 pub struct LogicalUnit<P>(pub P);
 
 impl<P> LogicalUnit<P> {
+    /// Represents a maximum logical unit that is equal to [`f64::MAX`].
+    pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
     /// Represents a minimum logical unit of [`f64::MAX`].
     pub const MIN: LogicalUnit<f64> = LogicalUnit::new(f64::MIN);
     /// Represents a logical unit of `0_f64`.
     pub const ZERO: LogicalUnit<f64> = LogicalUnit::new(0.0);
-    /// Represents a maximum logical unit that is equal to [`f64::MAX`].
-    pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
 
     #[inline]
     pub const fn new(v: P) -> Self {
@@ -228,12 +223,12 @@ impl<P: Pixel> From<LogicalUnit<P>> for f64 {
 pub struct PhysicalUnit<P>(pub P);
 
 impl<P> PhysicalUnit<P> {
+    /// Represents a maximum physical unit that is equal to [`f64::MAX`].
+    pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
     /// Represents a minimum physical unit of [`f64::MAX`].
     pub const MIN: LogicalUnit<f64> = LogicalUnit::new(f64::MIN);
     /// Represents a physical unit of `0_f64`.
     pub const ZERO: LogicalUnit<f64> = LogicalUnit::new(0.0);
-    /// Represents a maximum physical unit that is equal to [`f64::MAX`].
-    pub const MAX: LogicalUnit<f64> = LogicalUnit::new(f64::MAX);
 
     #[inline]
     pub const fn new(v: P) -> Self {
@@ -322,12 +317,12 @@ pub enum PixelUnit {
 }
 
 impl PixelUnit {
+    /// Represents a maximum logical unit that is equal to [`f64::MAX`].
+    pub const MAX: PixelUnit = PixelUnit::Logical(LogicalUnit::new(f64::MAX));
     /// Represents a minimum logical unit of [`f64::MAX`].
     pub const MIN: PixelUnit = PixelUnit::Logical(LogicalUnit::new(f64::MIN));
     /// Represents a logical unit of `0_f64`.
     pub const ZERO: PixelUnit = PixelUnit::Logical(LogicalUnit::new(0.0));
-    /// Represents a maximum logical unit that is equal to [`f64::MAX`].
-    pub const MAX: PixelUnit = PixelUnit::Logical(LogicalUnit::new(f64::MAX));
 
     pub fn new<S: Into<PixelUnit>>(unit: S) -> PixelUnit {
         unit.into()
@@ -400,10 +395,7 @@ impl<P: Pixel> LogicalPosition<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalPosition<X> {
-        LogicalPosition {
-            x: self.x.cast(),
-            y: self.y.cast(),
-        }
+        LogicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
 }
 
@@ -479,10 +471,7 @@ impl<P: Pixel> PhysicalPosition<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalPosition<X> {
-        PhysicalPosition {
-            x: self.x.cast(),
-            y: self.y.cast(),
-        }
+        PhysicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
 }
 
@@ -558,10 +547,7 @@ impl<P: Pixel> LogicalSize<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalSize<X> {
-        LogicalSize {
-            width: self.width.cast(),
-            height: self.height.cast(),
-        }
+        LogicalSize { width: self.width.cast(), height: self.height.cast() }
     }
 }
 
@@ -599,10 +585,7 @@ impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
     fn from(s: LogicalSize<P>) -> Self {
-        mint::Vector2 {
-            x: s.width,
-            y: s.height,
-        }
+        mint::Vector2 { x: s.width, y: s.height }
     }
 }
 
@@ -637,10 +620,7 @@ impl<P: Pixel> PhysicalSize<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalSize<X> {
-        PhysicalSize {
-            width: self.width.cast(),
-            height: self.height.cast(),
-        }
+        PhysicalSize { width: self.width.cast(), height: self.height.cast() }
     }
 }
 
@@ -678,10 +658,7 @@ impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
     fn from(s: PhysicalSize<P>) -> Self {
-        mint::Vector2 {
-            x: s.width,
-            y: s.height,
-        }
+        mint::Vector2 { x: s.width, y: s.height }
     }
 }
 
@@ -846,12 +823,7 @@ mod tests {
 
     macro_rules! assert_approx_eq {
         ($a:expr, $b:expr $(,)?) => {
-            assert!(
-                ($a - $b).abs() < 0.001,
-                "{} is not approximately equal to {}",
-                $a,
-                $b
-            );
+            assert!(($a - $b).abs() < 0.001, "{} is not approximately equal to {}", $a, $b);
         };
     }
 
@@ -970,14 +942,8 @@ mod tests {
         assert_eq!(log_unit.to_physical::<u32>(1.0), PhysicalUnit::new(1));
         assert_eq!(log_unit.to_physical::<u32>(2.0), PhysicalUnit::new(2));
         assert_eq!(log_unit.cast::<u32>(), LogicalUnit::new(1));
-        assert_eq!(
-            log_unit,
-            LogicalUnit::from_physical(PhysicalUnit::new(1.0), 1.0)
-        );
-        assert_eq!(
-            log_unit,
-            LogicalUnit::from_physical(PhysicalUnit::new(2.0), 2.0)
-        );
+        assert_eq!(log_unit, LogicalUnit::from_physical(PhysicalUnit::new(1.0), 1.0));
+        assert_eq!(log_unit, LogicalUnit::from_physical(PhysicalUnit::new(2.0), 2.0));
         assert_eq!(LogicalUnit::from(2.0), LogicalUnit::new(2.0));
 
         let x: f64 = log_unit.into();
@@ -986,14 +952,8 @@ mod tests {
 
     #[test]
     fn test_physical_unit() {
-        assert_eq!(
-            PhysicalUnit::from_logical(LogicalUnit::new(1.0), 1.0),
-            PhysicalUnit::new(1)
-        );
-        assert_eq!(
-            PhysicalUnit::from_logical(LogicalUnit::new(2.0), 0.5),
-            PhysicalUnit::new(1)
-        );
+        assert_eq!(PhysicalUnit::from_logical(LogicalUnit::new(1.0), 1.0), PhysicalUnit::new(1));
+        assert_eq!(PhysicalUnit::from_logical(LogicalUnit::new(2.0), 0.5), PhysicalUnit::new(1));
         assert_eq!(PhysicalUnit::from(2.0), PhysicalUnit::new(2.0,));
         assert_eq!(PhysicalUnit::from(2.0), PhysicalUnit::new(2.0));
 
@@ -1007,22 +967,10 @@ mod tests {
         assert_eq!(log_pos.to_physical::<u32>(1.0), PhysicalPosition::new(1, 2));
         assert_eq!(log_pos.to_physical::<u32>(2.0), PhysicalPosition::new(2, 4));
         assert_eq!(log_pos.cast::<u32>(), LogicalPosition::new(1, 2));
-        assert_eq!(
-            log_pos,
-            LogicalPosition::from_physical(PhysicalPosition::new(1.0, 2.0), 1.0)
-        );
-        assert_eq!(
-            log_pos,
-            LogicalPosition::from_physical(PhysicalPosition::new(2.0, 4.0), 2.0)
-        );
-        assert_eq!(
-            LogicalPosition::from((2.0, 2.0)),
-            LogicalPosition::new(2.0, 2.0)
-        );
-        assert_eq!(
-            LogicalPosition::from([2.0, 3.0]),
-            LogicalPosition::new(2.0, 3.0)
-        );
+        assert_eq!(log_pos, LogicalPosition::from_physical(PhysicalPosition::new(1.0, 2.0), 1.0));
+        assert_eq!(log_pos, LogicalPosition::from_physical(PhysicalPosition::new(2.0, 4.0), 2.0));
+        assert_eq!(LogicalPosition::from((2.0, 2.0)), LogicalPosition::new(2.0, 2.0));
+        assert_eq!(LogicalPosition::from([2.0, 3.0]), LogicalPosition::new(2.0, 3.0));
 
         let x: (f64, f64) = log_pos.into();
         assert_eq!(x, (1.0, 2.0));
@@ -1040,14 +988,8 @@ mod tests {
             PhysicalPosition::from_logical(LogicalPosition::new(2.0, 4.0), 0.5),
             PhysicalPosition::new(1, 2)
         );
-        assert_eq!(
-            PhysicalPosition::from((2.0, 2.0)),
-            PhysicalPosition::new(2.0, 2.0)
-        );
-        assert_eq!(
-            PhysicalPosition::from([2.0, 3.0]),
-            PhysicalPosition::new(2.0, 3.0)
-        );
+        assert_eq!(PhysicalPosition::from((2.0, 2.0)), PhysicalPosition::new(2.0, 2.0));
+        assert_eq!(PhysicalPosition::from([2.0, 3.0]), PhysicalPosition::new(2.0, 3.0));
 
         let x: (f64, f64) = PhysicalPosition::new(1, 2).into();
         assert_eq!(x, (1.0, 2.0));
@@ -1061,14 +1003,8 @@ mod tests {
         assert_eq!(log_size.to_physical::<u32>(1.0), PhysicalSize::new(1, 2));
         assert_eq!(log_size.to_physical::<u32>(2.0), PhysicalSize::new(2, 4));
         assert_eq!(log_size.cast::<u32>(), LogicalSize::new(1, 2));
-        assert_eq!(
-            log_size,
-            LogicalSize::from_physical(PhysicalSize::new(1.0, 2.0), 1.0)
-        );
-        assert_eq!(
-            log_size,
-            LogicalSize::from_physical(PhysicalSize::new(2.0, 4.0), 2.0)
-        );
+        assert_eq!(log_size, LogicalSize::from_physical(PhysicalSize::new(1.0, 2.0), 1.0));
+        assert_eq!(log_size, LogicalSize::from_physical(PhysicalSize::new(2.0, 4.0), 2.0));
         assert_eq!(LogicalSize::from((2.0, 2.0)), LogicalSize::new(2.0, 2.0));
         assert_eq!(LogicalSize::from([2.0, 3.0]), LogicalSize::new(2.0, 3.0));
 
@@ -1099,10 +1035,7 @@ mod tests {
 
     #[test]
     fn test_size() {
-        assert_eq!(
-            Size::new(PhysicalSize::new(1, 2)),
-            Size::Physical(PhysicalSize::new(1, 2))
-        );
+        assert_eq!(Size::new(PhysicalSize::new(1, 2)), Size::Physical(PhysicalSize::new(1, 2)));
         assert_eq!(
             Size::new(LogicalSize::new(1.0, 2.0)),
             Size::Logical(LogicalSize::new(1.0, 2.0))

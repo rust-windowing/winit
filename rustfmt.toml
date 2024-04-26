@@ -1,3 +1,19 @@
-force_explicit_abi=true
-use_field_init_shorthand=true
-# merge_imports=true
+format_code_in_doc_comments = true
+match_block_trailing_comma = true
+condense_wildcard_suffixes = true
+use_field_init_shorthand = true
+normalize_doc_attributes = true
+overflow_delimited_expr = true
+imports_granularity = "Module"
+use_small_heuristics = "Max"
+format_macro_matchers = true
+error_on_unformatted = true
+format_macro_bodies = true
+hex_literal_case = "Lower"
+normalize_comments = true
+# Some macros break with this.
+reorder_impl_items = false
+newline_style = "Unix"
+format_strings = true
+wrap_comments = true
+comment_width = 100

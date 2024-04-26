@@ -3,21 +3,13 @@
 use std::{ffi::c_void, ptr};
 
 use crate::utils::Lazy;
-use windows_sys::{
-    core::PCSTR,
-    Win32::{
-        Foundation::{BOOL, HWND, NTSTATUS, S_OK},
-        System::{
-            LibraryLoader::{GetProcAddress, LoadLibraryA},
-            SystemInformation::OSVERSIONINFOW,
-        },
-        UI::{
-            Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA},
-            Controls::SetWindowTheme,
-            WindowsAndMessaging::{SystemParametersInfoA, SPI_GETHIGHCONTRAST},
-        },
-    },
-};
+use windows_sys::core::PCSTR;
+use windows_sys::Win32::Foundation::{BOOL, HWND, NTSTATUS, S_OK};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
+use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTA};
+use windows_sys::Win32::UI::Controls::SetWindowTheme;
+use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoA, SPI_GETHIGHCONTRAST};
 
 use crate::window::Theme;
 
@@ -72,11 +64,7 @@ pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
             None => should_use_dark_mode(),
         };
 
-        let theme = if is_dark_mode {
-            Theme::Dark
-        } else {
-            Theme::Light
-        };
+        let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
         let theme_name = match theme {
             Theme::Dark => DARK_THEME_NAME.as_ptr(),
             Theme::Light => LIGHT_THEME_NAME.as_ptr(),
@@ -161,11 +149,7 @@ fn should_apps_use_dark_mode() -> bool {
 }
 
 fn is_high_contrast() -> bool {
-    let mut hc = HIGHCONTRASTA {
-        cbSize: 0,
-        dwFlags: 0,
-        lpszDefaultScheme: ptr::null_mut(),
-    };
+    let mut hc = HIGHCONTRASTA { cbSize: 0, dwFlags: 0, lpszDefaultScheme: ptr::null_mut() };
 
     let ok = unsafe {
         SystemParametersInfoA(

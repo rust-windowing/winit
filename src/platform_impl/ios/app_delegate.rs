@@ -4,10 +4,8 @@ use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use super::app_state::{self, EventWrapper};
 use super::uikit::{UIApplication, UIWindow};
 use super::window::WinitUIWindow;
-use crate::{
-    event::{Event, WindowEvent},
-    window::WindowId as RootWindowId,
-};
+use crate::event::{Event, WindowEvent};
+use crate::window::WindowId as RootWindowId;
 
 declare_class!(
     pub struct AppDelegate;

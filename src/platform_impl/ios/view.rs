@@ -15,12 +15,10 @@ use super::uikit::{
     UITouchType, UITraitCollection, UIView,
 };
 use super::window::WinitUIWindow;
-use crate::{
-    dpi::PhysicalPosition,
-    event::{Event, Force, Touch, TouchPhase, WindowEvent},
-    platform_impl::platform::DEVICE_ID,
-    window::{WindowAttributes, WindowId as RootWindowId},
-};
+use crate::dpi::PhysicalPosition;
+use crate::event::{Event, Force, Touch, TouchPhase, WindowEvent};
+use crate::platform_impl::platform::DEVICE_ID;
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
@@ -314,9 +312,7 @@ impl WinitView {
                     msg_send_id![UIRotationGestureRecognizer::alloc(), initWithTarget: self, action: sel!(rotationGesture:)]
                 };
                 self.addGestureRecognizer(&rotation);
-                self.ivars()
-                    .rotation_gesture_recognizer
-                    .replace(Some(rotation));
+                self.ivars().rotation_gesture_recognizer.replace(Some(rotation));
             }
         } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);

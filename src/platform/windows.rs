@@ -2,15 +2,14 @@
 //!
 //! The supported OS version is Windows 7 or higher, though Windows 10 is
 //! tested regularly.
-use std::{ffi::c_void, path::Path};
+use std::ffi::c_void;
+use std::path::Path;
 
-use crate::{
-    dpi::PhysicalSize,
-    event::DeviceId,
-    event_loop::EventLoopBuilder,
-    monitor::MonitorHandle,
-    window::{BadIcon, Icon, Window, WindowAttributes},
-};
+use crate::dpi::PhysicalSize;
+use crate::event::DeviceId;
+use crate::event_loop::EventLoopBuilder;
+use crate::monitor::MonitorHandle;
+use crate::window::{BadIcon, Icon, Window, WindowAttributes};
 
 /// Window Handle type used by Win32 API
 pub type HWND = isize;
@@ -57,11 +56,11 @@ pub enum BackdropType {
 pub struct Color(u32);
 
 impl Color {
+    // Special constant only valid for the window border and therefore modeled using Option<Color>
+    // for user facing code
+    const NONE: Color = Color(0xfffffffe);
     /// Use the system's default color
-    pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
-
-    //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
-    const NONE: Color = Color(0xFFFFFFFE);
+    pub const SYSTEM_DEFAULT: Color = Color(0xffffffff);
 
     /// Create a new color from the given RGB values
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
@@ -202,8 +201,8 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must enable
-    /// the owner window before destroying the dialog box.
+    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must
+    /// enable the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
     /// If a child window is disabled, it is ignored when the system tries to determine which
@@ -283,10 +282,10 @@ impl WindowExtWindows for Window {
 
     #[inline]
     fn set_title_background_color(&self, color: Option<Color>) {
-        // The windows docs don't mention NONE as a valid options but it works in practice and is useful
-        // to circumvent the Windows option "Show accent color on title bars and window borders"
-        self.window
-            .set_title_background_color(color.unwrap_or(Color::NONE))
+        // The windows docs don't mention NONE as a valid options but it works in practice and is
+        // useful to circumvent the Windows option "Show accent color on title bars and
+        // window borders"
+        self.window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
@@ -305,8 +304,9 @@ impl WindowExtWindows for Window {
 pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// This only works when [`WindowAttributes::with_parent_window`] isn't called or set to `None`.
-    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable]
-    /// on the owner window to create a modal dialog box.
+    /// Can be used in combination with
+    /// [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable] on the owner
+    /// window to create a modal dialog box.
     ///
     /// From MSDN:
     /// - An owned window is always above its owner in the z-order.
@@ -322,17 +322,14 @@ pub trait WindowAttributesExtWindows {
     ///
     /// The menu must have been manually created beforehand with [`CreateMenu`] or similar.
     ///
-    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
-    /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
-    ///
+    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how
+    /// the menus look. If you use this, it is recommended that you combine it with
+    /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     #[cfg_attr(
         platform_windows,
         doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
     )]
-    #[cfg_attr(
-        not(platform_windows),
-        doc = "[`CreateMenu`]: #only-available-on-windows"
-    )]
+    #[cfg_attr(not(platform_windows), doc = "[`CreateMenu`]: #only-available-on-windows")]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -341,12 +338,12 @@ pub trait WindowAttributesExtWindows {
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     fn with_no_redirection_bitmap(self, flag: bool) -> Self;
 
-    /// Enables or disables drag and drop support (enabled by default). Will interfere with other crates
-    /// that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED` instead of
-    /// `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still attempt to initialize
-    /// COM API regardless of this option. Currently only fullscreen mode does that, but there may be more in the future.
-    /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
-    /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
+    /// Enables or disables drag and drop support (enabled by default). Will interfere with other
+    /// crates that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED`
+    /// instead of `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still
+    /// attempt to initialize COM API regardless of this option. Currently only fullscreen mode
+    /// does that, but there may be more in the future. If you need COM API with
+    /// `COINIT_MULTITHREADED` you must initialize it before calling any winit functions. See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> Self;
 
     /// Whether show or hide the window icon in the taskbar.

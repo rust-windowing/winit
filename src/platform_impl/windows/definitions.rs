@@ -3,14 +3,10 @@
 
 use std::ffi::c_void;
 
-use windows_sys::{
-    core::{IUnknown, GUID, HRESULT},
-    Win32::{
-        Foundation::{BOOL, HWND, POINTL},
-        System::Com::{
-            IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
-        },
-    },
+use windows_sys::core::{IUnknown, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{BOOL, HWND, POINTL};
+use windows_sys::Win32::System::Com::{
+    IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
 };
 
 #[repr(C)]
@@ -138,10 +134,10 @@ pub const CLSID_TaskbarList: GUID = GUID {
 };
 
 pub const IID_ITaskbarList: GUID = GUID {
-    data1: 0x56FDF342,
-    data2: 0xFD6D,
-    data3: 0x11D0,
-    data4: [0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9, 0xA0, 0x90],
+    data1: 0x56fdf342,
+    data2: 0xfd6d,
+    data3: 0x11d0,
+    data4: [0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90],
 };
 
 pub const IID_ITaskbarList2: GUID = GUID {

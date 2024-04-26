@@ -1,39 +1,31 @@
-use std::{
-    mem::{self, size_of},
-    ptr,
-};
+use std::mem::{self, size_of};
+use std::ptr;
 
-use windows_sys::Win32::{
-    Devices::HumanInterfaceDevice::{
-        HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
-    },
-    Foundation::{HANDLE, HWND},
-    UI::{
-        Input::{
-            GetRawInputData, GetRawInputDeviceInfoW, GetRawInputDeviceList,
-            KeyboardAndMouse::{MapVirtualKeyW, MAPVK_VK_TO_VSC_EX, VK_NUMLOCK, VK_SHIFT},
-            RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST,
-            RAWINPUTHEADER, RAWKEYBOARD, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE,
-            RIDI_DEVICEINFO, RIDI_DEVICENAME, RID_DEVICE_INFO, RID_DEVICE_INFO_HID,
-            RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE, RID_INPUT, RIM_TYPEHID,
-            RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
-        },
-        WindowsAndMessaging::{
-            RI_KEY_E0, RI_KEY_E1, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP,
-            RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP, RI_MOUSE_BUTTON_3_DOWN,
-            RI_MOUSE_BUTTON_3_UP, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP,
-            RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP,
-        },
-    },
+use windows_sys::Win32::Devices::HumanInterfaceDevice::{
+    HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
+};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    MapVirtualKeyW, MAPVK_VK_TO_VSC_EX, VK_NUMLOCK, VK_SHIFT,
+};
+use windows_sys::Win32::UI::Input::{
+    GetRawInputData, GetRawInputDeviceInfoW, GetRawInputDeviceList, RegisterRawInputDevices,
+    HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST, RAWINPUTHEADER, RAWKEYBOARD,
+    RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_DEVICEINFO, RIDI_DEVICENAME,
+    RID_DEVICE_INFO, RID_DEVICE_INFO_HID, RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE,
+    RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    RI_KEY_E0, RI_KEY_E1, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP, RI_MOUSE_BUTTON_2_DOWN,
+    RI_MOUSE_BUTTON_2_UP, RI_MOUSE_BUTTON_3_DOWN, RI_MOUSE_BUTTON_3_UP, RI_MOUSE_BUTTON_4_DOWN,
+    RI_MOUSE_BUTTON_4_UP, RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP,
 };
 
 use super::scancode_to_physicalkey;
-use crate::{
-    event::ElementState,
-    event_loop::DeviceEvents,
-    keyboard::{KeyCode, PhysicalKey},
-    platform_impl::platform::util,
-};
+use crate::event::ElementState;
+use crate::event_loop::DeviceEvents;
+use crate::keyboard::{KeyCode, PhysicalKey};
+use crate::platform_impl::platform::util;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -91,12 +83,7 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
 
     let mut minimum_size = 0;
     let status = unsafe {
-        GetRawInputDeviceInfoW(
-            handle,
-            RIDI_DEVICEINFO,
-            &mut info as *mut _ as _,
-            &mut minimum_size,
-        )
+        GetRawInputDeviceInfoW(handle, RIDI_DEVICEINFO, &mut info as *mut _ as _, &mut minimum_size)
     };
 
     if status == u32::MAX || status == 0 {
@@ -121,12 +108,7 @@ pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
     let mut name: Vec<u16> = Vec::with_capacity(minimum_size as _);
 
     let status = unsafe {
-        GetRawInputDeviceInfoW(
-            handle,
-            RIDI_DEVICENAME,
-            name.as_ptr() as _,
-            &mut minimum_size,
-        )
+        GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, name.as_ptr() as _, &mut minimum_size)
     };
 
     if status == u32::MAX || status == 0 {
@@ -159,7 +141,7 @@ pub fn register_all_mice_and_keyboards_for_raw_input(
         DeviceEvents::Never => {
             window_handle = 0;
             RIDEV_REMOVE
-        }
+        },
         DeviceEvents::WhenFocused => RIDEV_DEVNOTIFY,
         DeviceEvents::Always => RIDEV_DEVNOTIFY | RIDEV_INPUTSINK,
     };
@@ -188,13 +170,7 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     let header_size = size_of::<RAWINPUTHEADER>() as u32;
 
     let status = unsafe {
-        GetRawInputData(
-            handle,
-            RID_INPUT,
-            &mut data as *mut _ as _,
-            &mut data_size,
-            header_size,
-        )
+        GetRawInputData(handle, RID_INPUT, &mut data as *mut _ as _, &mut data_size, header_size)
     };
 
     if status == u32::MAX || status == 0 {
@@ -232,9 +208,9 @@ pub fn get_raw_mouse_button_state(button_flags: u32) -> [Option<ElementState>; 5
 pub fn get_keyboard_physical_key(keyboard: RAWKEYBOARD) -> Option<PhysicalKey> {
     let extension = {
         if util::has_flag(keyboard.Flags, RI_KEY_E0 as _) {
-            0xE000
+            0xe000
         } else if util::has_flag(keyboard.Flags, RI_KEY_E1 as _) {
-            0xE100
+            0xe100
         } else {
             0x0000
         }
@@ -246,7 +222,7 @@ pub fn get_keyboard_physical_key(keyboard: RAWKEYBOARD) -> Option<PhysicalKey> {
     } else {
         keyboard.MakeCode | extension
     };
-    if scancode == 0xE11D || scancode == 0xE02A {
+    if scancode == 0xe11d || scancode == 0xe02a {
         // At the hardware (or driver?) level, pressing the Pause key is equivalent to pressing
         // Ctrl+NumLock.
         // This equvalence means that if the user presses Pause, the keyboard will emit two
@@ -307,16 +283,17 @@ pub fn get_keyboard_physical_key(keyboard: RAWKEYBOARD) -> Option<PhysicalKey> {
                     // as well.
                     //
                     // The issue is that in the raw device event (here), the fake shift release
-                    // event reports the numpad key as the scancode. Unfortunately, the event doesn't
-                    // have any information to tell whether it's the left shift or the right shift
-                    // that needs to get the fake release (or press) event so we don't forward this
+                    // event reports the numpad key as the scancode. Unfortunately, the event
+                    // doesn't have any information to tell whether it's the
+                    // left shift or the right shift that needs to get the fake
+                    // release (or press) event so we don't forward this
                     // event to the application at all.
                     //
                     // For more on this, read the article by Raymond Chen, titled:
                     // "The shift key overrides NumLock"
                     // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
                     return None;
-                }
+                },
                 _ => (),
             }
         }

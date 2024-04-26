@@ -1,7 +1,8 @@
 //! The [`Event`] enum and assorted supporting types.
 //!
 //! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
-//! processed and used to modify the program state. For more details, see the root-level documentation.
+//! processed and used to modify the program state. For more details, see the root-level
+//! documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
 //! approximate the basic ordering loop of [`EventLoop::run_app(...)`] like this:
@@ -44,16 +45,14 @@ use smol_str::SmolStr;
 #[cfg(web_platform)]
 use web_time::Instant;
 
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::error::ExternalError;
+use crate::event_loop::AsyncRequestSerial;
+use crate::keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState};
+use crate::platform_impl;
 #[cfg(doc)]
 use crate::window::Window;
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event_loop::AsyncRequestSerial,
-    keyboard::{self, ModifiersKeyState, ModifiersKeys, ModifiersState},
-    platform_impl,
-    window::{ActivationToken, Theme, WindowId},
-};
+use crate::window::{ActivationToken, Theme, WindowId};
 
 /// Describes a generic event.
 ///
@@ -68,18 +67,12 @@ pub enum Event<T: 'static> {
     /// See [`ApplicationHandler::window_event`] for details.
     ///
     /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
-    WindowEvent {
-        window_id: WindowId,
-        event: WindowEvent,
-    },
+    WindowEvent { window_id: WindowId, event: WindowEvent },
 
     /// See [`ApplicationHandler::device_event`] for details.
     ///
     /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
+    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
 
     /// See [`ApplicationHandler::user_event`] for details.
     ///
@@ -138,17 +131,11 @@ pub enum StartCause {
     /// guaranteed to be equal to or after the requested resume time.
     ///
     /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
-    ResumeTimeReached {
-        start: Instant,
-        requested_resume: Instant,
-    },
+    ResumeTimeReached { start: Instant, requested_resume: Instant },
 
     /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
     /// the moment the wait was requested and the resume time, if requested.
-    WaitCancelled {
-        start: Instant,
-        requested_resume: Option<Instant>,
-    },
+    WaitCancelled { start: Instant, requested_resume: Option<Instant> },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
     /// [`ControlFlow::Poll`].
@@ -164,18 +151,11 @@ pub enum StartCause {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     /// The activation token was delivered back and now could be used.
-    ///
-    #[cfg_attr(
-        not(any(x11_platform, wayland_platform)),
-        allow(rustdoc::broken_intra_doc_links)
-    )]
+    #[cfg_attr(not(any(x11_platform, wayland_platform)), allow(rustdoc::broken_intra_doc_links))]
     /// Delivered in response to [`request_activation_token`].
     ///
     /// [`request_activation_token`]: crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token
-    ActivationTokenDone {
-        serial: AsyncRequestSerial,
-        token: ActivationToken,
-    },
+    ActivationTokenDone { serial: AsyncRequestSerial, token: ActivationToken },
 
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
@@ -229,10 +209,10 @@ pub enum WindowEvent {
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
-        /// * Synthetic key press events are generated for all keys pressed
-        ///   when a window gains focus. Likewise, synthetic key release events
-        ///   are generated for all keys pressed when a window goes out of focus.
-        ///   ***Currently, this is only functional on X11 and Windows***
+        /// * Synthetic key press events are generated for all keys pressed when a window gains
+        ///   focus. Likewise, synthetic key release events are generated for all keys pressed when
+        ///   a window goes out of focus. ***Currently, this is only functional on X11 and
+        ///   Windows***
         ///
         /// Otherwise, this value is always `false`.
         is_synthetic: bool,
@@ -262,9 +242,10 @@ pub enum WindowEvent {
     CursorMoved {
         device_id: DeviceId,
 
-        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
-        /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
-        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
+        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range
+        /// of this data is limited by the display area and it may have been transformed by
+        /// the OS to implement effects such as cursor acceleration, it should not be used
+        /// to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
     },
 
@@ -291,18 +272,10 @@ pub enum WindowEvent {
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel {
-        device_id: DeviceId,
-        delta: MouseScrollDelta,
-        phase: TouchPhase,
-    },
+    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
 
     /// An mouse button press has been received.
-    MouseInput {
-        device_id: DeviceId,
-        state: ElementState,
-        button: MouseButton,
-    },
+    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
 
     /// Two-finger pinch gesture, often used for magnification.
     ///
@@ -349,29 +322,17 @@ pub enum WindowEvent {
     ///
     /// - Only available on **macOS** and **iOS**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
-    RotationGesture {
-        device_id: DeviceId,
-        delta: f32,
-        phase: TouchPhase,
-    },
+    RotationGesture { device_id: DeviceId, delta: f32, phase: TouchPhase },
 
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
-    /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
-    /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure {
-        device_id: DeviceId,
-        pressure: f32,
-        stage: i64,
-    },
+    /// The parameters are: pressure level (value between 0 and 1 representing how hard the
+    /// touchpad is being pressed) and stage (integer representing the click level).
+    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion {
-        device_id: DeviceId,
-        axis: AxisId,
-        value: f64,
-    },
+    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// Touch event has been received
     ///
@@ -393,8 +354,8 @@ pub enum WindowEvent {
     /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different scale factor.
     ///
-    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the window is
-    /// resized to the value suggested by the OS, but it can be changed to any value.
+    /// To update the window size, use the provided [`InnerSizeWriter`] handle. By default, the
+    /// window is resized to the value suggested by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`] crate.
     ScaleFactorChanged {
@@ -424,10 +385,11 @@ pub enum WindowEvent {
     ///
     /// ### iOS
     ///
-    /// On iOS, the `Occluded(false)` event is emitted in response to an [`applicationWillEnterForeground`]
-    /// callback which means the application should start preparing its data. The `Occluded(true)` event is
-    /// emitted in response to an [`applicationDidEnterBackground`] callback which means the application
-    /// should free resources (according to the [iOS application lifecycle]).
+    /// On iOS, the `Occluded(false)` event is emitted in response to an
+    /// [`applicationWillEnterForeground`] callback which means the application should start
+    /// preparing its data. The `Occluded(true)` event is emitted in response to an
+    /// [`applicationDidEnterBackground`] callback which means the application should free
+    /// resources (according to the [iOS application lifecycle]).
     ///
     /// [`applicationWillEnterForeground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623076-applicationwillenterforeground
     /// [`applicationDidEnterBackground`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622997-applicationdidenterbackground
@@ -457,9 +419,10 @@ pub enum WindowEvent {
 
 /// Identifier of an input device.
 ///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
+/// Whenever you receive an event arising from a particular input device, this event contains a
+/// `DeviceId` which identifies its origin. Note that devices may be virtual (representing an
+/// on-screen cursor and keyboard focus) or physical. Virtual devices typically aggregate inputs
+/// from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
@@ -481,10 +444,10 @@ impl DeviceId {
 
 /// Represents raw hardware events that are not associated with any particular window.
 ///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
+/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera
+/// or first-person game controls. Many physical actions, such as mouse movement, can produce both
+/// device and window events. Because window events typically arise from virtual devices
+/// (corresponding to GUI cursors and keyboard focus) the device IDs may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
@@ -494,7 +457,8 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
+    /// This represents raw, unfiltered physical motion. Not to be confused with
+    /// [`WindowEvent::CursorMoved`].
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -615,13 +579,13 @@ pub struct KeyEvent {
 
     /// Contains the location of this key on the keyboard.
     ///
-    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift" key
-    /// appears on the left side of the QWERTY keyboard as well as the right side. However, both keys
-    /// have the same symbolic value. Another example of this phenomenon is the "1" key, which appears
-    /// both above the "Q" key and as the "Keypad 1" key.
+    /// Certain keys on the keyboard may appear in more than once place. For example, the "Shift"
+    /// key appears on the left side of the QWERTY keyboard as well as the right side. However,
+    /// both keys have the same symbolic value. Another example of this phenomenon is the "1"
+    /// key, which appears both above the "Q" key and as the "Keypad 1" key.
     ///
-    /// This field allows the user to differentiate between keys like this that have the same symbolic
-    /// value but different locations on the keyboard.
+    /// This field allows the user to differentiate between keys like this that have the same
+    /// symbolic value but different locations on the keyboard.
     ///
     /// See the [`KeyLocation`] type for more details.
     ///
@@ -636,8 +600,8 @@ pub struct KeyEvent {
     /// Whether or not this key is a key repeat event.
     ///
     /// On some systems, holding down a key for some period of time causes that key to be repeated
-    /// as though it were being pressed and released repeatedly. This field is `true` if and only if
-    /// this event is the result of one of those repeats.
+    /// as though it were being pressed and released repeatedly. This field is `true` if and only
+    /// if this event is the result of one of those repeats.
     ///
     /// # Example
     ///
@@ -645,30 +609,31 @@ pub struct KeyEvent {
     /// done by ignoring events where this property is set.
     ///
     /// ```
-    /// use winit::event::{WindowEvent, KeyEvent, ElementState};
+    /// use winit::event::{ElementState, KeyEvent, WindowEvent};
     /// use winit::keyboard::{KeyCode, PhysicalKey};
     /// # let window_event = WindowEvent::RedrawRequested; // To make the example compile
     /// match window_event {
     ///     WindowEvent::KeyboardInput {
-    ///         event: KeyEvent {
-    ///             physical_key: PhysicalKey::Code(KeyCode::KeyW),
-    ///             state: ElementState::Pressed,
-    ///             repeat: false,
-    ///             ..
-    ///         },
+    ///         event:
+    ///             KeyEvent {
+    ///                 physical_key: PhysicalKey::Code(KeyCode::KeyW),
+    ///                 state: ElementState::Pressed,
+    ///                 repeat: false,
+    ///                 ..
+    ///             },
     ///         ..
     ///     } => {
-    ///          // The physical key `W` was pressed, and it was not a repeat
-    ///     }
-    ///     _ => {} // Handle other events
+    ///         // The physical key `W` was pressed, and it was not a repeat
+    ///     },
+    ///     _ => {}, // Handle other events
     /// }
     /// ```
     pub repeat: bool,
 
     /// Platform-specific key event information.
     ///
-    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with all
-    /// modifiers applied.
+    /// On Windows, Linux and macOS, this type contains the key without modifiers and the text with
+    /// all modifiers applied.
     ///
     /// On Android, iOS, Redox and Web, this type is a no-op.
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
@@ -742,10 +707,7 @@ impl Modifiers {
 
 impl From<ModifiersState> for Modifiers {
     fn from(value: ModifiersState) -> Self {
-        Self {
-            state: value,
-            pressed_mods: Default::default(),
-        }
+        Self { state: value, pressed_mods: Default::default() }
     }
 }
 
@@ -753,12 +715,15 @@ impl From<ModifiersState> for Modifiers {
 ///
 /// This is also called a "composition event".
 ///
-/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::KeyboardInput`].
-/// However, one couldn't possibly have a key for every single unicode character that the user might want to type
-/// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
+/// Most keypresses using a latin-like keyboard layout simply generate a
+/// [`WindowEvent::KeyboardInput`]. However, one couldn't possibly have a key for every single
+/// unicode character that the user might want to type
+/// - so the solution operating systems employ is to allow the user to type these using _a sequence
+///   of keypresses_ instead.
 ///
-/// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
-/// the character you want to apply the accent to. In this case, some platforms will generate the following event sequence:
+/// A prominent example of this is accents - many keyboard layouts allow you to first click the
+/// "accent key", and then the character you want to apply the accent to. In this case, some
+/// platforms will generate the following event sequence: ```ignore
 /// ```ignore
 /// // Press "`" key
 /// Ime::Preedit("`", Some((0, 0)))
@@ -766,12 +731,12 @@ impl From<ModifiersState> for Modifiers {
 /// Ime::Preedit("", None) // Synthetic event generated by winit to clear preedit.
 /// Ime::Commit("é")
 /// ```
+/// Additionally, certain input devices are configured to display a candidate box that allow the
+/// user to select the desired character interactively. (To properly position this box, you must use
+/// [`Window::set_ime_cursor_area`].)
 ///
-/// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
-/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_cursor_area`].)
-///
-/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the following event
-/// sequence could be obtained:
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keyboard the
+/// following event sequence could be obtained:
 /// ```ignore
 /// // Press "A" key
 /// Ime::Preedit("a", Some((1, 1)))
@@ -813,8 +778,8 @@ pub enum Ime {
     ///
     /// After receiving this event you won't get any more [`Preedit`][Self::Preedit] or
     /// [`Commit`][Self::Commit] events until the next [`Enabled`][Self::Enabled] event. You should
-    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear pending
-    /// preedit text.
+    /// also stop issuing IME related requests like [`Window::set_ime_cursor_area`] and clear
+    /// pending preedit text.
     Disabled,
 }
 
@@ -913,17 +878,13 @@ impl Force {
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
-            Force::Calibrated {
-                force,
-                max_possible_force,
-                altitude_angle,
-            } => {
+            Force::Calibrated { force, max_possible_force, altitude_angle } => {
                 let force = match altitude_angle {
                     Some(altitude_angle) => force / altitude_angle.sin(),
                     None => *force,
                 };
                 force / max_possible_force
-            }
+            },
             Force::Normalized(force) => *force,
         }
     }
@@ -1040,7 +1001,9 @@ mod tests {
 
             #[allow(deprecated)]
             {
-                use crate::event::{Event::*, Ime::Enabled, WindowEvent::*};
+                use crate::event::Event::*;
+                use crate::event::Ime::Enabled;
+                use crate::event::WindowEvent::*;
                 use crate::window::WindowId;
 
                 // Mainline events.
@@ -1053,12 +1016,7 @@ mod tests {
                 x(Resumed);
 
                 // Window events.
-                let with_window_event = |wev| {
-                    x(WindowEvent {
-                        window_id: wid,
-                        event: wev,
-                    })
-                };
+                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
 
                 with_window_event(CloseRequested);
                 with_window_event(Destroyed);
@@ -1069,10 +1027,7 @@ mod tests {
                 with_window_event(HoveredFile("x.txt".into()));
                 with_window_event(HoveredFileCancelled);
                 with_window_event(Ime(Enabled));
-                with_window_event(CursorMoved {
-                    device_id: did,
-                    position: (0, 0).into(),
-                });
+                with_window_event(CursorMoved { device_id: did, position: (0, 0).into() });
                 with_window_event(ModifiersChanged(event::Modifiers::default()));
                 with_window_event(CursorEntered { device_id: did });
                 with_window_event(CursorLeft { device_id: did });
@@ -1097,16 +1052,8 @@ mod tests {
                     delta: 0.0,
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(TouchpadPressure {
-                    device_id: did,
-                    pressure: 0.0,
-                    stage: 0,
-                });
-                with_window_event(AxisMotion {
-                    device_id: did,
-                    axis: 0,
-                    value: 0.0,
-                });
+                with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
+                with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
                 with_window_event(Touch(event::Touch {
                     device_id: did,
                     phase: event::TouchPhase::Started,
@@ -1122,29 +1069,17 @@ mod tests {
             {
                 use event::DeviceEvent::*;
 
-                let with_device_event = |dev_ev| {
-                    x(event::Event::DeviceEvent {
-                        device_id: did,
-                        event: dev_ev,
-                    })
-                };
+                let with_device_event =
+                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
                 with_device_event(Added);
                 with_device_event(Removed);
-                with_device_event(MouseMotion {
-                    delta: (0.0, 0.0).into(),
-                });
+                with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
                 with_device_event(MouseWheel {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                 });
-                with_device_event(Motion {
-                    axis: 0,
-                    value: 0.0,
-                });
-                with_device_event(Button {
-                    button: 0,
-                    state: event::ElementState::Pressed,
-                });
+                with_device_event(Motion { axis: 0, value: 0.0 });
+                with_device_event(Button { button: 0, state: event::ElementState::Pressed });
             }
         }};
     }
@@ -1176,11 +1111,8 @@ mod tests {
         let force = event::Force::Normalized(0.0);
         assert_eq!(force.normalized(), 0.0);
 
-        let force2 = event::Force::Calibrated {
-            force: 5.0,
-            max_possible_force: 2.5,
-            altitude_angle: None,
-        };
+        let force2 =
+            event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: None };
         assert_eq!(force2.normalized(), 2.0);
 
         let force3 = event::Force::Calibrated {
@@ -1219,11 +1151,8 @@ mod tests {
             force: Some(event::Force::Normalized(0.0)),
         }
         .clone();
-        let _ = event::Force::Calibrated {
-            force: 0.0,
-            max_possible_force: 0.0,
-            altitude_angle: None,
-        }
-        .clone();
+        let _ =
+            event::Force::Calibrated { force: 0.0, max_possible_force: 0.0, altitude_angle: None }
+                .clone();
     }
 }

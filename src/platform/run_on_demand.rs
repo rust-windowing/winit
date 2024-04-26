@@ -21,8 +21,8 @@ pub trait EventLoopExtRunOnDemand {
 
     /// Run the application with the event loop on the calling thread.
     ///
-    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`) closures
-    /// and it is possible to return control back to the caller without
+    /// Unlike [`EventLoop::run_app`], this function accepts non-`'static` (i.e. non-`move`)
+    /// closures and it is possible to return control back to the caller without
     /// consuming the `EventLoop` (by using [`exit()`]) and
     /// so the event loop can be re-run after it has exit.
     ///
@@ -55,17 +55,13 @@ pub trait EventLoopExtRunOnDemand {
     /// - Android
     ///
     /// # Unsupported Platforms
-    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which
-    ///   Web browsers work because it's not possible to have a long-running external
-    ///   loop that would block the browser and there is nothing that can be
-    ///   polled to ask for new events. Events are delivered via callbacks based
-    ///   on an event loop that is internal to the browser itself.
+    /// - **Web:**  This API is fundamentally incompatible with the event-based way in which Web
+    ///   browsers work because it's not possible to have a long-running external loop that would
+    ///   block the browser and there is nothing that can be polled to ask for new events. Events
+    ///   are delivered via callbacks based on an event loop that is internal to the browser itself.
     /// - **iOS:** It's not possible to stop and start an `UIApplication` repeatedly on iOS.
-    ///
-    #[cfg_attr(
-        not(web_platform),
-        doc = "[^1]: `spawn()` is only available on `wasm` platforms."
-    )]
+    #[cfg_attr(not(web_platform), doc = "[^1]: `spawn()` is only available on `wasm` platforms.")]
+    #[rustfmt::skip]
     ///
     /// [`exit()`]: ActiveEventLoop::exit()
     /// [`set_control_flow()`]: ActiveEventLoop::set_control_flow()

@@ -1,26 +1,24 @@
 use std::cell::{Cell, RefCell};
 use std::clone::Clone;
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::collections::vec_deque::IntoIter as VecDequeIter;
+use std::collections::VecDeque;
 use std::iter;
 use std::rc::{Rc, Weak};
 
 use web_sys::Element;
 
+use super::super::monitor::MonitorHandle;
+use super::super::KeyEventExtra;
+use super::device::DeviceId;
 use super::runner::{EventWrapper, Execution};
-use super::{
-    super::{monitor::MonitorHandle, KeyEventExtra},
-    backend,
-    device::DeviceId,
-    runner,
-    window::WindowId,
-};
+use super::window::WindowId;
+use super::{backend, runner};
 use crate::event::{
     DeviceId as RootDeviceId, ElementState, Event, KeyEvent, Touch, TouchPhase, WindowEvent,
 };
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::keyboard::ModifiersState;
-use crate::platform::web::CustomCursorFuture;
-use crate::platform::web::PollStrategy;
+use crate::platform::web::{CustomCursorFuture, PollStrategy};
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::platform_impl::platform::r#async::Waker;
 use crate::window::{
@@ -54,10 +52,7 @@ pub struct ActiveEventLoop {
 
 impl ActiveEventLoop {
     pub fn new() -> Self {
-        Self {
-            runner: runner::Shared::new(),
-            modifiers: ModifiersShared::default(),
-        }
+        Self { runner: runner::Shared::new(), modifiers: ModifiersShared::default() }
     }
 
     pub fn run(&self, event_handler: Box<runner::EventHandler>, event_loop_recreation: bool) {
@@ -70,9 +65,7 @@ impl ActiveEventLoop {
     }
 
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor {
-            inner: CustomCursor::new(self, source.inner),
-        }
+        RootCustomCursor { inner: CustomCursor::new(self, source.inner) }
     }
 
     pub fn create_custom_cursor_async(&self, source: CustomCursorSource) -> CustomCursorFuture {
@@ -101,14 +94,10 @@ impl ActiveEventLoop {
                 }
             });
 
-            runner.send_events(
-                clear_modifiers
-                    .into_iter()
-                    .chain(iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(id),
-                        event: WindowEvent::Focused(false),
-                    })),
-            );
+            runner.send_events(clear_modifiers.into_iter().chain(iter::once(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::Focused(false),
+            })));
         });
 
         let runner = self.runner.clone();
@@ -304,10 +293,7 @@ impl ActiveEventLoop {
 
                         iter::once(Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id,
-                                position,
-                            },
+                            event: WindowEvent::CursorMoved { device_id, position },
                         })
                     })));
                 }
@@ -374,18 +360,11 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id,
-                                position,
-                            },
+                            event: WindowEvent::CursorMoved { device_id, position },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::MouseInput {
-                                device_id,
-                                state,
-                                button,
-                            },
+                            event: WindowEvent::MouseInput { device_id, state, button },
                         },
                     ]));
                 }
@@ -428,10 +407,7 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id,
-                                position,
-                            },
+                            event: WindowEvent::CursorMoved { device_id, position },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -512,10 +488,7 @@ impl ActiveEventLoop {
                     runner.send_events(modifiers.into_iter().chain([
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
-                            event: WindowEvent::CursorMoved {
-                                device_id,
-                                position,
-                            },
+                            event: WindowEvent::CursorMoved { device_id, position },
                         },
                         Event::WindowEvent {
                             window_id: RootWindowId(id),
@@ -599,11 +572,7 @@ impl ActiveEventLoop {
 
         let runner = self.runner.clone();
         canvas.on_dark_mode(move |is_dark_mode| {
-            let theme = if is_dark_mode {
-                Theme::Dark
-            } else {
-                Theme::Light
-            };
+            let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::ThemeChanged(theme),
@@ -682,9 +651,7 @@ impl ActiveEventLoop {
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::Web(
-            rwh_06::WebDisplayHandle::new(),
-        ))
+        Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
     }
 
     pub fn listen_device_events(&self, allowed: DeviceEvents) {

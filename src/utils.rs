@@ -14,15 +14,13 @@ pub(crate) struct Lazy<T> {
 
 impl<T> Lazy<T> {
     pub const fn new(f: fn() -> T) -> Self {
-        Self {
-            cell: OnceLock::new(),
-            init: f,
-        }
+        Self { cell: OnceLock::new(), init: f }
     }
 }
 
 impl<T> Deref for Lazy<T> {
     type Target = T;
+
     #[inline]
     fn deref(&self) -> &'_ T {
         self.cell.get_or_init(self.init)

@@ -2,12 +2,11 @@
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt;
 use std::fmt::Debug;
-use std::mem;
 #[cfg(not(any(android_platform, ios_platform)))]
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use ::tracing::{error, info};
 use cursor_icon::CursorIcon;
@@ -18,15 +17,13 @@ use softbuffer::{Context, Surface};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, DeviceId, Ime, WindowEvent};
-use winit::event::{MouseButton, MouseScrollDelta};
+use winit::event::{DeviceEvent, DeviceId, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, ModifiersState};
 use winit::window::{
     Cursor, CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Icon, ResizeDirection,
-    Theme,
+    Theme, Window, WindowId,
 };
-use winit::window::{Window, WindowId};
 
 #[cfg(macos_platform)]
 use winit::platform::macos::{OptionAsAlt, WindowAttributesExtMacOS, WindowExtMacOS};
@@ -100,10 +97,11 @@ impl Application {
             .unwrap(),
         );
 
-        // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
-        // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
-        // since it seems to work well enough in most cases. Be careful about going too high, or
-        // you'll be bitten by the low-quality downscaling built into the WM.
+        // You'll have to choose an icon size at your own discretion. On X11, the desired size
+        // varies by WM, and on Windows, you still have to account for screen scaling. Here
+        // we use 32px, since it seems to work well enough in most cases. Be careful about
+        // going too high, or you'll be bitten by the low-quality downscaling built into the
+        // WM.
         let icon = load_icon(include_bytes!("data/icon.png"));
 
         info!("Loading cursor assets");
@@ -177,7 +175,7 @@ impl Application {
         match action {
             Action::CloseWindow => {
                 let _ = self.windows.remove(&window_id);
-            }
+            },
             Action::CreateNewWindow => {
                 #[cfg(any(x11_platform, wayland_platform))]
                 if let Err(err) = window.window.request_activation_token() {
@@ -189,7 +187,7 @@ impl Application {
                 if let Err(err) = self.create_window(event_loop, None) {
                     error!("Error creating new window: {err}");
                 }
-            }
+            },
             Action::ToggleResizeIncrements => window.toggle_resize_increments(),
             Action::ToggleCursorVisibility => window.toggle_cursor_visibility(),
             Action::ToggleResizable => window.toggle_resizable(),
@@ -205,7 +203,7 @@ impl Application {
             #[cfg(web_platform)]
             Action::AnimationCustomCursor => {
                 window.animation_custom_cursor(event_loop, &self.custom_cursors)
-            }
+            },
             Action::CycleCursorGrab => window.cycle_cursor_grab(),
             Action::DragWindow => window.drag_window(),
             Action::DragResizeWindow => window.drag_resize_window(),
@@ -219,7 +217,7 @@ impl Application {
                 if let Err(err) = self.create_window(event_loop, Some(tab_id)) {
                     error!("Error creating new window: {err}");
                 }
-            }
+            },
             Action::RequestResize => window.swap_dimensions(),
         }
     }
@@ -260,31 +258,23 @@ impl Application {
                 let PhysicalSize { width, height } = mode.size();
                 let bits = mode.bit_depth();
                 let m_hz = mode.refresh_rate_millihertz();
-                info!(
-                    "    {width}x{height}x{bits} @ {}.{} Hz",
-                    m_hz / 1000,
-                    m_hz % 1000
-                );
+                info!("    {width}x{height}x{bits} @ {}.{} Hz", m_hz / 1000, m_hz % 1000);
             }
         }
     }
 
     /// Process the key binding.
     fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
-        KEY_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&key, mods)
-                .then_some(binding.action)
-        })
+        KEY_BINDINGS
+            .iter()
+            .find_map(|binding| binding.is_triggered_by(&key, mods).then_some(binding.action))
     }
 
     /// Process mouse binding.
     fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
-        MOUSE_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&button, mods)
-                .then_some(binding.action)
-        })
+        MOUSE_BINDINGS
+            .iter()
+            .find_map(|binding| binding.is_triggered_by(&button, mods).then_some(binding.action))
     }
 
     fn print_help(&self) {
@@ -330,50 +320,46 @@ impl ApplicationHandler<UserEvent> for Application {
         match event {
             WindowEvent::Resized(size) => {
                 window.resize(size);
-            }
+            },
             WindowEvent::Focused(focused) => {
                 if focused {
                     info!("Window={window_id:?} focused");
                 } else {
                     info!("Window={window_id:?} unfocused");
                 }
-            }
+            },
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 info!("Window={window_id:?} changed scale to {scale_factor}");
-            }
+            },
             WindowEvent::ThemeChanged(theme) => {
                 info!("Theme changed to {theme:?}");
                 window.set_theme(theme);
-            }
+            },
             WindowEvent::RedrawRequested => {
                 if let Err(err) = window.draw() {
                     error!("Error drawing window: {err}");
                 }
-            }
+            },
             WindowEvent::Occluded(occluded) => {
                 window.set_occluded(occluded);
-            }
+            },
             WindowEvent::CloseRequested => {
                 info!("Closing Window={window_id:?}");
                 self.windows.remove(&window_id);
-            }
+            },
             WindowEvent::ModifiersChanged(modifiers) => {
                 window.modifiers = modifiers.state();
                 info!("Modifiers changed to {:?}", window.modifiers);
-            }
+            },
             WindowEvent::MouseWheel { delta, .. } => match delta {
                 MouseScrollDelta::LineDelta(x, y) => {
                     info!("Mouse wheel Line Delta: ({x},{y})");
-                }
+                },
                 MouseScrollDelta::PixelDelta(px) => {
                     info!("Mouse wheel Pixel Delta: ({},{})", px.x, px.y);
-                }
+                },
             },
-            WindowEvent::KeyboardInput {
-                event,
-                is_synthetic: false,
-                ..
-            } => {
+            WindowEvent::KeyboardInput { event, is_synthetic: false, .. } => {
                 let mods = window.modifiers;
 
                 // Dispatch actions only on press.
@@ -388,25 +374,23 @@ impl ApplicationHandler<UserEvent> for Application {
                         self.handle_action(event_loop, window_id, action);
                     }
                 }
-            }
+            },
             WindowEvent::MouseInput { button, state, .. } => {
                 let mods = window.modifiers;
-                if let Some(action) = state
-                    .is_pressed()
-                    .then(|| Self::process_mouse_binding(button, &mods))
-                    .flatten()
+                if let Some(action) =
+                    state.is_pressed().then(|| Self::process_mouse_binding(button, &mods)).flatten()
                 {
                     self.handle_action(event_loop, window_id, action);
                 }
-            }
+            },
             WindowEvent::CursorLeft { .. } => {
                 info!("Cursor left Window={window_id:?}");
                 window.cursor_left();
-            }
+            },
             WindowEvent::CursorMoved { position, .. } => {
                 info!("Moved cursor to {position:?}");
                 window.cursor_moved(position);
-            }
+            },
             WindowEvent::ActivationTokenDone { token: _token, .. } => {
                 #[cfg(any(x11_platform, wayland_platform))]
                 {
@@ -415,15 +399,15 @@ impl ApplicationHandler<UserEvent> for Application {
                         error!("Error creating new window: {err}");
                     }
                 }
-            }
+            },
             WindowEvent::Ime(event) => match event {
                 Ime::Enabled => info!("IME enabled for Window={window_id:?}"),
                 Ime::Preedit(text, caret_pos) => {
                     info!("Preedit: {}, with caret at {:?}", text, caret_pos);
-                }
+                },
                 Ime::Commit(text) => {
                     info!("Committed: {}", text);
-                }
+                },
                 Ime::Disabled => info!("IME disabled for Window={window_id:?}"),
             },
             WindowEvent::PinchGesture { delta, .. } => {
@@ -434,7 +418,7 @@ impl ApplicationHandler<UserEvent> for Application {
                 } else {
                     info!("Zoomed out {delta:.5} (now: {zoom:.5})");
                 }
-            }
+            },
             WindowEvent::RotationGesture { delta, .. } => {
                 window.rotated += delta;
                 let rotated = window.rotated;
@@ -443,10 +427,10 @@ impl ApplicationHandler<UserEvent> for Application {
                 } else {
                     info!("Rotated clockwise {delta:.5} (now: {rotated:.5})");
                 }
-            }
+            },
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
-            }
+            },
             WindowEvent::TouchpadPressure { .. }
             | WindowEvent::HoveredFileCancelled
             | WindowEvent::KeyboardInput { .. }
@@ -474,8 +458,7 @@ impl ApplicationHandler<UserEvent> for Application {
         self.dump_monitors(event_loop);
 
         // Create initial window.
-        self.create_window(event_loop, None)
-            .expect("failed to create initial window");
+        self.create_window(event_loop, None).expect("failed to create initial window");
 
         self.print_help();
     }
@@ -575,8 +558,7 @@ impl WindowState {
         self.ime = !self.ime;
         self.window.set_ime_allowed(self.ime);
         if let Some(position) = self.ime.then_some(self.cursor_position).flatten() {
-            self.window
-                .set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
         }
     }
 
@@ -587,8 +569,7 @@ impl WindowState {
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         self.cursor_position = Some(position);
         if self.ime {
-            self.window
-                .set_ime_cursor_area(position, PhysicalSize::new(20, 20));
+            self.window.set_ime_cursor_area(position, PhysicalSize::new(20, 20));
         }
     }
 
@@ -689,8 +670,7 @@ impl WindowState {
     fn next_cursor(&mut self) {
         self.named_idx = (self.named_idx + 1) % CURSORS.len();
         info!("Setting cursor to \"{:?}\"", CURSORS[self.named_idx]);
-        self.window
-            .set_cursor(Cursor::Icon(CURSORS[self.named_idx]));
+        self.window.set_cursor(Cursor::Icon(CURSORS[self.named_idx]));
     }
 
     /// Pick the next custom cursor.
@@ -739,9 +719,7 @@ impl WindowState {
                 (Some(width), Some(height)) => (width, height),
                 _ => return,
             };
-            self.surface
-                .resize(width, height)
-                .expect("failed to resize inner buffer");
+            self.surface.resize(width, height).expect("failed to resize inner buffer");
         }
         self.window.request_redraw();
     }
@@ -775,7 +753,7 @@ impl WindowState {
             None => {
                 info!("Drag-resize requires cursor to be inside the window");
                 return;
-            }
+            },
         };
 
         let win_size = self.window.inner_size();
@@ -834,8 +812,8 @@ impl WindowState {
             return Ok(());
         }
 
-        const WHITE: u32 = 0xFFFFFFFF;
-        const DARK_GRAY: u32 = 0xFF181818;
+        const WHITE: u32 = 0xffffffff;
+        const DARK_GRAY: u32 = 0xff181818;
 
         let color = match self.theme {
             Theme::Light => WHITE,
@@ -864,11 +842,7 @@ struct Binding<T: Eq> {
 
 impl<T: Eq> Binding<T> {
     const fn new(trigger: T, mods: ModifiersState, action: Action) -> Self {
-        Self {
-            trigger,
-            mods,
-            action,
-        }
+        Self { trigger, mods, action }
     }
 
     fn is_triggered_by(&self, trigger: &T, mods: &ModifiersState) -> bool {
@@ -962,10 +936,7 @@ fn url_custom_cursor() -> CustomCursorSource {
     static URL_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     CustomCursor::from_url(
-        format!(
-            "https://picsum.photos/128?random={}",
-            URL_COUNTER.fetch_add(1, Ordering::Relaxed)
-        ),
+        format!("https://picsum.photos/128?random={}", URL_COUNTER.fetch_add(1, Ordering::Relaxed)),
         64,
         64,
     )
@@ -1086,19 +1057,7 @@ const KEY_BINDINGS: &[Binding<&'static str>] = &[
 ];
 
 const MOUSE_BINDINGS: &[Binding<MouseButton>] = &[
-    Binding::new(
-        MouseButton::Left,
-        ModifiersState::ALT,
-        Action::DragResizeWindow,
-    ),
-    Binding::new(
-        MouseButton::Left,
-        ModifiersState::CONTROL,
-        Action::DragWindow,
-    ),
-    Binding::new(
-        MouseButton::Right,
-        ModifiersState::CONTROL,
-        Action::ShowWindowMenu,
-    ),
+    Binding::new(MouseButton::Left, ModifiersState::ALT, Action::DragResizeWindow),
+    Binding::new(MouseButton::Left, ModifiersState::CONTROL, Action::DragWindow),
+    Binding::new(MouseButton::Right, ModifiersState::CONTROL, Action::ShowWindowMenu),
 ];

@@ -5,10 +5,8 @@
 //! methods, which return an iterator of [`MonitorHandle`]:
 //! - [`ActiveEventLoop::available_monitors`][crate::event_loop::ActiveEventLoop::available_monitors].
 //! - [`Window::available_monitors`][crate::window::Window::available_monitors].
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl;
 
 /// Deprecated! Use `VideoModeHandle` instead.
 #[deprecated = "Renamed to `VideoModeHandle`"]
@@ -79,9 +77,7 @@ impl VideoModeHandle {
     /// a separate set of valid video modes.
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.video_mode.monitor(),
-        }
+        MonitorHandle { inner: self.video_mode.monitor() }
     }
 }
 
@@ -166,8 +162,6 @@ impl MonitorHandle {
     /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        self.inner
-            .video_modes()
-            .map(|video_mode| VideoModeHandle { video_mode })
+        self.inner.video_modes().map(|video_mode| VideoModeHandle { video_mode })
     }
 }
