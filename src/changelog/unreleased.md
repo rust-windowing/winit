@@ -91,6 +91,8 @@ changelog entry.
 - On macOS, return `HandleError::Unavailable` when a window handle is not available.
 - On Windows, remove `WS_CAPTION`, `WS_BORDER`, and `WS_EX_WINDOWEDGE` styles
   for child windows without decorations.
+- On Android, bump `ndk` to `0.9.0` and `android-activity` to `0.6.0`,
+  and remove unused direct dependency on `ndk-sys`.
 
 ### Deprecated
 
