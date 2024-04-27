@@ -1,5 +1,5 @@
 // A poly-fill for `lazy_cell`
-// Replace with std::sync::LazyLock when https://github.com/rust-lang/rust/issues/109736 is stablized.
+// Replace with std::sync::LazyLock when https://github.com/rust-lang/rust/issues/109736 is stabilized.
 
 // This isn't used on every platform, which can come up as dead code warnings.
 #![allow(dead_code)]
