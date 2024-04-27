@@ -12,7 +12,7 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
-    NSApplicationPresentationOptions, NSBackingStoreType, NSColor, NSDraggingDestination,
+    NSApplicationPresentationOptions, NSBackingStoreType, NSDraggingDestination,
     NSFilenamesPboardType, NSPasteboard, NSRequestUserAttentionType, NSScreen, NSView,
     NSWindowButton, NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel,
     NSWindowOcclusionState, NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask,
@@ -605,7 +605,6 @@ fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<Wini
 
         if attrs.transparent {
             window.setOpaque(false);
-            window.setBackgroundColor(Some(unsafe { &NSColor::clearColor() }));
         }
 
         // register for drag and drop operations.

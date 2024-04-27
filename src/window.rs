@@ -941,6 +941,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** If you're not drawing to the window yourself, you might have to set the
+    ///   background color of the window to enable transparency.
     /// - **Web / iOS / Android:** Unsupported.
     /// - **X11:** Can only be set while building the window, with
     ///   [`WindowAttributes::with_transparent`].

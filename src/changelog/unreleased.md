@@ -260,3 +260,4 @@ changelog entry.
 - On Wayland, fix decoration glitch on close with some compositors.
 - On Android, fix a regression introduced in #2748 to allow volume key events to be received again.
 - On Windows, don't return a valid window handle outside of the GUI thread.
+- On macOS, don't set the background color when initializing a window with transparency.
