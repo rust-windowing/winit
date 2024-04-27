@@ -281,7 +281,7 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS** and **iOS**.
+    /// - Only available on **macOS**, **iOS** and **Wayland**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PinchGesture {
         device_id: DeviceId,
@@ -333,7 +333,7 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS** and **iOS**.
+    /// - Only available on **macOS**, **iOS** and **Wayland**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     RotationGesture {
         device_id: DeviceId,

@@ -14,6 +14,8 @@ use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked
 use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::WpCursorShapeDeviceV1;
 use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_manager_v1::WpCursorShapeManagerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
+use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gestures_v1::ZwpPointerGesturesV1;
+use sctk::reexports::protocols::wp::pointer_gestures::zv1::client::zwp_pointer_gesture_pinch_v1::{ZwpPointerGesturePinchV1, Event};
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::csd_frame::FrameClick;
 
@@ -467,9 +469,95 @@ impl Dispatch<WpCursorShapeManagerV1, GlobalData, WinitState> for SeatState {
     }
 }
 
+pub struct PointerGesturesState {
+    pointer_gestures: ZwpPointerGesturesV1,
+}
+
+impl PointerGesturesState {
+    pub fn new(
+        globals: &GlobalList,
+        queue_handle: &QueueHandle<WinitState>,
+    ) -> Result<Self, BindError> {
+        let pointer_gestures = globals.bind(queue_handle, 1..=1, GlobalData)?;
+        Ok(Self { pointer_gestures })
+    }
+}
+
+impl Deref for PointerGesturesState {
+    type Target = ZwpPointerGesturesV1;
+
+    fn deref(&self) -> &Self::Target {
+        &self.pointer_gestures
+    }
+}
+
+impl Dispatch<ZwpPointerGesturesV1, GlobalData, WinitState> for PointerGesturesState {
+    fn event(
+        _state: &mut WinitState,
+        _proxy: &ZwpPointerGesturesV1,
+        _event: <ZwpPointerGesturesV1 as wayland_client::Proxy>::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+        unreachable!("zwp_pointer_gestures_v1 has no events")
+    }
+}
+
+impl Dispatch<ZwpPointerGesturePinchV1, GlobalData, WinitState> for PointerGesturesState {
+    fn event(
+        state: &mut WinitState,
+        _proxy: &ZwpPointerGesturePinchV1,
+        event: <ZwpPointerGesturePinchV1 as wayland_client::Proxy>::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<WinitState>,
+    ) {
+        let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
+        let (phase, scale_delta, rotation_delta) = match event {
+            Event::Begin { time: _, serial: _, surface, fingers } => {
+                if fingers != 2 {
+                    // We only support two fingers for now.
+                    return;
+                }
+                // The parent surface.
+                let parent_surface = match surface.data::<SurfaceData>() {
+                    Some(data) => data.parent_surface().unwrap_or(&surface),
+                    None => return,
+                };
+
+                state.window_id = wayland::make_wid(parent_surface);
+                state.previous_scale = 1.;
+
+                (TouchPhase::Started, 0., 0.)
+            },
+            Event::Update { time: _, dx: _, dy: _, scale, rotation } => {
+                let scale_delta = scale - state.previous_scale;
+                state.previous_scale = scale;
+                (TouchPhase::Moved, scale_delta, -rotation as f32)
+            },
+            Event::End { time: _, serial: _, cancelled } => {
+                state.previous_scale = 1.;
+                (if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled }, 0., 0.)
+            },
+            _ => unreachable!("Unknown event {event:?}"),
+        };
+        state.events_sink.push_window_event(
+            WindowEvent::PinchGesture { device_id, delta: scale_delta, phase },
+            state.window_id,
+        );
+        state.events_sink.push_window_event(
+            WindowEvent::RotationGesture { device_id, delta: rotation_delta, phase },
+            state.window_id,
+        );
+    }
+}
+
 delegate_dispatch!(WinitState: [ WlPointer: WinitPointerData] => SeatState);
 delegate_dispatch!(WinitState: [ WpCursorShapeManagerV1: GlobalData] => SeatState);
 delegate_dispatch!(WinitState: [ WpCursorShapeDeviceV1: GlobalData] => SeatState);
 delegate_dispatch!(WinitState: [ZwpPointerConstraintsV1: GlobalData] => PointerConstraintsState);
 delegate_dispatch!(WinitState: [ZwpLockedPointerV1: GlobalData] => PointerConstraintsState);
 delegate_dispatch!(WinitState: [ZwpConfinedPointerV1: GlobalData] => PointerConstraintsState);
+delegate_dispatch!(WinitState: [ZwpPointerGesturesV1: GlobalData] => PointerGesturesState);
+delegate_dispatch!(WinitState: [ZwpPointerGesturePinchV1: GlobalData] => PointerGesturesState);
