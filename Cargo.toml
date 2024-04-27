@@ -14,6 +14,7 @@ rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
+exclude = ["/.cargo"]
 
 [package.metadata.docs.rs]
 features = [
