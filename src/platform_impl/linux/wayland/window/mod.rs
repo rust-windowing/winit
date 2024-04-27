@@ -72,7 +72,7 @@ pub struct Window {
     /// Source to wake-up the event-loop for window requests.
     event_loop_awakener: calloop::ping::Ping,
 
-    /// The event sink to deliver sythetic events.
+    /// The event sink to deliver synthetic events.
     window_events_sink: Arc<Mutex<EventSink>>,
 }
 

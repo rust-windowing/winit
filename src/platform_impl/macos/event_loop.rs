@@ -53,7 +53,7 @@ impl PanicInfo {
         result
     }
 
-    /// Overwrites the curret state if the current state is not panicking
+    /// Overwrites the current state if the current state is not panicking
     pub fn set_panic(&self, p: Box<dyn Any + Send + 'static>) {
         if !self.is_panicking() {
             self.inner.set(Some(p));
