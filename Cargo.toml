@@ -14,6 +14,7 @@ rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
+exclude = ["/.cargo"]
 
 [package.metadata.docs.rs]
 features = [
@@ -102,9 +103,8 @@ softbuffer = { version = "0.4.0", default-features = false, features = [
 ] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity = "0.5.0"
-ndk = { version = "0.8.0", default-features = false }
-ndk-sys = "0.5.0"
+android-activity = "0.6.0"
+ndk = { version = "0.9.0", default-features = false }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"

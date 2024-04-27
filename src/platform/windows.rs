@@ -2,6 +2,7 @@
 //!
 //! The supported OS version is Windows 7 or higher, though Windows 10 is
 //! tested regularly.
+use std::borrow::Borrow;
 use std::ffi::c_void;
 use std::path::Path;
 
@@ -102,6 +103,60 @@ pub enum CornerPreference {
     ///
     /// Round the corners if appropriate, with a small radius.
     RoundSmall = 3,
+}
+
+/// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
+///
+/// See [`WindowBorrowExtWindows::any_thread`] for more information.
+#[derive(Debug)]
+pub struct AnyThread<W>(W);
+
+impl<W: Borrow<Window>> AnyThread<W> {
+    /// Get a reference to the inner window.
+    #[inline]
+    pub fn get_ref(&self) -> &Window {
+        self.0.borrow()
+    }
+
+    /// Get a reference to the inner object.
+    #[inline]
+    pub fn inner(&self) -> &W {
+        &self.0
+    }
+
+    /// Unwrap and get the inner window.
+    #[inline]
+    pub fn into_inner(self) -> W {
+        self.0
+    }
+}
+
+impl<W: Borrow<Window>> AsRef<Window> for AnyThread<W> {
+    fn as_ref(&self) -> &Window {
+        self.get_ref()
+    }
+}
+
+impl<W: Borrow<Window>> Borrow<Window> for AnyThread<W> {
+    fn borrow(&self) -> &Window {
+        self.get_ref()
+    }
+}
+
+impl<W: Borrow<Window>> std::ops::Deref for AnyThread<W> {
+    type Target = Window;
+
+    fn deref(&self) -> &Self::Target {
+        self.get_ref()
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl<W: Borrow<Window>> rwh_06::HasWindowHandle for AnyThread<W> {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        // SAFETY: The top level user has asserted this is only used safely.
+        unsafe { self.get_ref().window_handle_any_thread() }
+    }
 }
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -247,6 +302,60 @@ pub trait WindowExtWindows {
     ///
     /// Supported starting with Windows 11 Build 22000.
     fn set_corner_preference(&self, preference: CornerPreference);
+
+    /// Get the raw window handle for this [`Window`] without checking for thread affinity.
+    ///
+    /// Window handles in Win32 have a property called "thread affinity" that ties them to their
+    /// origin thread. Some operations can only happen on the window's origin thread, while others
+    /// can be called from any thread. For example, [`SetWindowSubclass`] is not thread safe while
+    /// [`GetDC`] is thread safe.
+    ///
+    /// In Rust terms, the window handle is `Send` sometimes but `!Send` other times.
+    ///
+    /// Therefore, in order to avoid confusing threading errors, [`Window`] only returns the
+    /// window handle when the [`window_handle`] function is called from the thread that created
+    /// the window. In other cases, it returns an [`Unavailable`] error.
+    ///
+    /// However in some cases you may already know that you are using the window handle for
+    /// operations that are guaranteed to be thread-safe. In which case this function aims
+    /// to provide an escape hatch so these functions are still accessible from other threads.
+    ///
+    /// # Safety
+    ///
+    /// It is the responsibility of the user to only pass the window handle into thread-safe
+    /// Win32 APIs.
+    ///
+    /// [`SetWindowSubclass`]: https://learn.microsoft.com/en-us/windows/win32/api/commctrl/nf-commctrl-setwindowsubclass
+    /// [`GetDC`]: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc
+    /// [`Window`]: crate::window::Window
+    /// [`window_handle`]: https://docs.rs/raw-window-handle/latest/raw_window_handle/trait.HasWindowHandle.html#tymethod.window_handle
+    /// [`Unavailable`]: https://docs.rs/raw-window-handle/latest/raw_window_handle/enum.HandleError.html#variant.Unavailable
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use winit::window::Window;
+    /// # fn scope(window: Window) {
+    /// use std::thread;
+    /// use winit::platform::windows::WindowExtWindows;
+    /// use winit::raw_window_handle::HasWindowHandle;
+    ///
+    /// // We can get the window handle on the current thread.
+    /// let handle = window.window_handle().unwrap();
+    ///
+    /// // However, on another thread, we can't!
+    /// thread::spawn(move || {
+    ///     assert!(window.window_handle().is_err());
+    ///
+    ///     // We can use this function as an escape hatch.
+    ///     let handle = unsafe { window.window_handle_any_thread().unwrap() };
+    /// });
+    /// # }
+    /// ```
+    #[cfg(feature = "rwh_06")]
+    unsafe fn window_handle_any_thread(
+        &self,
+    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 }
 
 impl WindowExtWindows for Window {
@@ -297,7 +406,48 @@ impl WindowExtWindows for Window {
     fn set_corner_preference(&self, preference: CornerPreference) {
         self.window.set_corner_preference(preference)
     }
+
+    #[cfg(feature = "rwh_06")]
+    unsafe fn window_handle_any_thread(
+        &self,
+    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        unsafe {
+            let handle = self.window.rwh_06_no_thread_check()?;
+
+            // SAFETY: The handle is valid in this context.
+            Ok(rwh_06::WindowHandle::borrow_raw(handle))
+        }
+    }
 }
+
+/// Additional methods for anything that dereference to [`Window`].
+///
+/// [`Window`]: crate::window::Window
+pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
+    /// Create an object that allows accessing the inner window handle in a thread-unsafe way.
+    ///
+    /// It is possible to call [`window_handle_any_thread`] to get around Windows's thread
+    /// affinity limitations. However, it may be desired to pass the [`Window`] into something
+    /// that requires the [`HasWindowHandle`] trait, while ignoring thread affinity limitations.
+    ///
+    /// This function wraps anything that implements `Borrow<Window>` into a structure that
+    /// uses the inner window handle as a mean of implementing [`HasWindowHandle`]. It wraps
+    /// `Window`, `&Window`, `Arc<Window>`, and other reference types.
+    ///
+    /// # Safety
+    ///
+    /// It is the responsibility of the user to only pass the window handle into thread-safe
+    /// Win32 APIs.
+    ///
+    /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
+    /// [`Window`]: crate::window::Window
+    /// [`HasWindowHandle`]: rwh_06::HasWindowHandle
+    unsafe fn any_thread(self) -> AnyThread<Self> {
+        AnyThread(self)
+    }
+}
+
+impl<W: Borrow<Window> + Sized> WindowBorrowExtWindows for W {}
 
 /// Additional methods on `WindowAttributes` that are specific to Windows.
 #[allow(rustdoc::broken_intra_doc_links)]
