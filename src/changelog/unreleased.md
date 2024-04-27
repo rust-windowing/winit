@@ -59,7 +59,8 @@ changelog entry.
 - Add `CustomCursor` which could be set via `Window::set_cursor`, implemented on
   Windows, macOS, X11, Wayland, and Web.
 - On Web, add to toggle calling `Event.preventDefault()` on `Window`.
-- On iOS, add `PinchGesture`, `DoubleTapGesture`, and `RotationGesture`
+- On iOS, add `PinchGesture`, `DoubleTapGesture`, `PanGesture` and `RotationGesture`.
+- on iOS, use `UIGestureRecognizerDelegate` for fine grained control of gesture recognizers.
 - On macOS, add services menu.
 - On Windows, add `with_title_text_color`, and `with_corner_preference` on
   `WindowAttributesExtWindows`.

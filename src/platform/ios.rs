@@ -155,6 +155,21 @@ pub trait WindowExtIOS {
     /// The default is to not recognize gestures.
     fn recognize_pinch_gesture(&self, should_recognize: bool);
 
+    /// Sets whether the [`Window`] should recognize pan gestures.
+    ///
+    /// The default is to not recognize gestures.
+    /// Installs [`UIPanGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer) onto view
+    ///
+    /// Set the minimum number of touches required: [`minimumNumberOfTouches`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer/1621208-minimumnumberoftouches)
+    ///
+    /// Set the maximum number of touches recognized: [`maximumNumberOfTouches`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer/1621208-maximumnumberoftouches)
+    fn recognize_pan_gesture(
+        &self,
+        should_recognize: bool,
+        minimum_number_of_touches: u8,
+        maximum_number_of_touches: u8,
+    );
+
     /// Sets whether the [`Window`] should recognize double tap gestures.
     ///
     /// The default is to not recognize gestures.
@@ -202,6 +217,22 @@ impl WindowExtIOS for Window {
     #[inline]
     fn recognize_pinch_gesture(&self, should_recognize: bool) {
         self.window.maybe_queue_on_main(move |w| w.recognize_pinch_gesture(should_recognize));
+    }
+
+    #[inline]
+    fn recognize_pan_gesture(
+        &self,
+        should_recognize: bool,
+        minimum_number_of_touches: u8,
+        maximum_number_of_touches: u8,
+    ) {
+        self.window.maybe_queue_on_main(move |w| {
+            w.recognize_pan_gesture(
+                should_recognize,
+                minimum_number_of_touches,
+                maximum_number_of_touches,
+            )
+        });
     }
 
     #[inline]
