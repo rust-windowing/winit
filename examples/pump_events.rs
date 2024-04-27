@@ -1,15 +1,11 @@
 #![allow(clippy::single_match)]
 
 // Limit this example to only compatible platforms.
-#[cfg(any(
-    windows_platform,
-    macos_platform,
-    x11_platform,
-    wayland_platform,
-    android_platform,
-))]
+#[cfg(any(windows_platform, macos_platform, x11_platform, wayland_platform, android_platform,))]
 fn main() -> std::process::ExitCode {
-    use std::{process::ExitCode, thread::sleep, time::Duration};
+    use std::process::ExitCode;
+    use std::thread::sleep;
+    use std::time::Duration;
 
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
@@ -49,7 +45,7 @@ fn main() -> std::process::ExitCode {
                 WindowEvent::RedrawRequested => {
                     fill::fill_window(window);
                     window.request_redraw();
-                }
+                },
                 _ => (),
             }
         }

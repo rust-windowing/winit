@@ -1,16 +1,16 @@
 use std::cell::Cell;
 
-use icrate::Foundation::{MainThreadMarker, NSObject};
 use objc2::rc::Id;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2_foundation::{MainThreadMarker, NSObject};
 
 use super::app_state::{self};
 use super::uikit::{
     UIDevice, UIInterfaceOrientationMask, UIRectEdge, UIResponder, UIStatusBarStyle,
     UIUserInterfaceIdiom, UIView, UIViewController,
 };
-use crate::platform::ios::{ScreenEdge, StatusBarStyle};
-use crate::{platform::ios::ValidOrientations, window::WindowAttributes};
+use crate::platform::ios::{ScreenEdge, StatusBarStyle, ValidOrientations};
+use crate::window::WindowAttributes;
 
 pub struct ViewControllerState {
     prefers_status_bar_hidden: Cell<bool>,
@@ -97,16 +97,10 @@ impl WinitViewController {
 
     pub(crate) fn set_preferred_screen_edges_deferring_system_gestures(&self, val: ScreenEdge) {
         let val = {
-            assert_eq!(
-                val.bits() & !ScreenEdge::ALL.bits(),
-                0,
-                "invalid `ScreenEdge`"
-            );
+            assert_eq!(val.bits() & !ScreenEdge::ALL.bits(), 0, "invalid `ScreenEdge`");
             UIRectEdge(val.bits().into())
         };
-        self.ivars()
-            .preferred_screen_edges_deferring_system_gestures
-            .set(val);
+        self.ivars().preferred_screen_edges_deferring_system_gestures.set(val);
         let os_capabilities = app_state::os_capabilities();
         if os_capabilities.defer_system_gestures {
             self.setNeedsUpdateOfScreenEdgesDeferringSystemGestures();
@@ -120,22 +114,19 @@ impl WinitViewController {
         mtm: MainThreadMarker,
         valid_orientations: ValidOrientations,
     ) {
-        let mask = match (
-            valid_orientations,
-            UIDevice::current(mtm).userInterfaceIdiom(),
-        ) {
+        let mask = match (valid_orientations, UIDevice::current(mtm).userInterfaceIdiom()) {
             (ValidOrientations::LandscapeAndPortrait, UIUserInterfaceIdiom::Phone) => {
                 UIInterfaceOrientationMask::AllButUpsideDown
-            }
+            },
             (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
             (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
             (ValidOrientations::Portrait, UIUserInterfaceIdiom::Phone) => {
                 UIInterfaceOrientationMask::Portrait
-            }
+            },
             (ValidOrientations::Portrait, _) => {
                 UIInterfaceOrientationMask::Portrait
                     | UIInterfaceOrientationMask::PortraitUpsideDown
-            }
+            },
         };
         self.ivars().supported_orientations.set(mask);
         UIViewController::attemptRotationToDeviceOrientation();
@@ -157,15 +148,11 @@ impl WinitViewController {
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.set_prefers_status_bar_hidden(
-            window_attributes
-                .platform_specific
-                .prefers_status_bar_hidden,
+            window_attributes.platform_specific.prefers_status_bar_hidden,
         );
 
         this.set_preferred_status_bar_style(
-            window_attributes
-                .platform_specific
-                .preferred_status_bar_style,
+            window_attributes.platform_specific.preferred_status_bar_style,
         );
 
         this.set_supported_interface_orientations(
@@ -174,15 +161,11 @@ impl WinitViewController {
         );
 
         this.set_prefers_home_indicator_auto_hidden(
-            window_attributes
-                .platform_specific
-                .prefers_home_indicator_hidden,
+            window_attributes.platform_specific.prefers_home_indicator_hidden,
         );
 
         this.set_preferred_screen_edges_deferring_system_gestures(
-            window_attributes
-                .platform_specific
-                .preferred_screen_edges_deferring_system_gestures,
+            window_attributes.platform_specific.preferred_screen_edges_deferring_system_gestures,
         );
 
         this.setView(Some(view));

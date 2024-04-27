@@ -38,10 +38,7 @@ impl EventSink {
     /// Add new window event to a queue.
     #[inline]
     pub fn push_window_event(&mut self, event: WindowEvent, window_id: WindowId) {
-        self.window_events.push(Event::WindowEvent {
-            event,
-            window_id: RootWindowId(window_id),
-        });
+        self.window_events.push(Event::WindowEvent { event, window_id: RootWindowId(window_id) });
     }
 
     #[inline]

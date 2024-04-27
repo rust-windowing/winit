@@ -1,7 +1,4 @@
-#[cfg(all(
-    feature = "rwh_06",
-    any(x11_platform, macos_platform, windows_platform)
-))]
+#[cfg(all(feature = "rwh_06", any(x11_platform, macos_platform, windows_platform)))]
 #[allow(deprecated)]
 fn main() -> Result<(), impl std::error::Error> {
     use std::collections::HashMap;
@@ -46,25 +43,22 @@ fn main() -> Result<(), impl std::error::Error> {
 
                 println!("Parent window id: {parent_window_id:?})");
                 windows.insert(window.id(), window);
-            }
+            },
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::CloseRequested => {
                     windows.clear();
                     event_loop.exit();
-                }
+                },
                 WindowEvent::CursorEntered { device_id: _ } => {
-                    // On x11, println when the cursor entered in a window even if the child window is created
-                    // by some key inputs.
-                    // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
-                    // so we also can see this log when we move the cursor around (200, 200) in parent window.
+                    // On x11, println when the cursor entered in a window even if the child window
+                    // is created by some key inputs.
+                    // the child windows are always placed at (0, 0) with size (200, 200) in the
+                    // parent window, so we also can see this log when we move
+                    // the cursor around (200, 200) in parent window.
                     println!("cursor entered in the window {window_id:?}");
-                }
+                },
                 WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state: ElementState::Pressed,
-                            ..
-                        },
+                    event: KeyEvent { state: ElementState::Pressed, .. },
                     ..
                 } => {
                     let parent_window = windows.get(&parent_window_id.unwrap()).unwrap();
@@ -72,12 +66,12 @@ fn main() -> Result<(), impl std::error::Error> {
                     let child_id = child_window.id();
                     println!("Child window created with id: {child_id:?}");
                     windows.insert(child_id, child_window);
-                }
+                },
                 WindowEvent::RedrawRequested => {
                     if let Some(window) = windows.get(&window_id) {
                         fill::fill_window(window);
                     }
-                }
+                },
                 _ => (),
             },
             _ => (),
@@ -85,10 +79,10 @@ fn main() -> Result<(), impl std::error::Error> {
     })
 }
 
-#[cfg(all(
-    feature = "rwh_06",
-    not(any(x11_platform, macos_platform, windows_platform))
-))]
+#[cfg(all(feature = "rwh_06", not(any(x11_platform, macos_platform, windows_platform))))]
 fn main() {
-    panic!("This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature enabled.");
+    panic!(
+        "This example is supported only on x11, macOS, and Windows, with the `rwh_06` feature \
+         enabled."
+    );
 }

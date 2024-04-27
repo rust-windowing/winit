@@ -1,12 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 
-use icrate::Foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet};
 use objc2::rc::Id;
 use objc2::runtime::{AnyClass, NSObjectProtocol, ProtocolObject};
 use objc2::{
     declare_class, extern_methods, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
 };
+use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet};
 
 use super::app_state::{self, EventWrapper};
 use super::uikit::{
@@ -16,12 +16,10 @@ use super::uikit::{
     UITraitCollection, UIView,
 };
 use super::window::WinitUIWindow;
-use crate::{
-    dpi::PhysicalPosition,
-    event::{Event, Force, Touch, TouchPhase, WindowEvent},
-    platform_impl::platform::DEVICE_ID,
-    window::{WindowAttributes, WindowId as RootWindowId},
-};
+use crate::dpi::PhysicalPosition;
+use crate::event::{Event, Force, Touch, TouchPhase, WindowEvent};
+use crate::platform_impl::platform::DEVICE_ID;
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 pub struct WinitViewState {
     pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
@@ -436,9 +434,7 @@ impl WinitView {
                 };
                 rotation.setDelegate(ProtocolObject::from_ref(self));
                 self.addGestureRecognizer(&rotation);
-                self.ivars()
-                    .rotation_gesture_recognizer
-                    .replace(Some(rotation));
+                self.ivars().rotation_gesture_recognizer.replace(Some(rotation));
             }
         } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);

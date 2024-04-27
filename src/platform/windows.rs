@@ -2,15 +2,15 @@
 //!
 //! The supported OS version is Windows 7 or higher, though Windows 10 is
 //! tested regularly.
-use std::{ffi::c_void, path::Path};
+use std::borrow::Borrow;
+use std::ffi::c_void;
+use std::path::Path;
 
-use crate::{
-    dpi::PhysicalSize,
-    event::DeviceId,
-    event_loop::EventLoopBuilder,
-    monitor::MonitorHandle,
-    window::{BadIcon, Icon, Window, WindowAttributes},
-};
+use crate::dpi::PhysicalSize;
+use crate::event::DeviceId;
+use crate::event_loop::EventLoopBuilder;
+use crate::monitor::MonitorHandle;
+use crate::window::{BadIcon, Icon, Window, WindowAttributes};
 
 /// Window Handle type used by Win32 API
 pub type HWND = isize;
@@ -57,11 +57,11 @@ pub enum BackdropType {
 pub struct Color(u32);
 
 impl Color {
+    // Special constant only valid for the window border and therefore modeled using Option<Color>
+    // for user facing code
+    const NONE: Color = Color(0xfffffffe);
     /// Use the system's default color
-    pub const SYSTEM_DEFAULT: Color = Color(0xFFFFFFFF);
-
-    //Special constant only valid for the window border and therefore modeled using Option<Color> for user facing code
-    const NONE: Color = Color(0xFFFFFFFE);
+    pub const SYSTEM_DEFAULT: Color = Color(0xffffffff);
 
     /// Create a new color from the given RGB values
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
@@ -103,6 +103,60 @@ pub enum CornerPreference {
     ///
     /// Round the corners if appropriate, with a small radius.
     RoundSmall = 3,
+}
+
+/// A wrapper around a [`Window`] that ignores thread-specific window handle limitations.
+///
+/// See [`WindowBorrowExtWindows::any_thread`] for more information.
+#[derive(Debug)]
+pub struct AnyThread<W>(W);
+
+impl<W: Borrow<Window>> AnyThread<W> {
+    /// Get a reference to the inner window.
+    #[inline]
+    pub fn get_ref(&self) -> &Window {
+        self.0.borrow()
+    }
+
+    /// Get a reference to the inner object.
+    #[inline]
+    pub fn inner(&self) -> &W {
+        &self.0
+    }
+
+    /// Unwrap and get the inner window.
+    #[inline]
+    pub fn into_inner(self) -> W {
+        self.0
+    }
+}
+
+impl<W: Borrow<Window>> AsRef<Window> for AnyThread<W> {
+    fn as_ref(&self) -> &Window {
+        self.get_ref()
+    }
+}
+
+impl<W: Borrow<Window>> Borrow<Window> for AnyThread<W> {
+    fn borrow(&self) -> &Window {
+        self.get_ref()
+    }
+}
+
+impl<W: Borrow<Window>> std::ops::Deref for AnyThread<W> {
+    type Target = Window;
+
+    fn deref(&self) -> &Self::Target {
+        self.get_ref()
+    }
+}
+
+#[cfg(feature = "rwh_06")]
+impl<W: Borrow<Window>> rwh_06::HasWindowHandle for AnyThread<W> {
+    fn window_handle(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        // SAFETY: The top level user has asserted this is only used safely.
+        unsafe { self.get_ref().window_handle_any_thread() }
+    }
 }
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -202,8 +256,8 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must enable
-    /// the owner window before destroying the dialog box.
+    /// (as described in [`WindowAttributesExtWindows::with_owner_window`]), the application must
+    /// enable the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
     /// If a child window is disabled, it is ignored when the system tries to determine which
@@ -248,6 +302,60 @@ pub trait WindowExtWindows {
     ///
     /// Supported starting with Windows 11 Build 22000.
     fn set_corner_preference(&self, preference: CornerPreference);
+
+    /// Get the raw window handle for this [`Window`] without checking for thread affinity.
+    ///
+    /// Window handles in Win32 have a property called "thread affinity" that ties them to their
+    /// origin thread. Some operations can only happen on the window's origin thread, while others
+    /// can be called from any thread. For example, [`SetWindowSubclass`] is not thread safe while
+    /// [`GetDC`] is thread safe.
+    ///
+    /// In Rust terms, the window handle is `Send` sometimes but `!Send` other times.
+    ///
+    /// Therefore, in order to avoid confusing threading errors, [`Window`] only returns the
+    /// window handle when the [`window_handle`] function is called from the thread that created
+    /// the window. In other cases, it returns an [`Unavailable`] error.
+    ///
+    /// However in some cases you may already know that you are using the window handle for
+    /// operations that are guaranteed to be thread-safe. In which case this function aims
+    /// to provide an escape hatch so these functions are still accessible from other threads.
+    ///
+    /// # Safety
+    ///
+    /// It is the responsibility of the user to only pass the window handle into thread-safe
+    /// Win32 APIs.
+    ///
+    /// [`SetWindowSubclass`]: https://learn.microsoft.com/en-us/windows/win32/api/commctrl/nf-commctrl-setwindowsubclass
+    /// [`GetDC`]: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc
+    /// [`Window`]: crate::window::Window
+    /// [`window_handle`]: https://docs.rs/raw-window-handle/latest/raw_window_handle/trait.HasWindowHandle.html#tymethod.window_handle
+    /// [`Unavailable`]: https://docs.rs/raw-window-handle/latest/raw_window_handle/enum.HandleError.html#variant.Unavailable
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// # use winit::window::Window;
+    /// # fn scope(window: Window) {
+    /// use std::thread;
+    /// use winit::platform::windows::WindowExtWindows;
+    /// use winit::raw_window_handle::HasWindowHandle;
+    ///
+    /// // We can get the window handle on the current thread.
+    /// let handle = window.window_handle().unwrap();
+    ///
+    /// // However, on another thread, we can't!
+    /// thread::spawn(move || {
+    ///     assert!(window.window_handle().is_err());
+    ///
+    ///     // We can use this function as an escape hatch.
+    ///     let handle = unsafe { window.window_handle_any_thread().unwrap() };
+    /// });
+    /// # }
+    /// ```
+    #[cfg(feature = "rwh_06")]
+    unsafe fn window_handle_any_thread(
+        &self,
+    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 }
 
 impl WindowExtWindows for Window {
@@ -283,10 +391,10 @@ impl WindowExtWindows for Window {
 
     #[inline]
     fn set_title_background_color(&self, color: Option<Color>) {
-        // The windows docs don't mention NONE as a valid options but it works in practice and is useful
-        // to circumvent the Windows option "Show accent color on title bars and window borders"
-        self.window
-            .set_title_background_color(color.unwrap_or(Color::NONE))
+        // The windows docs don't mention NONE as a valid options but it works in practice and is
+        // useful to circumvent the Windows option "Show accent color on title bars and
+        // window borders"
+        self.window.set_title_background_color(color.unwrap_or(Color::NONE))
     }
 
     #[inline]
@@ -298,15 +406,57 @@ impl WindowExtWindows for Window {
     fn set_corner_preference(&self, preference: CornerPreference) {
         self.window.set_corner_preference(preference)
     }
+
+    #[cfg(feature = "rwh_06")]
+    unsafe fn window_handle_any_thread(
+        &self,
+    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+        unsafe {
+            let handle = self.window.rwh_06_no_thread_check()?;
+
+            // SAFETY: The handle is valid in this context.
+            Ok(rwh_06::WindowHandle::borrow_raw(handle))
+        }
+    }
 }
+
+/// Additional methods for anything that dereference to [`Window`].
+///
+/// [`Window`]: crate::window::Window
+pub trait WindowBorrowExtWindows: Borrow<Window> + Sized {
+    /// Create an object that allows accessing the inner window handle in a thread-unsafe way.
+    ///
+    /// It is possible to call [`window_handle_any_thread`] to get around Windows's thread
+    /// affinity limitations. However, it may be desired to pass the [`Window`] into something
+    /// that requires the [`HasWindowHandle`] trait, while ignoring thread affinity limitations.
+    ///
+    /// This function wraps anything that implements `Borrow<Window>` into a structure that
+    /// uses the inner window handle as a mean of implementing [`HasWindowHandle`]. It wraps
+    /// `Window`, `&Window`, `Arc<Window>`, and other reference types.
+    ///
+    /// # Safety
+    ///
+    /// It is the responsibility of the user to only pass the window handle into thread-safe
+    /// Win32 APIs.
+    ///
+    /// [`window_handle_any_thread`]: WindowExtWindows::window_handle_any_thread
+    /// [`Window`]: crate::window::Window
+    /// [`HasWindowHandle`]: rwh_06::HasWindowHandle
+    unsafe fn any_thread(self) -> AnyThread<Self> {
+        AnyThread(self)
+    }
+}
+
+impl<W: Borrow<Window> + Sized> WindowBorrowExtWindows for W {}
 
 /// Additional methods on `WindowAttributes` that are specific to Windows.
 #[allow(rustdoc::broken_intra_doc_links)]
 pub trait WindowAttributesExtWindows {
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// This only works when [`WindowAttributes::with_parent_window`] isn't called or set to `None`.
-    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable]
-    /// on the owner window to create a modal dialog box.
+    /// Can be used in combination with
+    /// [`WindowExtWindows::set_enable(false)`][WindowExtWindows::set_enable] on the owner
+    /// window to create a modal dialog box.
     ///
     /// From MSDN:
     /// - An owned window is always above its owner in the z-order.
@@ -322,17 +472,14 @@ pub trait WindowAttributesExtWindows {
     ///
     /// The menu must have been manually created beforehand with [`CreateMenu`] or similar.
     ///
-    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
-    /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
-    ///
+    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how
+    /// the menus look. If you use this, it is recommended that you combine it with
+    /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     #[cfg_attr(
         platform_windows,
         doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
     )]
-    #[cfg_attr(
-        not(platform_windows),
-        doc = "[`CreateMenu`]: #only-available-on-windows"
-    )]
+    #[cfg_attr(not(platform_windows), doc = "[`CreateMenu`]: #only-available-on-windows")]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -341,12 +488,12 @@ pub trait WindowAttributesExtWindows {
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     fn with_no_redirection_bitmap(self, flag: bool) -> Self;
 
-    /// Enables or disables drag and drop support (enabled by default). Will interfere with other crates
-    /// that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED` instead of
-    /// `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still attempt to initialize
-    /// COM API regardless of this option. Currently only fullscreen mode does that, but there may be more in the future.
-    /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
-    /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
+    /// Enables or disables drag and drop support (enabled by default). Will interfere with other
+    /// crates that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED`
+    /// instead of `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still
+    /// attempt to initialize COM API regardless of this option. Currently only fullscreen mode
+    /// does that, but there may be more in the future. If you need COM API with
+    /// `COINIT_MULTITHREADED` you must initialize it before calling any winit functions. See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> Self;
 
     /// Whether show or hide the window icon in the taskbar.

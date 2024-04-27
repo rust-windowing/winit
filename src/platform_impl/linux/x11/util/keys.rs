@@ -1,4 +1,5 @@
-use std::{iter::Enumerate, slice::Iter};
+use std::iter::Enumerate;
+use std::slice::Iter;
 
 use super::*;
 
@@ -14,17 +15,13 @@ pub struct KeymapIter<'a> {
 
 impl Keymap {
     pub fn iter(&self) -> KeymapIter<'_> {
-        KeymapIter {
-            iter: self.keys.iter().enumerate(),
-            index: 0,
-            item: None,
-        }
+        KeymapIter { iter: self.keys.iter().enumerate(), index: 0, item: None }
     }
 }
 
 impl<'a> IntoIterator for &'a Keymap {
-    type Item = ffi::KeyCode;
     type IntoIter = KeymapIter<'a>;
+    type Item = ffi::KeyCode;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()

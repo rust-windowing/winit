@@ -1,11 +1,8 @@
-use icrate::AppKit::{
-    NSApplication, NSEventModifierFlagCommand, NSEventModifierFlagOption, NSEventModifierFlags,
-    NSMenu, NSMenuItem,
-};
-use icrate::Foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::sel;
+use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+use objc2_foundation::{ns_string, MainThreadMarker, NSProcessInfo, NSString};
 
 struct KeyEquivalent<'a> {
     key: &'a NSString,
@@ -23,12 +20,8 @@ pub fn initialize(app: &NSApplication) {
 
     // About menu item
     let about_item_title = ns_string!("About ").stringByAppendingString(&process_name);
-    let about_item = menu_item(
-        mtm,
-        &about_item_title,
-        Some(sel!(orderFrontStandardAboutPanel:)),
-        None,
-    );
+    let about_item =
+        menu_item(mtm, &about_item_title, Some(sel!(orderFrontStandardAboutPanel:)), None);
 
     // Services menu item
     let services_menu = NSMenu::new(mtm);
@@ -44,10 +37,7 @@ pub fn initialize(app: &NSApplication) {
         mtm,
         &hide_item_title,
         Some(sel!(hide:)),
-        Some(KeyEquivalent {
-            key: ns_string!("h"),
-            masks: None,
-        }),
+        Some(KeyEquivalent { key: ns_string!("h"), masks: None }),
     );
 
     // Hide other applications menu item
@@ -58,18 +48,17 @@ pub fn initialize(app: &NSApplication) {
         Some(sel!(hideOtherApplications:)),
         Some(KeyEquivalent {
             key: ns_string!("h"),
-            masks: Some(NSEventModifierFlagOption | NSEventModifierFlagCommand),
+            masks: Some(NSEventModifierFlags(
+                NSEventModifierFlags::NSEventModifierFlagOption.0
+                    | NSEventModifierFlags::NSEventModifierFlagCommand.0,
+            )),
         }),
     );
 
     // Show applications menu item
     let show_all_item_title = ns_string!("Show All");
-    let show_all_item = menu_item(
-        mtm,
-        show_all_item_title,
-        Some(sel!(unhideAllApplications:)),
-        None,
-    );
+    let show_all_item =
+        menu_item(mtm, show_all_item_title, Some(sel!(unhideAllApplications:)), None);
 
     // Separator menu item
     let sep = NSMenuItem::separatorItem(mtm);
@@ -80,10 +69,7 @@ pub fn initialize(app: &NSApplication) {
         mtm,
         &quit_item_title,
         Some(sel!(terminate:)),
-        Some(KeyEquivalent {
-            key: ns_string!("q"),
-            masks: None,
-        }),
+        Some(KeyEquivalent { key: ns_string!("q"), masks: None }),
     );
 
     app_menu.addItem(&about_item);

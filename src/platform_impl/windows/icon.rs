@@ -1,23 +1,22 @@
-use std::{ffi::c_void, fmt, io, mem, path::Path, sync::Arc};
+use std::ffi::c_void;
+use std::path::Path;
+use std::sync::Arc;
+use std::{fmt, io, mem};
 
 use cursor_icon::CursorIcon;
-use windows_sys::{
-    core::PCWSTR,
-    Win32::{
-        Foundation::HWND,
-        Graphics::Gdi::{
-            CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
-        },
-        UI::WindowsAndMessaging::{
-            CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW,
-            HCURSOR, HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE,
-            LR_LOADFROMFILE, WM_SETICON,
-        },
-    },
+use windows_sys::core::PCWSTR;
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Graphics::Gdi::{
+    CreateBitmap, CreateCompatibleBitmap, DeleteObject, GetDC, ReleaseDC, SetBitmapBits,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    CreateIcon, CreateIconIndirect, DestroyCursor, DestroyIcon, LoadImageW, SendMessageW, HCURSOR,
+    HICON, ICONINFO, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
 };
 
+use crate::cursor::CursorImage;
+use crate::dpi::PhysicalSize;
 use crate::icon::*;
-use crate::{cursor::CursorImage, dpi::PhysicalSize};
 
 use super::util;
 
@@ -35,7 +34,7 @@ impl RgbaIcon {
         let pixels =
             unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
         for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
+            and_mask.push(pixel.a.wrapping_sub(u8::MAX)); // invert alpha channel
             pixel.convert_to_bgra();
         }
         assert_eq!(and_mask.len(), pixel_count);
@@ -142,9 +141,7 @@ impl WinIcon {
     }
 
     fn from_handle(handle: HICON) -> Self {
-        Self {
-            inner: Arc::new(RaiiIcon { handle }),
-        }
+        Self { inner: Arc::new(RaiiIcon { handle }) }
     }
 }
 

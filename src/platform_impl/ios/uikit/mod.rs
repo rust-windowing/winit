@@ -3,7 +3,7 @@
 
 use std::os::raw::{c_char, c_int};
 
-use icrate::Foundation::NSString;
+use objc2_foundation::NSString;
 
 mod application;
 mod coordinate_space;

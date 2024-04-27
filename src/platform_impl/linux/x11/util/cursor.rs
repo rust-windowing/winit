@@ -1,13 +1,12 @@
-use std::{
-    ffi::CString,
-    hash::{Hash, Hasher},
-    iter, slice,
-    sync::Arc,
-};
+use std::ffi::CString;
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+use std::{iter, slice};
 
 use x11rb::connection::Connection;
 
-use crate::{platform_impl::PlatformCustomCursorSource, window::CursorIcon};
+use crate::platform_impl::PlatformCustomCursorSource;
+use crate::window::CursorIcon;
 
 use super::super::ActiveEventLoop;
 use super::*;
@@ -21,13 +20,11 @@ impl XConnection {
             .entry(cursor)
             .or_insert_with(|| self.get_cursor(cursor));
 
-        self.update_cursor(window, cursor)
-            .expect("Failed to set cursor");
+        self.update_cursor(window, cursor).expect("Failed to set cursor");
     }
 
     pub(crate) fn set_custom_cursor(&self, window: xproto::Window, cursor: &CustomCursor) {
-        self.update_cursor(window, cursor.inner.cursor)
-            .expect("Failed to set cursor");
+        self.update_cursor(window, cursor.inner.cursor).expect("Failed to set cursor");
     }
 
     fn create_empty_cursor(&self) -> ffi::Cursor {
@@ -151,12 +148,7 @@ impl CustomCursor {
             let cursor =
                 (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
             (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
-            Self {
-                inner: Arc::new(CustomCursorInner {
-                    xconn: event_loop.xconn.clone(),
-                    cursor,
-                }),
-            }
+            Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
         }
     }
 }

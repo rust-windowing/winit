@@ -1,12 +1,10 @@
+use objc2::encode::{Encode, Encoding};
+use objc2::rc::Id;
+use objc2::runtime::ProtocolObject;
+use objc2::{extern_class, extern_methods, extern_protocol, mutability, ClassType, ProtocolType};
+use objc2_foundation::{CGFloat, CGPoint, NSInteger, NSObject, NSObjectProtocol, NSUInteger};
+
 use super::UIView;
-use icrate::Foundation::{CGFloat, CGPoint, NSInteger, NSObject, NSUInteger};
-use objc2::{
-    encode::{Encode, Encoding},
-    extern_class, extern_methods, extern_protocol, mutability,
-    rc::Id,
-    runtime::{NSObjectProtocol, ProtocolObject},
-    ClassType, ProtocolType,
-};
 
 extern_class!(
     /// [`UIGestureRecognizer`](https://developer.apple.com/documentation/uikit/uigesturerecognizer)

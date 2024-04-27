@@ -1,5 +1,5 @@
-use icrate::Foundation::NSUInteger;
 use objc2::encode::{Encode, Encoding};
+use objc2_foundation::NSUInteger;
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

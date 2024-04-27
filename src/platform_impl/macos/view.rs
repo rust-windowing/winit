@@ -3,20 +3,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::ptr;
 
-use icrate::AppKit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhaseBegan, NSEventPhaseCancelled,
-    NSEventPhaseChanged, NSEventPhaseEnded, NSEventPhaseMayBegin, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
-};
-use icrate::Foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
-    NSString, NSUInteger,
-};
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{
     class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
+};
+use objc2_app_kit::{
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
+    NSTrackingRectTag, NSView,
+};
+use objc2_foundation::{
+    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
+    NSMutableAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize,
+    NSString, NSUInteger,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -27,15 +26,13 @@ use super::event::{
 };
 use super::window::WinitWindow;
 use super::{util, DEVICE_ID};
-use crate::{
-    dpi::{LogicalPosition, LogicalSize},
-    event::{
-        DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-        WindowEvent,
-    },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey},
-    platform::macos::OptionAsAlt,
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::event::{
+    DeviceEvent, ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+    WindowEvent,
 };
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
+use crate::platform::macos::OptionAsAlt;
 
 #[derive(Debug)]
 struct CursorState {
@@ -45,10 +42,7 @@ struct CursorState {
 
 impl Default for CursorState {
     fn default() -> Self {
-        Self {
-            visible: true,
-            cursor: default_cursor(),
-        }
+        Self { visible: true, cursor: default_cursor() }
     }
 }
 
@@ -175,7 +169,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
         }
@@ -188,7 +184,9 @@ declare_class!(
             }
 
             let rect = self.frame();
-            let tracking_rect = unsafe { self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false) };
+            let tracking_rect = unsafe {
+                self.addTrackingRect_owner_userData_assumeInside(rect, self, ptr::null_mut(), false)
+            };
             assert_ne!(tracking_rect, 0, "failed adding tracking rect");
             self.ivars().tracking_rect.set(Some(tracking_rect));
 
@@ -371,9 +369,13 @@ declare_class!(
             _actual_range: *mut NSRange,
         ) -> NSRect {
             trace_scope!("firstRectForCharacterRange:actualRange:");
-            let rect = dbg!(NSRect::new(self.ivars().ime_position.get(), self.ivars().ime_size.get()));
+            let rect = NSRect::new(
+                self.ivars().ime_position.get(),
+                self.ivars().ime_size.get()
+            );
             // Return value is expected to be in screen coordinates, so we need a conversion here
-            unsafe { self.window().convertRectToScreen(self.convertRect_toView(rect, None)) }
+            self.window()
+                .convertRectToScreen(self.convertRect_toView(rect, None))
         }
 
         #[method(insertText:replacementRange:)]
@@ -415,7 +417,8 @@ declare_class!(
 
             self.ivars().forward_key_to_app.set(true);
 
-            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit {
+            if unsafe { self.hasMarkedText() } && self.ivars().ime_state.get() == ImeState::Preedit
+            {
                 // Leave preedit so that we also report the key-up for this key.
                 self.ivars().ime_state.set(ImeState::Ground);
             }
@@ -666,19 +669,11 @@ declare_class!(
             // report the touch phase.
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.momentumPhase() } {
-                NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                    TouchPhase::Started
-                }
-                NSEventPhaseEnded | NSEventPhaseCancelled => {
-                    TouchPhase::Ended
-                }
+                NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                 _ => match unsafe { event.phase() } {
-                    NSEventPhaseMayBegin | NSEventPhaseBegan => {
-                        TouchPhase::Started
-                    }
-                    NSEventPhaseEnded | NSEventPhaseCancelled => {
-                        TouchPhase::Ended
-                    }
+                    NSEventPhase::MayBegin | NSEventPhase::Began => TouchPhase::Started,
+                    NSEventPhase::Ended | NSEventPhase::Cancelled => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 },
             };
@@ -701,10 +696,10 @@ declare_class!(
 
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 
@@ -734,10 +729,10 @@ declare_class!(
 
             #[allow(non_upper_case_globals)]
             let phase = match unsafe { event.phase() } {
-                NSEventPhaseBegan => TouchPhase::Started,
-                NSEventPhaseChanged => TouchPhase::Moved,
-                NSEventPhaseCancelled => TouchPhase::Cancelled,
-                NSEventPhaseEnded => TouchPhase::Ended,
+                NSEventPhase::Began => TouchPhase::Started,
+                NSEventPhase::Changed => TouchPhase::Moved,
+                NSEventPhase::Cancelled => TouchPhase::Cancelled,
+                NSEventPhase::Ended => TouchPhase::Ended,
                 _ => return,
             };
 
@@ -819,10 +814,7 @@ impl WinitView {
         // (which is incompatible with `frameDidChange:`)
         //
         // unsafe { msg_send_id![self, window] }
-        self.ivars()
-            ._ns_window
-            .load()
-            .expect("view to have a window")
+        self.ivars()._ns_window.load().expect("view to have a window")
     }
 
     fn queue_event(&self, event: WindowEvent) {
@@ -950,9 +942,7 @@ impl WinitView {
                 let location_mask = ModLocationMask::from_location(event.location);
 
                 let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
-                let phys_mod = phys_mod_state
-                    .entry(key)
-                    .or_insert(ModLocationMask::empty());
+                let phys_mod = phys_mod_state.entry(key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
@@ -1102,9 +1092,7 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
 
     if ignore_alt_characters {
         let ns_chars = unsafe {
-            event
-                .charactersIgnoringModifiers()
-                .expect("expected characters to be non-null")
+            event.charactersIgnoringModifiers().expect("expected characters to be non-null")
         };
 
         unsafe {
