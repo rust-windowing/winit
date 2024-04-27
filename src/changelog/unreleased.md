@@ -42,4 +42,4 @@ changelog entry.
 
 ### Added
 
-- On Wayland, add `PinchGesture` and `RotationGesture`
+- On Wayland, add `PinchGesture`, `PanGesture` and `RotationGesture`.

@@ -297,7 +297,7 @@ pub enum WindowEvent {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS**.
+    /// - Only available on **iOS** and **Wayland**.
     /// - On iOS, not recognized by default. It must be enabled when needed.
     PanGesture {
         device_id: DeviceId,

@@ -514,7 +514,7 @@ impl Dispatch<ZwpPointerGesturePinchV1, GlobalData, WinitState> for PointerGestu
         _qhandle: &QueueHandle<WinitState>,
     ) {
         let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
-        let (phase, scale_delta, rotation_delta) = match event {
+        let (phase, pan_delta, scale_delta, rotation_delta) = match event {
             Event::Begin { time: _, serial: _, surface, fingers } => {
                 if fingers != 2 {
                     // We only support two fingers for now.
@@ -526,22 +526,34 @@ impl Dispatch<ZwpPointerGesturePinchV1, GlobalData, WinitState> for PointerGestu
                     None => return,
                 };
 
+                let pan_delta = PhysicalPosition::new(0., 0.);
                 state.window_id = wayland::make_wid(parent_surface);
                 state.previous_scale = 1.;
 
-                (TouchPhase::Started, 0., 0.)
+                (TouchPhase::Started, pan_delta, 0., 0.)
             },
-            Event::Update { time: _, dx: _, dy: _, scale, rotation } => {
+            Event::Update { time: _, dx, dy, scale, rotation } => {
+                let pan_delta = PhysicalPosition::new(dx as f32, dy as f32);
                 let scale_delta = scale - state.previous_scale;
                 state.previous_scale = scale;
-                (TouchPhase::Moved, scale_delta, -rotation as f32)
+                (TouchPhase::Moved, pan_delta, scale_delta, -rotation as f32)
             },
             Event::End { time: _, serial: _, cancelled } => {
+                let pan_delta = PhysicalPosition::new(0., 0.);
                 state.previous_scale = 1.;
-                (if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled }, 0., 0.)
+                (
+                    if cancelled == 0 { TouchPhase::Ended } else { TouchPhase::Cancelled },
+                    pan_delta,
+                    0.,
+                    0.,
+                )
             },
             _ => unreachable!("Unknown event {event:?}"),
         };
+        state.events_sink.push_window_event(
+            WindowEvent::PanGesture { device_id, delta: pan_delta, phase },
+            state.window_id,
+        );
         state.events_sink.push_window_event(
             WindowEvent::PinchGesture { device_id, delta: scale_delta, phase },
             state.window_id,
