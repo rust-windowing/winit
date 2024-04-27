@@ -1,9 +1,13 @@
 use objc2::encode::{Encode, Encoding};
-use objc2::{extern_class, extern_methods, mutability, ClassType};
-use objc2_foundation::{CGFloat, NSInteger, NSObject, NSUInteger};
+use objc2::rc::Id;
+use objc2::runtime::ProtocolObject;
+use objc2::{extern_class, extern_methods, extern_protocol, mutability, ClassType, ProtocolType};
+use objc2_foundation::{CGFloat, CGPoint, NSInteger, NSObject, NSObjectProtocol, NSUInteger};
 
-// https://developer.apple.com/documentation/uikit/uigesturerecognizer
+use super::UIView;
+
 extern_class!(
+    /// [`UIGestureRecognizer`](https://developer.apple.com/documentation/uikit/uigesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIGestureRecognizer;
 
@@ -17,6 +21,14 @@ extern_methods!(
     unsafe impl UIGestureRecognizer {
         #[method(state)]
         pub fn state(&self) -> UIGestureRecognizerState;
+
+        /// [`delegate`](https://developer.apple.com/documentation/uikit/uigesturerecognizer/1624207-delegate?language=objc)
+        /// @property(nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
+        #[method(setDelegate:)]
+        pub fn setDelegate(&self, delegate: &ProtocolObject<dyn UIGestureRecognizerDelegate>);
+
+        #[method_id(delegate)]
+        pub fn delegate(&self) -> Id<ProtocolObject<dyn UIGestureRecognizerDelegate>>;
     }
 );
 
@@ -24,7 +36,7 @@ unsafe impl Encode for UIGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uigesturerecognizer/state
+// [`UIGestureRecognizerState`](https://developer.apple.com/documentation/uikit/uigesturerecognizer/state)
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIGestureRecognizerState(NSInteger);
@@ -43,7 +55,7 @@ impl UIGestureRecognizerState {
     pub const Failed: Self = Self(5);
 }
 
-// https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer
+// [`UIPinchGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipinchgesturerecognizer)
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIPinchGestureRecognizer;
@@ -68,8 +80,8 @@ unsafe impl Encode for UIPinchGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer
 extern_class!(
+    /// [`UIRotationGestureRecognizer`](https://developer.apple.com/documentation/uikit/uirotationgesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UIRotationGestureRecognizer;
 
@@ -93,8 +105,8 @@ unsafe impl Encode for UIRotationGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
 
-// https://developer.apple.com/documentation/uikit/uitapgesturerecognizer
 extern_class!(
+    /// [`UITapGestureRecognizer`](https://developer.apple.com/documentation/uikit/uitapgesturerecognizer)
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub(crate) struct UITapGestureRecognizer;
 
@@ -117,3 +129,48 @@ extern_methods!(
 unsafe impl Encode for UITapGestureRecognizer {
     const ENCODING: Encoding = Encoding::Object;
 }
+
+extern_class!(
+    /// [`UIPanGestureRecognizer`](https://developer.apple.com/documentation/uikit/uipangesturerecognizer)
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub(crate) struct UIPanGestureRecognizer;
+
+    unsafe impl ClassType for UIPanGestureRecognizer {
+        type Super = UIGestureRecognizer;
+        type Mutability = mutability::InteriorMutable;
+    }
+);
+
+extern_methods!(
+    unsafe impl UIPanGestureRecognizer {
+        #[method(translationInView:)]
+        pub fn translationInView(&self, view: &UIView) -> CGPoint;
+
+        #[method(setTranslation:inView:)]
+        pub fn setTranslationInView(&self, translation: CGPoint, view: &UIView);
+
+        #[method(velocityInView:)]
+        pub fn velocityInView(&self, view: &UIView) -> CGPoint;
+
+        #[method(setMinimumNumberOfTouches:)]
+        pub fn setMinimumNumberOfTouches(&self, minimum_number_of_touches: NSUInteger);
+
+        #[method(minimumNumberOfTouches)]
+        pub fn minimumNumberOfTouches(&self) -> NSUInteger;
+
+        #[method(setMaximumNumberOfTouches:)]
+        pub fn setMaximumNumberOfTouches(&self, maximum_number_of_touches: NSUInteger);
+
+        #[method(maximumNumberOfTouches)]
+        pub fn maximumNumberOfTouches(&self) -> NSUInteger;
+    }
+);
+
+extern_protocol!(
+    /// (@protocol UIGestureRecognizerDelegate)[https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate?language=objc]
+    pub(crate) unsafe trait UIGestureRecognizerDelegate: NSObjectProtocol {}
+
+    unsafe impl ProtocolType for dyn UIGestureRecognizerDelegate {
+        const NAME: &'static str = "UIGestureRecognizerDelegate";
+    }
+);

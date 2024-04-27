@@ -159,6 +159,7 @@ impl Application {
             window.recognize_doubletap_gesture(true);
             window.recognize_pinch_gesture(true);
             window.recognize_rotation_gesture(true);
+            window.recognize_pan_gesture(true, 2, 2);
         }
 
         let window_state = WindowState::new(self, window)?;
@@ -428,6 +429,11 @@ impl ApplicationHandler<UserEvent> for Application {
                     info!("Rotated clockwise {delta:.5} (now: {rotated:.5})");
                 }
             },
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                window.panned.x += delta.x;
+                window.panned.y += delta.y;
+                info!("Panned ({delta:?})) (now: {:?}), {phase:?}", window.panned);
+            },
             WindowEvent::DoubleTapGesture { .. } => {
                 info!("Smart zoom");
             },
@@ -502,6 +508,8 @@ struct WindowState {
     zoom: f64,
     /// The amount of rotation of the window.
     rotated: f32,
+    /// The amount of pan of the window.
+    panned: PhysicalPosition<f32>,
 
     #[cfg(macos_platform)]
     option_as_alt: OptionAsAlt,
@@ -547,6 +555,7 @@ impl WindowState {
             modifiers: Default::default(),
             occluded: Default::default(),
             rotated: Default::default(),
+            panned: Default::default(),
             zoom: Default::default(),
         };
 
