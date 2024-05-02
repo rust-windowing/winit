@@ -13,7 +13,7 @@
 //! * `wayland-csd-adwaita` (default).
 //! * `wayland-csd-adwaita-crossfont`.
 //! * `wayland-csd-adwaita-notitle`.
-use crate::event_loop::{ActiveEventLoop, EventLoopBuilder};
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
 use crate::monitor::MonitorHandle;
 use crate::window::{Window, WindowAttributes};
 
@@ -29,6 +29,13 @@ impl ActiveEventLoopExtWayland for ActiveEventLoop {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
+    }
+}
+
+impl<T: 'static> ActiveEventLoopExtWayland for EventLoop<T> {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.event_loop.is_wayland()
     }
 }
 
