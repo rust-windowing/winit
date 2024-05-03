@@ -5,17 +5,15 @@ use std::ptr;
 
 use objc2::rc::{Id, WeakId};
 use objc2::runtime::{AnyObject, Sel};
-use objc2::{
-    class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
-};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView,
+    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSNotFound, NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect,
-    NSSize, NSString, NSUInteger,
+    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
+    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -202,7 +200,7 @@ declare_class!(
         }
 
         #[method(drawRect:)]
-        fn draw_rect(&self, rect: NSRect) {
+        fn draw_rect(&self, _rect: NSRect) {
             trace_scope!("drawRect:");
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
@@ -210,10 +208,7 @@ declare_class!(
                 self.ivars().app_delegate.handle_redraw(window.id());
             }
 
-            #[allow(clippy::let_unit_value)]
-            unsafe {
-                let _: () = msg_send![super(self), drawRect: rect];
-            }
+            // This is a direct subclass of NSView, no need to call superclass' drawRect:
         }
 
         #[method(acceptsFirstResponder)]
@@ -803,20 +798,14 @@ impl WinitView {
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
         this.setPostsFrameChangedNotifications(true);
-        let notification_center: &AnyObject =
-            unsafe { msg_send![class!(NSNotificationCenter), defaultCenter] };
-        // About frame change
-        let frame_did_change_notification_name =
-            NSString::from_str("NSViewFrameDidChangeNotification");
-        #[allow(clippy::let_unit_value)]
+        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
-            let _: () = msg_send![
-                notification_center,
-                addObserver: &*this,
-                selector: sel!(frameDidChange:),
-                name: &*frame_did_change_notification_name,
-                object: &*this,
-            ];
+            notification_center.addObserver_selector_name_object(
+                &this,
+                sel!(frameDidChange:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&this),
+            )
         }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
