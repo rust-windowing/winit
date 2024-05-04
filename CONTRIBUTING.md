@@ -37,7 +37,7 @@ failure is unrelated", so that the maintainers will fix it for you.
 
 _Event:_ The CI fails to build due to a formatting issue, but you can't do this
 on your computer.\
-_Desired behavior_: Please make sure you have read the following "Formatting Policy"
+_Desired behavior_: Please make sure you have read the following "Formatting"
 section so you can even handle this prior to commit your changes. This can be a
 special case since veterans will think it is your fault. However, you can always ask
 them for help. It's not a guilt asking for any technical help in conforming this policy.
@@ -62,21 +62,15 @@ close your PR in order to prevent work being done on it.
 [issues]: https://github.com/rust-windowing/winit/issues
 [matrix]: https://matrix.to/#/#rust-windowing:matrix.org
 
-### Formatting Policy
+### Formatting
 
-This repository strongly depends on the nightly version of `cargo-fmt`.
-A PR will not even get reviewed if nightly `cargo-fmt` check is not passed.
+Winit strictly relies on nightly `rustfmt`. A PR will not even get reviewed if
+nightly `cargo-fmt` check is not passed. If you have `rustup` installed you
+can install nightly toolchain using the following command `rustup toolchain install nightly`.
 
-Since this might be challenging to new rust users who don't know how to
-install and use nightly toolchain, here are the steps for reference:
+Then to format the code you can run `cargo +nightly fmt`.
 
-1. For installation, run `rustup toolchain install nightly`.
-2. For formatting, run `cargo +nightly fmt` at the repository root folder.
-
-Sidenotes:
-
-1. You may switch your default toolchain to nightly by running `rustup default nightly`.
-2. Formatting is the only expected scenario of using nightly toolchain in this repository.
+For more on how to manage toolchains, see [the textbook](https://rust-lang.github.io/rustup/concepts/toolchains.html).
 
 ## Maintainers
 
