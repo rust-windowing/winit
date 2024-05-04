@@ -35,14 +35,6 @@ since they may assume that you're still working on it.\
 _Desired behaviour:_ Write a message saying roughly the following "The CI
 failure is unrelated", so that the maintainers will fix it for you.
 
-_Event:_ The CI fails to build due to a formatting issue, but you can't do this
-on your computer.\
-_Desired behavior_: Please make sure you have read the following "Formatting"
-section so you can even handle this prior to commit your changes. This can be a
-special case since veterans will think it is your fault. However, you can always ask
-them for help. It's not a guilt asking for any technical help in conforming this policy.
-Just ask.
-
 _Event:_ Maintainer requested changes to your PR.\
 _Desired behavior:_ Once you address the request, you should re-request a review
 with GitHub's UI. If you don't agree with what maintainer suggested, you
@@ -70,9 +62,9 @@ can install nightly toolchain using the following command `rustup toolchain inst
 
 Then to format the code you can run `cargo +nightly fmt`.
 
-For more on how to manage toolchains, see [the textbook](https://rust-lang.github.io/rustup/concepts/toolchains.html).
-
 However, if you feel uncomfortable using nightly toolchain, ensure that CI passes with the exception of formatting and explicitly indicate that your code should be formatted before merge.
+
+For more on how to manage toolchains, see [the textbook](https://rust-lang.github.io/rustup/concepts/toolchains.html).
 
 ## Maintainers
 
