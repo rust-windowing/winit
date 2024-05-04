@@ -66,28 +66,20 @@ unsafe impl Sync for XConnection {}
 pub type XErrorHandler =
     Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> std::os::raw::c_int>;
 
-/// Annotate a result with a `tracing` message.
-trait ResultExt {
-    /// Attach a message to this result.
-    fn context(self, msg: &str) -> Self;
-}
-
-impl<T, E: core::fmt::Debug> ResultExt for Result<T, E> {
-    fn context(self, msg: &str) -> Self {
-        self.map_err(|err| {
-            error!("{}: {:?}", msg, err);
-            err
-        })
-    }
+fn wrap_open_err<T>(
+    open_result: Result<T, ffi::OpenError>,
+    name: &'static str,
+) -> Result<T, XNotSupported> {
+    open_result.map_err(|error| XNotSupported::LibraryOpenError { error, lib_fail: name })
 }
 
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
-        let xlib = ffi::Xlib::open().context("failed to open Xlib")?;
-        let xcursor = ffi::Xcursor::open().context("failed to open Xcursor")?;
-        let xlib_xcb = ffi::Xlib_xcb::open().context("failed to open Xlib-XCB")?;
-        let xinput2 = ffi::XInput2::open().context("failed to open XInput2")?;
+        let xlib = wrap_open_err(ffi::Xlib::open(), "Xlib")?;
+        let xcursor = wrap_open_err(ffi::Xcursor::open(), "Xcursor")?;
+        let xlib_xcb = wrap_open_err(ffi::Xlib_xcb::open(), "Xlib-XCB")?;
+        let xinput2 = wrap_open_err(ffi::XInput2::open(), "Xinput2")?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -113,8 +105,7 @@ impl XConnection {
             let conn =
                 unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
 
-            conn.context("failed to initialize XCB connection")
-                .map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
+            conn.map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
         };
 
         // Get the default screen.
@@ -122,7 +113,6 @@ impl XConnection {
 
         // Load the database.
         let database = resource_manager::new_from_default(&xcb)
-            .context("failed to load X11 resource database")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         // Load the RandR version.
@@ -139,10 +129,8 @@ impl XConnection {
 
         // Fetch atoms.
         let atoms = Atoms::new(&xcb)
-            .context("failed to request X atoms from server")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
-            .context("failed to receive X atoms from server")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         Ok(XConnection {
@@ -319,7 +307,13 @@ impl fmt::Display for XError {
 #[derive(Clone, Debug)]
 pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
-    LibraryOpenError(ffi::OpenError),
+    LibraryOpenError {
+        /// Error for the failed library.
+        error: ffi::OpenError,
+
+        /// Library that failed to open.
+        lib_fail: &'static str,
+    },
 
     /// Connecting to the X server with `XOpenDisplay` failed.
     XOpenDisplayFailed, // TODO: add better message.
@@ -328,17 +322,12 @@ pub enum XNotSupported {
     XcbConversionError(Arc<dyn Error + Send + Sync + 'static>),
 }
 
-impl From<ffi::OpenError> for XNotSupported {
-    #[inline]
-    fn from(err: ffi::OpenError) -> XNotSupported {
-        XNotSupported::LibraryOpenError(err)
-    }
-}
-
 impl XNotSupported {
     fn description(&self) -> &'static str {
         match self {
-            XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
+            XNotSupported::LibraryOpenError { .. } => {
+                "Failed to load one of xlib's shared libraries"
+            },
             XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
             XNotSupported::XcbConversionError(_) => "Failed to convert Xlib connection to XCB",
         }
@@ -349,7 +338,7 @@ impl Error for XNotSupported {
     #[inline]
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
-            XNotSupported::LibraryOpenError(ref err) => Some(err),
+            XNotSupported::LibraryOpenError { ref error, .. } => Some(error),
             XNotSupported::XcbConversionError(ref err) => Some(&**err),
             _ => None,
         }
@@ -357,8 +346,14 @@ impl Error for XNotSupported {
 }
 
 impl fmt::Display for XNotSupported {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        formatter.write_str(self.description())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::LibraryOpenError { error, lib_fail } => {
+                write!(f, "failed to open shared library {}: {}", lib_fail, error)
+            },
+
+            _ => f.write_str(self.description()),
+        }
     }
 }
 

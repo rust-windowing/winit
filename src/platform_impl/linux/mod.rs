@@ -779,7 +779,9 @@ impl<T: 'static> EventLoop<T> {
     fn new_x11_any_thread() -> Result<EventLoop<T>, EventLoopError> {
         let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
-            Err(_) => return Err(EventLoopError::NotSupported(NotSupportedError::new())),
+            Err(x) => {
+                return Err(EventLoopError::NotSupported(NotSupportedError::from_x11(x.clone())))
+            },
         };
 
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))

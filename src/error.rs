@@ -17,7 +17,17 @@ pub enum ExternalError {
 /// The error type for when the requested operation is not supported by the backend.
 #[derive(Clone)]
 pub struct NotSupportedError {
-    _marker: (),
+    inner: NotSupportedRepr,
+}
+
+#[derive(Clone)]
+enum NotSupportedRepr {
+    /// Unclassified.
+    Unclassified,
+
+    /// More granular error from X11.
+    #[cfg(x11_platform)]
+    X11(platform_impl::x11::XNotSupported),
 }
 
 /// The error type for when the OS cannot perform the requested operation.
@@ -51,7 +61,13 @@ impl NotSupportedError {
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn new() -> NotSupportedError {
-        NotSupportedError { _marker: () }
+        NotSupportedError { inner: NotSupportedRepr::Unclassified }
+    }
+
+    #[inline]
+    #[cfg(x11_platform)]
+    pub(crate) fn from_x11(x: platform_impl::x11::XNotSupported) -> NotSupportedError {
+        NotSupportedError { inner: NotSupportedRepr::X11(x) }
     }
 }
 
@@ -87,13 +103,23 @@ impl fmt::Display for ExternalError {
 
 impl fmt::Debug for NotSupportedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.debug_struct("NotSupportedError").finish()
+        match &self.inner {
+            NotSupportedRepr::Unclassified => f.debug_struct("NotSupportedError").finish(),
+            #[cfg(x11_platform)]
+            NotSupportedRepr::X11(x11) => f.debug_tuple("NotSupportedError").field(&x11).finish(),
+        }
     }
 }
 
 impl fmt::Display for NotSupportedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.pad("the requested operation is not supported by Winit")
+        match &self.inner {
+            NotSupportedRepr::Unclassified => {
+                f.pad("the requested operation is not supported by Winit")
+            },
+            #[cfg(x11_platform)]
+            NotSupportedRepr::X11(x11) => write!(f, "failed to open X11 connection: {}", x11),
+        }
     }
 }
 
