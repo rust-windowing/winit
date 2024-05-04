@@ -57,8 +57,9 @@ close your PR in order to prevent work being done on it.
 ### Formatting
 
 Winit strictly relies on nightly `rustfmt`. A PR will not even get reviewed if
-nightly `cargo-fmt` check is not passed. If you have `rustup` installed you
-can install nightly toolchain using the following command `rustup toolchain install nightly`.
+nightly `cargo-fmt` check is not passed. If you have `rustup` installed you can
+install nightly toolchain using the following command `rustup toolchain install
+nightly`.
 
 Then to format the code you can run `cargo +nightly fmt`.
 
@@ -67,6 +68,8 @@ For more on how to manage toolchains, see [the textbook](https://rust-lang.githu
 However, if you feel uncomfortable using `nightly` toolchain, ensure that CI
 passes with the exception of formatting and explicitly indicate that your 
 code should be formatted before merge.
+
+When editing markdown files(.md) they must be wrapped at **80** characters.
 
 ## Maintainers
 
