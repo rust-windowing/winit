@@ -35,6 +35,14 @@ since they may assume that you're still working on it.\
 _Desired behaviour:_ Write a message saying roughly the following "The CI
 failure is unrelated", so that the maintainers will fix it for you.
 
+_Event:_ The CI fails to build due to a formatting issue, but you can't do this
+on your computer.\
+_Desired behavior_: Please make sure you have read the following "Formatting Policy"
+section so you can even handle this prior to commit your changes. This can be a
+special case since veterans will think it is your fault. However, you can always ask
+them for help. It's not a guilt asking for any technical help in conforming this policy.
+Just ask.
+
 _Event:_ Maintainer requested changes to your PR.\
 _Desired behavior:_ Once you address the request, you should re-request a review
 with GitHub's UI. If you don't agree with what maintainer suggested, you
@@ -53,6 +61,22 @@ close your PR in order to prevent work being done on it.
 [prs]: https://github.com/rust-windowing/winit/pulls
 [issues]: https://github.com/rust-windowing/winit/issues
 [matrix]: https://matrix.to/#/#rust-windowing:matrix.org
+
+### Formatting Policy
+
+This repository strongly depends on the nightly version of `cargo-fmt`.
+A PR will not even get reviewed if nightly `cargo-fmt` check is not passed.
+
+Since this might be challenging to new rust users who don't know how to
+install and use nightly toolchain, here are the steps for reference:
+
+1. For installation, run `rustup toolchain install nightly`.
+2. For formatting, run `cargo +nightly fmt` at the repository root folder.
+
+Sidenotes:
+
+1. You may switch your default toolchain to nightly by running `rustup default nightly`.
+2. Formatting is the only expected scenario of using nightly toolchain in this repository.
 
 ## Maintainers
 
