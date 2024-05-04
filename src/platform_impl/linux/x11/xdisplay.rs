@@ -65,13 +65,28 @@ unsafe impl Sync for XConnection {}
 pub type XErrorHandler =
     Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> std::os::raw::c_int>;
 
+/// Annotate a result with a `tracing` message.
+trait ResultExt {
+    /// Attach a message to this result.
+    fn context(self, msg: &str) -> Self;
+}
+
+impl<T, E: core::fmt::Debug> ResultExt for Result<T, E> {
+    fn context(self, msg: &str) -> Self {
+        self.map_err(|err| {
+            tracing::error!("{}: {:?}", msg, err);
+            err
+        })
+    }
+}
+
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
-        let xlib = ffi::Xlib::open()?;
-        let xcursor = ffi::Xcursor::open()?;
-        let xlib_xcb = ffi::Xlib_xcb::open()?;
-        let xinput2 = ffi::XInput2::open()?;
+        let xlib = ffi::Xlib::open().context("failed to open Xlib")?;
+        let xcursor = ffi::Xcursor::open().context("failed to open Xcursor")?;
+        let xlib_xcb = ffi::Xlib_xcb::open().context("failed to open Xlib-XCB")?;
+        let xinput2 = ffi::XInput2::open().context("failed to open XInput2")?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -80,6 +95,7 @@ impl XConnection {
         let display = unsafe {
             let display = (xlib.XOpenDisplay)(ptr::null());
             if display.is_null() {
+                tracing::error!("failed to open dsplay: XOpenDisplay returned a null pointer");
                 return Err(XNotSupported::XOpenDisplayFailed);
             }
             display
@@ -96,7 +112,7 @@ impl XConnection {
             let conn =
                 unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
 
-            conn.map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
+            conn.context("failed to initialize XCB connection").map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
         };
 
         // Get the default screen.
@@ -104,6 +120,7 @@ impl XConnection {
 
         // Load the database.
         let database = resource_manager::new_from_default(&xcb)
+            .context("failed to load X11 resource database")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         // Load the RandR version.
@@ -120,8 +137,10 @@ impl XConnection {
 
         // Fetch atoms.
         let atoms = Atoms::new(&xcb)
+            .context("failed to request X atoms from server")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?
             .reply()
+            .context("failed to receive X atoms from server")
             .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         Ok(XConnection {
