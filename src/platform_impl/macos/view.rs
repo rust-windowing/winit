@@ -271,9 +271,11 @@ declare_class!(
         fn set_marked_text(
             &self,
             string: &NSObject,
-            _selected_range: NSRange,
+            selected_range: NSRange,
             _replacement_range: NSRange,
         ) {
+            // _replacement_range is currently not implemented in this crate,
+            // requiring surrounding text reporting on the Window. Ref: PR#3619.
             trace_scope!("setMarkedText:selectedRange:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
@@ -313,10 +315,14 @@ declare_class!(
 
             // Empty string basically means that there's no preedit, so indicate that by sending
             // `None` cursor range.
+
+            let preedit_string_len = preedit_string.len();
+            let (lowerbound, upperbound) = get_actual_range_bounds(&preedit_string, selected_range).unwrap_or((preedit_string_len, preedit_string_len));
+
             let cursor_range = if preedit_string.is_empty() {
                 None
             } else {
-                Some((preedit_string.len(), preedit_string.len()))
+                Some((lowerbound, upperbound))
             };
 
             // Send WindowEvent for updating marked text
@@ -380,6 +386,8 @@ declare_class!(
 
         #[method(insertText:replacementRange:)]
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
+            // _replacement_range is currently not implemented in this crate,
+            // requiring surrounding text reporting on the Window. Ref: PR#3619.
             trace_scope!("insertText:replacementRange:");
 
             // SAFETY: This method is guaranteed to get either a `NSString` or a `NSAttributedString`.
@@ -1113,4 +1121,36 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Id<NSEvent> {
     } else {
         event.copy()
     }
+}
+
+// Convert given NSRange to Rust String Range data used in this crate.
+fn get_actual_range_bounds(source_str: &str, range: NSRange) -> Option<(usize, usize)> {
+    // The given NSRange length may be 0 to indicate a cursor in lieu of a marked range.
+    if source_str.is_empty() {
+        return None;
+    };
+    // 1. Use the given preedit text to initialize an NSString instance.
+    //    This avoids handling unsafe ObjC APIs for retrieving the NSString
+    //    from an NSAttributedString.
+    //    TODO: rewrite this code if any of them wants to handle it like that.
+    let source_ns = NSString::from_str(source_str);
+    // 2. Use the given NSRange's bounds as new upperbounds for two new NSRanges beginning with 0.
+    let source_bounds = NSRange::new(0, source_ns.length());
+    let lowerbound_u16: usize = range.location;
+    let upperbound_u16: usize = range.length + lowerbound_u16;
+    // Sanity Check. Return None if it fails.
+    if !(0..source_bounds.length).contains(&lowerbound_u16)
+        || !(lowerbound_u16..source_bounds.length).contains(&upperbound_u16)
+    {
+        return None;
+    }
+    let u16_range_from_zero_a = NSRange::new(0, lowerbound_u16);
+    let u16_range_from_zero_b = NSRange::new(0, upperbound_u16);
+    // 3. Use the two new NSRange to slice the NSString instance mentioned above.
+    let sub_string_a = unsafe { source_ns.substringWithRange(u16_range_from_zero_a) };
+    let sub_string_b = unsafe { source_ns.substringWithRange(u16_range_from_zero_b) };
+    // 4. Use the two new sliced NSStrings' rust len() as the returned calculated UTF-8 bounds.
+    let lowerbound_u8: usize = sub_string_a.len();
+    let upperbound_u8: usize = sub_string_b.len();
+    Some((lowerbound_u8, upperbound_u8))
 }
