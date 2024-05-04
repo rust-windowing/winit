@@ -9,6 +9,7 @@ use crate::window::CursorIcon;
 use super::atoms::Atoms;
 use super::ffi;
 use super::monitor::MonitorHandle;
+use tracing::{error, warn};
 use x11rb::connection::Connection;
 use x11rb::protocol::randr::ConnectionExt as _;
 use x11rb::protocol::xproto::{self, ConnectionExt};
@@ -74,7 +75,7 @@ trait ResultExt {
 impl<T, E: core::fmt::Debug> ResultExt for Result<T, E> {
     fn context(self, msg: &str) -> Self {
         self.map_err(|err| {
-            tracing::error!("{}: {:?}", msg, err);
+            error!("{}: {:?}", msg, err);
             err
         })
     }
@@ -95,7 +96,7 @@ impl XConnection {
         let display = unsafe {
             let display = (xlib.XOpenDisplay)(ptr::null());
             if display.is_null() {
-                tracing::error!("failed to open dsplay: XOpenDisplay returned a null pointer");
+                error!("failed to open dsplay: XOpenDisplay returned a null pointer");
                 return Err(XNotSupported::XOpenDisplayFailed);
             }
             display
@@ -133,7 +134,7 @@ impl XConnection {
 
         let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
         if xsettings_screen.is_none() {
-            tracing::warn!("error setting XSETTINGS; Xft options won't reload automatically")
+            warn!("error setting XSETTINGS; Xft options won't reload automatically")
         }
 
         // Fetch atoms.
