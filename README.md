@@ -34,6 +34,7 @@ show something on the window you need to use the platform-specific getters provi
 another library.
 
 ## CONTRIBUING
+
 For contributing guidelines see (CONTRIBUTING.md)[./CONTRIBUTING.md].
 
 ## MSRV Policy
