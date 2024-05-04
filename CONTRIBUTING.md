@@ -72,6 +72,8 @@ Then to format the code you can run `cargo +nightly fmt`.
 
 For more on how to manage toolchains, see [the textbook](https://rust-lang.github.io/rustup/concepts/toolchains.html).
 
+However, if you feel uncomfortable using nightly toolchain, ensure that CI passes with the exception of formatting and explicitly indicate that your code should be formatted before merge.
+
 ## Maintainers
 
 Winit has plenty of maintainers with different backgrounds, different time
