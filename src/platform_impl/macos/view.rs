@@ -1129,10 +1129,9 @@ fn get_actual_range_bounds(source_str: &str, range: NSRange) -> Option<(usize, u
     if source_str.is_empty() {
         return None;
     };
-    // 1. Use the given preedit text to initialize an NSString instance.
-    //    This avoids handling unsafe ObjC APIs for retrieving the NSString
-    //    from an NSAttributedString.
-    //    TODO: rewrite this code if any of them wants to handle it like that.
+    // 1. Use the given preedit text to initialize an NSString instance. This avoids handling unsafe
+    //    ObjC APIs for retrieving the NSString from an NSAttributedString.
+    // TODO: rewrite this code if any of them wants to handle it like that.
     let source_ns = NSString::from_str(source_str);
     // 2. Use the given NSRange's bounds as new upperbounds for two new NSRanges beginning with 0.
     let source_bounds = NSRange::new(0, source_ns.length());
