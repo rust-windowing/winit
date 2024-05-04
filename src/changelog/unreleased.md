@@ -43,6 +43,8 @@ changelog entry.
 ### Added
 
 - Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+- On X11, a log message will be emitted to describe why the display failed to
+  initialize if it did.
 
 ### Fixed
 

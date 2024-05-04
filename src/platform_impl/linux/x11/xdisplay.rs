@@ -112,7 +112,8 @@ impl XConnection {
             let conn =
                 unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
 
-            conn.context("failed to initialize XCB connection").map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
+            conn.context("failed to initialize XCB connection")
+                .map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
         };
 
         // Get the default screen.
