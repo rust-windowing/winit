@@ -26,8 +26,8 @@ use sctk::subcompositor::SubcompositorState;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
 use crate::platform_impl::wayland::seat::{
-    PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
-    WinitPointerDataExt, WinitSeatState,
+    PointerConstraintsState, PointerGesturesState, RelativePointerState, TextInputState,
+    WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
@@ -99,6 +99,15 @@ pub struct WinitState {
 
     /// Pointer constraints to handle pointer locking and confining.
     pub pointer_constraints: Option<Arc<PointerConstraintsState>>,
+
+    /// Pointer gestures to handle swipe, pinch and hold.
+    pub pointer_gestures: Option<PointerGesturesState>,
+
+    /// XXX: Is this really meant to stay here?
+    pub window_id: WindowId,
+
+    /// XXX: Is this really meant to stay here?
+    pub previous_scale: f64,
 
     /// Viewporter state on the given window.
     pub viewporter_state: Option<ViewporterState>,
@@ -185,7 +194,11 @@ impl WinitState {
             pointer_constraints: PointerConstraintsState::new(globals, queue_handle)
                 .map(Arc::new)
                 .ok(),
+            pointer_gestures: PointerGesturesState::new(globals, queue_handle).ok(),
             pointer_surfaces: Default::default(),
+
+            window_id: WindowId(0),
+            previous_scale: 1.,
 
             monitors: Arc::new(Mutex::new(monitors)),
             events_sink: EventSink::new(),
