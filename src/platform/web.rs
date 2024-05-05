@@ -55,8 +55,7 @@ use web_sys::HtmlCanvasElement;
 
 use crate::application::ApplicationHandler;
 use crate::cursor::CustomCursorSource;
-use crate::event::Event;
-use crate::event_loop::{self, ActiveEventLoop, EventLoop};
+use crate::event_loop::{ActiveEventLoop, EventLoop};
 #[cfg(web_platform)]
 use crate::platform_impl::CustomCursorFuture as PlatformCustomCursorFuture;
 use crate::platform_impl::PlatformCustomCursorSource;
@@ -156,7 +155,9 @@ impl WindowAttributesExtWebSys for WindowAttributes {
 
 /// Additional methods on `EventLoop` that are specific to the web.
 pub trait EventLoopExtWebSys {
-    /// A type provided by the user that can be passed through `Event::UserEvent`.
+    /// A type provided by the user that can be passed through [`Event::UserEvent`].
+    ///
+    /// [`Event::UserEvent`]: crate::event::Event::UserEvent
     type UserEvent: 'static;
 
     /// Initializes the winit event loop.
@@ -182,30 +183,13 @@ pub trait EventLoopExtWebSys {
     )]
     /// [^1]: `run_app()` is _not_ available on WASM when the target supports `exception-handling`.
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A);
-
-    /// See [`spawn_app`].
-    ///
-    /// [`spawn_app`]: Self::spawn_app
-    #[deprecated = "use EventLoopExtWebSys::spawn_app"]
-    fn spawn<F>(self, event_handler: F)
-    where
-        F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop);
 }
 
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, mut app: A) {
-        self.event_loop.spawn(move |event, event_loop| {
-            event_loop::dispatch_event_for_app(&mut app, event_loop, event)
-        });
-    }
-
-    fn spawn<F>(self, event_handler: F)
-    where
-        F: 'static + FnMut(Event<Self::UserEvent>, &ActiveEventLoop),
-    {
-        self.event_loop.spawn(event_handler)
+    fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, app: A) {
+        self.event_loop.spawn_app(app);
     }
 }
 
