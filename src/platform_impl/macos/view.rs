@@ -317,7 +317,7 @@ declare_class!(
                 // sending a `None` cursor range.
                 None
             } else {
-                // Convert the selected range from UTF-16 indicies to UTF-8 indicies.
+                // Convert the selected range from UTF-16 indices to UTF-8 indices.
                 let sub_string_a = unsafe { string.substringToIndex(selected_range.location) };
                 let sub_string_b = unsafe { string.substringToIndex(selected_range.end()) };
                 let lowerbound_utf8 = sub_string_a.len();
