@@ -41,4 +41,5 @@ changelog entry.
 ## Unreleased
 
 ### Fixed
+
 - On macOS, fix the range in `Ime::Preedit`.
