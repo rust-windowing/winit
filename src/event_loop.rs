@@ -103,11 +103,14 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
-        android,
+        android_platform,
         doc = "[`.with_android_app(app)`]: \
                crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
     )]
-    #[cfg_attr(not(android), doc = "[`.with_android_app(app)`]: #only-available-on-android")]
+    #[cfg_attr(
+        not(android_platform),
+        doc = "[`.with_android_app(app)`]: #only-available-on-android"
+    )]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
         let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
