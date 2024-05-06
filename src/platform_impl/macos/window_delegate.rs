@@ -74,6 +74,9 @@ impl Default for PlatformSpecificWindowAttributes {
 
 #[derive(Debug)]
 pub(crate) struct State {
+    /// Strong reference to the global application state.
+    app_delegate: Id<ApplicationDelegate>,
+
     window: Id<WinitWindow>,
 
     current_theme: Cell<Option<Theme>>,
@@ -442,7 +445,11 @@ declare_class!(
     }
 );
 
-fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<WinitWindow>> {
+fn new_window(
+    app_delegate: &ApplicationDelegate,
+    attrs: &WindowAttributes,
+    mtm: MainThreadMarker,
+) -> Option<Id<WinitWindow>> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -579,6 +586,7 @@ fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<Wini
         }
 
         let view = WinitView::new(
+            app_delegate,
             &window,
             attrs.platform_specific.accepts_first_mouse,
             attrs.platform_specific.option_as_alt,
@@ -618,8 +626,12 @@ fn new_window(attrs: &WindowAttributes, mtm: MainThreadMarker) -> Option<Id<Wini
 }
 
 impl WindowDelegate {
-    pub fn new(attrs: WindowAttributes, mtm: MainThreadMarker) -> Result<Id<Self>, RootOsError> {
-        let window = new_window(&attrs, mtm)
+    pub(super) fn new(
+        app_delegate: &ApplicationDelegate,
+        attrs: WindowAttributes,
+        mtm: MainThreadMarker,
+    ) -> Result<Id<Self>, RootOsError> {
+        let window = new_window(app_delegate, &attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
         #[cfg(feature = "rwh_06")]
@@ -660,6 +672,7 @@ impl WindowDelegate {
         };
 
         let delegate = mtm.alloc().set_ivars(State {
+            app_delegate: app_delegate.retain(),
             window: window.retain(),
             current_theme: Cell::new(current_theme),
             previous_position: Cell::new(None),
@@ -756,8 +769,7 @@ impl WindowDelegate {
     }
 
     pub(crate) fn queue_event(&self, event: WindowEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_window_event(self.window().id(), event);
+        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_static_scale_factor_changed_event(&self) {
@@ -770,8 +782,7 @@ impl WindowDelegate {
         let content_size = self.window().contentRectForFrameRect(self.window().frame()).size;
         let content_size = LogicalSize::new(content_size.width, content_size.height);
 
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_static_scale_factor_changed_event(
+        self.ivars().app_delegate.queue_static_scale_factor_changed_event(
             self.window().retain(),
             content_size.to_physical(scale_factor),
             scale_factor,
@@ -833,8 +844,7 @@ impl WindowDelegate {
     }
 
     pub fn request_redraw(&self) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_redraw(self.window().id());
+        self.ivars().app_delegate.queue_redraw(self.window().id());
     }
 
     #[inline]

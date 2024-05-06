@@ -28,7 +28,9 @@ impl Window {
         attributes: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = window_target.mtm;
-        let delegate = autoreleasepool(|_| WindowDelegate::new(attributes, mtm))?;
+        let delegate = autoreleasepool(|_| {
+            WindowDelegate::new(window_target.app_delegate(), attributes, mtm)
+        })?;
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),

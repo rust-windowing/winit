@@ -110,8 +110,11 @@ fn get_left_modifier_code(key: &Key) -> KeyCode {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ViewState {
+    /// Strong reference to the global application state.
+    app_delegate: Id<ApplicationDelegate>,
+
     cursor_state: RefCell<CursorState>,
     ime_position: Cell<NSPoint>,
     ime_size: Cell<NSSize>,
@@ -204,8 +207,7 @@ declare_class!(
 
             // It's a workaround for https://github.com/rust-windowing/winit/issues/2640, don't replace with `self.window_id()`.
             if let Some(window) = self.ivars()._ns_window.load() {
-                let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-                app_delegate.handle_redraw(window.id());
+                self.ivars().app_delegate.handle_redraw(window.id());
             }
 
             #[allow(clippy::let_unit_value)]
@@ -773,16 +775,28 @@ declare_class!(
 
 impl WinitView {
     pub(super) fn new(
+        app_delegate: &ApplicationDelegate,
         window: &WinitWindow,
         accepts_first_mouse: bool,
         option_as_alt: OptionAsAlt,
     ) -> Id<Self> {
         let mtm = MainThreadMarker::from(window);
         let this = mtm.alloc().set_ivars(ViewState {
+            app_delegate: app_delegate.retain(),
+            cursor_state: Default::default(),
+            ime_position: Default::default(),
+            ime_size: Default::default(),
+            modifiers: Default::default(),
+            phys_modifiers: Default::default(),
+            tracking_rect: Default::default(),
+            ime_state: Default::default(),
+            input_source: Default::default(),
+            ime_allowed: Default::default(),
+            forward_key_to_app: Default::default(),
+            marked_text: Default::default(),
             accepts_first_mouse,
             _ns_window: WeakId::new(&window.retain()),
             option_as_alt: Cell::new(option_as_alt),
-            ..Default::default()
         });
         let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
 
@@ -818,13 +832,11 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_window_event(self.window().id(), event);
+        self.ivars().app_delegate.queue_window_event(self.window().id(), event);
     }
 
     fn queue_device_event(&self, event: DeviceEvent) {
-        let app_delegate = ApplicationDelegate::get(MainThreadMarker::from(self));
-        app_delegate.queue_device_event(event);
+        self.ivars().app_delegate.queue_device_event(event);
     }
 
     fn scale_factor(&self) -> f64 {
