@@ -178,6 +178,10 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
 
+#[cfg(feature = "rwh_04")]
+pub use rwh_04 as raw_window_handle_04;
+#[cfg(feature = "rwh_05")]
+pub use rwh_05 as raw_window_handle_05;
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 
