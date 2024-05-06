@@ -5,7 +5,9 @@ use std::collections::VecDeque;
 use objc2::rc::Id;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_foundation::{CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker};
+use objc2_foundation::{
+    CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObjectProtocol,
+};
 use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
@@ -505,12 +507,8 @@ impl Window {
 
         let view = WinitView::new(mtm, &window_attributes, frame);
 
-        let gl_or_metal_backed = unsafe {
-            let layer_class = WinitView::layerClass();
-            let is_metal = msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
-            let is_gl = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
-            is_metal || is_gl
-        };
+        let gl_or_metal_backed =
+            view.isKindOfClass(class!(CAMetalLayer)) || view.isKindOfClass(class!(CAEAGLLayer));
 
         let view_controller = WinitViewController::new(mtm, &window_attributes, &view);
         let window = WinitUIWindow::new(mtm, &window_attributes, frame, &view_controller);

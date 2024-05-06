@@ -1,15 +1,12 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::ptr;
 
 use core_graphics::display::{CGDisplay, CGPoint};
 use monitor::VideoModeHandle;
 use objc2::rc::{autoreleasepool, Id};
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{
-    class, declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass,
-};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSApplication,
     NSApplicationPresentationOptions, NSBackingStoreType, NSDraggingDestination,
@@ -19,8 +16,9 @@ use objc2_app_kit::{
     NSWindowTabbingMode, NSWindowTitleVisibility,
 };
 use objc2_foundation::{
-    CGFloat, MainThreadMarker, NSArray, NSCopying, NSObject, NSObjectProtocol, NSPoint, NSRect,
-    NSSize, NSString,
+    ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDistributedNotificationCenter,
+    NSObject, NSObjectNSDelayedPerforming, NSObjectNSThreadPerformAdditions, NSObjectProtocol,
+    NSPoint, NSRect, NSSize, NSString,
 };
 
 use super::app_delegate::ApplicationDelegate;
@@ -319,14 +317,12 @@ declare_class!(
             self.ivars().in_fullscreen_transition.set(false);
             self.ivars().target_fullscreen.replace(None);
             if self.ivars().initial_fullscreen.get() {
-                #[allow(clippy::let_unit_value)]
                 unsafe {
-                    let _: () = msg_send![
-                        self.window(),
-                        performSelector: sel!(toggleFullScreen:),
-                        withObject: ptr::null::<AnyObject>(),
-                        afterDelay: 0.5,
-                    ];
+                    self.window().performSelector_withObject_afterDelay(
+                        sel!(toggleFullScreen:),
+                        None,
+                        0.5,
+                    )
                 };
             } else {
                 self.restore_state_from_fullscreen();
@@ -421,16 +417,15 @@ declare_class!(
     unsafe impl WindowDelegate {
         // Observe theme change
         #[method(effectiveAppearanceDidChange:)]
-        fn effective_appearance_did_change(this: *mut Self, sender: Option<&AnyObject>) {
+        fn effective_appearance_did_change(&self, sender: Option<&AnyObject>) {
             trace_scope!("effectiveAppearanceDidChange:");
             unsafe {
-                msg_send![
-                    this,
-                    performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:),
-                    withObject: sender,
-                    waitUntilDone: false,
-                ]
-            }
+                self.performSelectorOnMainThread_withObject_waitUntilDone(
+                    sel!(effectiveAppearanceDidChangedOnMainThread:),
+                    sender,
+                    false,
+                )
+            };
         }
 
         #[method(effectiveAppearanceDidChangedOnMainThread:)]
@@ -698,17 +693,14 @@ impl WindowDelegate {
         window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
         // Enable theme change event
-        let notification_center: Id<AnyObject> =
-            unsafe { msg_send_id![class!(NSDistributedNotificationCenter), defaultCenter] };
-        let notification_name = NSString::from_str("AppleInterfaceThemeChangedNotification");
-        let _: () = unsafe {
-            msg_send![
-                &notification_center,
-                addObserver: &*delegate,
-                selector: sel!(effectiveAppearanceDidChange:),
-                name: &*notification_name,
-                object: ptr::null::<AnyObject>(),
-            ]
+        let notification_center = unsafe { NSDistributedNotificationCenter::defaultCenter() };
+        unsafe {
+            notification_center.addObserver_selector_name_object(
+                &delegate,
+                sel!(effectiveAppearanceDidChange:),
+                Some(ns_string!("AppleInterfaceThemeChangedNotification")),
+                None,
+            )
         };
 
         if attrs.blur {
@@ -1772,8 +1764,7 @@ const DEFAULT_STANDARD_FRAME: NSRect =
 
 pub(super) fn get_ns_theme(mtm: MainThreadMarker) -> Theme {
     let app = NSApplication::sharedApplication(mtm);
-    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
-    if !has_theme {
+    if !app.respondsToSelector(sel!(effectiveAppearance)) {
         return Theme::Light;
     }
     let appearance = app.effectiveAppearance();
@@ -1791,8 +1782,7 @@ pub(super) fn get_ns_theme(mtm: MainThreadMarker) -> Theme {
 
 fn set_ns_theme(theme: Option<Theme>, mtm: MainThreadMarker) {
     let app = NSApplication::sharedApplication(mtm);
-    let has_theme: bool = unsafe { msg_send![&app, respondsToSelector: sel!(effectiveAppearance)] };
-    if has_theme {
+    if app.respondsToSelector(sel!(effectiveAppearance)) {
         let appearance = theme.map(|t| {
             let name = match t {
                 Theme::Dark => NSString::from_str("NSAppearanceNameDarkAqua"),
