@@ -476,10 +476,10 @@ pub trait WindowAttributesExtWindows {
     /// the menus look. If you use this, it is recommended that you combine it with
     /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     #[cfg_attr(
-        platform_windows,
+        windows_platform,
         doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
     )]
-    #[cfg_attr(not(platform_windows), doc = "[`CreateMenu`]: #only-available-on-windows")]
+    #[cfg_attr(not(windows_platform), doc = "[`CreateMenu`]: #only-available-on-windows")]
     fn with_menu(self, menu: HMENU) -> Self;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
