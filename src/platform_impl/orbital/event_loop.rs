@@ -772,10 +772,10 @@ pub struct EventLoopProxy<T: 'static> {
 }
 
 impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopProxyError<T>> {
         self.user_events_sender
             .send(event)
-            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
+            .map_err(|mpsc::SendError(x)| event_loop::EventLoopProxyError::Closed(x))?;
 
         self.wake_socket.wake().unwrap();
 

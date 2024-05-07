@@ -23,7 +23,8 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError},
     event_loop::{
-        ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
+        ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents,
+        EventLoopProxyError,
     },
     icon::Icon,
     keyboard::Key,
@@ -831,7 +832,7 @@ impl<T> AsRawFd for EventLoop<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
     }
 }

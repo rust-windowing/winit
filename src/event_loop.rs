@@ -576,7 +576,7 @@ impl<T: 'static> EventLoopProxy<T> {
     /// Returns an `Err` if the associated [`EventLoop`] no longer exists.
     ///
     /// [`UserEvent(event)`]: Event::UserEvent
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         let _span = tracing::debug_span!("winit::EventLoopProxy::send_event",).entered();
 
         self.event_loop_proxy.send_event(event)
@@ -589,20 +589,31 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
     }
 }
 
-/// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
-/// no longer exists.
-///
-/// Contains the original event given to [`EventLoopProxy::send_event`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct EventLoopClosed<T>(pub T);
+pub enum EventLoopProxyError<T> {
+    /// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
+    /// no longer exists.
+    ///
+    /// Contains the original event given to [`EventLoopProxy::send_event`].
+    Closed(T),
+    /// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
+    /// is busy handling events and can't accept new events because it reached its limit. This will happen on Windows for example,
+    /// if more than 10,000 events are sent in a short time.
+    Busy,
+}
 
-impl<T> fmt::Display for EventLoopClosed<T> {
+impl<T> fmt::Display for EventLoopProxyError<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Tried to wake up a closed `EventLoop`")
+        match self {
+            EventLoopProxyError::Closed(_) => f.write_str("Tried to wake up a closed `EventLoop`"),
+            EventLoopProxyError::Busy => {
+                f.write_str("Tried to wake up `EventLoop` while it is busy")
+            }
+        }
     }
 }
 
-impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
+impl<T: fmt::Debug> error::Error for EventLoopProxyError<T> {}
 
 /// Control when device events are captured.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]

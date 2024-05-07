@@ -2,7 +2,7 @@ use std::rc::Weak;
 use std::sync::mpsc::{SendError, Sender};
 
 use super::runner::Execution;
-use crate::event_loop::EventLoopClosed;
+use crate::event_loop::EventLoopProxyError;
 use crate::platform_impl::platform::r#async::Waker;
 
 pub struct EventLoopProxy<T: 'static> {
@@ -15,10 +15,10 @@ impl<T: 'static> EventLoopProxy<T> {
         Self { runner, sender }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         self.sender
             .send(event)
-            .map_err(|SendError(event)| EventLoopClosed(event))?;
+            .map_err(|SendError(event)| EventLoopProxyError::Closed(event))?;
         self.runner.wake();
         Ok(())
     }

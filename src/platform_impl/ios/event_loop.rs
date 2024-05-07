@@ -20,7 +20,7 @@ use crate::{
     error::EventLoopError,
     event::Event,
     event_loop::{
-        ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopClosed,
+        ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProxyError,
     },
     platform::ios::Idiom,
     platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents},
@@ -291,10 +291,10 @@ impl<T> EventLoopProxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         self.sender
             .send(event)
-            .map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
+            .map_err(|::std::sync::mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

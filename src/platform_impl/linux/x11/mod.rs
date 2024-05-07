@@ -30,7 +30,9 @@ use x11rb::xcb_ffi::ReplyOrIdError;
 
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
+use crate::event_loop::{
+    ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopProxyError,
+};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::{min_timeout, WindowId};
@@ -760,10 +762,10 @@ impl ActiveEventLoop {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         self.user_sender
             .send(event)
-            .map_err(|e| EventLoopClosed(e.0))
+            .map_err(|e| EventLoopProxyError::Closed(e.0))
     }
 }
 

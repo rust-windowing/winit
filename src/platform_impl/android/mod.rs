@@ -656,10 +656,10 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopProxyError<T>> {
         self.user_events_sender
             .send(event)
-            .map_err(|err| event_loop::EventLoopClosed(err.0))?;
+            .map_err(|err| event_loop::EventLoopProxyError::Closed(err.0))?;
         self.waker.wake();
         Ok(())
     }

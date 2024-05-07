@@ -41,3 +41,5 @@
 - Add `Window::default_attributes` to get default `WindowAttributes`.
 - `log` has been replaced with `tracing`. The old behavior can be emulated by setting the `log` feature on the `tracing` crate.
 - On Windows, confine cursor to center of window when grabbed and hidden.
+- Removed `event_loop::EventLoopClosed`, and replaced with `event_lopp::EventLoopProxyError`
+- Return an error in `EventLoopProxy::send_event` when the event loop is busy on Windows and can't accept new events.

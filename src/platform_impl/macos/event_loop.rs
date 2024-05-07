@@ -39,7 +39,9 @@ use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 use crate::{
     error::EventLoopError,
     event::Event,
-    event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed},
+    event_loop::{
+        ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopProxyError,
+    },
     platform::{macos::ActivationPolicy, pump_events::PumpStatus},
 };
 
@@ -496,10 +498,10 @@ impl<T> EventLoopProxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         self.sender
             .send(event)
-            .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
+            .map_err(|mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

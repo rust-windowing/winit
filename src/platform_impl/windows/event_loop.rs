@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::utils::Lazy;
+use crate::{event_loop::EventLoopProxyError, utils::Lazy};
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -74,7 +74,7 @@ use crate::{
         DeviceEvent, Event, Force, Ime, InnerSizeWriter, RawKeyEvent, Touch, TouchPhase,
         WindowEvent,
     },
-    event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed},
+    event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents},
     keyboard::ModifiersState,
     platform::pump_events::PumpStatus,
     platform_impl::platform::{
@@ -776,14 +776,17 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         self.event_send
             .send(event)
-            .map(|result| {
-                unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
-                result
+            .map_err(|e| EventLoopProxyError::Closed(e.0))
+            .and_then(|result| {
+                if unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) } == 0 {
+                    Err(EventLoopProxyError::Busy)
+                } else {
+                    Ok(result)
+                }
             })
-            .map_err(|e| EventLoopClosed(e.0))
     }
 }
 
