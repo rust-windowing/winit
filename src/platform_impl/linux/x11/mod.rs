@@ -84,8 +84,8 @@ impl<T> Clone for WakeSender<T> {
 }
 
 impl<T> WakeSender<T> {
-    pub fn send(&self, t: T) -> Result<(), EventLoopClosed<T>> {
-        let res = self.sender.send(t).map_err(|e| EventLoopClosed(e.0));
+    pub fn send(&self, t: T) -> Result<(), EventLoopProxyError<T>> {
+        let res = self.sender.send(t).map_err(|e| EventLoopProxyError::Closed(e.0));
         if res.is_ok() {
             self.waker.ping();
         }
@@ -1007,15 +1007,18 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
-                    scroll_axes.push((info.number, ScrollAxis {
-                        increment: info.increment,
-                        orientation: match info.scroll_type {
-                            ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                            ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                            _ => unreachable!(),
+                    scroll_axes.push((
+                        info.number,
+                        ScrollAxis {
+                            increment: info.increment,
+                            orientation: match info.scroll_type {
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                _ => unreachable!(),
+                            },
+                            position: 0.0,
                         },
-                        position: 0.0,
-                    }));
+                    ));
                 }
             }
         }
