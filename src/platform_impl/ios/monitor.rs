@@ -1,21 +1,17 @@
 #![allow(clippy::unnecessary_cast)]
 
-use std::{
-    collections::{BTreeSet, VecDeque},
-    fmt, hash, ptr,
-};
+use std::collections::{BTreeSet, VecDeque};
+use std::{fmt, hash, ptr};
 
-use icrate::Foundation::{MainThreadBound, MainThreadMarker, NSInteger};
 use objc2::mutability::IsRetainable;
 use objc2::rc::Id;
 use objc2::Message;
+use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger};
 
 use super::uikit::{UIScreen, UIScreenMode};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoModeHandle as RootVideoModeHandle,
-    platform_impl::platform::app_state,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoModeHandle as RootVideoModeHandle;
+use crate::platform_impl::platform::app_state;
 
 // Workaround for `MainThreadBound` implementing almost no traits
 #[derive(Debug)]
@@ -23,9 +19,7 @@ struct MainThreadBoundDelegateImpls<T>(MainThreadBound<Id<T>>);
 
 impl<T: IsRetainable + Message> Clone for MainThreadBoundDelegateImpls<T> {
     fn clone(&self) -> Self {
-        Self(MainThreadMarker::run_on_main(|mtm| {
-            MainThreadBound::new(Id::clone(self.0.get(mtm)), mtm)
-        }))
+        Self(run_on_main(|mtm| MainThreadBound::new(Id::clone(self.0.get(mtm)), mtm)))
     }
 }
 
@@ -100,7 +94,7 @@ pub struct MonitorHandle {
 
 impl Clone for MonitorHandle {
     fn clone(&self) -> Self {
-        MainThreadMarker::run_on_main(|mtm| Self {
+        run_on_main(|mtm| Self {
             ui_screen: MainThreadBound::new(self.ui_screen.get(mtm).clone(), mtm),
         })
     }
@@ -149,13 +143,11 @@ impl MonitorHandle {
     pub(crate) fn new(ui_screen: Id<UIScreen>) -> Self {
         // Holding `Id<UIScreen>` implies we're on the main thread.
         let mtm = MainThreadMarker::new().unwrap();
-        Self {
-            ui_screen: MainThreadBound::new(ui_screen, mtm),
-        }
+        Self { ui_screen: MainThreadBound::new(ui_screen, mtm) }
     }
 
     pub fn name(&self) -> Option<String> {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             let main = UIScreen::main(mtm);
             if *self.ui_screen(mtm) == main {
                 Some("Primary".to_string())
@@ -171,33 +163,25 @@ impl MonitorHandle {
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        let bounds = self
-            .ui_screen
-            .get_on_main(|ui_screen| ui_screen.nativeBounds());
+        let bounds = self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeBounds());
         PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
     }
 
     pub fn position(&self) -> PhysicalPosition<i32> {
-        let bounds = self
-            .ui_screen
-            .get_on_main(|ui_screen| ui_screen.nativeBounds());
+        let bounds = self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeBounds());
         (bounds.origin.x as f64, bounds.origin.y as f64).into()
     }
 
     pub fn scale_factor(&self) -> f64 {
-        self.ui_screen
-            .get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
+        self.ui_screen.get_on_main(|ui_screen| ui_screen.nativeScale()) as f64
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        Some(
-            self.ui_screen
-                .get_on_main(|ui_screen| refresh_rate_millihertz(ui_screen)),
-        )
+        Some(self.ui_screen.get_on_main(|ui_screen| refresh_rate_millihertz(ui_screen)))
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoModeHandle> {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             let ui_screen = self.ui_screen(mtm);
             // Use Ord impl of RootVideoModeHandle
 
@@ -218,7 +202,7 @@ impl MonitorHandle {
     }
 
     pub fn preferred_video_mode(&self) -> VideoModeHandle {
-        MainThreadMarker::run_on_main(|mtm| {
+        run_on_main(|mtm| {
             VideoModeHandle::new(
                 self.ui_screen(mtm).clone(),
                 self.ui_screen(mtm).preferredMode().unwrap(),
@@ -253,8 +237,5 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
 }
 
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
-    UIScreen::screens(mtm)
-        .into_iter()
-        .map(MonitorHandle::new)
-        .collect()
+    UIScreen::screens(mtm).into_iter().map(MonitorHandle::new).collect()
 }

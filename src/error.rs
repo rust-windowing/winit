@@ -71,10 +71,7 @@ macro_rules! os_error {
 
 impl fmt::Display for OsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.pad(&format!(
-            "os error at {}:{}: {}",
-            self.file, self.line, self.error
-        ))
+        f.pad(&format!("os error at {}:{}: {}", self.file, self.line, self.error))
     }
 }
 
@@ -124,11 +121,7 @@ mod tests {
     // Eat attributes for testing
     #[test]
     fn ensure_fmt_does_not_panic() {
-        let _ = format!(
-            "{:?}, {}",
-            NotSupportedError::new(),
-            NotSupportedError::new().clone()
-        );
+        let _ = format!("{:?}, {}", NotSupportedError::new(), NotSupportedError::new().clone());
         let _ = format!(
             "{:?}, {}",
             ExternalError::NotSupported(NotSupportedError::new()),

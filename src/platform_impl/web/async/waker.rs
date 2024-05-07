@@ -92,8 +92,7 @@ impl<T> WakerSpawner<T> {
             "this should only be called from the main thread"
         );
 
-        self.0
-            .with_sender_data(|inner| inner.0.counter.swap(0, Ordering::Relaxed))
+        self.0.with_sender_data(|inner| inner.0.counter.swap(0, Ordering::Relaxed))
     }
 }
 

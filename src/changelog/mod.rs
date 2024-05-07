@@ -2,11 +2,13 @@
 //!
 //! All notable changes to this project will be documented in this module,
 //! along with migration instructions for larger changes.
-//!
 // Put the current entry at the top of this page, for discoverability.
 // See `.cargo/config.toml` for details about `unreleased_changelogs`.
 #![cfg_attr(unreleased_changelogs, doc = include_str!("unreleased.md"))]
-#![cfg_attr(not(unreleased_changelogs), doc = include_str!("v0.29.md"))]
+#![cfg_attr(not(unreleased_changelogs), doc = include_str!("v0.30.md"))]
+
+#[doc = include_str!("v0.30.md")]
+pub mod v0_30 {}
 
 #[doc = include_str!("v0.29.md")]
 pub mod v0_29 {}

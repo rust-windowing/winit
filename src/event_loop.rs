@@ -20,8 +20,10 @@ use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, OsError};
+use crate::event::Event;
+use crate::monitor::MonitorHandle;
+use crate::platform_impl;
 use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
-use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -33,8 +35,8 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// To wake up an `EventLoop` from a another thread, see the [`EventLoopProxy`] docs.
 ///
 /// Note that this cannot be shared across threads (due to platform-dependant logic
-/// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access, the
-/// [`Window`] created from this _can_ be sent to an other thread, and the
+/// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access,
+/// the [`Window`] created from this _can_ be sent to an other thread, and the
 /// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
 ///
 /// [`Window`]: crate::window::Window
@@ -94,18 +96,19 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland/X11:** to prevent running under `Wayland` or `X11` unset `WAYLAND_DISPLAY`
-    ///                    or `DISPLAY` respectively when building the event loop.
+    /// - **Wayland/X11:** to prevent running under `Wayland` or `X11` unset `WAYLAND_DISPLAY` or
+    ///   `DISPLAY` respectively when building the event loop.
     /// - **Android:** must be configured with an `AndroidApp` from `android_main()` by calling
-    ///     [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
+    ///   [`.with_android_app(app)`] before calling `.build()`, otherwise it'll panic.
     ///
     /// [`platform`]: crate::platform
     #[cfg_attr(
-        android,
-        doc = "[`.with_android_app(app)`]: crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
+        android_platform,
+        doc = "[`.with_android_app(app)`]: \
+               crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
     )]
     #[cfg_attr(
-        not(android),
+        not(android_platform),
         doc = "[`.with_android_app(app)`]: #only-available-on-android"
     )]
     #[inline]
@@ -162,9 +165,9 @@ pub enum ControlFlow {
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     ///
-    /// Useful for implementing efficient timers. Applications which want to render at the display's
-    /// native refresh rate should instead use [`Poll`] and the VSync functionality of a graphics API
-    /// to reduce odds of missed frames.
+    /// Useful for implementing efficient timers. Applications which want to render at the
+    /// display's native refresh rate should instead use [`Poll`] and the VSync functionality
+    /// of a graphics API to reduce odds of missed frames.
     ///
     /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
@@ -210,10 +213,7 @@ impl<T> EventLoop<T> {
     /// Start building a new event loop, with the given type as the user event
     /// type.
     pub fn with_user_event() -> EventLoopBuilder<T> {
-        EventLoopBuilder {
-            platform_specific: Default::default(),
-            _p: PhantomData,
-        }
+        EventLoopBuilder { platform_specific: Default::default(), _p: PhantomData }
     }
 
     /// See [`run_app`].
@@ -239,9 +239,9 @@ impl<T> EventLoop<T> {
     ///
     /// - **iOS:** Will never return to the caller and so values not passed to this function will
     ///   *not* be dropped before the process exits.
-    /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript exception
-    ///   (that Rust doesn't see) that will also mean that the rest of the function is never executed
-    ///   and any values not passed to this function will *not* be dropped.
+    /// - **Web:** Will _act_ as if it never returns to the caller by throwing a Javascript
+    ///   exception (that Rust doesn't see) that will also mean that the rest of the function is
+    ///   never executed and any values not passed to this function will *not* be dropped.
     ///
     ///   Web applications are recommended to use
     #[cfg_attr(
@@ -262,25 +262,20 @@ impl<T> EventLoop<T> {
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
-        self.event_loop
-            .run(|event, event_loop| dispatch_event_for_app(app, event_loop, event))
+        self.event_loop.run(|event, event_loop| dispatch_event_for_app(app, event_loop, event))
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
     /// to the main event loop, possibly from another thread.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            event_loop_proxy: self.event_loop.create_proxy(),
-        }
+        EventLoopProxy { event_loop_proxy: self.event_loop.create_proxy() }
     }
 
     /// Gets a persistent reference to the underlying platform display.
     ///
     /// See the [`OwnedDisplayHandle`] type for more information.
     pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle {
-            platform: self.event_loop.window_target().p.owned_display_handle(),
-        }
+        OwnedDisplayHandle { platform: self.event_loop.window_target().p.owned_display_handle() }
     }
 
     /// Change if or when [`DeviceEvent`]s are captured.
@@ -295,18 +290,12 @@ impl<T> EventLoop<T> {
         )
         .entered();
 
-        self.event_loop
-            .window_target()
-            .p
-            .listen_device_events(allowed);
+        self.event_loop.window_target().p.listen_device_events(allowed);
     }
 
     /// Sets the [`ControlFlow`].
     pub fn set_control_flow(&self, control_flow: ControlFlow) {
-        self.event_loop
-            .window_target()
-            .p
-            .set_control_flow(control_flow)
+        self.event_loop.window_target().p.set_control_flow(control_flow)
     }
 
     /// Create a window.
@@ -329,10 +318,7 @@ impl<T> EventLoop<T> {
 
     /// Create custom cursor.
     pub fn create_custom_cursor(&self, custom_cursor: CustomCursorSource) -> CustomCursor {
-        self.event_loop
-            .window_target()
-            .p
-            .create_custom_cursor(custom_cursor)
+        self.event_loop.window_target().p.create_custom_cursor(custom_cursor)
     }
 }
 
@@ -413,10 +399,7 @@ impl ActiveEventLoop {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::available_monitors",).entered();
 
         #[allow(clippy::useless_conversion)] // false positive on some platforms
-        self.p
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
+        self.p.available_monitors().into_iter().map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
@@ -430,9 +413,7 @@ impl ActiveEventLoop {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::primary_monitor",).entered();
 
-        self.p
-            .primary_monitor()
-            .map(|inner| MonitorHandle { inner })
+        self.p.primary_monitor().map(|inner| MonitorHandle { inner })
     }
 
     /// Change if or when [`DeviceEvent`]s are captured.
@@ -486,9 +467,7 @@ impl ActiveEventLoop {
     ///
     /// See the [`OwnedDisplayHandle`] type for more information.
     pub fn owned_display_handle(&self) -> OwnedDisplayHandle {
-        OwnedDisplayHandle {
-            platform: self.p.owned_display_handle(),
-        }
+        OwnedDisplayHandle { platform: self.p.owned_display_handle() }
     }
 }
 
@@ -562,9 +541,7 @@ pub struct EventLoopProxy<T: 'static> {
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            event_loop_proxy: self.event_loop_proxy.clone(),
-        }
+        Self { event_loop_proxy: self.event_loop_proxy.clone() }
     }
 }
 

@@ -19,33 +19,22 @@
 //! window or a key getting pressed while the window is focused. Devices can generate
 //! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if desired.
+//! [`DeviceEvent`]. You can also create and handle your own custom [`Event::UserEvent`]s, if
+//! desired.
 //!
 //! You can retrieve events by calling [`EventLoop::run_app()`]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until [`exit()`] is used, at which point [`Event::LoopExiting`].
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
-//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
-//! most other platforms. However, this model can be re-implemented to an extent with
+//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works
+//! poorly on most other platforms. However, this model can be re-implemented to an extent with
 #![cfg_attr(
-    any(
-        windows_platform,
-        macos_platform,
-        android_platform,
-        x11_platform,
-        wayland_platform
-    ),
+    any(windows_platform, macos_platform, android_platform, x11_platform, wayland_platform),
     doc = "[`EventLoopExtPumpEvents::pump_app_events()`][platform::pump_events::EventLoopExtPumpEvents::pump_app_events()]"
 )]
 #![cfg_attr(
-    not(any(
-        windows_platform,
-        macos_platform,
-        android_platform,
-        x11_platform,
-        wayland_platform
-    )),
+    not(any(windows_platform, macos_platform, android_platform, x11_platform, wayland_platform)),
     doc = "`EventLoopExtPumpEvents::pump_app_events()`"
 )]
 //! [^1]. See that method's documentation for more reasons about why
@@ -116,16 +105,16 @@
 //!
 //! # Drawing on the window
 //!
-//! Winit doesn't directly provide any methods for drawing on a [`Window`]. However, it allows you to
-//! retrieve the raw handle of the window and display (see the [`platform`] module and/or the
+//! Winit doesn't directly provide any methods for drawing on a [`Window`]. However, it allows you
+//! to retrieve the raw handle of the window and display (see the [`platform`] module and/or the
 //! [`raw_window_handle`] and [`raw_display_handle`] methods), which in turn allows
 //! you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
 //!
 //! Note that many platforms will display garbage data in the window's client area if the
 //! application doesn't render anything to the window by the time the desktop compositor is ready to
 //! display the window to the user. If you notice this happening, you should create the window with
-//! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make the
-//! window visible only once you're ready to render into it.
+//! [`visible` set to `false`][crate::window::WindowAttributes::with_visible] and explicitly make
+//! the window visible only once you're ready to render into it.
 //!
 //! # UI scaling
 //!
@@ -151,13 +140,11 @@
 //! Winit provides the following Cargo features:
 //!
 //! * `x11` (enabled by default): On Unix platforms, enables the X11 backend.
-//! * `wayland` (enabled by default): On Unix platforms, enables the Wayland
-//!   backend.
+//! * `wayland` (enabled by default): On Unix platforms, enables the Wayland backend.
 //! * `rwh_04`: Implement `raw-window-handle v0.4` traits.
 //! * `rwh_05`: Implement `raw-window-handle v0.5` traits.
 //! * `rwh_06`: Implement `raw-window-handle v0.6` traits.
-//! * `serde`: Enables serialization/deserialization of certain types with
-//!   [Serde](https://crates.io/crates/serde).
+//! * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 //! * `mint`: Enables mint (math interoperability standard types) conversions.
 //!
 //! See the [`platform`] module for documentation on platform-specific cargo
@@ -186,14 +173,15 @@
 #![deny(clippy::all)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(clippy, deny(warnings))]
-// Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly doc
-#![cfg_attr(
-    docsrs,
-    feature(doc_auto_cfg, doc_cfg_hide),
-    doc(cfg_hide(doc, docsrs))
-)]
+// Doc feature labels can be tested locally by running RUSTDOCFLAGS="--cfg=docsrs" cargo +nightly
+// doc
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg_hide), doc(cfg_hide(doc, docsrs)))]
 #![allow(clippy::missing_safety_doc)]
 
+#[cfg(feature = "rwh_04")]
+pub use rwh_04 as raw_window_handle_04;
+#[cfg(feature = "rwh_05")]
+pub use rwh_05 as raw_window_handle_05;
 #[cfg(feature = "rwh_06")]
 pub use rwh_06 as raw_window_handle;
 

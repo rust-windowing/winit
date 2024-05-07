@@ -1,10 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::OnceLock;
-use std::task::Context;
-use std::task::Poll;
-use std::task::Waker;
+use std::sync::{Arc, OnceLock};
+use std::task::{Context, Poll, Waker};
 
 use super::{ConcurrentQueue, PushError};
 
@@ -13,10 +10,7 @@ pub struct Notifier<T: Clone>(Arc<Inner<T>>);
 
 impl<T: Clone> Notifier<T> {
     pub fn new() -> Self {
-        Self(Arc::new(Inner {
-            queue: ConcurrentQueue::unbounded(),
-            value: OnceLock::new(),
-        }))
+        Self(Arc::new(Inner { queue: ConcurrentQueue::unbounded(), value: OnceLock::new() }))
     }
 
     pub fn notify(self, value: T) {
@@ -52,11 +46,11 @@ impl<T: Clone> Future for Notified<T> {
                         self.0 = Some(this);
                         return Poll::Pending;
                     }
-                }
+                },
                 Err(PushError::Closed(_)) => (),
                 Err(PushError::Full(_)) => {
                     unreachable!("found full queue despite using unbounded queue")
-                }
+                },
             }
         }
 

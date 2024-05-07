@@ -1,25 +1,19 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fmt, ptr,
-    sync::{
-        atomic::{AtomicU32, Ordering},
-        Arc, Mutex, RwLock, RwLockReadGuard,
-    },
-};
+use std::collections::HashMap;
+use std::error::Error;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::{fmt, ptr};
 
 use crate::window::CursorIcon;
 
-use super::{atoms::Atoms, ffi, monitor::MonitorHandle};
-use x11rb::{
-    connection::Connection,
-    protocol::{
-        randr::ConnectionExt as _,
-        xproto::{self, ConnectionExt},
-    },
-    resource_manager,
-    xcb_ffi::XCBConnection,
-};
+use super::atoms::Atoms;
+use super::ffi;
+use super::monitor::MonitorHandle;
+use x11rb::connection::Connection;
+use x11rb::protocol::randr::ConnectionExt as _;
+use x11rb::protocol::xproto::{self, ConnectionExt};
+use x11rb::resource_manager;
+use x11rb::xcb_ffi::XCBConnection;
 
 /// A connection to an X server.
 pub struct XConnection {
@@ -158,14 +152,9 @@ impl XConnection {
             .atom;
 
         // Get PropertyNotify events from the XSETTINGS window.
-        // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on this window
-        // in order to accommodate for a changed window here.
-        let selector_window = xcb
-            .get_selection_owner(xsettings_screen)
-            .ok()?
-            .reply()
-            .ok()?
-            .owner;
+        // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on
+        // this window in order to accommodate for a changed window here.
+        let selector_window = xcb.get_selection_owner(xsettings_screen).ok()?.reply().ok()?.owner;
 
         xcb.change_window_attributes(
             selector_window,
@@ -198,9 +187,7 @@ impl XConnection {
     /// Get the underlying XCB connection.
     #[inline]
     pub fn xcb_connection(&self) -> &XCBConnection {
-        self.xcb
-            .as_ref()
-            .expect("xcb_connection somehow called after drop?")
+        self.xcb.as_ref().expect("xcb_connection somehow called after drop?")
     }
 
     /// Get the list of atoms.

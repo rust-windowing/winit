@@ -1,49 +1,39 @@
-use std::{
-    any::Any,
-    cell::Cell,
-    collections::VecDeque,
-    marker::PhantomData,
-    os::raw::c_void,
-    panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
-    ptr,
-    rc::{Rc, Weak},
-    sync::mpsc,
-    time::{Duration, Instant},
-};
+use std::any::Any;
+use std::cell::Cell;
+use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::os::raw::c_void;
+use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
+use std::ptr;
+use std::rc::{Rc, Weak};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
     CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use icrate::AppKit::{
-    NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyProhibited,
-    NSApplicationActivationPolicyRegular, NSWindow,
-};
-use icrate::Foundation::{MainThreadMarker, NSObjectProtocol};
+use objc2::rc::{autoreleasepool, Id};
+use objc2::runtime::ProtocolObject;
 use objc2::{msg_send_id, ClassType};
-use objc2::{
-    rc::{autoreleasepool, Id},
-    runtime::ProtocolObject,
-};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
+use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
 
+use super::app::WinitApplication;
+use super::app_delegate::{ApplicationDelegate, HandlePendingUserEvents};
 use super::event::dummy_event;
-use super::{
-    app::WinitApplication,
-    app_delegate::{ApplicationDelegate, HandlePendingUserEvents},
-    monitor::{self, MonitorHandle},
-    observer::setup_control_flow_observers,
+use super::monitor::{self, MonitorHandle};
+use super::observer::setup_control_flow_observers;
+use crate::error::EventLoopError;
+use crate::event::Event;
+use crate::event_loop::{
+    ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopProxyError,
 };
+use crate::platform::macos::ActivationPolicy;
+use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::cursor::CustomCursor;
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
-use crate::{
-    error::EventLoopError,
-    event::Event,
-    event_loop::{
-        ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopProxyError,
-    },
-    platform::{macos::ActivationPolicy, pump_events::PumpStatus},
-};
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -62,12 +52,14 @@ impl PanicInfo {
         self.inner.set(inner);
         result
     }
-    /// Overwrites the curret state if the current state is not panicking
+
+    /// Overwrites the current state if the current state is not panicking
     pub fn set_panic(&self, p: Box<dyn Any + Send + 'static>) {
         if !self.is_panicking() {
             self.inner.set(Some(p));
         }
     }
+
     pub fn take(&self) -> Option<Box<dyn Any + Send + 'static>> {
         self.inner.take()
     }
@@ -83,16 +75,15 @@ impl ActiveEventLoop {
     pub(super) fn new_root(delegate: Id<ApplicationDelegate>) -> RootWindowTarget {
         let mtm = MainThreadMarker::from(&*delegate);
         let p = Self { delegate, mtm };
-        RootWindowTarget {
-            p,
-            _marker: PhantomData,
-        }
+        RootWindowTarget { p, _marker: PhantomData }
+    }
+
+    pub(super) fn app_delegate(&self) -> &ApplicationDelegate {
+        &self.delegate
     }
 
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor {
-            inner: CustomCursor::new(source.inner),
-        }
+        RootCustomCursor { inner: CustomCursor::new(source.inner) }
     }
 
     #[inline]
@@ -120,9 +111,7 @@ impl ActiveEventLoop {
     pub fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::AppKit(
-            rwh_06::AppKitDisplayHandle::new(),
-        ))
+        Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
     }
 
     pub(crate) fn set_control_flow(&self, control_flow: ControlFlow) {
@@ -148,9 +137,7 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
-}
 
-impl ActiveEventLoop {
     pub(crate) fn hide_application(&self) {
         NSApplication::sharedApplication(self.mtm).hide(None)
     }
@@ -178,7 +165,7 @@ fn map_user_event<T: 'static>(
             for event in receiver.try_iter() {
                 (handler)(Event::UserEvent(event), window_target);
             }
-        }
+        },
     }
 }
 
@@ -230,13 +217,16 @@ impl<T> EventLoop<T> {
             unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
 
         if !app.is_kind_of::<WinitApplication>() {
-            panic!("`winit` requires control over the principal class. You must create the event loop before other parts of your application initialize NSApplication");
+            panic!(
+                "`winit` requires control over the principal class. You must create the event \
+                 loop before other parts of your application initialize NSApplication"
+            );
         }
 
         let activation_policy = match attributes.activation_policy {
-            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
+            ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
+            ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
         };
         let delegate = ApplicationDelegate::new(
             mtm,
@@ -328,8 +318,8 @@ impl<T> EventLoop<T> {
 
         self.delegate.set_event_handler(handler, || {
             autoreleasepool(|_| {
-                // As a special case, if the application hasn't been launched yet then we at least run
-                // the loop until it has fully launched.
+                // As a special case, if the application hasn't been launched yet then we at least
+                // run the loop until it has fully launched.
                 if !self.delegate.is_launched() {
                     debug_assert!(!self.delegate.is_running());
 
@@ -337,31 +327,34 @@ impl<T> EventLoop<T> {
                     // SAFETY: We do not run the application re-entrantly
                     unsafe { self.app.run() };
 
-                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application has launched
+                    // Note: we dispatch `NewEvents(Init)` + `Resumed` events after the application
+                    // has launched
                 } else if !self.delegate.is_running() {
-                    // Even though the application may have been launched, it's possible we aren't running
-                    // if the `EventLoop` was run before and has since exited. This indicates that
-                    // we just starting to re-run the same `EventLoop` again.
+                    // Even though the application may have been launched, it's possible we aren't
+                    // running if the `EventLoop` was run before and has since
+                    // exited. This indicates that we just starting to re-run
+                    // the same `EventLoop` again.
                     self.delegate.set_is_running(true);
                     self.delegate.dispatch_init_events();
                 } else {
-                    // Only run for as long as the given `Duration` allows so we don't block the external loop.
+                    // Only run for as long as the given `Duration` allows so we don't block the
+                    // external loop.
                     match timeout {
                         Some(Duration::ZERO) => {
                             self.delegate.set_wait_timeout(None);
                             self.delegate.set_stop_before_wait(true);
-                        }
+                        },
                         Some(duration) => {
                             self.delegate.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
                             self.delegate.set_wait_timeout(Some(timeout));
                             self.delegate.set_stop_after_wait(true);
-                        }
+                        },
                         None => {
                             self.delegate.set_wait_timeout(None);
                             self.delegate.set_stop_before_wait(false);
                             self.delegate.set_stop_after_wait(true);
-                        }
+                        },
                     }
                     self.delegate.set_stop_on_redraw(true);
                     // SAFETY: We do not run the application re-entrantly
@@ -442,7 +435,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             let app = NSApplication::sharedApplication(mtm);
             stop_app_immediately(&app);
             None
-        }
+        },
     }
 }
 
@@ -499,9 +492,7 @@ impl<T> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
-        self.sender
-            .send(event)
-            .map_err(|mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
+        self.sender.send(event).map_err(|mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

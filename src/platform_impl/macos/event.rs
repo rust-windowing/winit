@@ -1,26 +1,18 @@
 use std::ffi::c_void;
 
-use core_foundation::{
-    base::CFRelease,
-    data::{CFDataGetBytePtr, CFDataRef},
-};
-use icrate::AppKit::{
-    NSEvent, NSEventModifierFlagCommand, NSEventModifierFlagControl, NSEventModifierFlagOption,
-    NSEventModifierFlagShift, NSEventModifierFlags, NSEventSubtypeWindowExposed,
-    NSEventTypeApplicationDefined,
-};
-use icrate::Foundation::{MainThreadMarker, NSPoint};
+use core_foundation::base::CFRelease;
+use core_foundation::data::{CFDataGetBytePtr, CFDataRef};
 use objc2::rc::Id;
+use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
+use objc2_foundation::{run_on_main, NSPoint};
 use smol_str::SmolStr;
 
-use crate::{
-    event::{ElementState, KeyEvent, Modifiers},
-    keyboard::{
-        Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey,
-        NativeKeyCode, PhysicalKey,
-    },
-    platform_impl::platform::ffi,
+use crate::event::{ElementState, KeyEvent, Modifiers};
+use crate::keyboard::{
+    Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
+    PhysicalKey,
 };
+use crate::platform_impl::platform::ffi;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {
@@ -48,7 +40,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         }
         layout = CFDataGetBytePtr(layout_data as CFDataRef) as *const ffi::UCKeyboardLayout;
     }
-    let keyboard_type = MainThreadMarker::run_on_main(|_mtm| unsafe { ffi::LMGetKbdType() });
+    let keyboard_type = run_on_main(|_mtm| unsafe { ffi::LMGetKbdType() });
 
     let mut result_len = 0;
     let mut dead_keys = 0;
@@ -71,10 +63,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
         CFRelease(input_source as *mut c_void);
     }
     if translate_result != 0 {
-        tracing::error!(
-            "`UCKeyTranslate` returned with the non-zero value: {}",
-            translate_result
-        );
+        tracing::error!("`UCKeyTranslate` returned with the non-zero value: {}", translate_result);
         return Key::Unidentified(NativeKey::MacOS(scancode));
     }
     if result_len == 0 {
@@ -125,9 +114,8 @@ pub(crate) fn create_key_event(
     let text_with_all_modifiers: Option<SmolStr> = if key_override.is_some() {
         None
     } else {
-        let characters = unsafe { ns_event.characters() }
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let characters =
+            unsafe { ns_event.characters() }.map(|s| s.to_string()).unwrap_or_default();
         if characters.is_empty() {
             None
         } else {
@@ -145,8 +133,8 @@ pub(crate) fn create_key_event(
         let key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { ns_event.modifierFlags() };
-        let has_ctrl = flags_contains(modifiers, NSEventModifierFlagControl);
-        let has_cmd = flags_contains(modifiers, NSEventModifierFlagCommand);
+        let has_ctrl = flags_contains(modifiers, NSEventModifierFlags::NSEventModifierFlagControl);
+        let has_cmd = flags_contains(modifiers, NSEventModifierFlags::NSEventModifierFlagCommand);
 
         let logical_key = match text_with_all_modifiers.as_ref() {
             // Only checking for ctrl and cmd here, not checking for alt because we DO want to
@@ -157,7 +145,7 @@ pub(crate) fn create_key_event(
             Some(text) if !has_ctrl && !has_cmd => {
                 // Character heeding both SHIFT and ALT.
                 Key::Character(text.clone())
-            }
+            },
 
             _ => match key_without_modifiers.as_ref() {
                 // Character heeding just SHIFT, ignoring ALT.
@@ -173,11 +161,7 @@ pub(crate) fn create_key_event(
         (key_from_code.clone(), key_from_code)
     };
 
-    let text = if is_press {
-        logical_key.to_text().map(SmolStr::new)
-    } else {
-        None
-    };
+    let text = if is_press { logical_key.to_text().map(SmolStr::new) } else { None };
 
     let location = code_to_location(physical_key);
 
@@ -188,10 +172,7 @@ pub(crate) fn create_key_event(
         repeat: is_repeat,
         state,
         text,
-        platform_specific: KeyEventExtra {
-            text_with_all_modifiers,
-            key_without_modifiers,
-        },
+        platform_specific: KeyEventExtra { text_with_all_modifiers, key_without_modifiers },
     }
 }
 
@@ -315,17 +296,17 @@ pub fn extra_function_key_to_code(scancode: u16, string: &str) -> PhysicalKey {
 }
 
 // The values are from the https://github.com/apple-oss-distributions/IOHIDFamily/blob/19666c840a6d896468416ff0007040a10b7b46b8/IOHIDSystem/IOKit/hidsystem/IOLLEvent.h#L258-L259
-const NX_DEVICELCTLKEYMASK: NSEventModifierFlags = 0x00000001;
-const NX_DEVICELSHIFTKEYMASK: NSEventModifierFlags = 0x00000002;
-const NX_DEVICERSHIFTKEYMASK: NSEventModifierFlags = 0x00000004;
-const NX_DEVICELCMDKEYMASK: NSEventModifierFlags = 0x00000008;
-const NX_DEVICERCMDKEYMASK: NSEventModifierFlags = 0x00000010;
-const NX_DEVICELALTKEYMASK: NSEventModifierFlags = 0x00000020;
-const NX_DEVICERALTKEYMASK: NSEventModifierFlags = 0x00000040;
-const NX_DEVICERCTLKEYMASK: NSEventModifierFlags = 0x00002000;
+const NX_DEVICELCTLKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000001);
+const NX_DEVICELSHIFTKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000002);
+const NX_DEVICERSHIFTKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000004);
+const NX_DEVICELCMDKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000008);
+const NX_DEVICERCMDKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000010);
+const NX_DEVICELALTKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000020);
+const NX_DEVICERALTKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00000040);
+const NX_DEVICERCTLKEYMASK: NSEventModifierFlags = NSEventModifierFlags(0x00002000);
 
 pub(super) fn flags_contains(flags: NSEventModifierFlags, value: NSEventModifierFlags) -> bool {
-    flags & value == value
+    flags.0 & value.0 == value.0
 }
 
 pub(super) fn lalt_pressed(event: &NSEvent) -> bool {
@@ -343,72 +324,45 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
 
     state.set(
         ModifiersState::SHIFT,
-        flags_contains(flags, NSEventModifierFlagShift),
+        flags_contains(flags, NSEventModifierFlags::NSEventModifierFlagShift),
     );
-    pressed_mods.set(
-        ModifiersKeys::LSHIFT,
-        flags_contains(flags, NX_DEVICELSHIFTKEYMASK),
-    );
-    pressed_mods.set(
-        ModifiersKeys::RSHIFT,
-        flags_contains(flags, NX_DEVICERSHIFTKEYMASK),
-    );
+    pressed_mods.set(ModifiersKeys::LSHIFT, flags_contains(flags, NX_DEVICELSHIFTKEYMASK));
+    pressed_mods.set(ModifiersKeys::RSHIFT, flags_contains(flags, NX_DEVICERSHIFTKEYMASK));
 
     state.set(
         ModifiersState::CONTROL,
-        flags_contains(flags, NSEventModifierFlagControl),
+        flags_contains(flags, NSEventModifierFlags::NSEventModifierFlagControl),
     );
-    pressed_mods.set(
-        ModifiersKeys::LCONTROL,
-        flags_contains(flags, NX_DEVICELCTLKEYMASK),
-    );
-    pressed_mods.set(
-        ModifiersKeys::RCONTROL,
-        flags_contains(flags, NX_DEVICERCTLKEYMASK),
-    );
+    pressed_mods.set(ModifiersKeys::LCONTROL, flags_contains(flags, NX_DEVICELCTLKEYMASK));
+    pressed_mods.set(ModifiersKeys::RCONTROL, flags_contains(flags, NX_DEVICERCTLKEYMASK));
 
     state.set(
         ModifiersState::ALT,
-        flags_contains(flags, NSEventModifierFlagOption),
+        flags_contains(flags, NSEventModifierFlags::NSEventModifierFlagOption),
     );
-    pressed_mods.set(
-        ModifiersKeys::LALT,
-        flags_contains(flags, NX_DEVICELALTKEYMASK),
-    );
-    pressed_mods.set(
-        ModifiersKeys::RALT,
-        flags_contains(flags, NX_DEVICERALTKEYMASK),
-    );
+    pressed_mods.set(ModifiersKeys::LALT, flags_contains(flags, NX_DEVICELALTKEYMASK));
+    pressed_mods.set(ModifiersKeys::RALT, flags_contains(flags, NX_DEVICERALTKEYMASK));
 
     state.set(
         ModifiersState::SUPER,
-        flags_contains(flags, NSEventModifierFlagCommand),
+        flags_contains(flags, NSEventModifierFlags::NSEventModifierFlagCommand),
     );
-    pressed_mods.set(
-        ModifiersKeys::LSUPER,
-        flags_contains(flags, NX_DEVICELCMDKEYMASK),
-    );
-    pressed_mods.set(
-        ModifiersKeys::RSUPER,
-        flags_contains(flags, NX_DEVICERCMDKEYMASK),
-    );
+    pressed_mods.set(ModifiersKeys::LSUPER, flags_contains(flags, NX_DEVICELCMDKEYMASK));
+    pressed_mods.set(ModifiersKeys::RSUPER, flags_contains(flags, NX_DEVICERCMDKEYMASK));
 
-    Modifiers {
-        state,
-        pressed_mods,
-    }
+    Modifiers { state, pressed_mods }
 }
 
 pub(super) fn dummy_event() -> Option<Id<NSEvent>> {
     unsafe {
         NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
-            NSEventTypeApplicationDefined,
+            NSEventType::ApplicationDefined,
             NSPoint::new(0.0, 0.0),
-            0, // Empty NSEventModifierFlags
+            NSEventModifierFlags(0),
             0.0,
             0,
             None,
-            NSEventSubtypeWindowExposed,
+            NSEventSubtype::WindowExposed.0,
             0,
             0,
         )
@@ -549,7 +503,7 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x07 => KeyCode::KeyX,
         0x08 => KeyCode::KeyC,
         0x09 => KeyCode::KeyV,
-        //0x0a => World 1,
+        // 0x0a => World 1,
         0x0b => KeyCode::KeyB,
         0x0c => KeyCode::KeyQ,
         0x0d => KeyCode::KeyW,
@@ -591,7 +545,7 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x31 => KeyCode::Space,
         0x32 => KeyCode::Backquote,
         0x33 => KeyCode::Backspace,
-        //0x34 => unknown,
+        // 0x34 => unknown,
         0x35 => KeyCode::Escape,
         0x36 => KeyCode::SuperRight,
         0x37 => KeyCode::SuperLeft,
@@ -605,22 +559,23 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x3f => KeyCode::Fn,
         0x40 => KeyCode::F17,
         0x41 => KeyCode::NumpadDecimal,
-        //0x42 -> unknown,
+        // 0x42 -> unknown,
         0x43 => KeyCode::NumpadMultiply,
-        //0x44 => unknown,
+        // 0x44 => unknown,
         0x45 => KeyCode::NumpadAdd,
-        //0x46 => unknown,
+        // 0x46 => unknown,
         0x47 => KeyCode::NumLock,
-        //0x48 => KeyCode::NumpadClear,
+        // 0x48 => KeyCode::NumpadClear,
 
         // TODO: (Artur) for me, kVK_VolumeUp is 0x48
         // macOS 10.11
-        // /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h
+        // /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/
+        // Versions/A/Headers/Events.h
         0x49 => KeyCode::AudioVolumeUp,
         0x4a => KeyCode::AudioVolumeDown,
         0x4b => KeyCode::NumpadDivide,
         0x4c => KeyCode::NumpadEnter,
-        //0x4d => unknown,
+        // 0x4d => unknown,
         0x4e => KeyCode::NumpadSubtract,
         0x4f => KeyCode::F18,
         0x50 => KeyCode::F19,
@@ -637,25 +592,25 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x5b => KeyCode::Numpad8,
         0x5c => KeyCode::Numpad9,
         0x5d => KeyCode::IntlYen,
-        //0x5e => JIS Ro,
-        //0x5f => unknown,
+        // 0x5e => JIS Ro,
+        // 0x5f => unknown,
         0x60 => KeyCode::F5,
         0x61 => KeyCode::F6,
         0x62 => KeyCode::F7,
         0x63 => KeyCode::F3,
         0x64 => KeyCode::F8,
         0x65 => KeyCode::F9,
-        //0x66 => JIS Eisuu (macOS),
+        // 0x66 => JIS Eisuu (macOS),
         0x67 => KeyCode::F11,
-        //0x68 => JIS Kanna (macOS),
+        // 0x68 => JIS Kanna (macOS),
         0x69 => KeyCode::F13,
         0x6a => KeyCode::F16,
         0x6b => KeyCode::F14,
-        //0x6c => unknown,
+        // 0x6c => unknown,
         0x6d => KeyCode::F10,
-        //0x6e => unknown,
+        // 0x6e => unknown,
         0x6f => KeyCode::F12,
-        //0x70 => unknown,
+        // 0x70 => unknown,
         0x71 => KeyCode::F15,
         0x72 => KeyCode::Insert,
         0x73 => KeyCode::Home,
@@ -670,7 +625,7 @@ pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
         0x7c => KeyCode::ArrowRight,
         0x7d => KeyCode::ArrowDown,
         0x7e => KeyCode::ArrowUp,
-        //0x7f =>  unknown,
+        // 0x7f =>  unknown,
 
         // 0xA is the caret (^) an macOS's German QERTZ layout. This key is at the same location as
         // backquote (`) on Windows' US layout.

@@ -1,5 +1,5 @@
-use icrate::Foundation::{CGSize, NSObject};
 use objc2::{extern_class, extern_methods, mutability, ClassType};
+use objc2_foundation::{CGSize, NSObject};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]

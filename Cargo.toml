@@ -1,7 +1,10 @@
 [package]
 name = "winit"
-version = "0.29.15"
-authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
+version = "0.30.0"
+authors = [
+    "The winit contributors",
+    "Pierre Krieger <pierre.krieger1708@gmail.com>",
+]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
 readme = "README.md"
@@ -11,6 +14,7 @@ rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
+exclude = ["/.cargo"]
 
 [package.metadata.docs.rs]
 features = [
@@ -45,7 +49,15 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
-wayland = ["wayland-client", "wayland-backend", "wayland-protocols", "wayland-protocols-plasma", "sctk", "ahash", "memmap2"]
+wayland = [
+    "wayland-client",
+    "wayland-backend",
+    "wayland-protocols",
+    "wayland-protocols-plasma",
+    "sctk",
+    "ahash",
+    "memmap2",
+]
 wayland-dlopen = ["wayland-backend/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
@@ -66,87 +78,110 @@ bitflags = "2"
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.1", path = "dpi" }
 rwh_04 = { package = "raw-window-handle", version = "0.4", optional = true }
-rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = ["std"], optional = true }
-rwh_06 = { package = "raw-window-handle", version = "0.6", features = ["std"], optional = true }
+rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = [
+    "std",
+], optional = true }
+rwh_06 = { package = "raw-window-handle", version = "0.6", features = [
+    "std",
+], optional = true }
 serde = { workspace = true, optional = true }
 smol_str = "0.2.0"
 tracing = { version = "0.1.40", default_features = false }
 
 [dev-dependencies]
-image = { version = "0.24.0", default-features = false, features = ["png"] }
+image = { version = "0.25.0", default-features = false, features = ["png"] }
 tracing = { version = "0.1.40", default_features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 winit = { path = ".", features = ["rwh_05"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
-softbuffer = { version = "0.3.0", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"] }
+softbuffer = { version = "0.4.0", default-features = false, features = [
+    "x11",
+    "x11-dlopen",
+    "wayland",
+    "wayland-dlopen",
+] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity = "0.5.0"
-ndk = { version = "0.8.0", default-features = false }
-ndk-sys = "0.5.0"
+android-activity = "0.6.0"
+ndk = { version = "0.9.0", default-features = false }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 core-foundation = "0.9.3"
-objc2 = "0.5.0"
+objc2 = "0.5.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23.1"
 
-[target.'cfg(target_os = "macos")'.dependencies.icrate]
-version = "0.1.0"
+[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
+version = "0.2.0"
 features = [
     "dispatch",
-    "Foundation",
-    "Foundation_NSArray",
-    "Foundation_NSAttributedString",
-    "Foundation_NSMutableAttributedString",
-    "Foundation_NSData",
-    "Foundation_NSDictionary",
-    "Foundation_NSString",
-    "Foundation_NSProcessInfo",
-    "Foundation_NSThread",
-    "Foundation_NSNumber",
-    "AppKit",
-    "AppKit_NSAppearance",
-    "AppKit_NSApplication",
-    "AppKit_NSBitmapImageRep",
-    "AppKit_NSButton",
-    "AppKit_NSColor",
-    "AppKit_NSControl",
-    "AppKit_NSCursor",
-    "AppKit_NSEvent",
-    "AppKit_NSGraphicsContext",
-    "AppKit_NSImage",
-    "AppKit_NSImageRep",
-    "AppKit_NSMenu",
-    "AppKit_NSMenuItem",
-    "AppKit_NSPasteboard",
-    "AppKit_NSResponder",
-    "AppKit_NSScreen",
-    "AppKit_NSTextInputContext",
-    "AppKit_NSView",
-    "AppKit_NSWindow",
-    "AppKit_NSWindowTabGroup",
+    "NSArray",
+    "NSAttributedString",
+    "NSData",
+    "NSDictionary",
+    "NSDistributedNotificationCenter",
+    "NSEnumerator",
+    "NSNotification",
+    "NSObjCRuntime",
+    "NSPathUtilities",
+    "NSProcessInfo",
+    "NSRunLoop",
+    "NSString",
+    "NSThread",
+    "NSValue",
 ]
 
-[target.'cfg(target_os = "ios")'.dependencies.icrate]
-version = "0.1.0"
+[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
+version = "0.2.0"
+features = [
+    "NSAppearance",
+    "NSApplication",
+    "NSBitmapImageRep",
+    "NSButton",
+    "NSControl",
+    "NSCursor",
+    "NSDragging",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSImage",
+    "NSImageRep",
+    "NSMenu",
+    "NSMenuItem",
+    "NSOpenGLView",
+    "NSPasteboard",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSScreen",
+    "NSTextInputClient",
+    "NSTextInputContext",
+    "NSView",
+    "NSWindow",
+    "NSWindowScripting",
+    "NSWindowTabGroup",
+]
+
+[target.'cfg(target_os = "ios")'.dependencies.objc2-foundation]
+version = "0.2.0"
 features = [
     "dispatch",
-    "Foundation",
-    "Foundation_NSArray",
-    "Foundation_NSString",
-    "Foundation_NSProcessInfo",
-    "Foundation_NSThread",
-    "Foundation_NSSet",
+    "NSArray",
+    "NSEnumerator",
+    "NSGeometry",
+    "NSObjCRuntime",
+    "NSString",
+    "NSProcessInfo",
+    "NSThread",
+    "NSSet",
 ]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 unicode-segmentation = "1.7.1"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.48"
+version = "0.52.0"
 features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
@@ -181,15 +216,35 @@ calloop = "0.12.3"
 libc = "0.2.64"
 memmap2 = { version = "0.9.0", optional = true }
 percent-encoding = { version = "2.0", optional = true }
-rustix = { version = "0.38.4", default-features = false, features = ["std", "system", "thread", "process"] }
-sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = ["calloop"], optional = true }
-sctk-adwaita = { version = "0.8.0", default_features = false, optional = true }
-wayland-backend = { version = "0.3.0", default_features = false, features = ["client_system"], optional = true }
+rustix = { version = "0.38.4", default-features = false, features = [
+    "std",
+    "system",
+    "thread",
+    "process",
+] }
+sctk = { package = "smithay-client-toolkit", version = "0.18.0", default-features = false, features = [
+    "calloop",
+], optional = true }
+sctk-adwaita = { version = "0.9.0", default_features = false, optional = true }
+wayland-backend = { version = "0.3.0", default_features = false, features = [
+    "client_system",
+], optional = true }
 wayland-client = { version = "0.31.1", optional = true }
-wayland-protocols = { version = "0.31.0", features = [ "staging"], optional = true }
-wayland-protocols-plasma = { version = "0.2.0", features = [ "client" ], optional = true }
+wayland-protocols = { version = "0.31.0", features = [
+    "staging",
+], optional = true }
+wayland-protocols-plasma = { version = "0.2.0", features = [
+    "client",
+], optional = true }
 x11-dl = { version = "2.19.1", optional = true }
-x11rb = { version = "0.13.0", default-features = false, features = ["allow-unsafe-code", "dl-libxcb", "randr", "resource_manager", "xinput", "xkb"], optional = true }
+x11rb = { version = "0.13.0", default-features = false, features = [
+    "allow-unsafe-code",
+    "dl-libxcb",
+    "randr",
+    "resource_manager",
+    "xinput",
+    "xkb",
+], optional = true }
 xkbcommon-dl = "0.4.2"
 
 [target.'cfg(target_os = "redox")'.dependencies]
@@ -253,8 +308,8 @@ atomic-waker = "1"
 concurrent-queue = { version = "2", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
-console_log = "1"
-web-sys = { version = "0.3.22", features = ['CanvasRenderingContext2d'] }
+console_error_panic_hook = "0.1"
+tracing-web = "0.1"
 
 [[example]]
 doc-scrape-examples = true
@@ -262,10 +317,7 @@ name = "window"
 
 [workspace]
 resolver = "2"
-members = [
-    "dpi",
-    "run-wasm",
-]
+members = ["dpi"]
 
 [workspace.package]
 rust-version = "1.70.0"

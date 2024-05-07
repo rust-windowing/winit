@@ -1,24 +1,18 @@
-use std::{
-    any::Any,
-    cell::{Cell, RefCell},
-    collections::VecDeque,
-    mem, panic,
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::any::Any;
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use std::{mem, panic};
 
 use windows_sys::Win32::Foundation::HWND;
 
-use crate::{
-    dpi::PhysicalSize,
-    event::{Event, InnerSizeWriter, StartCause, WindowEvent},
-    platform_impl::platform::{
-        event_loop::{WindowData, GWL_USERDATA},
-        get_window_long,
-    },
-    window::WindowId,
-};
+use crate::dpi::PhysicalSize;
+use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
+use crate::platform_impl::platform::event_loop::{WindowData, GWL_USERDATA};
+use crate::platform_impl::platform::get_window_long;
+use crate::window::WindowId;
 
 use super::ControlFlow;
 
@@ -187,12 +181,12 @@ impl<T> EventLoopRunner<T> {
                     Err(e) => {
                         self.panic_error.set(Some(e));
                         None
-                    }
+                    },
                 },
                 Some(e) => {
                     self.panic_error.set(Some(e));
                     None
-                }
+                },
             }
         } else {
             self.panic_error.set(panic_error);
@@ -212,22 +206,16 @@ impl<T> EventLoopRunner<T> {
     }
 
     pub(crate) fn send_event(&self, event: Event<T>) {
-        if let Event::WindowEvent {
-            event: WindowEvent::RedrawRequested,
-            ..
-        } = event
-        {
+        if let Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } = event {
             self.call_event_handler(event);
             // As a rule, to ensure that `pump_events` can't block an external event loop
             // for too long, we always guarantee that `pump_events` will return control to
             // the external loop asap after a `RedrawRequested` event is dispatched.
             self.interrupt_msg_dispatch.set(true);
         } else if self.should_buffer() {
-            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-            // the event to a buffer to be processed later.
-            self.event_buffer
-                .borrow_mut()
-                .push_back(BufferedEvent::from_event(event))
+            // If the runner is already borrowed, we're in the middle of an event loop invocation.
+            // Add the event to a buffer to be processed later.
+            self.event_buffer.borrow_mut().push_back(BufferedEvent::from_event(event))
         } else {
             self.call_event_handler(event);
             self.dispatch_buffered_events();
@@ -240,8 +228,10 @@ impl<T> EventLoopRunner<T> {
 
     fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
-            let mut event_handler = self.event_handler.take()
-                .expect("either event handler is re-entrant (likely), or no event handler is registered (very unlikely)");
+            let mut event_handler = self.event_handler.take().expect(
+                "either event handler is re-entrant (likely), or no event handler is registered \
+                 (very unlikely)",
+            );
 
             event_handler(event);
 
@@ -290,10 +280,7 @@ impl<T> EventLoopRunner<T> {
     fn move_state_to(&self, new_runner_state: RunnerState) {
         use RunnerState::{Destroyed, HandlingMainEvents, Idle, Uninitialized};
 
-        match (
-            self.runner_state.replace(new_runner_state),
-            new_runner_state,
-        ) {
+        match (self.runner_state.replace(new_runner_state), new_runner_state) {
             (Uninitialized, Uninitialized)
             | (Idle, Idle)
             | (HandlingMainEvents, HandlingMainEvents)
@@ -302,38 +289,38 @@ impl<T> EventLoopRunner<T> {
             // State transitions that initialize the event loop.
             (Uninitialized, HandlingMainEvents) => {
                 self.call_new_events(true);
-            }
+            },
             (Uninitialized, Idle) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-            }
+            },
             (Uninitialized, Destroyed) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
-            }
+            },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
             // State transitions that start the event handling process.
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
-            }
+            },
             (Idle, Destroyed) => {
                 self.call_event_handler(Event::LoopExiting);
-            }
+            },
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-            }
+            },
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
-            }
+            },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
@@ -341,7 +328,7 @@ impl<T> EventLoopRunner<T> {
 
     fn call_new_events(&self, init: bool) {
         let start_cause = match (init, self.control_flow(), self.exit.get()) {
-            (true, _, _) => StartCause::Init,
+            (true, ..) => StartCause::Init,
             (false, ControlFlow::Poll, None) => StartCause::Poll,
             (false, _, Some(_)) | (false, ControlFlow::Wait, None) => StartCause::WaitCancelled {
                 requested_resume: None,
@@ -359,7 +346,7 @@ impl<T> EventLoopRunner<T> {
                         start: self.last_events_cleared.get(),
                     }
                 }
-            }
+            },
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         // NB: For consistency all platforms must emit a 'resumed' event even though Windows
@@ -375,21 +362,12 @@ impl<T> BufferedEvent<T> {
     pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        inner_size_writer,
-                    },
+                event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(
                 window_id,
                 scale_factor,
-                *inner_size_writer
-                    .new_inner_size
-                    .upgrade()
-                    .unwrap()
-                    .lock()
-                    .unwrap(),
+                *inner_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
             ),
             event => BufferedEvent::Event(event),
         }
@@ -422,7 +400,7 @@ impl<T> BufferedEvent<T> {
 
                     window_flags.set_size((window_id.0).0, inner_size);
                 }
-            }
+            },
         }
     }
 }

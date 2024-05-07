@@ -19,6 +19,7 @@
 //!
 //! | winit |       ndk-glue               |
 //! | :---: | :--------------------------: |
+//! | 0.30  | `android-activity = "0.6"`   |
 //! | 0.29  | `android-activity = "0.5"`   |
 //! | 0.28  | `android-activity = "0.4"`   |
 //! | 0.27  | `ndk-glue = "0.7"`           |
@@ -58,16 +59,19 @@
 //!
 //! ## Converting from `ndk-glue` to `android-activity`
 //!
-//! If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building with `cargo apk`, then the minimal changes would be:
+//! If your application is currently based on `NativeActivity` via the `ndk-glue` crate and building
+//! with `cargo apk`, then the minimal changes would be:
 //! 1. Remove `ndk-glue` from your `Cargo.toml`
-//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.29.15", features = [ "android-native-activity" ] }`
-//! 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize logging as above).
-//! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your event loop (as shown above).
+//! 2. Enable the `"android-native-activity"` feature for Winit: `winit = { version = "0.30.0",
+//!    features = [ "android-native-activity" ] }`
+//! 3. Add an `android_main` entrypoint (as above), instead of using the '`[ndk_glue::main]` proc
+//!    macro from `ndk-macros` (optionally add a dependency on `android_logger` and initialize
+//!    logging as above).
+//! 4. Pass a clone of the `AndroidApp` that your application receives to Winit when building your
+//!    event loop (as shown above).
 
-use crate::{
-    event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder},
-    window::{Window, WindowAttributes},
-};
+use crate::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder};
+use crate::window::{Window, WindowAttributes};
 
 use self::activity::{AndroidApp, ConfigurationRef, Rect};
 
@@ -146,7 +150,7 @@ impl<T> EventLoopBuilderExtAndroid for EventLoopBuilder<T> {
 /// For compatibility applications should then import the `AndroidApp` type for
 /// their `android_main(app: AndroidApp)` function like:
 /// ```rust
-/// #[cfg(target_os="android")]
+/// #[cfg(target_os = "android")]
 /// use winit::platform::android::activity::AndroidApp;
 /// ```
 pub mod activity {

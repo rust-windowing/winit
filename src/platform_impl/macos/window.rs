@@ -1,9 +1,9 @@
 #![allow(clippy::unnecessary_cast)]
 
-use icrate::AppKit::{NSResponder, NSWindow};
-use icrate::Foundation::{MainThreadBound, MainThreadMarker, NSObject};
 use objc2::rc::{autoreleasepool, Id};
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
+use objc2_app_kit::{NSResponder, NSWindow};
+use objc2_foundation::{MainThreadBound, MainThreadMarker, NSObject};
 
 use super::event_loop::ActiveEventLoop;
 use super::window_delegate::WindowDelegate;
@@ -18,8 +18,7 @@ pub(crate) struct Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        self.window
-            .get_on_main(|window| autoreleasepool(|_| window.close()))
+        self.window.get_on_main(|window| autoreleasepool(|_| window.close()))
     }
 }
 
@@ -29,7 +28,9 @@ impl Window {
         attributes: WindowAttributes,
     ) -> Result<Self, RootOsError> {
         let mtm = window_target.mtm;
-        let delegate = autoreleasepool(|_| WindowDelegate::new(attributes, mtm))?;
+        let delegate = autoreleasepool(|_| {
+            WindowDelegate::new(window_target.app_delegate(), attributes, mtm)
+        })?;
         Ok(Window {
             window: MainThreadBound::new(delegate.window().retain(), mtm),
             delegate: MainThreadBound::new(delegate, mtm),
@@ -65,9 +66,7 @@ impl Window {
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::AppKit(
-            rwh_06::AppKitDisplayHandle::new(),
-        ))
+        Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
     }
 }
 

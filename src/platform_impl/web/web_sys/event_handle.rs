@@ -1,4 +1,5 @@
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::EventTarget;
 
 pub struct EventListenerHandle<T: ?Sized> {
@@ -16,11 +17,7 @@ impl<T: ?Sized> EventListenerHandle<T> {
         target
             .add_event_listener_with_callback(event_type, listener.as_ref().unchecked_ref())
             .expect("Failed to add event listener");
-        EventListenerHandle {
-            target,
-            event_type,
-            listener,
-        }
+        EventListenerHandle { target, event_type, listener }
     }
 }
 

@@ -16,9 +16,7 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
-        self.sender
-            .send(event)
-            .map_err(|SendError(event)| EventLoopProxyError::Closed(event))?;
+        self.sender.send(event).map_err(|SendError(event)| EventLoopProxyError::Closed(event))?;
         self.runner.wake();
         Ok(())
     }
@@ -26,9 +24,6 @@ impl<T: 'static> EventLoopProxy<T> {
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            runner: self.runner.clone(),
-            sender: self.sender.clone(),
-        }
+        Self { runner: self.runner.clone(), sender: self.sender.clone() }
     }
 }

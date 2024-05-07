@@ -17,8 +17,8 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
-// TODO: FP, remove when <https://github.com/rust-lang/rust/issues/121621> is fixed.
-#![allow(unknown_lints, non_local_definitions)]
+// TODO: FP, remove when <https://github.com/rust-lang/rust-clippy/issues/12377> is fixed.
+#![allow(clippy::empty_docs)]
 
 mod r#async;
 mod cursor;
@@ -45,6 +45,7 @@ pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
-pub(crate) use cursor::CustomCursor as PlatformCustomCursor;
-pub(crate) use cursor::CustomCursorFuture;
-pub(crate) use cursor::CustomCursorSource as PlatformCustomCursorSource;
+pub(crate) use cursor::{
+    CustomCursor as PlatformCustomCursor, CustomCursorFuture,
+    CustomCursorSource as PlatformCustomCursorSource,
+};

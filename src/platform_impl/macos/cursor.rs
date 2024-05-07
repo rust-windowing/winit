@@ -2,24 +2,23 @@ use std::ffi::c_uchar;
 use std::slice;
 use std::sync::OnceLock;
 
-use icrate::AppKit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
-use icrate::Foundation::{
-    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
-    NSString,
-};
 use objc2::rc::Id;
 use objc2::runtime::Sel;
 use objc2::{msg_send_id, sel, ClassType};
+use objc2_app_kit::{NSBitmapImageRep, NSCursor, NSDeviceRGBColorSpace, NSImage};
+use objc2_foundation::{
+    ns_string, NSData, NSDictionary, NSNumber, NSObject, NSObjectProtocol, NSPoint, NSSize,
+    NSString,
+};
 
-use crate::cursor::CursorImage;
-use crate::cursor::OnlyCursorImageSource;
+use crate::cursor::{CursorImage, OnlyCursorImageSource};
 use crate::window::CursorIcon;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CustomCursor(pub(crate) Id<NSCursor>);
 
 // SAFETY: NSCursor is immutable and thread-safe
-// TODO(madsmtm): Put this logic in icrate itself
+// TODO(madsmtm): Put this logic in objc2-app-kit itself
 unsafe impl Send for CustomCursor {}
 unsafe impl Sync for CustomCursor {}
 
@@ -118,7 +117,10 @@ unsafe fn load_webkit_cursor(name: &NSString) -> Id<NSCursor> {
     // cursors, and will seem completely standard to macOS users.
     //
     // https://stackoverflow.com/a/21786835/5435443
-    let root = ns_string!("/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors");
+    let root = ns_string!(
+        "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/\
+         HIServices.framework/Versions/A/Resources/cursors"
+    );
     let cursor_path = root.stringByAppendingPathComponent(name);
 
     let pdf_path = cursor_path.stringByAppendingPathComponent(ns_string!("cursor.pdf"));
@@ -166,10 +168,10 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
     // You can reproduce this via ImageMagick.
     // $ convert -size 16x16 xc:none cursor.gif
     static CURSOR_BYTES: &[u8] = &[
-        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x10, 0x00, 0x10, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
-        0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x0E, 0x84, 0x8F, 0xA9, 0xCB, 0xED, 0x0F,
-        0xA3, 0x9C, 0xB4, 0xDA, 0x8B, 0xB3, 0x3E, 0x05, 0x00, 0x3B,
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x10, 0x00, 0x10, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00,
+        0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x0e, 0x84, 0x8f, 0xa9, 0xcb, 0xed, 0x0f,
+        0xa3, 0x9c, 0xb4, 0xda, 0x8b, 0xb3, 0x3e, 0x05, 0x00, 0x3b,
     ];
 
     fn new_invisible() -> Id<NSCursor> {
@@ -182,10 +184,7 @@ pub(crate) fn invisible_cursor() -> Id<NSCursor> {
 
     // Cache this for efficiency
     static CURSOR: OnceLock<CustomCursor> = OnceLock::new();
-    CURSOR
-        .get_or_init(|| CustomCursor(new_invisible()))
-        .0
-        .clone()
+    CURSOR.get_or_init(|| CustomCursor(new_invisible())).0.clone()
 }
 
 pub(crate) fn cursor_from_icon(icon: CursorIcon) -> Id<NSCursor> {

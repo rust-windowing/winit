@@ -89,10 +89,7 @@ impl Schedule {
                 .catch(handler);
         });
 
-        Schedule {
-            _closure: closure,
-            inner: Inner::Scheduler { controller },
-        }
+        Schedule { _closure: closure, inner: Inner::Scheduler { controller } }
     }
 
     fn new_idle_callback<F>(window: web_sys::Window, f: F) -> Schedule
@@ -104,10 +101,7 @@ impl Schedule {
             .request_idle_callback(closure.as_ref().unchecked_ref())
             .expect("Failed to request idle callback");
 
-        Schedule {
-            _closure: closure,
-            inner: Inner::IdleCallback { window, handle },
-        }
+        Schedule { _closure: closure, inner: Inner::IdleCallback { window, handle } }
     }
 
     fn new_timeout<F>(window: web_sys::Window, f: F, duration: Option<Duration>) -> Schedule
@@ -122,9 +116,7 @@ impl Schedule {
 
         let port_2 = channel.port2();
         let timeout_closure = Closure::new(move || {
-            port_2
-                .post_message(&JsValue::UNDEFINED)
-                .expect("Failed to send message")
+            port_2.post_message(&JsValue::UNDEFINED).expect("Failed to send message")
         });
         let handle = if let Some(duration) = duration {
             // `Duration::as_millis()` always rounds down (because of truncation), we want to round
@@ -168,16 +160,11 @@ impl Drop for Schedule {
         match &self.inner {
             Inner::Scheduler { controller, .. } => controller.abort(),
             Inner::IdleCallback { window, handle, .. } => window.cancel_idle_callback(*handle),
-            Inner::Timeout {
-                window,
-                handle,
-                port,
-                ..
-            } => {
+            Inner::Timeout { window, handle, port, .. } => {
                 window.clear_timeout_with_handle(*handle);
                 port.close();
                 port.set_onmessage(None);
-            }
+            },
         }
     }
 }
