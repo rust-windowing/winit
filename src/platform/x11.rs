@@ -99,7 +99,13 @@ impl ActiveEventLoopExtX11 for ActiveEventLoop {
     }
 }
 
-impl<T: 'static> ActiveEventLoopExtX11 for EventLoop<T> {
+/// Additional methods on [`EventLoop`] that are specific to X11.
+pub trait EventLoopExtX11 {
+    /// True if the [`EventLoop`] uses X11.
+    fn is_x11(&self) -> bool;
+}
+
+impl<T: 'static> EventLoopExtX11 for EventLoop<T> {
     #[inline]
     fn is_x11(&self) -> bool {
         !self.event_loop.is_wayland()

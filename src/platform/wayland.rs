@@ -32,7 +32,13 @@ impl ActiveEventLoopExtWayland for ActiveEventLoop {
     }
 }
 
-impl<T: 'static> ActiveEventLoopExtWayland for EventLoop<T> {
+/// Additional methods on [`EventLoop`] that are specific to Wayland.
+pub trait EventLoopExtWayland {
+    /// True if the [`EventLoop`] uses Wayland.
+    fn is_wayland(&self) -> bool;
+}
+
+impl<T: 'static> EventLoopExtWayland for EventLoop<T> {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.event_loop.is_wayland()
