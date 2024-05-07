@@ -190,7 +190,7 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// Emitted when the event loop is being shut down.
     ///
     /// This is irreversible - if this method is called, it is guaranteed that the event loop
-    /// will exist right after.
+    /// will exit right after.
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
         let _ = event_loop;
     }
