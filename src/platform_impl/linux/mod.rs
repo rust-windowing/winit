@@ -19,9 +19,9 @@ use smol_str::SmolStr;
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::event_loop::EventLoopProxyError::Closed;
 use crate::event_loop::{
     ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents,
-    EventLoopProxyError::Closed,
 };
 use crate::icon::Icon;
 use crate::keyboard::Key;

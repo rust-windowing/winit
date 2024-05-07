@@ -13,7 +13,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::{mem, panic, ptr};
 
-use crate::{event_loop::EventLoopProxyError, utils::Lazy};
+use crate::event_loop::EventLoopProxyError;
+use crate::utils::Lazy;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
