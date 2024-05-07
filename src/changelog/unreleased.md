@@ -39,3 +39,11 @@ The migration guide could reference other migration examples in the current
 changelog entry.
 
 ## Unreleased
+
+### Added
+
+- Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+
+### Fixed
+
+- On macOS, fix panic on exit when dropping windows outside the event loop.
