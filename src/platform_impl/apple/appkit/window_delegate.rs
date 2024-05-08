@@ -15,15 +15,16 @@ use objc2_app_kit::{
     NSAppKitVersionNumber, NSAppKitVersionNumber10_12, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSApplication, NSApplicationPresentationOptions, NSBackingStoreType,
     NSColor, NSDraggingDestination, NSFilenamesPboardType, NSPasteboard,
-    NSRequestUserAttentionType, NSScreen, NSView, NSWindowButton, NSWindowDelegate,
-    NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState, NSWindowOrderingMode,
-    NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode, NSWindowTitleVisibility,
+    NSRequestUserAttentionType, NSScreen, NSView, NSViewFrameDidChangeNotification, NSWindowButton,
+    NSWindowDelegate, NSWindowFullScreenButton, NSWindowLevel, NSWindowOcclusionState,
+    NSWindowOrderingMode, NSWindowSharingType, NSWindowStyleMask, NSWindowTabbingMode,
+    NSWindowTitleVisibility,
 };
 use objc2_foundation::{
     ns_string, CGFloat, MainThreadMarker, NSArray, NSCopying, NSDictionary, NSKeyValueChangeKey,
-    NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions, NSObject,
-    NSObjectNSDelayedPerforming, NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    NSKeyValueChangeNewKey, NSKeyValueChangeOldKey, NSKeyValueObservingOptions,
+    NSNotificationCenter, NSObject, NSObjectNSDelayedPerforming,
+    NSObjectNSKeyValueObserverRegistration, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
 };
 use tracing::{trace, warn};
 
@@ -164,7 +165,7 @@ declare_class!(
         #[method(windowDidResize:)]
         fn window_did_resize(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidResize:");
-            // NOTE: WindowEvent::SurfaceResized is reported in frameDidChange.
+            // NOTE: WindowEvent::SurfaceResized is reported using NSViewFrameDidChangeNotification.
             self.emit_move_event();
         }
 
@@ -632,9 +633,9 @@ fn new_window(
 
         let view = WinitView::new(
             app_state,
-            &window,
             attrs.platform_specific.accepts_first_mouse,
             attrs.platform_specific.option_as_alt,
+            mtm,
         );
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
@@ -655,6 +656,23 @@ fn new_window(
         // Configure the new view as the "key view" for the window
         window.setContentView(Some(&view));
         window.setInitialFirstResponder(Some(&view));
+
+        // Configure the view to send notifications whenever its frame rectangle changes.
+        //
+        // We explicitly do this _after_ setting the view as the content view of the window, to
+        // avoid a resize event when creating the window.
+        view.setPostsFrameChangedNotifications(true);
+        // `setPostsFrameChangedNotifications` posts the notification immediately, so register the
+        // observer _after_, again so that the event isn't triggered initially.
+        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
+        unsafe {
+            notification_center.addObserver_selector_name_object(
+                &view,
+                sel!(viewFrameDidChangeNotification:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&view),
+            )
+        }
 
         if attrs.transparent {
             window.setOpaque(false);
