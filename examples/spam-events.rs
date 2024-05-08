@@ -33,15 +33,12 @@ impl ApplicationHandler<UserEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         // write events to file, leave stdout for other info
         use std::io::Write;
-        write!(&mut self.file, "User event: {event:?}\n").unwrap();
+        writeln!(&mut self.file, "User event: {event:?}").unwrap();
 
-        match event {
-            UserEvent::Counter(c) => {
-                if c == 15000 {
-                    std::process::exit(0);
-                }
-            },
-            _ => {},
+        if let UserEvent::Counter(c) = event {
+            if c == 15000 {
+                std::process::exit(0);
+            }
         }
     }
 
