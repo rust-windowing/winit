@@ -21,4 +21,19 @@ fn main() {
         wayland_platform: { all(feature = "wayland", free_unix, not(redox)) },
         orbital_platform: { redox },
     }
+
+    println!("cargo:rustc-check-cfg=cfg(android_platform)");
+    println!("cargo:rustc-check-cfg=cfg(web_platform)");
+    println!("cargo:rustc-check-cfg=cfg(macos_platform)");
+    println!("cargo:rustc-check-cfg=cfg(ios_platform)");
+    println!("cargo:rustc-check-cfg=cfg(windows_platform)");
+    println!("cargo:rustc-check-cfg=cfg(apple)");
+    println!("cargo:rustc-check-cfg=cfg(free_unix)");
+    println!("cargo:rustc-check-cfg=cfg(redox)");
+
+    println!("cargo:rustc-check-cfg=cfg(x11_platform)");
+    println!("cargo:rustc-check-cfg=cfg(wayland_platform)");
+    println!("cargo:rustc-check-cfg=cfg(orbital_platform)");
+
+    println!("cargo:rustc-check-cfg=cfg(unreleased_changelogs)");
 }

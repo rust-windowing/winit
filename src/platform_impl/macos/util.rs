@@ -1,7 +1,4 @@
-use objc2_foundation::{NSNotFound, NSRange, NSUInteger};
 use tracing::trace;
-
-pub static EMPTY_RANGE: NSRange = NSRange { location: NSNotFound as NSUInteger, length: 0 };
 
 macro_rules! trace_scope {
     ($s:literal) => {

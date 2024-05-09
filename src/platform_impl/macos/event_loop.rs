@@ -78,6 +78,10 @@ impl ActiveEventLoop {
         RootWindowTarget { p, _marker: PhantomData }
     }
 
+    pub(super) fn app_delegate(&self) -> &ApplicationDelegate {
+        &self.delegate
+    }
+
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> RootCustomCursor {
         RootCustomCursor { inner: CustomCursor::new(source.inner) }
     }
@@ -133,9 +137,7 @@ impl ActiveEventLoop {
     pub(crate) fn owned_display_handle(&self) -> OwnedDisplayHandle {
         OwnedDisplayHandle
     }
-}
 
-impl ActiveEventLoop {
     pub(crate) fn hide_application(&self) {
         NSApplication::sharedApplication(self.mtm).hide(None)
     }
