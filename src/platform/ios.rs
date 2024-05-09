@@ -76,7 +76,7 @@ pub trait EventLoopExtIOS {
     fn idiom(&self) -> Idiom;
 }
 
-impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
+impl EventLoopExtIOS for EventLoop {
     fn idiom(&self) -> Idiom {
         self.event_loop.idiom()
     }

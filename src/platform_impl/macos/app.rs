@@ -5,6 +5,7 @@ use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, N
 use objc2_foundation::{MainThreadMarker, NSObject};
 
 use super::app_state::ApplicationDelegate;
+use super::DEVICE_ID;
 use crate::event::{DeviceEvent, ElementState};
 
 declare_class!(
@@ -57,29 +58,47 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
             let delta_y = unsafe { event.deltaY() } as f64;
 
             if delta_x != 0.0 {
-                delegate.maybe_queue_device_event(DeviceEvent::Motion { axis: 0, value: delta_x });
+                delegate.maybe_queue_with_user_app(move |app, event_loop| {
+                    app.device_event(event_loop, DEVICE_ID, DeviceEvent::Motion {
+                        axis: 0,
+                        value: delta_x,
+                    })
+                });
             }
 
             if delta_y != 0.0 {
-                delegate.maybe_queue_device_event(DeviceEvent::Motion { axis: 1, value: delta_y })
+                delegate.maybe_queue_with_user_app(move |app, event_loop| {
+                    app.device_event(event_loop, DEVICE_ID, DeviceEvent::Motion {
+                        axis: 1,
+                        value: delta_y,
+                    })
+                })
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                delegate.maybe_queue_device_event(DeviceEvent::MouseMotion {
-                    delta: (delta_x, delta_y),
+                delegate.maybe_queue_with_user_app(move |app, event_loop| {
+                    app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseMotion {
+                        delta: (delta_x, delta_y),
+                    })
                 });
             }
         },
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
-            delegate.maybe_queue_device_event(DeviceEvent::Button {
-                button: unsafe { event.buttonNumber() } as u32,
-                state: ElementState::Pressed,
+            let button = unsafe { event.buttonNumber() } as u32;
+            delegate.maybe_queue_with_user_app(move |app, event_loop| {
+                app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
+                    button,
+                    state: ElementState::Pressed,
+                })
             });
         },
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
-            delegate.maybe_queue_device_event(DeviceEvent::Button {
-                button: unsafe { event.buttonNumber() } as u32,
-                state: ElementState::Released,
+            let button = unsafe { event.buttonNumber() } as u32;
+            delegate.maybe_queue_with_user_app(move |app, event_loop| {
+                app.device_event(event_loop, DEVICE_ID, DeviceEvent::Button {
+                    button,
+                    state: ElementState::Released,
+                })
             });
         },
         _ => (),

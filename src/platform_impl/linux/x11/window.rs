@@ -876,11 +876,11 @@ impl UnownedWindow {
 
     /// Refresh the API for the given monitor.
     #[inline]
-    pub(super) fn refresh_dpi_for_monitor<T: 'static>(
+    pub(super) fn refresh_dpi_for_monitor(
         &self,
         new_monitor: &X11MonitorHandle,
         maybe_prev_scale_factor: Option<f64>,
-        mut callback: impl FnMut(Event<T>),
+        mut callback: impl FnMut(Event),
     ) {
         // Check if the self is on this monitor
         let monitor = self.shared_state_lock().last_monitor.clone();
@@ -901,7 +901,7 @@ impl UnownedWindow {
             let window_id = crate::window::WindowId(self.id());
             let old_inner_size = PhysicalSize::new(width, height);
             let inner_size = Arc::new(Mutex::new(PhysicalSize::new(new_width, new_height)));
-            callback(Event::WindowEvent {
+            callback(Event::Window {
                 window_id,
                 event: WindowEvent::ScaleFactorChanged {
                     scale_factor: new_monitor.scale_factor,
@@ -1805,9 +1805,7 @@ impl UnownedWindow {
     #[inline]
     pub fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
         let serial = AsyncRequestSerial::get();
-        self.activation_sender
-            .send((self.id(), serial))
-            .expect("activation token channel should never be closed");
+        self.activation_sender.send((self.id(), serial));
         Ok(serial)
     }
 
@@ -1818,7 +1816,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId(self.xwindow as _)).unwrap();
+        self.redraw_sender.send(WindowId(self.xwindow as _));
     }
 
     #[inline]

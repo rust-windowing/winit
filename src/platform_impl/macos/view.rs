@@ -31,6 +31,7 @@ use crate::event::{
 };
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
+use crate::window::WindowId as RootWindowId;
 
 #[derive(Debug)]
 struct CursorState {
@@ -686,7 +687,9 @@ declare_class!(
 
             self.update_modifiers(event, false);
 
-            self.ivars().app_delegate.maybe_queue_device_event(DeviceEvent::MouseWheel { delta });
+            self.ivars().app_delegate.maybe_queue_with_user_app(move |app, event_loop|
+                app.device_event(event_loop, DEVICE_ID, DeviceEvent::MouseWheel { delta })
+            );
             self.queue_event(WindowEvent::MouseWheel {
                 device_id: DEVICE_ID,
                 delta,
@@ -830,7 +833,10 @@ impl WinitView {
     }
 
     fn queue_event(&self, event: WindowEvent) {
-        self.ivars().app_delegate.maybe_queue_window_event(self.window().id(), event);
+        let window_id = RootWindowId(self.window().id());
+        self.ivars().app_delegate.maybe_queue_with_user_app(move |app, event_loop| {
+            app.window_event(event_loop, window_id, event)
+        });
     }
 
     fn scale_factor(&self) -> f64 {

@@ -18,7 +18,6 @@ use js_sys::Function;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
 use std::iter;
-use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
@@ -28,7 +27,7 @@ use web_time::{Duration, Instant};
 
 pub struct Shared(Rc<Execution>);
 
-pub(super) type EventHandler = dyn FnMut(Event<()>);
+pub(super) type EventHandler = dyn FnMut(Event);
 
 impl Clone for Shared {
     fn clone(&self) -> Self {
@@ -137,13 +136,12 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner =
-                WakerSpawner::new(main_thread, weak.clone(), |runner, count, local| {
-                    if let Some(runner) = runner.upgrade() {
-                        Shared(runner).send_user_events(count, local)
-                    }
-                })
-                .expect("`EventLoop` has to be created in the main thread");
+            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, local| {
+                if let Some(runner) = runner.upgrade() {
+                    Shared(runner).send_proxy_wake_up(local);
+                }
+            })
+            .expect("`EventLoop` has to be created in the main thread");
 
             Execution {
                 main_thread,
@@ -203,7 +201,7 @@ impl Shared {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootActiveEventLoop reference
-    pub fn set_listener(&self, event_handler: Box<EventHandler>) {
+    pub(crate) fn set_listener(&self, event_handler: Box<EventHandler>) {
         {
             let mut runner = self.0.runner.borrow_mut();
             assert!(matches!(*runner, RunnerEnum::Pending));
@@ -266,7 +264,7 @@ impl Shared {
                         ElementState::Released
                     };
 
-                    runner.send_event(Event::DeviceEvent {
+                    runner.send_event(Event::Device {
                         device_id,
                         event: DeviceEvent::Button { button: button.to_id(), state },
                     });
@@ -279,17 +277,17 @@ impl Shared {
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
+                    let x_motion = (delta.x != 0.0).then_some(Event::Device {
                         device_id,
                         event: DeviceEvent::Motion { axis: 0, value: delta.x },
                     });
 
-                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
+                    let y_motion = (delta.y != 0.0).then_some(Event::Device {
                         device_id,
                         event: DeviceEvent::Motion { axis: 1, value: delta.y },
                     });
 
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
+                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::Device {
                         device_id,
                         event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
                     }))
@@ -307,7 +305,7 @@ impl Shared {
                 }
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
-                    runner.send_event(Event::DeviceEvent {
+                    runner.send_event(Event::Device {
                         device_id: RootDeviceId(DeviceId(0)),
                         event: DeviceEvent::MouseWheel { delta },
                     });
@@ -328,7 +326,7 @@ impl Shared {
                 }
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
-                runner.send_event(Event::DeviceEvent {
+                runner.send_event(Event::Device {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
@@ -351,7 +349,7 @@ impl Shared {
                 }
 
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
-                runner.send_event(Event::DeviceEvent {
+                runner.send_event(Event::Device {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
                     event: DeviceEvent::Button {
                         button: button.to_id(),
@@ -369,7 +367,7 @@ impl Shared {
                     return;
                 }
 
-                runner.send_event(Event::DeviceEvent {
+                runner.send_event(Event::Device {
                     device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
@@ -387,7 +385,7 @@ impl Shared {
                     return;
                 }
 
-                runner.send_event(Event::DeviceEvent {
+                runner.send_event(Event::Device {
                     device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     event: DeviceEvent::Key(RawKeyEvent {
                         physical_key: backend::event::key_code(&event),
@@ -413,7 +411,7 @@ impl Shared {
                             if let (false, Some(true) | None) | (true, Some(true)) =
                                 (is_visible, canvas.borrow().is_intersecting)
                             {
-                                runner.send_event(Event::WindowEvent {
+                                runner.send_event(Event::Window {
                                     window_id: *id,
                                     event: WindowEvent::Occluded(!is_visible),
                                 });
@@ -466,11 +464,11 @@ impl Shared {
         self.send_events(iter::once(event));
     }
 
-    // Add a series of user events to the event loop runner
+    // Add a user event to the event loop runner.
     //
     // This will schedule the event loop to wake up instead of waking it up immediately if its not
     // running.
-    pub(crate) fn send_user_events(&self, count: NonZeroUsize, local: bool) {
+    pub(crate) fn send_proxy_wake_up(&self, local: bool) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -492,9 +490,7 @@ impl Shared {
                         let this = Rc::downgrade(&self.0);
                         move || {
                             if let Some(shared) = this.upgrade() {
-                                Shared(shared).send_events(
-                                    iter::repeat(Event::UserEvent(())).take(count.get()),
-                                )
+                                Shared(shared).send_event(Event::UserWakeUp)
                             }
                         }
                     })
@@ -505,7 +501,7 @@ impl Shared {
             }
         }
 
-        self.send_events(iter::repeat(Event::UserEvent(())).take(count.get()))
+        self.send_event(Event::UserWakeUp);
     }
 
     // Add a series of events to the event loop runner
@@ -564,7 +560,7 @@ impl Shared {
     fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
-            self.handle_event(Event::WindowEvent {
+            self.handle_event(Event::Window {
                 window_id: id,
                 event: crate::event::WindowEvent::Destroyed,
             });
@@ -585,10 +581,7 @@ impl Shared {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::RedrawRequested,
-            });
+            self.handle_event(Event::Window { window_id, event: WindowEvent::RedrawRequested });
         }
 
         self.handle_event(Event::AboutToWait);
@@ -648,8 +641,10 @@ impl Shared {
 
                 // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
                 events.extend(
-                    iter::repeat(Event::UserEvent(()))
-                        .take(self.0.proxy_spawner.fetch())
+                    self.0
+                        .proxy_spawner
+                        .take()
+                        .then_some(Event::UserWakeUp)
                         .map(EventWrapper::from),
                 );
 
@@ -737,7 +732,7 @@ impl Shared {
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.
         if self.0.event_loop_recreation.get() {
-            crate::event_loop::EventLoopBuilder::<()>::allow_event_loop_recreation();
+            crate::event_loop::EventLoopBuilder::allow_event_loop_recreation();
         }
     }
 
@@ -817,12 +812,12 @@ impl Shared {
 }
 
 pub(crate) enum EventWrapper {
-    Event(Event<()>),
+    Event(Event),
     ScaleChange { canvas: Weak<RefCell<backend::Canvas>>, size: PhysicalSize<u32>, scale: f64 },
 }
 
-impl From<Event<()>> for EventWrapper {
-    fn from(value: Event<()>) -> Self {
+impl From<Event> for EventWrapper {
+    fn from(value: Event) -> Self {
         Self::Event(value)
     }
 }

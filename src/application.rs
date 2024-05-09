@@ -5,7 +5,7 @@ use crate::event_loop::ActiveEventLoop;
 use crate::window::WindowId;
 
 /// The handler of the application events.
-pub trait ApplicationHandler<T: 'static = ()> {
+pub trait ApplicationHandler {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This is a useful place to put code that should be done before you start processing
@@ -82,11 +82,11 @@ pub trait ApplicationHandler<T: 'static = ()> {
     /// [`Suspended`]: Self::suspended
     fn resumed(&mut self, event_loop: &ActiveEventLoop);
 
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`].
+    /// Called when user requested wake up via [`wake_up`] occurs.
     ///
-    /// [`EventLoopProxy::send_event`]: crate::event_loop::EventLoopProxy::send_event
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        let _ = (event_loop, event);
+    /// [`wake_up`]: crate::event_loop::EventLoopProxy::wake_up
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        let _ = event_loop;
     }
 
     /// Emitted when the OS sends an event to a winit window.
@@ -224,7 +224,7 @@ pub trait ApplicationHandler<T: 'static = ()> {
     }
 }
 
-impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &mut A {
+impl<A: ?Sized + ApplicationHandler> ApplicationHandler for &mut A {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
@@ -236,8 +236,8 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &m
     }
 
     #[inline]
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        (**self).user_event(event_loop, event);
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]
@@ -281,7 +281,7 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for &m
     }
 }
 
-impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for Box<A> {
+impl<A: ?Sized + ApplicationHandler> ApplicationHandler for Box<A> {
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         (**self).new_events(event_loop, cause);
@@ -293,8 +293,8 @@ impl<A: ?Sized + ApplicationHandler<T>, T: 'static> ApplicationHandler<T> for Bo
     }
 
     #[inline]
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: T) {
-        (**self).user_event(event_loop, event);
+    fn proxy_wake_up(&mut self, event_loop: &ActiveEventLoop) {
+        (**self).proxy_wake_up(event_loop);
     }
 
     #[inline]

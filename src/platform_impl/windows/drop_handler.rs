@@ -25,7 +25,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    send_event: Box<dyn Fn(Event<()>)>,
+    send_event: Box<dyn Fn(Event)>,
     cursor_effect: u32,
     hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any
                              * `HoveredFileCancelled` emitted */
@@ -37,7 +37,7 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND, send_event: Box<dyn Fn(Event<()>)>) -> FileDropHandler {
+    pub(crate) fn new(window: HWND, send_event: Box<dyn Fn(Event)>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget { lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl },
             refcount: AtomicUsize::new(1),
@@ -87,7 +87,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::WindowEvent {
+                drop_handler.send_event(Event::Window {
                     window_id: RootWindowId(WindowId(drop_handler.window)),
                     event: HoveredFile(filename),
                 });
@@ -121,7 +121,7 @@ impl FileDropHandler {
         use crate::event::WindowEvent::HoveredFileCancelled;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
-            drop_handler.send_event(Event::WindowEvent {
+            drop_handler.send_event(Event::Window {
                 window_id: RootWindowId(WindowId(drop_handler.window)),
                 event: HoveredFileCancelled,
             });
@@ -141,7 +141,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::WindowEvent {
+                drop_handler.send_event(Event::Window {
                     window_id: RootWindowId(WindowId(drop_handler.window)),
                     event: DroppedFile(filename),
                 });
@@ -211,7 +211,7 @@ impl FileDropHandler {
 }
 
 impl FileDropHandlerData {
-    fn send_event(&self, event: Event<()>) {
+    fn send_event(&self, event: Event) {
         (self.send_event)(event);
     }
 }

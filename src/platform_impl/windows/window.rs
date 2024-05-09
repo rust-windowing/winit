@@ -1186,11 +1186,7 @@ impl<'a> InitData<'a> {
             let file_drop_runner = self.event_loop.runner_shared.clone();
             let file_drop_handler = FileDropHandler::new(
                 win.window,
-                Box::new(move |event| {
-                    if let Ok(e) = event.map_nonuser_event() {
-                        file_drop_runner.send_event(e)
-                    }
-                }),
+                Box::new(move |event| file_drop_runner.send_event(event)),
             );
 
             let handler_interface_ptr =

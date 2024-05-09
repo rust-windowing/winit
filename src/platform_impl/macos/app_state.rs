@@ -1,6 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::mem;
 use std::rc::Weak;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use objc2::rc::Retained;
@@ -8,13 +10,15 @@ use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
+use crate::application::ApplicationHandler;
+use crate::event::{StartCause, WindowEvent};
+use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
+use crate::window::WindowId as RootWindowId;
+
 use super::event_handler::EventHandler;
 use super::event_loop::{stop_app_immediately, ActiveEventLoop, PanicInfo};
 use super::observer::{EventLoopWaker, RunLoop};
-use super::{menu, WindowId, DEVICE_ID};
-use crate::event::{DeviceEvent, Event, StartCause, WindowEvent};
-use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow};
-use crate::window::WindowId as RootWindowId;
+use super::{menu, WindowId};
 
 #[derive(Debug)]
 pub(super) struct AppState {
@@ -22,6 +26,7 @@ pub(super) struct AppState {
     default_menu: bool,
     activate_ignoring_other_apps: bool,
     run_loop: RunLoop,
+    proxy_wake_up: Arc<AtomicBool>,
     event_handler: EventHandler,
     stop_on_launch: Cell<bool>,
     stop_before_wait: Cell<bool>,
@@ -75,11 +80,13 @@ impl ApplicationDelegate {
     pub(super) fn new(
         mtm: MainThreadMarker,
         activation_policy: NSApplicationActivationPolicy,
+        proxy_wake_up: Arc<AtomicBool>,
         default_menu: bool,
         activate_ignoring_other_apps: bool,
     ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(AppState {
             activation_policy,
+            proxy_wake_up,
             default_menu,
             activate_ignoring_other_apps,
             run_loop: RunLoop::main(mtm),
@@ -166,7 +173,7 @@ impl ApplicationDelegate {
     /// of the given closure.
     pub fn set_event_handler<R>(
         &self,
-        handler: impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop),
+        handler: &mut dyn ApplicationHandler,
         closure: impl FnOnce() -> R,
     ) -> R {
         self.ivars().event_handler.set(handler, closure)
@@ -200,7 +207,9 @@ impl ApplicationDelegate {
     /// NOTE: that if the `NSApplication` has been launched then that state is preserved,
     /// and we won't need to re-launch the app if subsequent EventLoops are run.
     pub fn internal_exit(&self) {
-        self.handle_event(Event::LoopExiting);
+        self.with_user_app(|app, event_loop| {
+            app.exiting(event_loop);
+        });
 
         self.set_is_running(false);
         self.set_stop_on_redraw(false);
@@ -241,16 +250,26 @@ impl ApplicationDelegate {
         self.ivars().control_flow.get()
     }
 
-    pub fn maybe_queue_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        self.maybe_queue_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
-    }
-
-    pub fn handle_window_event(&self, window_id: WindowId, event: WindowEvent) {
-        self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event });
-    }
-
-    pub fn maybe_queue_device_event(&self, event: DeviceEvent) {
-        self.maybe_queue_event(Event::DeviceEvent { device_id: DEVICE_ID, event });
+    #[track_caller]
+    pub fn maybe_queue_with_user_app(
+        &self,
+        callback: impl FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop) + 'static,
+    ) {
+        // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
+        // result in an event being queued, and applied at a later point.
+        //
+        // However, it is not documented which actions do this, and which ones are done immediately,
+        // so to make sure that we don't encounter re-entrancy issues, we first check if we're
+        // currently handling another event, and if we are, we queue the event instead.
+        if !self.ivars().event_handler.in_use() {
+            self.with_user_app(callback);
+        } else {
+            tracing::debug!("had to queue event since another is currently being handled");
+            let this = self.retain();
+            self.ivars().run_loop.queue_closure(move || {
+                this.with_user_app(callback);
+            });
+        }
     }
 
     pub fn handle_redraw(&self, window_id: WindowId) {
@@ -258,9 +277,8 @@ impl ApplicationDelegate {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.ivars().event_handler.in_use() {
-            self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
-                event: WindowEvent::RedrawRequested,
+            self.with_user_app(|app, event_loop| {
+                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
             });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
@@ -282,33 +300,20 @@ impl ApplicationDelegate {
     }
 
     #[track_caller]
-    fn maybe_queue_event(&self, event: Event<HandlePendingUserEvents>) {
-        // Most programmer actions in AppKit (e.g. change window fullscreen, set focused, etc.)
-        // result in an event being queued, and applied at a later point.
-        //
-        // However, it is not documented which actions do this, and which ones are done immediately,
-        // so to make sure that we don't encounter re-entrancy issues, we first check if we're
-        // currently handling another event, and if we are, we queue the event instead.
-        if !self.ivars().event_handler.in_use() {
-            self.handle_event(event);
-        } else {
-            tracing::debug!(?event, "had to queue event since another is currently being handled");
-            let this = self.retain();
-            self.ivars().run_loop.queue_closure(move || this.handle_event(event));
-        }
-    }
-
-    #[track_caller]
-    fn handle_event(&self, event: Event<HandlePendingUserEvents>) {
-        self.ivars().event_handler.handle_event(event, &ActiveEventLoop::new_root(self.retain()))
+    fn with_user_app<F: FnOnce(&mut dyn ApplicationHandler, &RootActiveEventLoop)>(
+        &self,
+        callback: F,
+    ) {
+        let event_loop = ActiveEventLoop::new_root(self.retain());
+        self.ivars().event_handler.with_user_app(callback, &event_loop);
     }
 
     /// dispatch `NewEvents(Init)` + `Resumed`
     pub fn dispatch_init_events(&self) {
-        self.handle_event(Event::NewEvents(StartCause::Init));
+        self.with_user_app(|app, event_loop| app.new_events(event_loop, StartCause::Init));
         // NB: For consistency all platforms must emit a 'resumed' event even though macOS
         // applications don't themselves have a formal suspend/resume lifecycle.
-        self.handle_event(Event::Resumed);
+        self.with_user_app(|app, event_loop| app.resumed(event_loop));
     }
 
     // Called by RunLoopObserver after finishing waiting for new events
@@ -341,7 +346,7 @@ impl ApplicationDelegate {
             },
         };
 
-        self.handle_event(Event::NewEvents(cause));
+        self.with_user_app(|app, event_loop| app.new_events(event_loop, cause));
     }
 
     // Called by RunLoopObserver before waiting for new events
@@ -358,17 +363,19 @@ impl ApplicationDelegate {
             return;
         }
 
-        self.handle_event(Event::UserEvent(HandlePendingUserEvents));
+        if self.ivars().proxy_wake_up.swap(false, AtomicOrdering::Relaxed) {
+            self.with_user_app(|app, event_loop| app.proxy_wake_up(event_loop));
+        }
 
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
-            self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
-                event: WindowEvent::RedrawRequested,
+            self.with_user_app(|app, event_loop| {
+                app.window_event(event_loop, RootWindowId(window_id), WindowEvent::RedrawRequested);
             });
         }
-
-        self.handle_event(Event::AboutToWait);
+        self.with_user_app(|app, event_loop| {
+            app.about_to_wait(event_loop);
+        });
 
         if self.exiting() {
             let app = NSApplication::sharedApplication(mtm);
@@ -389,9 +396,6 @@ impl ApplicationDelegate {
         self.ivars().waker.borrow_mut().start_at(min_timeout(wait_timeout, app_timeout));
     }
 }
-
-#[derive(Debug)]
-pub(crate) struct HandlePendingUserEvents;
 
 /// Returns the minimum `Option<Instant>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use

@@ -1,4 +1,4 @@
-//! The [`Event`] enum and assorted supporting types.
+//! The event enums and assorted supporting types.
 //!
 //! These are sent to the closure given to [`EventLoop::run_app(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level
@@ -54,11 +54,15 @@ use crate::platform_impl;
 use crate::window::Window;
 use crate::window::{ActivationToken, Theme, WindowId};
 
+// TODO: Remove once the backends can call `ApplicationHandler` methods directly. For now backends
+// like Windows and Web require `Event` to wire user events, otherwise each backend will have to
+// wrap `Event` in some other structure.
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
-pub enum Event<T: 'static> {
+pub(crate) enum Event {
     /// See [`ApplicationHandler::new_events`] for details.
     ///
     /// [`ApplicationHandler::new_events`]: crate::application::ApplicationHandler::new_events
@@ -67,17 +71,12 @@ pub enum Event<T: 'static> {
     /// See [`ApplicationHandler::window_event`] for details.
     ///
     /// [`ApplicationHandler::window_event`]: crate::application::ApplicationHandler::window_event
-    WindowEvent { window_id: WindowId, event: WindowEvent },
+    Window { window_id: WindowId, event: WindowEvent },
 
     /// See [`ApplicationHandler::device_event`] for details.
     ///
     /// [`ApplicationHandler::device_event`]: crate::application::ApplicationHandler::device_event
-    DeviceEvent { device_id: DeviceId, event: DeviceEvent },
-
-    /// See [`ApplicationHandler::user_event`] for details.
-    ///
-    /// [`ApplicationHandler::user_event`]: crate::application::ApplicationHandler::user_event
-    UserEvent(T),
+    Device { device_id: DeviceId, event: DeviceEvent },
 
     /// See [`ApplicationHandler::suspended`] for details.
     ///
@@ -103,24 +102,9 @@ pub enum Event<T: 'static> {
     ///
     /// [`ApplicationHandler::memory_warning`]: crate::application::ApplicationHandler::memory_warning
     MemoryWarning,
-}
 
-impl<T> Event<T> {
-    #[allow(clippy::result_large_err)]
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
-        use self::Event::*;
-        match self {
-            UserEvent(_) => Err(self),
-            WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Ok(NewEvents(cause)),
-            AboutToWait => Ok(AboutToWait),
-            LoopExiting => Ok(LoopExiting),
-            Suspended => Ok(Suspended),
-            Resumed => Ok(Resumed),
-            MemoryWarning => Ok(MemoryWarning),
-        }
-    }
+    /// User requested a wake up.
+    UserWakeUp,
 }
 
 /// Describes the reason the event loop is resuming.
@@ -1032,7 +1016,6 @@ mod tests {
 
                 // Mainline events.
                 let wid = unsafe { WindowId::dummy() };
-                x(UserEvent(()));
                 x(NewEvents(event::StartCause::Init));
                 x(AboutToWait);
                 x(LoopExiting);
@@ -1040,7 +1023,7 @@ mod tests {
                 x(Resumed);
 
                 // Window events.
-                let with_window_event = |wev| x(WindowEvent { window_id: wid, event: wev });
+                let with_window_event = |wev| x(Window { window_id: wid, event: wev });
 
                 with_window_event(CloseRequested);
                 with_window_event(Destroyed);
@@ -1099,7 +1082,7 @@ mod tests {
                 use event::DeviceEvent::*;
 
                 let with_device_event =
-                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
+                    |dev_ev| x(event::Event::Device { device_id: did, event: dev_ev });
 
                 with_device_event(Added);
                 with_device_event(Removed);
@@ -1116,22 +1099,9 @@ mod tests {
     #[allow(clippy::redundant_clone)]
     #[test]
     fn test_event_clone() {
-        foreach_event!(|event: event::Event<()>| {
+        foreach_event!(|event: event::Event| {
             let event2 = event.clone();
             assert_eq!(event, event2);
-        })
-    }
-
-    #[test]
-    fn test_map_nonuser_event() {
-        foreach_event!(|event: event::Event<()>| {
-            let is_user = matches!(event, event::Event::UserEvent(()));
-            let event2 = event.map_nonuser_event::<()>();
-            if is_user {
-                assert_eq!(event2, Err(event::Event::UserEvent(())));
-            } else {
-                assert!(event2.is_ok());
-            }
         })
     }
 
@@ -1155,7 +1125,7 @@ mod tests {
     #[allow(clippy::clone_on_copy)]
     #[test]
     fn ensure_attrs_do_not_panic() {
-        foreach_event!(|event: event::Event<()>| {
+        foreach_event!(|event: event::Event| {
             let _ = format!("{:?}", event);
         });
         let _ = event::StartCause::Init.clone();

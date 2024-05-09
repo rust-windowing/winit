@@ -50,7 +50,7 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::Window {
                     window_id: RootWindowId(self.id()),
                     event: WindowEvent::Focused(true),
                 }),
@@ -63,7 +63,7 @@ declare_class!(
             let mtm = MainThreadMarker::new().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::Window {
                     window_id: RootWindowId(self.id()),
                     event: WindowEvent::Focused(false),
                 }),
@@ -540,7 +540,7 @@ impl Window {
                     suggested_size: size.to_physical(scale_factor),
                 }))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
+                    Event::Window {
                         window_id,
                         event: WindowEvent::Resized(size.to_physical(scale_factor)),
                     },

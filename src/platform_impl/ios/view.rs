@@ -52,7 +52,7 @@ declare_class!(
             let window = self.window().unwrap();
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::Window {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::RedrawRequested,
                 }),
@@ -87,7 +87,7 @@ declare_class!(
 
             app_state::handle_nonuser_event(
                 mtm,
-                EventWrapper::StaticEvent(Event::WindowEvent {
+                EventWrapper::StaticEvent(Event::Window {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::Resized(size),
                 }),
@@ -138,7 +138,7 @@ declare_class!(
                     },
                 ))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
+                    Event::Window {
                         window_id,
                         event: WindowEvent::Resized(size.to_physical(scale_factor)),
                     },
@@ -191,7 +191,7 @@ declare_class!(
                 state => panic!("unexpected recognizer state: {:?}", state),
             };
 
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::StaticEvent(Event::Window {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PinchGesture {
                     device_id: DEVICE_ID,
@@ -209,7 +209,7 @@ declare_class!(
             let window = self.window().unwrap();
 
             if recognizer.state() == UIGestureRecognizerState::Ended {
-                let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+                let gesture_event = EventWrapper::StaticEvent(Event::Window {
                     window_id: RootWindowId(window.id()),
                     event: WindowEvent::DoubleTapGesture {
                         device_id: DEVICE_ID,
@@ -251,7 +251,7 @@ declare_class!(
             };
 
             // Make delta negative to match macos, convert to degrees
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::StaticEvent(Event::Window {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::RotationGesture {
                     device_id: DEVICE_ID,
@@ -302,7 +302,7 @@ declare_class!(
             };
 
 
-            let gesture_event = EventWrapper::StaticEvent(Event::WindowEvent {
+            let gesture_event = EventWrapper::StaticEvent(Event::Window {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::PanGesture {
                     device_id: DEVICE_ID,
@@ -498,7 +498,7 @@ impl WinitView {
                     scale_factor as f64,
                 )
             };
-            touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+            touch_events.push(EventWrapper::StaticEvent(Event::Window {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Touch(Touch {
                     device_id: DEVICE_ID,

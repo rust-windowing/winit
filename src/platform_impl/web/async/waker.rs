@@ -1,19 +1,18 @@
 use std::future;
-use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
 
 use super::super::main_thread::MainThreadMarker;
 use super::{AtomicWaker, Wrapper};
 
-pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, NonZeroUsize>);
+pub struct WakerSpawner<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
 
-pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, NonZeroUsize>);
+pub struct Waker<T: 'static>(Wrapper<Handler<T>, Sender, ()>);
 
 struct Handler<T> {
     value: T,
-    handler: fn(&T, NonZeroUsize, bool),
+    handler: fn(&T, bool),
 }
 
 #[derive(Clone)]
@@ -21,13 +20,9 @@ struct Sender(Arc<Inner>);
 
 impl<T> WakerSpawner<T> {
     #[track_caller]
-    pub fn new(
-        main_thread: MainThreadMarker,
-        value: T,
-        handler: fn(&T, NonZeroUsize, bool),
-    ) -> Option<Self> {
+    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, bool)) -> Option<Self> {
         let inner = Arc::new(Inner {
-            counter: AtomicUsize::new(0),
+            awoken: AtomicBool::new(false),
             waker: AtomicWaker::new(),
             closed: AtomicBool::new(false),
         });
@@ -39,49 +34,43 @@ impl<T> WakerSpawner<T> {
         let wrapper = Wrapper::new(
             main_thread,
             handler,
-            |handler, count| {
+            |handler, _| {
                 let handler = handler.borrow();
                 let handler = handler.as_ref().unwrap();
-                (handler.handler)(&handler.value, count, true);
+                (handler.handler)(&handler.value, true);
             },
             {
                 let inner = Arc::clone(&inner);
 
                 move |handler| async move {
-                    while let Some(count) = future::poll_fn(|cx| {
-                        let count = inner.counter.swap(0, Ordering::Relaxed);
+                    while future::poll_fn(|cx| {
+                        if inner.awoken.swap(false, Ordering::Relaxed) {
+                            Poll::Ready(true)
+                        } else {
+                            inner.waker.register(cx.waker());
 
-                        match NonZeroUsize::new(count) {
-                            Some(count) => Poll::Ready(Some(count)),
-                            None => {
-                                inner.waker.register(cx.waker());
-
-                                let count = inner.counter.swap(0, Ordering::Relaxed);
-
-                                match NonZeroUsize::new(count) {
-                                    Some(count) => Poll::Ready(Some(count)),
-                                    None => {
-                                        if inner.closed.load(Ordering::Relaxed) {
-                                            return Poll::Ready(None);
-                                        }
-
-                                        Poll::Pending
-                                    },
+                            if inner.awoken.swap(false, Ordering::Relaxed) {
+                                Poll::Ready(true)
+                            } else {
+                                if inner.closed.load(Ordering::Relaxed) {
+                                    return Poll::Ready(false);
                                 }
-                            },
+
+                                Poll::Pending
+                            }
                         }
                     })
                     .await
                     {
                         let handler = handler.borrow();
                         let handler = handler.as_ref().unwrap();
-                        (handler.handler)(&handler.value, count, false);
+                        (handler.handler)(&handler.value, false);
                     }
                 }
             },
             sender,
             |inner, _| {
-                inner.0.counter.fetch_add(1, Ordering::Relaxed);
+                inner.0.awoken.store(true, Ordering::Relaxed);
                 inner.0.waker.wake();
             },
         )?;
@@ -93,13 +82,13 @@ impl<T> WakerSpawner<T> {
         Waker(self.0.clone())
     }
 
-    pub fn fetch(&self) -> usize {
+    pub fn take(&self) -> bool {
         debug_assert!(
             MainThreadMarker::new().is_some(),
             "this should only be called from the main thread"
         );
 
-        self.0.with_sender_data(|inner| inner.0.counter.swap(0, Ordering::Relaxed))
+        self.0.with_sender_data(|inner| inner.0.awoken.swap(false, Ordering::Relaxed))
     }
 }
 
@@ -114,7 +103,7 @@ impl<T> Drop for WakerSpawner<T> {
 
 impl<T> Waker<T> {
     pub fn wake(&self) {
-        self.0.send(NonZeroUsize::MIN)
+        self.0.send(())
     }
 }
 
@@ -125,7 +114,7 @@ impl<T> Clone for Waker<T> {
 }
 
 struct Inner {
-    counter: AtomicUsize,
+    awoken: AtomicBool,
     waker: AtomicWaker,
     closed: AtomicBool,
 }
