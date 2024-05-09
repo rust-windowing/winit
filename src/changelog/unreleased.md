@@ -47,3 +47,4 @@ changelog entry.
 ### Fixed
 
 - On macOS, fix panic on exit when dropping windows outside the event loop.
+- On macOS, fix window dragging glitch when dragging across the monitor boundary with different scale factor.
