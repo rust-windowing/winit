@@ -32,7 +32,7 @@ use windows_sys::Win32::{
     },
 };
 
-use smol_str::SmolStr;
+use smol_str::{SmolStr, ToSmolStr};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -261,11 +261,11 @@ impl KeyEventBuilder {
                         if !ctrl_on {
                             event_info.text = PartialText::System(event_info.utf16parts.clone());
                         } else {
-                            let mod_no_ctrl = mod_state.remove_only_ctrl();
                             let num_lock_on = kbd_state[VK_NUMLOCK as usize] & 1 != 0;
                             let vkey = event_info.vkey;
                             let physical_key = &event_info.physical_key;
-                            let key = layout.get_key(mod_no_ctrl, num_lock_on, vkey, physical_key);
+                            let key =  layout.get_key(mod_state, num_lock_on, vkey, physical_key);
+                            event_info.logical_key = PartialLogicalKey::This(key.clone());
                             event_info.text = PartialText::Text(key.to_text().map(SmolStr::new));
                         }
                         let ev = event_info.finalize();
