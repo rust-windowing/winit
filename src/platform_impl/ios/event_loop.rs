@@ -17,7 +17,7 @@ use objc2_foundation::{MainThreadMarker, NSString};
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{
-    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopClosed,
+    ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents, EventLoopProxyError,
 };
 use crate::platform::ios::Idiom;
 use crate::platform_impl::platform::app_state::{EventLoopHandler, HandlePendingUserEvents};
@@ -269,8 +269,10 @@ impl<T> EventLoopProxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
+        self.sender
+            .send(event)
+            .map_err(|::std::sync::mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

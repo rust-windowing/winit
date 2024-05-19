@@ -32,7 +32,6 @@ with it, the migration guide should be added below the entry, like:
   To migrate it we should do X, Y, and then Z, for example:
 
   // Code snippet.
-
 ```
 
 The migration guide could reference other migration examples in the current
@@ -43,7 +42,13 @@ changelog entry.
 ### Added
 
 - Reexport `raw-window-handle` versions 0.4 and 0.5 as `raw_window_handle_04` and `raw_window_handle_05`.
+- Add `event_loop::EventLoopProxyError`
+- Return an error in `EventLoopProxy::send_event` when the event loop is busy on Windows and can't accept new events.
 
 ### Fixed
 
 - On macOS, fix panic on exit when dropping windows outside the event loop.
+
+### Fixed
+
+- Removed `event_loop::EventLoopClosed`

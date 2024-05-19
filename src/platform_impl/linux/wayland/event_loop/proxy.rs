@@ -4,7 +4,7 @@ use std::sync::mpsc::SendError;
 
 use sctk::reexports::calloop::channel::Sender;
 
-use crate::event_loop::EventLoopClosed;
+use crate::event_loop::EventLoopProxyError;
 
 /// A handle that can be sent across the threads and used to wake up the `EventLoop`.
 pub struct EventLoopProxy<T: 'static> {
@@ -22,7 +22,9 @@ impl<T: 'static> EventLoopProxy<T> {
         Self { user_events_sender }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_events_sender.send(event).map_err(|SendError(error)| EventLoopClosed(error))
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
+        self.user_events_sender
+            .send(event)
+            .map_err(|SendError(error)| EventLoopProxyError::Closed(error))
     }
 }

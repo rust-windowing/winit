@@ -20,7 +20,7 @@ use self::x11::{X11Error, XConnection, XError, XNotSupported};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::event_loop::{
-    ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
+    ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopProxyError,
 };
 use crate::icon::Icon;
 use crate::keyboard::Key;
@@ -828,7 +828,7 @@ impl<T> AsRawFd for EventLoop<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
         x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
     }
 }

@@ -28,7 +28,7 @@ use super::observer::setup_control_flow_observers;
 use crate::error::EventLoopError;
 use crate::event::Event;
 use crate::event_loop::{
-    ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed,
+    ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopProxyError,
 };
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
@@ -491,8 +491,8 @@ impl<T> EventLoopProxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender.send(event).map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopProxyError<T>> {
+        self.sender.send(event).map_err(|mpsc::SendError(x)| EventLoopProxyError::Closed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
