@@ -27,6 +27,7 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::x11_utils::X11Error as LogicalError;
 use x11rb::xcb_ffi::ReplyOrIdError;
 
+use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, OsError as RootOsError};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, EventLoopClosed};
@@ -379,12 +380,16 @@ impl<T: 'static> EventLoop<T> {
         &self.event_processor.target
     }
 
-    pub fn run_on_demand<F>(&mut self, mut event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn run_app<A: ApplicationHandler<T>>(mut self, app: &mut A) -> Result<(), EventLoopError> {
+        self.run_app_on_demand(app)
+    }
+
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
         let exit = loop {
-            match self.pump_events(None, &mut event_handler) {
+            match self.pump_app_events(None, app) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
                 },
@@ -409,26 +414,27 @@ impl<T: 'static> EventLoop<T> {
         exit
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, mut callback: F) -> PumpStatus
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
         if !self.loop_running {
             self.loop_running = true;
 
             // run the initial loop iteration
-            self.single_iteration(&mut callback, StartCause::Init);
+            self.single_iteration(app, StartCause::Init);
         }
 
         // Consider the possibility that the `StartCause::Init` iteration could
         // request to Exit.
         if !self.exiting() {
-            self.poll_events_with_timeout(timeout, &mut callback);
+            self.poll_events_with_timeout(timeout, app);
         }
         if let Some(code) = self.exit_code() {
             self.loop_running = false;
 
-            callback(Event::LoopExiting, self.window_target());
+            app.exiting(self.window_target());
 
             PumpStatus::Exit(code)
         } else {
@@ -442,10 +448,11 @@ impl<T: 'static> EventLoop<T> {
             || self.redraw_receiver.has_incoming()
     }
 
-    pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    pub fn poll_events_with_timeout<A: ApplicationHandler<T>>(
+        &mut self,
+        mut timeout: Option<Duration>,
+        app: &mut A,
+    ) {
         let start = Instant::now();
 
         let has_pending = self.has_pending();
@@ -503,23 +510,20 @@ impl<T: 'static> EventLoop<T> {
             return;
         }
 
-        self.single_iteration(&mut callback, cause);
+        self.single_iteration(app, cause);
     }
 
-    fn single_iteration<F>(&mut self, callback: &mut F, cause: StartCause)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
-        callback(Event::NewEvents(cause), &self.event_processor.target);
+    fn single_iteration<A: ApplicationHandler<T>>(&mut self, app: &mut A, cause: StartCause) {
+        app.new_events(&self.event_processor.target, cause);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though X11
         // applications don't themselves have a formal suspend/resume lifecycle.
         if cause == StartCause::Init {
-            callback(Event::Resumed, &self.event_processor.target);
+            app.resumed(&self.event_processor.target)
         }
 
         // Process all pending events
-        self.drain_events(callback);
+        self.drain_events(app);
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
@@ -529,14 +533,12 @@ impl<T: 'static> EventLoop<T> {
 
             match token {
                 Some(Ok(token)) => {
-                    let event = Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::ActivationTokenDone {
-                            serial,
-                            token: crate::window::ActivationToken::_new(token),
-                        },
+                    let window_id = crate::window::WindowId(window_id);
+                    let event = WindowEvent::ActivationTokenDone {
+                        serial,
+                        token: crate::window::ActivationToken::_new(token),
                     };
-                    callback(event, &self.event_processor.target)
+                    app.window_event(&self.event_processor.target, window_id, event);
                 },
                 Some(Err(e)) => {
                     tracing::error!("Failed to get activation token: {}", e);
@@ -548,7 +550,7 @@ impl<T: 'static> EventLoop<T> {
         // Empty the user event buffer
         {
             while let Ok(event) = self.user_receiver.try_recv() {
-                callback(Event::UserEvent(event), &self.event_processor.target);
+                app.user_event(&self.event_processor.target, event);
             }
         }
 
@@ -562,28 +564,24 @@ impl<T: 'static> EventLoop<T> {
 
             for window_id in windows {
                 let window_id = crate::window::WindowId(window_id);
-                callback(
-                    Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested },
+                app.window_event(
                     &self.event_processor.target,
+                    window_id,
+                    WindowEvent::RedrawRequested,
                 );
             }
         }
 
         // This is always the last event we dispatch before poll again
-        {
-            callback(Event::AboutToWait, &self.event_processor.target);
-        }
+        app.about_to_wait(&self.event_processor.target);
     }
 
-    fn drain_events<F>(&mut self, callback: &mut F)
-    where
-        F: FnMut(Event<T>, &RootAEL),
-    {
+    fn drain_events<A: ApplicationHandler<T>>(&mut self, app: &mut A) {
         let mut xev = MaybeUninit::uninit();
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |window_target, event| {
+            self.event_processor.process_event(&mut xev, |window_target, event: Event<T>| {
                 if let Event::WindowEvent {
                     window_id: crate::window::WindowId(wid),
                     event: WindowEvent::RedrawRequested,
@@ -592,7 +590,15 @@ impl<T: 'static> EventLoop<T> {
                     let window_target = EventProcessor::window_target(window_target);
                     window_target.redraw_sender.send(wid).unwrap();
                 } else {
-                    callback(event, window_target);
+                    match event {
+                        Event::WindowEvent { window_id, event } => {
+                            app.window_event(window_target, window_id, event)
+                        },
+                        Event::DeviceEvent { device_id, event } => {
+                            app.device_event(window_target, device_id, event)
+                        },
+                        _ => unreachable!("event which is neither device nor window event."),
+                    }
                 }
             });
         }

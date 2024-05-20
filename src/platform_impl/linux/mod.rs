@@ -11,6 +11,8 @@ use std::{env, fmt};
 #[cfg(x11_platform)]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Mutex};
 
+use crate::application::ApplicationHandler;
+use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::utils::Lazy;
 use smol_str::SmolStr;
@@ -19,12 +21,9 @@ use smol_str::SmolStr;
 use self::x11::{X11Error, XConnection, XError, XNotSupported};
 use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{EventLoopError, ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event_loop::{
-    ActiveEventLoop as RootELW, AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed,
-};
+use crate::event_loop::{AsyncRequestSerial, ControlFlow, DeviceEvents, EventLoopClosed};
 use crate::icon::Icon;
 use crate::keyboard::Key;
-use crate::platform::pump_events::PumpStatus;
 #[cfg(x11_platform)]
 use crate::platform::x11::{WindowType as XWindowType, XlibErrorHook};
 use crate::window::{
@@ -789,25 +788,23 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run<F>(mut self, callback: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(crate::event::Event<T>, &RootELW),
-    {
-        self.run_on_demand(callback)
+    pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app(app))
     }
 
-    pub fn run_on_demand<F>(&mut self, callback: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(crate::event::Event<T>, &RootELW),
-    {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_on_demand(callback))
+    pub fn run_app_on_demand<A: ApplicationHandler<T>>(
+        &mut self,
+        app: &mut A,
+    ) -> Result<(), EventLoopError> {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_app_on_demand(app))
     }
 
-    pub fn pump_events<F>(&mut self, timeout: Option<Duration>, callback: F) -> PumpStatus
-    where
-        F: FnMut(crate::event::Event<T>, &RootELW),
-    {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_events(timeout, callback))
+    pub fn pump_app_events<A: ApplicationHandler<T>>(
+        &mut self,
+        timeout: Option<Duration>,
+        app: &mut A,
+    ) -> PumpStatus {
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.pump_app_events(timeout, app))
     }
 
     pub fn window_target(&self) -> &crate::event_loop::ActiveEventLoop {

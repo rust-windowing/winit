@@ -20,7 +20,6 @@ use web_time::{Duration, Instant};
 
 use crate::application::ApplicationHandler;
 use crate::error::{EventLoopError, OsError};
-use crate::event::Event;
 use crate::monitor::MonitorHandle;
 use crate::platform_impl;
 use crate::window::{CustomCursor, CustomCursorSource, Window, WindowAttributes};
@@ -152,6 +151,7 @@ impl fmt::Debug for ActiveEventLoop {
 /// Defaults to [`Wait`].
 ///
 /// [`Wait`]: Self::Wait
+/// [`Event::AboutToWait`]: crate::event::Event::AboutToWait
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -216,21 +216,6 @@ impl<T> EventLoop<T> {
         EventLoopBuilder { platform_specific: Default::default(), _p: PhantomData }
     }
 
-    /// See [`run_app`].
-    ///
-    /// [`run_app`]: Self::run_app
-    #[inline]
-    #[deprecated = "use `EventLoop::run_app` instead"]
-    #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
-    pub fn run<F>(self, event_handler: F) -> Result<(), EventLoopError>
-    where
-        F: FnMut(Event<T>, &ActiveEventLoop),
-    {
-        let _span = tracing::debug_span!("winit::EventLoop::run").entered();
-
-        self.event_loop.run(event_handler)
-    }
-
     /// Run the application with the event loop on the calling thread.
     ///
     /// See the [`set_control_flow()`] docs on how to change the event loop's behavior.
@@ -262,7 +247,7 @@ impl<T> EventLoop<T> {
     #[inline]
     #[cfg(not(all(web_platform, target_feature = "exception-handling")))]
     pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> Result<(), EventLoopError> {
-        self.event_loop.run(|event, event_loop| dispatch_event_for_app(app, event_loop, event))
+        self.event_loop.run_app(app)
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events
@@ -449,7 +434,7 @@ impl ActiveEventLoop {
 
     /// This exits the event loop.
     ///
-    /// See [`LoopExiting`][Event::LoopExiting].
+    /// See [`LoopExiting`][crate::event::Event::LoopExiting].
     pub fn exit(&self) {
         let _span = tracing::debug_span!("winit::ActiveEventLoop::exit",).entered();
 
@@ -616,25 +601,5 @@ impl AsyncRequestSerial {
         // in the loop usize::MAX times that's issue is considered on them.
         let serial = CURRENT_SERIAL.fetch_add(1, Ordering::Relaxed);
         Self { serial }
-    }
-}
-
-/// Shim for various run APIs.
-#[inline(always)]
-pub(crate) fn dispatch_event_for_app<T: 'static, A: ApplicationHandler<T>>(
-    app: &mut A,
-    event_loop: &ActiveEventLoop,
-    event: Event<T>,
-) {
-    match event {
-        Event::NewEvents(cause) => app.new_events(event_loop, cause),
-        Event::WindowEvent { window_id, event } => app.window_event(event_loop, window_id, event),
-        Event::DeviceEvent { device_id, event } => app.device_event(event_loop, device_id, event),
-        Event::UserEvent(event) => app.user_event(event_loop, event),
-        Event::Suspended => app.suspended(event_loop),
-        Event::Resumed => app.resumed(event_loop),
-        Event::AboutToWait => app.about_to_wait(event_loop),
-        Event::LoopExiting => app.exiting(event_loop),
-        Event::MemoryWarning => app.memory_warning(event_loop),
     }
 }
