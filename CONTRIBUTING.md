@@ -68,7 +68,7 @@ If you feel uncomfortable using a `nightly` toolchain, ensure that CI passes
 with the exception of formatting, and ask the maintainers on your PR to format
 the code before merge.
 
-When editing markdown files(.md) they must be wrapped at **80** characters.
+When editing markdown files (`.md`) they must be wrapped at **80** characters.
 
 ## Maintainers
 
