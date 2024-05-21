@@ -231,7 +231,7 @@ declare_class!(
                 None => {
                     let current_monitor = self.current_monitor_inner();
                     *fullscreen = Some(Fullscreen::Borderless(current_monitor));
-                }
+                },
             }
             self.ivars().in_fullscreen_transition.set(true);
         }
@@ -262,11 +262,9 @@ declare_class!(
             let mut options = proposed_options;
             let fullscreen = self.ivars().fullscreen.borrow();
             if let Some(Fullscreen::Exclusive(_)) = &*fullscreen {
-                options = NSApplicationPresentationOptions(
-                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar.0,
-                );
+                options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
             }
 
             options
@@ -333,8 +331,7 @@ declare_class!(
         #[method(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: Option<&AnyObject>) {
             trace_scope!("windowDidChangeOcclusionState:");
-            let visible = self.window().occlusionState().0 & NSWindowOcclusionState::Visible.0
-                == NSWindowOcclusionState::Visible.0;
+            let visible = self.window().occlusionState().contains(NSWindowOcclusionState::Visible);
             self.queue_event(WindowEvent::Occluded(!visible));
         }
 
@@ -359,9 +356,7 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb
-                .propertyListForType(unsafe { NSFilenamesPboardType })
-                .unwrap();
+            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -387,9 +382,7 @@ declare_class!(
             use std::path::PathBuf;
 
             let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
-            let filenames = pb
-                .propertyListForType(unsafe { NSFilenamesPboardType })
-                .unwrap();
+            let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
             let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
@@ -489,38 +482,38 @@ fn new_window(
             // if decorations is set to false, ignore pl_attrs
             //
             // if the titlebar is hidden, ignore other pl_attrs
-            NSWindowStyleMask::Borderless.0
-                | NSWindowStyleMask::Resizable.0
-                | NSWindowStyleMask::Miniaturizable.0
+            NSWindowStyleMask::Borderless
+                | NSWindowStyleMask::Resizable
+                | NSWindowStyleMask::Miniaturizable
         } else {
             // default case, resizable window with titlebar and titlebar buttons
-            NSWindowStyleMask::Closable.0
-                | NSWindowStyleMask::Miniaturizable.0
-                | NSWindowStyleMask::Resizable.0
-                | NSWindowStyleMask::Titled.0
+            NSWindowStyleMask::Closable
+                | NSWindowStyleMask::Miniaturizable
+                | NSWindowStyleMask::Resizable
+                | NSWindowStyleMask::Titled
         };
 
         if !attrs.resizable {
-            masks &= !NSWindowStyleMask::Resizable.0;
+            masks &= !NSWindowStyleMask::Resizable;
         }
 
         if !attrs.enabled_buttons.contains(WindowButtons::MINIMIZE) {
-            masks &= !NSWindowStyleMask::Miniaturizable.0;
+            masks &= !NSWindowStyleMask::Miniaturizable;
         }
 
         if !attrs.enabled_buttons.contains(WindowButtons::CLOSE) {
-            masks &= !NSWindowStyleMask::Closable.0;
+            masks &= !NSWindowStyleMask::Closable;
         }
 
         if attrs.platform_specific.fullsize_content_view {
-            masks |= NSWindowStyleMask::FullSizeContentView.0;
+            masks |= NSWindowStyleMask::FullSizeContentView;
         }
 
         let window: Option<Id<WinitWindow>> = unsafe {
             msg_send_id![
                 super(mtm.alloc().set_ivars(())),
                 initWithContentRect: frame,
-                styleMask: NSWindowStyleMask(masks),
+                styleMask: masks,
                 backing: NSBackingStoreType::NSBackingStoreBuffered,
                 defer: false,
             ]
@@ -960,13 +953,13 @@ impl WindowDelegate {
         self.ivars().resizable.set(resizable);
         let fullscreen = self.ivars().fullscreen.borrow().is_some();
         if !fullscreen {
-            let mut mask = self.window().styleMask().0;
+            let mut mask = self.window().styleMask();
             if resizable {
-                mask |= NSWindowStyleMask::Resizable.0;
+                mask |= NSWindowStyleMask::Resizable;
             } else {
-                mask &= !NSWindowStyleMask::Resizable.0;
+                mask &= !NSWindowStyleMask::Resizable;
             }
-            self.set_style_mask(NSWindowStyleMask(mask));
+            self.set_style_mask(mask);
         }
         // Otherwise, we don't change the mask until we exit fullscreen.
     }
@@ -978,23 +971,23 @@ impl WindowDelegate {
 
     #[inline]
     pub fn set_enabled_buttons(&self, buttons: WindowButtons) {
-        let mut mask = self.window().styleMask().0;
+        let mut mask = self.window().styleMask();
 
         if buttons.contains(WindowButtons::CLOSE) {
-            mask |= NSWindowStyleMask::Closable.0;
+            mask |= NSWindowStyleMask::Closable;
         } else {
-            mask &= !NSWindowStyleMask::Closable.0;
+            mask &= !NSWindowStyleMask::Closable;
         }
 
         if buttons.contains(WindowButtons::MINIMIZE) {
-            mask |= NSWindowStyleMask::Miniaturizable.0;
+            mask |= NSWindowStyleMask::Miniaturizable;
         } else {
-            mask &= !NSWindowStyleMask::Miniaturizable.0;
+            mask &= !NSWindowStyleMask::Miniaturizable;
         }
 
         // This must happen before the button's "enabled" status has been set,
         // hence we do it synchronously.
-        self.set_style_mask(NSWindowStyleMask(mask));
+        self.set_style_mask(mask);
 
         // We edit the button directly instead of using `NSResizableWindowMask`,
         // since that mask also affect the resizability of the window (which is
@@ -1115,9 +1108,8 @@ impl WindowDelegate {
         // we make it resizable temporarily.
         let curr_mask = self.window().styleMask();
 
-        let required =
-            NSWindowStyleMask(NSWindowStyleMask::Titled.0 | NSWindowStyleMask::Resizable.0);
-        let needs_temp_mask = !mask_contains(curr_mask, required);
+        let required = NSWindowStyleMask::Titled | NSWindowStyleMask::Resizable;
+        let needs_temp_mask = !curr_mask.contains(required);
         if needs_temp_mask {
             self.set_style_mask(required);
         }
@@ -1134,12 +1126,12 @@ impl WindowDelegate {
 
     fn saved_style(&self) -> NSWindowStyleMask {
         let base_mask =
-            self.ivars().saved_style.take().unwrap_or_else(|| self.window().styleMask()).0;
-        NSWindowStyleMask(if self.ivars().resizable.get() {
-            base_mask | NSWindowStyleMask::Resizable.0
+            self.ivars().saved_style.take().unwrap_or_else(|| self.window().styleMask());
+        if self.ivars().resizable.get() {
+            base_mask | NSWindowStyleMask::Resizable
         } else {
-            base_mask & !NSWindowStyleMask::Resizable.0
-        })
+            base_mask & !NSWindowStyleMask::Resizable
+        }
     }
 
     /// This is called when the window is exiting fullscreen, whether by the
@@ -1194,7 +1186,7 @@ impl WindowDelegate {
             return;
         }
 
-        if mask_contains(self.window().styleMask(), NSWindowStyleMask::Resizable) {
+        if self.window().styleMask().contains(NSWindowStyleMask::Resizable) {
             // Just use the native zoom if resizable
             self.window().zoom(None);
         } else {
@@ -1346,9 +1338,8 @@ impl WindowDelegate {
                 // set a normal style temporarily. The previous state will be
                 // restored in `WindowDelegate::window_did_exit_fullscreen`.
                 let curr_mask = self.window().styleMask();
-                let required =
-                    NSWindowStyleMask(NSWindowStyleMask::Titled.0 | NSWindowStyleMask::Resizable.0);
-                if !mask_contains(curr_mask, required) {
+                let required = NSWindowStyleMask::Titled | NSWindowStyleMask::Resizable;
+                if !curr_mask.contains(required) {
                     self.set_style_mask(required);
                     self.ivars().saved_style.set(Some(curr_mask));
                 }
@@ -1379,11 +1370,10 @@ impl WindowDelegate {
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 self.ivars().save_presentation_opts.set(Some(app.presentationOptions()));
 
-                let presentation_options = NSApplicationPresentationOptions(
-                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar.0,
-                );
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
                 let window_level = unsafe { ffi::CGShieldingWindowLevel() } as NSWindowLevel + 1;
@@ -1391,9 +1381,9 @@ impl WindowDelegate {
             },
             (Some(Fullscreen::Exclusive(ref video_mode)), Some(Fullscreen::Borderless(_))) => {
                 let presentation_options = self.ivars().save_presentation_opts.get().unwrap_or(
-                    NSApplicationPresentationOptions(NSApplicationPresentationOptions::NSApplicationPresentationFullScreen.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock.0
-                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar.0),
+                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
                 );
                 app.setPresentationOptions(presentation_options);
 
@@ -1432,19 +1422,19 @@ impl WindowDelegate {
 
         let new_mask = {
             let mut new_mask = if decorations {
-                NSWindowStyleMask::Closable.0
-                    | NSWindowStyleMask::Miniaturizable.0
-                    | NSWindowStyleMask::Resizable.0
-                    | NSWindowStyleMask::Titled.0
+                NSWindowStyleMask::Closable
+                    | NSWindowStyleMask::Miniaturizable
+                    | NSWindowStyleMask::Resizable
+                    | NSWindowStyleMask::Titled
             } else {
-                NSWindowStyleMask::Borderless.0 | NSWindowStyleMask::Resizable.0
+                NSWindowStyleMask::Borderless | NSWindowStyleMask::Resizable
             };
             if !resizable {
-                new_mask &= !NSWindowStyleMask::Resizable.0;
+                new_mask &= !NSWindowStyleMask::Resizable;
             }
             new_mask
         };
-        self.set_style_mask(NSWindowStyleMask(new_mask));
+        self.set_style_mask(new_mask);
     }
 
     #[inline]
@@ -1579,9 +1569,9 @@ impl WindowDelegate {
     fn toggle_style_mask(&self, mask: NSWindowStyleMask, on: bool) {
         let current_style_mask = self.window().styleMask();
         if on {
-            self.set_style_mask(NSWindowStyleMask(current_style_mask.0 | mask.0));
+            self.set_style_mask(current_style_mask | mask);
         } else {
-            self.set_style_mask(NSWindowStyleMask(current_style_mask.0 & (!mask.0)));
+            self.set_style_mask(current_style_mask & !mask);
         }
     }
 
@@ -1654,10 +1644,9 @@ impl WindowExtMacOS for WindowDelegate {
             self.ivars().is_simple_fullscreen.set(true);
 
             // Simulate pre-Lion fullscreen by hiding the dock and menu bar
-            let presentation_options = NSApplicationPresentationOptions(
-                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock.0
-                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar.0,
-            );
+            let presentation_options =
+                NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
+                    | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
             app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
@@ -1753,10 +1742,6 @@ impl WindowExtMacOS for WindowDelegate {
     fn option_as_alt(&self) -> OptionAsAlt {
         self.view().option_as_alt()
     }
-}
-
-fn mask_contains(mask: NSWindowStyleMask, value: NSWindowStyleMask) -> bool {
-    mask.0 & value.0 == value.0
 }
 
 const DEFAULT_STANDARD_FRAME: NSRect =

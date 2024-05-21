@@ -48,10 +48,10 @@ pub fn initialize(app: &NSApplication) {
         Some(sel!(hideOtherApplications:)),
         Some(KeyEquivalent {
             key: ns_string!("h"),
-            masks: Some(NSEventModifierFlags(
-                NSEventModifierFlags::NSEventModifierFlagOption.0
-                    | NSEventModifierFlags::NSEventModifierFlagCommand.0,
-            )),
+            masks: Some(
+                NSEventModifierFlags::NSEventModifierFlagOption
+                    | NSEventModifierFlags::NSEventModifierFlagCommand,
+            ),
         }),
     );
 
