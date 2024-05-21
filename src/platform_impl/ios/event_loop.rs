@@ -11,7 +11,7 @@ use core_foundation::runloop::{
     CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
     CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::{msg_send_id, ClassType};
 use objc2_foundation::{MainThreadMarker, NSString};
 use objc2_ui_kit::{UIApplication, UIApplicationMain, UIDevice, UIScreen, UIUserInterfaceIdiom};
@@ -174,7 +174,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn run_app<A: ApplicationHandler<T>>(self, app: &mut A) -> ! {
-        let application: Option<Id<UIApplication>> =
+        let application: Option<Retained<UIApplication>> =
             unsafe { msg_send_id![UIApplication::class(), sharedApplication] };
         assert!(
             application.is_none(),

@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use core_foundation::base::CFRelease;
 use core_foundation::data::{CFDataGetBytePtr, CFDataRef};
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType};
 use objc2_foundation::{run_on_main, NSPoint};
 use smol_str::SmolStr;
@@ -344,7 +344,7 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     Modifiers { state, pressed_mods }
 }
 
-pub(super) fn dummy_event() -> Option<Id<NSEvent>> {
+pub(super) fn dummy_event() -> Option<Retained<NSEvent>> {
     unsafe {
         NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
             NSEventType::ApplicationDefined,

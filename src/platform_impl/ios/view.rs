@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet};
@@ -20,10 +20,10 @@ use crate::platform_impl::platform::DEVICE_ID;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
 pub struct WinitViewState {
-    pinch_gesture_recognizer: RefCell<Option<Id<UIPinchGestureRecognizer>>>,
-    doubletap_gesture_recognizer: RefCell<Option<Id<UITapGestureRecognizer>>>,
-    rotation_gesture_recognizer: RefCell<Option<Id<UIRotationGestureRecognizer>>>,
-    pan_gesture_recognizer: RefCell<Option<Id<UIPanGestureRecognizer>>>,
+    pinch_gesture_recognizer: RefCell<Option<Retained<UIPinchGestureRecognizer>>>,
+    doubletap_gesture_recognizer: RefCell<Option<Retained<UITapGestureRecognizer>>>,
+    rotation_gesture_recognizer: RefCell<Option<Retained<UIRotationGestureRecognizer>>>,
+    pan_gesture_recognizer: RefCell<Option<Retained<UIPanGestureRecognizer>>>,
 
     // for iOS delta references the start of the Gesture
     rotation_last_delta: Cell<CGFloat>,
@@ -331,7 +331,7 @@ impl WinitView {
         mtm: MainThreadMarker,
         window_attributes: &WindowAttributes,
         frame: CGRect,
-    ) -> Id<Self> {
+    ) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(WinitViewState {
             pinch_gesture_recognizer: RefCell::new(None),
             doubletap_gesture_recognizer: RefCell::new(None),
@@ -342,7 +342,7 @@ impl WinitView {
             pinch_last_delta: Cell::new(0.0),
             pan_last_delta: Cell::new(CGPoint { x: 0.0, y: 0.0 }),
         });
-        let this: Id<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
+        let this: Retained<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
 
@@ -353,9 +353,9 @@ impl WinitView {
         this
     }
 
-    fn window(&self) -> Option<Id<WinitUIWindow>> {
+    fn window(&self) -> Option<Retained<WinitUIWindow>> {
         // SAFETY: `WinitView`s are always installed in a `WinitUIWindow`
-        (**self).window().map(|window| unsafe { Id::cast(window) })
+        (**self).window().map(|window| unsafe { Retained::cast(window) })
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {

@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use objc2::rc::Id;
+use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, DeclaredClass};
 use objc2_foundation::{
@@ -79,8 +79,8 @@ impl WinitUIWindow {
         window_attributes: &WindowAttributes,
         frame: CGRect,
         view_controller: &UIViewController,
-    ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
+    ) -> Retained<Self> {
+        let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 
@@ -107,9 +107,9 @@ impl WinitUIWindow {
 }
 
 pub struct Inner {
-    window: Id<WinitUIWindow>,
-    view_controller: Id<WinitViewController>,
-    view: Id<WinitView>,
+    window: Retained<WinitUIWindow>,
+    view_controller: Retained<WinitViewController>,
+    view: Retained<WinitView>,
     gl_or_metal_backed: bool,
 }
 
@@ -408,18 +408,18 @@ impl Inner {
     #[cfg(feature = "rwh_04")]
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
         let mut window_handle = rwh_04::UiKitHandle::empty();
-        window_handle.ui_window = Id::as_ptr(&self.window) as _;
-        window_handle.ui_view = Id::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
+        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
         rwh_04::RawWindowHandle::UiKit(window_handle)
     }
 
     #[cfg(feature = "rwh_05")]
     pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
         let mut window_handle = rwh_05::UiKitWindowHandle::empty();
-        window_handle.ui_window = Id::as_ptr(&self.window) as _;
-        window_handle.ui_view = Id::as_ptr(&self.view) as _;
-        window_handle.ui_view_controller = Id::as_ptr(&self.view_controller) as _;
+        window_handle.ui_window = Retained::as_ptr(&self.window) as _;
+        window_handle.ui_view = Retained::as_ptr(&self.view) as _;
+        window_handle.ui_view_controller = Retained::as_ptr(&self.view_controller) as _;
         rwh_05::RawWindowHandle::UiKit(window_handle)
     }
 
@@ -431,11 +431,11 @@ impl Inner {
     #[cfg(feature = "rwh_06")]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let mut window_handle = rwh_06::UiKitWindowHandle::new({
-            let ui_view = Id::as_ptr(&self.view) as _;
-            std::ptr::NonNull::new(ui_view).expect("Id<T> should never be null")
+            let ui_view = Retained::as_ptr(&self.view) as _;
+            std::ptr::NonNull::new(ui_view).expect("Retained<T> should never be null")
         });
         window_handle.ui_view_controller =
-            std::ptr::NonNull::new(Id::as_ptr(&self.view_controller) as _);
+            std::ptr::NonNull::new(Retained::as_ptr(&self.view_controller) as _);
         rwh_06::RawWindowHandle::UiKit(window_handle)
     }
 

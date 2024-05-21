@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use core_graphics::display::{CGDisplay, CGPoint};
 use monitor::VideoModeHandle;
-use objc2::rc::{autoreleasepool, Id};
+use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
@@ -73,9 +73,9 @@ impl Default for PlatformSpecificWindowAttributes {
 #[derive(Debug)]
 pub(crate) struct State {
     /// Strong reference to the global application state.
-    app_delegate: Id<ApplicationDelegate>,
+    app_delegate: Retained<ApplicationDelegate>,
 
-    window: Id<WinitWindow>,
+    window: Retained<WinitWindow>,
 
     current_theme: Cell<Option<Theme>>,
 
@@ -355,9 +355,9 @@ declare_class!(
 
             use std::path::PathBuf;
 
-            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
+            let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
@@ -381,9 +381,9 @@ declare_class!(
 
             use std::path::PathBuf;
 
-            let pb: Id<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
+            let pb: Retained<NSPasteboard> = unsafe { msg_send_id![sender, draggingPasteboard] };
             let filenames = pb.propertyListForType(unsafe { NSFilenamesPboardType }).unwrap();
-            let filenames: Id<NSArray<NSString>> = unsafe { Id::cast(filenames) };
+            let filenames: Retained<NSArray<NSString>> = unsafe { Retained::cast(filenames) };
 
             filenames.into_iter().for_each(|file| {
                 let path = PathBuf::from(file.to_string());
@@ -437,7 +437,7 @@ fn new_window(
     app_delegate: &ApplicationDelegate,
     attrs: &WindowAttributes,
     mtm: MainThreadMarker,
-) -> Option<Id<WinitWindow>> {
+) -> Option<Retained<WinitWindow>> {
     autoreleasepool(|_| {
         let screen = match attrs.fullscreen.clone().map(Into::into) {
             Some(Fullscreen::Borderless(Some(monitor)))
@@ -509,7 +509,7 @@ fn new_window(
             masks |= NSWindowStyleMask::FullSizeContentView;
         }
 
-        let window: Option<Id<WinitWindow>> = unsafe {
+        let window: Option<Retained<WinitWindow>> = unsafe {
             msg_send_id![
                 super(mtm.alloc().set_ivars(())),
                 initWithContentRect: frame,
@@ -618,7 +618,7 @@ impl WindowDelegate {
         app_delegate: &ApplicationDelegate,
         attrs: WindowAttributes,
         mtm: MainThreadMarker,
-    ) -> Result<Id<Self>, RootOsError> {
+    ) -> Result<Retained<Self>, RootOsError> {
         let window = new_window(app_delegate, &attrs, mtm)
             .ok_or_else(|| os_error!(OsError::CreationError("couldn't create `NSWindow`")))?;
 
@@ -627,8 +627,8 @@ impl WindowDelegate {
             Some(rwh_06::RawWindowHandle::AppKit(handle)) => {
                 // SAFETY: Caller ensures the pointer is valid or NULL
                 // Unwrap is fine, since the pointer comes from `NonNull`.
-                let parent_view: Id<NSView> =
-                    unsafe { Id::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
+                let parent_view: Retained<NSView> =
+                    unsafe { Retained::retain(handle.ns_view.as_ptr().cast()) }.unwrap();
                 let parent = parent_view.window().ok_or_else(|| {
                     os_error!(OsError::CreationError("parent view should be installed in a window"))
                 })?;
@@ -678,7 +678,7 @@ impl WindowDelegate {
             is_simple_fullscreen: Cell::new(false),
             saved_style: Cell::new(None),
         });
-        let delegate: Id<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
+        let delegate: Retained<WindowDelegate> = unsafe { msg_send_id![super(delegate), init] };
 
         if scale_factor != 1.0 {
             delegate.queue_static_scale_factor_changed_event();
@@ -738,9 +738,9 @@ impl WindowDelegate {
     }
 
     #[track_caller]
-    pub(super) fn view(&self) -> Id<WinitView> {
+    pub(super) fn view(&self) -> Retained<WinitView> {
         // SAFETY: The view inside WinitWindow is always `WinitView`
-        unsafe { Id::cast(self.window().contentView().unwrap()) }
+        unsafe { Retained::cast(self.window().contentView().unwrap()) }
     }
 
     #[track_caller]
@@ -1537,7 +1537,7 @@ impl WindowDelegate {
     pub fn raw_window_handle_rwh_04(&self) -> rwh_04::RawWindowHandle {
         let mut window_handle = rwh_04::AppKitHandle::empty();
         window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Id::as_ptr(&self.contentView().unwrap()) as *mut _;
+        window_handle.ns_view = Retained::as_ptr(&self.contentView().unwrap()) as *mut _;
         rwh_04::RawWindowHandle::AppKit(window_handle)
     }
 
@@ -1546,7 +1546,7 @@ impl WindowDelegate {
     pub fn raw_window_handle_rwh_05(&self) -> rwh_05::RawWindowHandle {
         let mut window_handle = rwh_05::AppKitWindowHandle::empty();
         window_handle.ns_window = self.window() as *const WinitWindow as *mut _;
-        window_handle.ns_view = Id::as_ptr(&self.view()) as *mut _;
+        window_handle.ns_view = Retained::as_ptr(&self.view()) as *mut _;
         rwh_05::RawWindowHandle::AppKit(window_handle)
     }
 
@@ -1560,8 +1560,8 @@ impl WindowDelegate {
     #[inline]
     pub fn raw_window_handle_rwh_06(&self) -> rwh_06::RawWindowHandle {
         let window_handle = rwh_06::AppKitWindowHandle::new({
-            let ptr = Id::as_ptr(&self.view()) as *mut _;
-            std::ptr::NonNull::new(ptr).expect("Id<T> should never be null")
+            let ptr = Retained::as_ptr(&self.view()) as *mut _;
+            std::ptr::NonNull::new(ptr).expect("Retained<T> should never be null")
         });
         rwh_06::RawWindowHandle::AppKit(window_handle)
     }
