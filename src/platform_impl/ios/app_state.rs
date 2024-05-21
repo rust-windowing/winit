@@ -20,8 +20,8 @@ use objc2_foundation::{
     CGRect, CGSize, MainThreadMarker, NSInteger, NSObjectProtocol, NSOperatingSystemVersion,
     NSProcessInfo,
 };
+use objc2_ui_kit::{UICoordinateSpace, UIView};
 
-use super::uikit::UIView;
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalSize;
 use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};

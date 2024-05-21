@@ -7,8 +7,8 @@ use objc2::mutability::IsRetainable;
 use objc2::rc::Id;
 use objc2::Message;
 use objc2_foundation::{run_on_main, MainThreadBound, MainThreadMarker, NSInteger};
+use objc2_ui_kit::{UIScreen, UIScreenMode};
 
-use super::uikit::{UIScreen, UIScreenMode};
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::VideoModeHandle as RootVideoModeHandle;
 use crate::platform_impl::platform::app_state;
@@ -148,12 +148,14 @@ impl MonitorHandle {
 
     pub fn name(&self) -> Option<String> {
         run_on_main(|mtm| {
-            let main = UIScreen::main(mtm);
+            #[allow(deprecated)]
+            let main = UIScreen::mainScreen(mtm);
             if *self.ui_screen(mtm) == main {
                 Some("Primary".to_string())
-            } else if *self.ui_screen(mtm) == main.mirroredScreen() {
+            } else if Some(self.ui_screen(mtm)) == main.mirroredScreen().as_ref() {
                 Some("Mirrored".to_string())
             } else {
+                #[allow(deprecated)]
                 UIScreen::screens(mtm)
                     .iter()
                     .position(|rhs| rhs == &**self.ui_screen(mtm))
@@ -237,5 +239,6 @@ fn refresh_rate_millihertz(uiscreen: &UIScreen) -> u32 {
 }
 
 pub fn uiscreens(mtm: MainThreadMarker) -> VecDeque<MonitorHandle> {
+    #[allow(deprecated)]
     UIScreen::screens(mtm).into_iter().map(MonitorHandle::new).collect()
 }

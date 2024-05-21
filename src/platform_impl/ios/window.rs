@@ -8,12 +8,13 @@ use objc2::{class, declare_class, msg_send, msg_send_id, mutability, ClassType, 
 use objc2_foundation::{
     CGFloat, CGPoint, CGRect, CGSize, MainThreadBound, MainThreadMarker, NSObjectProtocol,
 };
+use objc2_ui_kit::{
+    UIApplication, UICoordinateSpace, UIResponder, UIScreen, UIScreenOverscanCompensation,
+    UIViewController, UIWindow,
+};
 use tracing::{debug, warn};
 
 use super::app_state::EventWrapper;
-use super::uikit::{
-    UIApplication, UIResponder, UIScreen, UIScreenOverscanCompensation, UIViewController, UIWindow,
-};
 use super::view::WinitView;
 use super::view_controller::WinitViewController;
 use crate::cursor::Cursor;
@@ -37,7 +38,7 @@ declare_class!(
     unsafe impl ClassType for WinitUIWindow {
         #[inherits(UIResponder, NSObject)]
         type Super = UIWindow;
-        type Mutability = mutability::InteriorMutable;
+        type Mutability = mutability::MainThreadOnly;
         const NAME: &'static str = "WinitUIWindow";
     }
 
@@ -79,7 +80,7 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Id<Self> {
-        let this: Id<Self> = unsafe { msg_send_id![Self::alloc(), initWithFrame: frame] };
+        let this: Id<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
 
         this.setRootViewController(Some(view_controller));
 
@@ -396,7 +397,8 @@ impl Inner {
     }
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        Some(MonitorHandle::new(UIScreen::main(MainThreadMarker::new().unwrap())))
+        #[allow(deprecated)]
+        Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
     }
 
     pub fn id(&self) -> WindowId {
@@ -483,7 +485,8 @@ impl Window {
 
         // TODO: transparency, visible
 
-        let main_screen = UIScreen::main(mtm);
+        #[allow(deprecated)]
+        let main_screen = UIScreen::mainScreen(mtm);
         let fullscreen = window_attributes.fullscreen.clone().map(Into::into);
         let screen = match fullscreen {
             Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen(mtm),
@@ -672,10 +675,8 @@ impl Inner {
         } else {
             let screen_frame = self.rect_to_screen_space(bounds);
             let status_bar_frame = {
-                let app = UIApplication::shared(MainThreadMarker::new().unwrap()).expect(
-                    "`Window::get_inner_position` cannot be called before `EventLoop::run_app` on \
-                     iOS",
-                );
+                let app = UIApplication::sharedApplication(MainThreadMarker::new().unwrap());
+                #[allow(deprecated)]
                 app.statusBarFrame()
             };
             let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {

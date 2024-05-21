@@ -177,6 +177,29 @@ features = [
     "NSSet",
 ]
 
+[target.'cfg(target_os = "ios")'.dependencies.objc2-ui-kit]
+version = "0.2.2"
+features = [
+    "UIApplication",
+    "UIDevice",
+    "UIEvent",
+    "UIGeometry",
+    "UIGestureRecognizer",
+    "UIOrientation",
+    "UIPanGestureRecognizer",
+    "UIPinchGestureRecognizer",
+    "UIResponder",
+    "UIRotationGestureRecognizer",
+    "UIScreen",
+    "UIScreenMode",
+    "UITapGestureRecognizer",
+    "UITouch",
+    "UITraitCollection",
+    "UIView",
+    "UIViewController",
+    "UIWindow",
+]
+
 [target.'cfg(target_os = "windows")'.dependencies]
 unicode-segmentation = "1.7.1"
 

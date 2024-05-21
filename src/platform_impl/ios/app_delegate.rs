@@ -1,8 +1,8 @@
 use objc2::{declare_class, mutability, ClassType, DeclaredClass};
 use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
+use objc2_ui_kit::{UIApplication, UIWindow};
 
 use super::app_state::{self, EventWrapper};
-use super::uikit::{UIApplication, UIWindow};
 use super::window::WinitUIWindow;
 use crate::event::{Event, WindowEvent};
 use crate::window::WindowId as RootWindowId;
@@ -51,6 +51,7 @@ declare_class!(
         #[method(applicationWillTerminate:)]
         fn will_terminate(&self, application: &UIApplication) {
             let mut events = Vec::new();
+            #[allow(deprecated)]
             for window in application.windows().iter() {
                 if window.is_kind_of::<WinitUIWindow>() {
                     // SAFETY: We just checked that the window is a `winit` window
@@ -81,6 +82,7 @@ declare_class!(
 impl AppDelegate {
     fn send_occluded_event_for_all_windows(&self, application: &UIApplication, occluded: bool) {
         let mut events = Vec::new();
+        #[allow(deprecated)]
         for window in application.windows().iter() {
             if window.is_kind_of::<WinitUIWindow>() {
                 // SAFETY: We just checked that the window is a `winit` window
