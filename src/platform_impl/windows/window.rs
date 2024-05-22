@@ -1271,12 +1271,6 @@ impl<'a> InitData<'a> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-        let max_size = attributes
-            .max_inner_size
-            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-        let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
         win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
@@ -1368,10 +1362,8 @@ unsafe fn init(
     let fullscreen = attributes.fullscreen.clone();
     let maximized = attributes.maximized;
 
-    let default_scale_factor = event_loop
-        .primary_monitor()
-        .map(|monitor| monitor.scale_factor())
-        .unwrap_or(1.0);
+    let default_scale_factor =
+        event_loop.primary_monitor().map(|monitor| monitor.scale_factor()).unwrap_or(1.0);
     let clamped_size = calculate_clamped_window_size(&attributes, default_scale_factor);
 
     let mut initdata = InitData { event_loop, attributes, window_flags, window: None };
@@ -1381,12 +1373,7 @@ unsafe fn init(
     // Best effort: try to create the window with the requested inner size
     let adjusted_size = {
         let [w, h] = clamped_size.to_physical::<u32>(default_scale_factor).into();
-        let mut rect = RECT {
-            left: 0,
-            top: 0,
-            right: w,
-            bottom: h,
-        };
+        let mut rect = RECT { left: 0, top: 0, right: w, bottom: h };
         unsafe {
             AdjustWindowRectEx(&mut rect, style, menu.is_some().into(), ex_style);
         }
@@ -1460,15 +1447,10 @@ unsafe fn register_window_class(class_name: &[u16]) {
 }
 
 fn calculate_clamped_window_size(attributes: &WindowAttributes, scale_factor: f64) -> Size {
-    let size = attributes
-        .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-    let max_size = attributes
-        .max_inner_size
-        .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-    let min_size = attributes
-        .min_inner_size
-        .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+    let size = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+    let max_size =
+        attributes.max_inner_size.unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+    let min_size = attributes.min_inner_size.unwrap_or_else(|| PhysicalSize::new(0, 0).into());
     Size::clamp(size, min_size, max_size, scale_factor)
 }
 
